@@ -17,6 +17,25 @@ class SelectorError(Exception):
     pass
 
 
+def _nearest(candidates, point, normal=None):
+    """Pick the item whose centre is closest to `point`. `normal` is a
+    tie-breaker: an item whose normal points away from the given one is
+    penalised, so a face pick near a shared edge doesn't jump to the wrong
+    side of a thin part."""
+
+    def score(item):
+        center = item.center()
+        dist = ((center.X - point[0]) ** 2 + (center.Y - point[1]) ** 2 + (center.Z - point[2]) ** 2) ** 0.5
+        if normal is not None:
+            n = item.normal_at(center)
+            dot = n.X * normal[0] + n.Y * normal[1] + n.Z * normal[2]
+            if dot < 0.9:
+                dist += 1e6
+        return dist
+
+    return min(candidates, key=score)
+
+
 def resolve_selector(shape, selector):
     """selector: {"from": "part", "select": [{"op": ..., ...}, ...]}"""
     steps = selector["select"]
@@ -36,6 +55,8 @@ def resolve_selector(shape, selector):
             current = [current[0]]
         elif op == "last":
             current = [current[-1]]
+        elif op == "nearest_to":
+            current = [_nearest(current, step["point"], step.get("normal"))]
         else:
             raise SelectorError(f"unknown selector op: {op}")
 

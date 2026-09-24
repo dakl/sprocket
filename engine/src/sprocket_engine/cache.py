@@ -14,7 +14,7 @@ from . import ENGINE_VERSIONS
 
 # Each op type rewraps its cached shape as the build123d class its algebra
 # operators expect, not the generic base Shape that import_brep returns.
-RESULT_TYPE = {"sketch": Sketch, "extrude": Part}
+RESULT_TYPE = {"sketch": Sketch, "extrude": Part, "extrude_face": Part}
 
 
 def feature_cache_key(feature: dict, upstream_key: str) -> str:
