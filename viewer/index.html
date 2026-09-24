@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Sprocket viewer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1e1e1e; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/STLLoader.js"></script>
+  <script src="vendor/OrbitControls.js"></script>
+  <script>
+    // M2 scope: a static viewport for one exported STL. No picking, no
+    // timeline, no live engine connection yet — see docs/SPEC.md M3+.
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e1e1e);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
+    camera.up.set(0, 0, 1); // Z-up, matching the engine's convention
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 0.8);
+    key.position.set(1, -1, 2);
+    scene.add(key);
+
+    const grid = new THREE.GridHelper(200, 20, 0x444444, 0x333333);
+    grid.rotation.x = Math.PI / 2; // lie flat in the XY plane
+    scene.add(grid);
+
+    function frameCameraOn(object) {
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const radius = size.length() * 0.6 || 50;
+
+      camera.position.set(center.x + radius, center.y - radius, center.z + radius);
+      camera.near = radius / 100;
+      camera.far = radius * 100;
+      camera.updateProjectionMatrix();
+
+      controls.target.copy(center);
+      controls.update();
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const stlPath = params.get("part") || "part.stl";
+
+    new THREE.STLLoader().load(
+      stlPath,
+      (geometry) => {
+        geometry.computeVertexNormals();
+        const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+        frameCameraOn(mesh);
+      },
+      undefined,
+      (error) => {
+        document.title = "Sprocket viewer — failed to load " + stlPath;
+        console.error("failed to load STL", stlPath, error);
+      }
+    );
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
