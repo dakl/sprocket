@@ -1,0 +1,23 @@
+name: engine tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine-tests.yml"
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv run pytest -v
