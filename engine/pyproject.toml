@@ -1,0 +1,21 @@
+[project]
+name = "sprocket-engine"
+version = "0.1.0"
+description = "Sprocket's headless geometry engine: JSON op log -> build123d -> BREP"
+readme = "README.md"
+authors = [
+    { name = "Daniel Klevebring", email = "daniel.klevebring@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "build123d>=0.13.0",
+    "jsonschema>=4.26.0",
+    "pytest>=9.1.1",
+]
+
+[project.scripts]
+sprocket = "sprocket_engine:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
