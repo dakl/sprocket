@@ -6,9 +6,87 @@
   <style>
     html, body { margin: 0; height: 100%; background: #1e1e1e; overflow: hidden; }
     canvas { display: block; }
+
+    #hint, #status {
+      position: fixed;
+      left: 50%;
+      bottom: 56px;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 30, 0.85);
+      color: #eee;
+      font: 13px -apple-system, sans-serif;
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: none;
+      pointer-events: none;
+    }
+
+    #extrude-panel {
+      position: fixed;
+      left: 50%;
+      bottom: 56px;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 30, 0.9);
+      color: #eee;
+      font: 13px -apple-system, sans-serif;
+      padding: 10px 14px;
+      border-radius: 8px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #extrude-distance { min-width: 6em; }
+
+    #extrude-panel button {
+      font: 13px -apple-system, sans-serif;
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+    }
+
+    #extrude-ok { background: #5be0a0; color: #103; }
+    #extrude-cancel { background: #444; color: #eee; }
+
+    #timeline {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 40px;
+      background: rgba(20, 20, 20, 0.95);
+      border-top: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .timeline-chip {
+      font: 12px -apple-system, sans-serif;
+      color: #ccc;
+      background: #2c2c2c;
+      border: 1px solid #444;
+      border-radius: 12px;
+      padding: 4px 10px;
+      flex: 0 0 auto;
+    }
+
+    .timeline-chip .timeline-id { color: #777; margin-right: 4px; }
   </style>
 </head>
 <body>
+  <div id="hint"></div>
+  <div id="status"></div>
+  <div id="extrude-panel">
+    <span id="extrude-distance">0.00 mm</span>
+    <button id="extrude-ok">OK</button>
+    <button id="extrude-cancel">Cancel</button>
+  </div>
+  <div id="timeline"></div>
   <script src="vendor/three.min.js"></script>
   <script src="vendor/STLLoader.js"></script>
   <script src="vendor/OrbitControls.js"></script>
@@ -52,16 +130,22 @@
     }
 
     const params = new URLSearchParams(window.location.search);
-    const stlPath = params.get("part") || "part.stl";
+    let stlPath = params.get("part") || "part.stl";
+    const cacheBust = params.get("t");
+    if (cacheBust) stlPath += (stlPath.includes("?") ? "&" : "?") + "t=" + cacheBust;
+
+    let mesh = null;
+    let adjacency = null;
 
     new THREE.STLLoader().load(
       stlPath,
       (geometry) => {
         geometry.computeVertexNormals();
         const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
-        const mesh = new THREE.Mesh(geometry, material);
+        mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
         frameCameraOn(mesh);
+        adjacency = buildAdjacency(geometry);
       },
       undefined,
       (error) => {
@@ -69,6 +153,374 @@
         console.error("failed to load STL", stlPath, error);
       }
     );
+
+    // --- Timeline (M3) --------------------------------------------------
+    // A sidecar JSON next to part.stl, written by the Swift app on every
+    // rebuild: a plain array of {id, type}, one per feature in the document.
+    let featuresPath = "features.json";
+    if (cacheBust) featuresPath += "?t=" + cacheBust;
+
+    fetch(featuresPath)
+      .then((response) => (response.ok ? response.json() : []))
+      .then(renderTimeline)
+      .catch(() => {});
+
+    function renderTimeline(features) {
+      const timeline = document.getElementById("timeline");
+      timeline.innerHTML = "";
+      for (const feature of features) {
+        const chip = document.createElement("span");
+        chip.className = "timeline-chip";
+        chip.innerHTML = '<span class="timeline-id">' + feature.id + "</span>" + feature.type;
+        timeline.appendChild(chip);
+      }
+    }
+
+    // --- Push/pull picking (M3) ---------------------------------------
+    // A "patch" is the set of triangles reachable from a clicked triangle
+    // by crossing only shared edges into neighbours with the same normal
+    // (within tolerance). That is one flat face, even when the STL split
+    // it into several triangles.
+
+    function vertexKey(pos, i) {
+      // Round to make coincident vertices from different triangles compare
+      // equal. STLLoader geometry is non-indexed, so there is no shared
+      // index to rely on.
+      return Math.round(pos.getX(i) * 1000) + "," + Math.round(pos.getY(i) * 1000) + "," + Math.round(pos.getZ(i) * 1000);
+    }
+
+    function buildAdjacency(geometry) {
+      const pos = geometry.attributes.position;
+      const triCount = pos.count / 3;
+      const triEdges = [];
+      const edgeMap = new Map(); // "keyA|keyB" -> [triIndex, ...]
+      const keyToPos = new Map();
+
+      for (let t = 0; t < triCount; t++) {
+        const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+        const k0 = vertexKey(pos, i0), k1 = vertexKey(pos, i1), k2 = vertexKey(pos, i2);
+        if (!keyToPos.has(k0)) keyToPos.set(k0, new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0)));
+        if (!keyToPos.has(k1)) keyToPos.set(k1, new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1)));
+        if (!keyToPos.has(k2)) keyToPos.set(k2, new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2)));
+
+        const edges = [[k0, k1], [k1, k2], [k2, k0]];
+        triEdges.push(edges);
+        for (const [a, b] of edges) {
+          const ek = a < b ? a + "|" + b : b + "|" + a;
+          if (!edgeMap.has(ek)) edgeMap.set(ek, []);
+          edgeMap.get(ek).push(t);
+        }
+      }
+
+      const neighbours = Array.from({ length: triCount }, () => []);
+      for (const tris of edgeMap.values()) {
+        if (tris.length === 2) {
+          neighbours[tris[0]].push(tris[1]);
+          neighbours[tris[1]].push(tris[0]);
+        }
+      }
+
+      return { triCount, triEdges, neighbours, keyToPos };
+    }
+
+    function triNormal(pos, t) {
+      const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+      const a = new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
+      const b = new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
+      const c = new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
+      return new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    }
+
+    function floodFillPatch(startTri, pos) {
+      const normal = triNormal(pos, startTri);
+      const triangles = new Set([startTri]);
+      const stack = [startTri];
+      while (stack.length) {
+        const t = stack.pop();
+        for (const n of adjacency.neighbours[t]) {
+          if (triangles.has(n)) continue;
+          if (triNormal(pos, n).dot(normal) > 0.999) {
+            triangles.add(n);
+            stack.push(n);
+          }
+        }
+      }
+      return { triangles, normal };
+    }
+
+    function boundaryEdges(triangles) {
+      const counts = new Map();
+      for (const t of triangles) {
+        for (const [a, b] of adjacency.triEdges[t]) {
+          const ek = a < b ? a + "|" + b : b + "|" + a;
+          counts.set(ek, (counts.get(ek) || 0) + 1);
+        }
+      }
+      const edges = [];
+      for (const t of triangles) {
+        for (const [a, b] of adjacency.triEdges[t]) {
+          const ek = a < b ? a + "|" + b : b + "|" + a;
+          if (counts.get(ek) === 1) edges.push([a, b]);
+        }
+      }
+      return edges;
+    }
+
+    // Walk the boundary edges into ordered loops, so consecutive vertices
+    // are connected. Assumes simple faces with no holes, true for boxy parts.
+    function orderLoops(edges) {
+      const adj = new Map();
+      for (const [a, b] of edges) {
+        if (!adj.has(a)) adj.set(a, []);
+        if (!adj.has(b)) adj.set(b, []);
+        adj.get(a).push(b);
+        adj.get(b).push(a);
+      }
+      const used = new Set();
+      const loops = [];
+      for (const [a, b] of edges) {
+        const startKey = a < b ? a + "|" + b : b + "|" + a;
+        if (used.has(startKey)) continue;
+        used.add(startKey);
+        const loop = [a];
+        let cur = b;
+        while (cur !== a) {
+          loop.push(cur);
+          const next = adj.get(cur).find((n) => {
+            const ek = n < cur ? n + "|" + cur : cur + "|" + n;
+            return !used.has(ek);
+          });
+          if (next === undefined) break;
+          used.add(next < cur ? next + "|" + cur : cur + "|" + next);
+          cur = next;
+        }
+        loops.push(loop);
+      }
+      return loops;
+    }
+
+    // Preview geometry: the patch itself, copied and pushed out along the
+    // normal (the "cap"), plus a wall of quads connecting the original
+    // boundary loop to its pushed-out copy. offsetFlags marks which
+    // vertices move, so a drag only rewrites a position buffer - no rebuild.
+    function buildPreviewArrays(patch, pos) {
+      const positions = [];
+      const offsets = [];
+
+      for (const t of patch.triangles) {
+        for (let k = 0; k < 3; k++) {
+          const i = t * 3 + k;
+          positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+          offsets.push(1);
+        }
+      }
+
+      const loops = orderLoops(boundaryEdges(patch.triangles));
+      for (const loop of loops) {
+        for (let i = 0; i < loop.length; i++) {
+          const a = adjacency.keyToPos.get(loop[i]);
+          const b = adjacency.keyToPos.get(loop[(i + 1) % loop.length]);
+          positions.push(a.x, a.y, a.z); offsets.push(0);
+          positions.push(b.x, b.y, b.z); offsets.push(0);
+          positions.push(b.x, b.y, b.z); offsets.push(1);
+          positions.push(a.x, a.y, a.z); offsets.push(0);
+          positions.push(b.x, b.y, b.z); offsets.push(1);
+          positions.push(a.x, a.y, a.z); offsets.push(1);
+        }
+      }
+
+      return { positions: new Float32Array(positions), offsets: new Float32Array(offsets) };
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthTest: true });
+    const highlightMesh = new THREE.Mesh(new THREE.BufferGeometry(), highlightMaterial);
+    highlightMesh.visible = false;
+    scene.add(highlightMesh);
+
+    function setHighlight(patch, pos, color) {
+      const positions = [];
+      for (const t of patch.triangles) {
+        for (let k = 0; k < 3; k++) {
+          const i = t * 3 + k;
+          // nudge along the normal so the highlight doesn't z-fight the mesh
+          positions.push(
+            pos.getX(i) + patch.normal.x * 0.05,
+            pos.getY(i) + patch.normal.y * 0.05,
+            pos.getZ(i) + patch.normal.z * 0.05
+          );
+        }
+      }
+      highlightMesh.geometry.dispose();
+      highlightMesh.geometry = new THREE.BufferGeometry();
+      highlightMesh.geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      highlightMaterial.color.set(color);
+      highlightMesh.visible = true;
+    }
+
+    function clearHighlight() {
+      highlightMesh.visible = false;
+    }
+
+    function raycastFace(event) {
+      if (!mesh) return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObject(mesh);
+      return hits.length ? hits[0] : null;
+    }
+
+    const hintEl = document.getElementById("hint");
+    const panelEl = document.getElementById("extrude-panel");
+    const distanceEl = document.getElementById("extrude-distance");
+    const statusEl = document.getElementById("status");
+
+    function showHint(text) { hintEl.textContent = text; hintEl.style.display = "block"; }
+    function hideHint() { hintEl.style.display = "none"; }
+    function showStatus(text) { statusEl.textContent = text; statusEl.style.display = "block"; }
+
+    let selectedPatch = null; // { triangles, normal, anchorPoint }
+    let extrudeArmed = false;
+    let dragLocked = false; // true once the user clicks to fix the distance, before OK
+    let previewState = null; // { basePositions, offsetFlags, previewMesh, previewGeometry, dragPlane, distance }
+
+    renderer.domElement.addEventListener("pointermove", (event) => {
+      if (extrudeArmed) {
+        if (!dragLocked) updateDragDistance(event);
+        return;
+      }
+      if (selectedPatch) return; // keep the selection highlight until a new pick
+      const hit = raycastFace(event);
+      if (!hit) {
+        clearHighlight();
+        return;
+      }
+      const patch = floodFillPatch(hit.faceIndex, mesh.geometry.attributes.position);
+      setHighlight(patch, mesh.geometry.attributes.position, 0xffaa00);
+    });
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      if (extrudeArmed && !dragLocked) {
+        dragLocked = true; // click lets go of the drag; OK/Cancel take it from here
+        distanceEl.textContent = previewState.distance.toFixed(2) + " mm (locked)";
+        return;
+      }
+      if (extrudeArmed) return; // already locked - OK/Cancel decide the outcome
+      const hit = raycastFace(event);
+      if (!hit) {
+        selectedPatch = null;
+        clearHighlight();
+        hideHint();
+        return;
+      }
+      const pos = mesh.geometry.attributes.position;
+      const patch = floodFillPatch(hit.faceIndex, pos);
+      selectedPatch = { triangles: patch.triangles, normal: patch.normal, anchorPoint: hit.point.clone() };
+      setHighlight(selectedPatch, pos, 0xffdd55);
+      showHint("Press E to extrude");
+    });
+
+    function armExtrude() {
+      const axis = selectedPatch.normal;
+      const anchor = selectedPatch.anchorPoint;
+      const cameraToAnchor = anchor.clone().sub(camera.position).normalize();
+      let planeNormal = new THREE.Vector3().crossVectors(axis, cameraToAnchor).cross(axis);
+      if (planeNormal.lengthSq() < 1e-6) {
+        planeNormal = new THREE.Vector3();
+        camera.getWorldDirection(planeNormal);
+      }
+      planeNormal.normalize();
+      const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, anchor);
+
+      const pos = mesh.geometry.attributes.position;
+      const { positions: basePositions, offsets: offsetFlags } = buildPreviewArrays(selectedPatch, pos);
+      const previewGeometry = new THREE.BufferGeometry();
+      previewGeometry.setAttribute("position", new THREE.Float32BufferAttribute(basePositions.slice(), 3));
+      const previewMaterial = new THREE.MeshStandardMaterial({ color: 0x5be0a0, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      const previewMesh = new THREE.Mesh(previewGeometry, previewMaterial);
+      scene.add(previewMesh);
+
+      previewState = { basePositions, offsetFlags, previewMesh, previewGeometry, dragPlane, distance: 0.01 };
+      extrudeArmed = true;
+      dragLocked = false;
+      controls.enabled = false;
+      hideHint();
+      panelEl.style.display = "flex";
+      updatePreviewGeometry(previewState.distance);
+    }
+
+    function updatePreviewGeometry(distance) {
+      const { basePositions, offsetFlags, previewGeometry } = previewState;
+      const arr = previewGeometry.attributes.position.array;
+      const axis = selectedPatch.normal;
+      for (let i = 0; i < offsetFlags.length; i++) {
+        const o = offsetFlags[i] * distance;
+        arr[i * 3] = basePositions[i * 3] + axis.x * o;
+        arr[i * 3 + 1] = basePositions[i * 3 + 1] + axis.y * o;
+        arr[i * 3 + 2] = basePositions[i * 3 + 2] + axis.z * o;
+      }
+      previewGeometry.attributes.position.needsUpdate = true;
+      previewGeometry.computeVertexNormals();
+      previewState.distance = distance;
+      distanceEl.textContent = distance.toFixed(2) + " mm";
+    }
+
+    function updateDragDistance(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(previewState.dragPlane, hit)) return;
+      const distance = Math.max(hit.clone().sub(selectedPatch.anchorPoint).dot(selectedPatch.normal), 0.01);
+      updatePreviewGeometry(distance);
+    }
+
+    function cancelExtrude() {
+      scene.remove(previewState.previewMesh);
+      previewState.previewGeometry.dispose();
+      previewState.previewMesh.material.dispose();
+      previewState = null;
+      extrudeArmed = false;
+      dragLocked = false;
+      controls.enabled = true;
+      panelEl.style.display = "none";
+    }
+
+    function commitExtrude() {
+      const message = {
+        type: "extrude_face",
+        point: selectedPatch.anchorPoint.toArray(),
+        normal: selectedPatch.normal.toArray(),
+        distance: previewState.distance,
+      };
+      cancelExtrude();
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket) {
+        window.webkit.messageHandlers.sprocket.postMessage(message);
+        showStatus("Rebuilding…");
+      } else {
+        console.log("extrude_face (no Swift bridge, browser preview)", message);
+      }
+    }
+
+    document.getElementById("extrude-ok").addEventListener("click", () => { if (extrudeArmed) commitExtrude(); });
+    document.getElementById("extrude-cancel").addEventListener("click", () => { if (extrudeArmed) cancelExtrude(); });
+
+    window.addEventListener("keydown", (event) => {
+      if ((event.key === "e" || event.key === "E") && selectedPatch && !extrudeArmed) {
+        armExtrude();
+      } else if (event.key === "Escape" && extrudeArmed) {
+        cancelExtrude();
+      } else if (event.key === "Enter" && extrudeArmed) {
+        commitExtrude();
+      }
+    });
 
     function animate() {
       requestAnimationFrame(animate);
