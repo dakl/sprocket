@@ -26,7 +26,40 @@ struct WebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        // WKWebView treats each file:// URL as its own origin, so the
+        // viewer's fetch() of part.stl/features.json next to it is blocked
+        // as cross-origin unless this is set (undocumented WebKit key, no
+        // public API for it).
+        configuration.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
         configuration.userContentController.add(context.coordinator, name: "sprocket")
+        // Forwards console.log/warn/error and uncaught errors to Swift's
+        // stdout. This unbundled build has no dev tools attached, so this
+        // is the only window into the page's JS.
+        let debugScript = """
+        (function () {
+          function send(level, args) {
+            try {
+              window.webkit.messageHandlers.sprocket.postMessage({
+                type: "log", level: level,
+                text: Array.from(args).map(String).join(" ")
+              });
+            } catch (e) {}
+          }
+          ["log", "warn", "error"].forEach(function (level) {
+            const original = console[level];
+            console[level] = function () {
+              send(level, arguments);
+              original.apply(console, arguments);
+            };
+          });
+          window.onerror = function (message, source, lineno, colno) {
+            send("error", [message + " at " + source + ":" + lineno + ":" + colno]);
+          };
+        })();
+        """
+        configuration.userContentController.addUserScript(
+            WKUserScript(source: debugScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        )
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.loadFileURL(url, allowingReadAccessTo: readAccessURL)
         return webView
@@ -48,7 +81,15 @@ struct WebView: NSViewRepresentable {
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "sprocket",
                   let body = message.body as? [String: Any],
-                  body["type"] as? String == "extrude_face",
+                  let type = body["type"] as? String
+            else { return }
+
+            if type == "log" {
+                print("[viewer \(body["level"] ?? "log")] \(body["text"] ?? "")")
+                return
+            }
+
+            guard type == "extrude_face",
                   let point = body["point"] as? [Double],
                   let normal = body["normal"] as? [Double],
                   let distance = body["distance"] as? Double

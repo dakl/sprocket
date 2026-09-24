@@ -99,9 +99,11 @@
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
     camera.up.set(0, 0, 1); // Z-up, matching the engine's convention
 
+    console.log("renderer init, size", window.innerWidth, window.innerHeight);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+    console.log("renderer ready");
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
 
@@ -131,7 +133,9 @@
 
     const params = new URLSearchParams(window.location.search);
     let stlPath = params.get("part") || "part.stl";
-    const cacheBust = params.get("t");
+    // file:// resource loads ignore query strings on the request path, so a
+    // cache-busting "?t=" only works when the page itself is served over http.
+    const cacheBust = window.location.protocol === "file:" ? null : params.get("t");
     if (cacheBust) stlPath += (stlPath.includes("?") ? "&" : "?") + "t=" + cacheBust;
 
     let mesh = null;
@@ -140,6 +144,7 @@
     new THREE.STLLoader().load(
       stlPath,
       (geometry) => {
+        console.log("STL loaded", stlPath);
         geometry.computeVertexNormals();
         const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
         mesh = new THREE.Mesh(geometry, material);
