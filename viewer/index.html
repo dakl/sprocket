@@ -166,9 +166,11 @@
     if (cacheBust) featuresPath += "?t=" + cacheBust;
 
     fetch(featuresPath)
-      .then((response) => (response.ok ? response.json() : []))
+      // file:// fetches report status 0, not 200, so response.ok is always
+      // false there — the same quirk STLLoader works around internally.
+      .then((response) => (response.ok || response.status === 0 ? response.json() : []))
       .then(renderTimeline)
-      .catch(() => {});
+      .catch((error) => console.error("failed to load features.json", error));
 
     function renderTimeline(features) {
       const timeline = document.getElementById("timeline");
