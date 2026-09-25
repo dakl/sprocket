@@ -65,7 +65,7 @@ struct ContentView: View {
 
     private func rebuild() {
         writeFeaturesSidecar()
-        let result = EngineRunner.build(document: document, stlOut: stlOut)
+        let result = EngineRunner.shared.build(document: document, stlOut: stlOut)
         status = result.success ? .ready : .failed(result.output)
     }
 

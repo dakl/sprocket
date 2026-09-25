@@ -1,8 +1,12 @@
 """sprocket build doc.json --step out.step --stl out.stl
+sprocket serve
 
-This is the M1 agent/human interface: write a document as JSON, run this
-command, read the exported files back. No daemon, no MCP server, both of
-those wrap this same replay() call later if they turn out to be needed.
+`build` is the one-shot CLI: write a document as JSON, run this command,
+read the exported files back. `serve` is the same replay() call kept behind
+a warm process: importing build123d (OCP's OpenCascade bindings) costs
+2-3s, so a fresh subprocess per edit made the app's "rebuilding" step
+sluggish. The Swift app now launches `serve` once and sends it one build
+request per line instead of re-launching `build` on every op edit.
 """
 
 import argparse
@@ -32,31 +36,66 @@ def main(argv: list[str] | None = None) -> int:
         help="BREP cache directory (default: <document dir>/cache)",
     )
 
+    sub.add_parser(
+        "serve",
+        help="read one JSON build request per line from stdin, keep build123d warm between builds",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "build":
         return _build(args)
+    if args.command == "serve":
+        return _serve()
     return 1
 
 
-def _build(args: argparse.Namespace) -> int:
-    document = json.loads(args.document.read_text())
-    cache_dir = args.cache_dir or args.document.parent / "cache"
+def _build_document(
+    document_path: Path, step: Path | None, stl: Path | None, cache_dir: Path | None
+) -> tuple[bool, str]:
+    """Replays one document and exports it. Shared by `build` and `serve`
+    so the daemon path can't silently drift from the one-shot CLI path."""
+    document = json.loads(Path(document_path).read_text())
+    resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
 
     try:
-        result = replay(document, cache_dir=cache_dir)
+        result = replay(document, cache_dir=resolved_cache_dir)
     except ReplayError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        return False, f"error: {exc}"
+
+    messages = []
+    if step:
+        export_step(result, Path(step))
+        messages.append(f"wrote {step}")
+    if stl:
+        export_stl(result, Path(stl))
+        messages.append(f"wrote {stl}")
+    if not step and not stl:
+        messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")
+    return True, "\n".join(messages)
+
+
+def _build(args: argparse.Namespace) -> int:
+    success, output = _build_document(args.document, args.step, args.stl, args.cache_dir)
+    if not success:
+        print(output, file=sys.stderr)
         return 1
+    print(output)
+    return 0
 
-    if args.step:
-        export_step(result, args.step)
-        print(f"wrote {args.step}")
-    if args.stl:
-        export_stl(result, args.stl)
-        print(f"wrote {args.stl}")
-    if not args.step and not args.stl:
-        print(f"replayed ok: volume={result.volume:.3f} mm^3")
 
+def _serve() -> int:
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            request = json.loads(line)
+            success, output = _build_document(
+                request["document"], request.get("step"), request.get("stl"), request.get("cache_dir")
+            )
+        except Exception as exc:
+            success, output = False, f"error: {exc}"
+        print(json.dumps({"success": success, "output": output}), flush=True)
     return 0
 
 
