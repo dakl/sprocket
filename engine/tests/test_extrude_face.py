@@ -40,6 +40,35 @@ def test_push_pull_picks_the_face_nearest_the_click_point(tmp_path: Path):
     assert part.volume == pytest.approx(8000 + 40 * 20 * 5, rel=1e-6)
 
 
+def test_push_pull_cuts_material_when_pushed_inward(tmp_path: Path):
+    part = replay(_with_push(-3), cache_dir=tmp_path / "cache")
+    assert part.volume == pytest.approx(8000 - 40 * 20 * 3, rel=1e-6)
+
+
+def test_push_pull_off_a_bare_sketch_extrudes_instead_of_fusing(tmp_path: Path):
+    # base is a flat sketch here, not a solid yet, so there's nothing to
+    # fuse/cut against - this used to raise "Null TopoDS_Shape object".
+    document = {
+        "schema_version": 1,
+        "units": {"length": "mm"},
+        "features": [
+            {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+            {
+                "id": "f2",
+                "type": "extrude_face",
+                "base": "f1",
+                "face": {
+                    "from": "part",
+                    "select": [{"op": "faces"}, {"op": "nearest_to", "point": [0, 0, 0], "normal": [0, 0, 1]}],
+                },
+                "distance": 10,
+            },
+        ],
+    }
+    part = replay(document, cache_dir=tmp_path / "cache")
+    assert part.volume == pytest.approx(40 * 20 * 10, rel=1e-6)
+
+
 def test_push_pull_rejects_a_selector_matching_more_than_one_face(tmp_path: Path):
     document = json.loads(json.dumps(RECT_EXTRUDE))
     document["features"].append(

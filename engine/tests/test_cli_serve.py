@@ -8,9 +8,25 @@ import io
 import json
 from pathlib import Path
 
-from sprocket_engine.cli import _serve
+from sprocket_engine.cli import _build_document, _serve
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
+
+
+def test_rollback_to_empty_clears_a_stale_stl_instead_of_failing(tmp_path: Path):
+    document_path = tmp_path / "document.json"
+    document = json.loads((Path(__file__).parent / "golden" / "rect_extrude" / "document.json").read_text())
+    document["rollback_index"] = 0
+    document_path.write_text(json.dumps(document))
+
+    stl_out = tmp_path / "part.stl"
+    stl_out.write_bytes(b"stale from before the rollback")
+
+    success, output = _build_document(document_path, None, stl_out, tmp_path / "cache")
+
+    assert success is True
+    assert "empty document" in output
+    assert not stl_out.exists()
 
 
 def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):

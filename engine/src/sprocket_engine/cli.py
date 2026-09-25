@@ -62,6 +62,14 @@ def _build_document(
     except ReplayError as exc:
         return False, f"error: {exc}"
 
+    if result is None:
+        # rollback_index=0: a valid empty document, not a failure. Clear any
+        # stale export from before the rollback instead of leaving it behind.
+        for path in (step, stl):
+            if path and Path(path).exists():
+                Path(path).unlink()
+        return True, "replayed ok: empty document"
+
     messages = []
     if step:
         export_step(result, Path(step))

@@ -174,8 +174,18 @@
         },
         undefined,
         (error) => {
-          document.title = "Sprocket viewer — failed to load " + path;
-          console.error("failed to load STL", path, error);
+          // Also fires for a genuinely empty document (rolled back before
+          // the first feature): the engine deletes part.stl rather than
+          // export nothing, so clear the stale mesh instead of leaving the
+          // last-built part on screen.
+          document.title = "Sprocket viewer";
+          console.log("no part.stl to load (empty document, or a real load failure)", path, error);
+          if (mesh) {
+            scene.remove(mesh);
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+            mesh = null;
+          }
         }
       );
     }
@@ -533,7 +543,10 @@
       raycaster.setFromCamera(ndc, camera);
       const hit = new THREE.Vector3();
       if (!raycaster.ray.intersectPlane(previewState.dragPlane, hit)) return;
-      const distance = Math.max(hit.clone().sub(selectedPatch.anchorPoint).dot(selectedPatch.normal), 0.01);
+      let distance = hit.clone().sub(selectedPatch.anchorPoint).dot(selectedPatch.normal);
+      // clamp away from zero, not to a positive floor - dragging past the
+      // anchor point pushes inward and should cut, not floor out at 0.01.
+      if (Math.abs(distance) < 0.01) distance = distance < 0 ? -0.01 : 0.01;
       updatePreviewGeometry(distance);
     }
 

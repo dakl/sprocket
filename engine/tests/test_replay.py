@@ -30,6 +30,13 @@ def test_rollback_index_stops_before_the_extrude(tmp_path: Path):
     assert result.area == pytest.approx(800, rel=1e-6)  # the sketch's own area, not a solid
 
 
+def test_rollback_index_zero_is_an_empty_document_not_an_error(tmp_path: Path):
+    document = json.loads(json.dumps(RECT_EXTRUDE))
+    document["rollback_index"] = 0  # before the first feature - a blank timeline
+    result = replay(document, cache_dir=tmp_path / "cache")
+    assert result is None
+
+
 def test_cache_hit_skips_recompute(tmp_path: Path, monkeypatch):
     calls = []
     real_apply = ops.REGISTRY["extrude"].apply

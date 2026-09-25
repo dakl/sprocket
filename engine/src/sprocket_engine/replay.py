@@ -27,6 +27,10 @@ class Context:
 
 
 def replay(document: dict, cache_dir: Path | None = None):
+    """Returns the shape after replaying features[:rollback_index], or None
+    when that prefix is empty. rollback_index=0 is a valid state, the same
+    as Fusion 360's timeline rolled back before the first feature - it means
+    an empty document, not an error."""
     features = document["features"]
     rollback_index = document.get("rollback_index", len(features))
     cache = BrepCache(cache_dir) if cache_dir else None
@@ -56,8 +60,5 @@ def replay(document: dict, cache_dir: Path | None = None):
         ctx.results[feature["id"]] = result
         upstream_key = key
         last_result = result
-
-    if last_result is None:
-        raise ReplayError("document has no features to replay")
 
     return last_result
