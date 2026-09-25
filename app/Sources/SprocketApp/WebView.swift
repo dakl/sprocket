@@ -19,9 +19,12 @@ struct WebView: NSViewRepresentable {
     let url: URL
     let readAccessURL: URL
     let onExtrudeFace: (ExtrudeFacePayload) -> Void
+    let onSetRollback: (Int) -> Void
+    let onUndo: () -> Void
+    let onRedo: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onExtrudeFace: onExtrudeFace)
+        Coordinator(onExtrudeFace: onExtrudeFace, onSetRollback: onSetRollback, onUndo: onUndo, onRedo: onRedo)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -73,9 +76,20 @@ struct WebView: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         private let onExtrudeFace: (ExtrudeFacePayload) -> Void
+        private let onSetRollback: (Int) -> Void
+        private let onUndo: () -> Void
+        private let onRedo: () -> Void
 
-        init(onExtrudeFace: @escaping (ExtrudeFacePayload) -> Void) {
+        init(
+            onExtrudeFace: @escaping (ExtrudeFacePayload) -> Void,
+            onSetRollback: @escaping (Int) -> Void,
+            onUndo: @escaping () -> Void,
+            onRedo: @escaping () -> Void
+        ) {
             self.onExtrudeFace = onExtrudeFace
+            self.onSetRollback = onSetRollback
+            self.onUndo = onUndo
+            self.onRedo = onRedo
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -86,6 +100,22 @@ struct WebView: NSViewRepresentable {
 
             if type == "log" {
                 print("[viewer \(body["level"] ?? "log")] \(body["text"] ?? "")")
+                return
+            }
+
+            if type == "set_rollback" {
+                guard let index = body["index"] as? Int else { return }
+                onSetRollback(index)
+                return
+            }
+
+            if type == "undo" {
+                onUndo()
+                return
+            }
+
+            if type == "redo" {
+                onRedo()
                 return
             }
 

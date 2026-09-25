@@ -73,6 +73,14 @@
       border-radius: 12px;
       padding: 4px 10px;
       flex: 0 0 auto;
+      cursor: pointer;
+    }
+
+    .timeline-chip:hover { border-color: #5be0a0; }
+
+    .timeline-chip.timeline-chip-inactive {
+      opacity: 0.4;
+      border-style: dashed;
     }
 
     .timeline-chip .timeline-id { color: #777; margin-right: 4px; }
@@ -170,15 +178,32 @@
       .then(renderTimeline)
       .catch((error) => console.error("failed to load features.json", error));
 
+    // A chip's click sets rollback_index: an active chip rolls back to just
+    // before it; a greyed-out one rolls forward to just past it. Cmd+Z /
+    // Cmd+Shift+Z undo/redo this and every extrude, via Swift's undo stack.
     function renderTimeline(features) {
       const timeline = document.getElementById("timeline");
       timeline.innerHTML = "";
-      for (const feature of features) {
+      features.forEach((feature, index) => {
         const chip = document.createElement("span");
-        chip.className = "timeline-chip";
+        chip.className = "timeline-chip" + (feature.active ? "" : " timeline-chip-inactive");
         chip.innerHTML = '<span class="timeline-id">' + feature.id + "</span>" + feature.type;
+        chip.addEventListener("click", () => setRollback(feature.active ? index : index + 1));
         timeline.appendChild(chip);
+      });
+    }
+
+    function postToSwift(message) {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket) {
+        window.webkit.messageHandlers.sprocket.postMessage(message);
+        showStatus("Rebuilding…");
+      } else {
+        console.log("(no Swift bridge, browser preview)", message);
       }
+    }
+
+    function setRollback(index) {
+      postToSwift({ type: "set_rollback", index: index });
     }
 
     // --- Push/pull picking (M3) ---------------------------------------
@@ -506,12 +531,7 @@
         distance: previewState.distance,
       };
       cancelExtrude();
-      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket) {
-        window.webkit.messageHandlers.sprocket.postMessage(message);
-        showStatus("Rebuilding…");
-      } else {
-        console.log("extrude_face (no Swift bridge, browser preview)", message);
-      }
+      postToSwift(message);
     }
 
     document.getElementById("extrude-ok").addEventListener("click", () => { if (extrudeArmed) commitExtrude(); });
@@ -524,6 +544,9 @@
         cancelExtrude();
       } else if (event.key === "Enter" && extrudeArmed) {
         commitExtrude();
+      } else if (event.metaKey && event.key.toLowerCase() === "z" && !extrudeArmed) {
+        event.preventDefault();
+        postToSwift({ type: event.shiftKey ? "redo" : "undo" });
       }
     });
 
