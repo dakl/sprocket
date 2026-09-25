@@ -9,7 +9,7 @@ SCHEMA = {
         "id": {"type": "string"},
         "type": {"const": "extrude"},
         "profile": {"type": "string", "description": "id of a sketch feature"},
-        "distance": {"type": "number", "exclusiveMinimum": 0, "description": "mm"},
+        "distance": {"type": "number", "not": {"const": 0}, "description": "mm, sign controls direction"},
     },
 }
 

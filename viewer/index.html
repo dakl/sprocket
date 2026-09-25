@@ -71,7 +71,7 @@
       background: #2c2c2c;
       border: 1px solid #444;
       border-radius: 12px;
-      padding: 4px 10px;
+      padding: 4px 8px;
       flex: 0 0 auto;
       cursor: pointer;
     }
@@ -83,7 +83,7 @@
       border-style: dashed;
     }
 
-    .timeline-chip .timeline-id { color: #777; margin-right: 4px; }
+    .timeline-chip .timeline-icon { margin-right: 3px; }
   </style>
 </head>
 <body>
@@ -216,13 +216,17 @@
     // A chip's click sets rollback_index: an active chip rolls back to just
     // before it; a greyed-out one rolls forward to just past it. Cmd+Z /
     // Cmd+Shift+Z undo/redo this and every extrude, via Swift's undo stack.
+    const FEATURE_ICONS = { sketch: "✎", extrude: "⬆", extrude_face: "↕" };
+
     function renderTimeline(features) {
       const timeline = document.getElementById("timeline");
       timeline.innerHTML = "";
       features.forEach((feature, index) => {
         const chip = document.createElement("span");
         chip.className = "timeline-chip" + (feature.active ? "" : " timeline-chip-inactive");
-        chip.innerHTML = '<span class="timeline-id">' + feature.id + "</span>" + feature.type;
+        chip.title = feature.type;
+        const icon = FEATURE_ICONS[feature.type] || "?";
+        chip.innerHTML = '<span class="timeline-icon">' + icon + "</span>" + feature.id;
         chip.addEventListener("click", () => setRollback(feature.active ? index : index + 1));
         timeline.appendChild(chip);
       });
