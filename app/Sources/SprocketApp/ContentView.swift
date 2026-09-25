@@ -79,8 +79,10 @@ struct ContentView: View {
             status = .failed("failed to update \(document.lastPathComponent): \(error.localizedDescription)")
             return
         }
-        reloadToken = Date().timeIntervalSince1970
+        // rebuild() must finish writing part.stl before reloadToken changes,
+        // or WebView reloads to a URL whose STL is still the previous build.
         rebuild()
+        reloadToken = Date().timeIntervalSince1970
     }
 
     /// Appends one `extrude_face` feature onto whatever the last feature in
