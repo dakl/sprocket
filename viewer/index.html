@@ -140,43 +140,68 @@
     }
 
     const params = new URLSearchParams(window.location.search);
-    let stlPath = params.get("part") || "part.stl";
-    const cacheBust = params.get("t");
-    if (cacheBust) stlPath += (stlPath.includes("?") ? "&" : "?") + "t=" + cacheBust;
+    const partBase = params.get("part") || "part.stl";
+    const featuresBase = "features.json";
 
     let mesh = null;
     let adjacency = null;
 
-    new THREE.STLLoader().load(
-      stlPath,
-      (geometry) => {
-        console.log("STL loaded", stlPath);
-        geometry.computeVertexNormals();
-        const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
-        mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-        frameCameraOn(mesh);
-        adjacency = buildAdjacency(geometry);
-      },
-      undefined,
-      (error) => {
-        document.title = "Sprocket viewer — failed to load " + stlPath;
-        console.error("failed to load STL", stlPath, error);
-      }
-    );
+    function urlWithCacheBust(base, token) {
+      if (!token) return base;
+      return base + (base.includes("?") ? "&" : "?") + "t=" + token;
+    }
+
+    function loadPart(token, options) {
+      const refit = Boolean(options && options.refit);
+      const path = urlWithCacheBust(partBase, token);
+      new THREE.STLLoader().load(
+        path,
+        (geometry) => {
+          console.log("STL loaded", path);
+          geometry.computeVertexNormals();
+          // Replace, don't add: a rebuild reuses this scene instead of
+          // reloading the page, so the old mesh must go or it doubles up.
+          if (mesh) {
+            scene.remove(mesh);
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+          }
+          const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
+          mesh = new THREE.Mesh(geometry, material);
+          scene.add(mesh);
+          if (refit) frameCameraOn(mesh);
+          adjacency = buildAdjacency(geometry);
+        },
+        undefined,
+        (error) => {
+          document.title = "Sprocket viewer — failed to load " + path;
+          console.error("failed to load STL", path, error);
+        }
+      );
+    }
 
     // --- Timeline (M3) --------------------------------------------------
     // A sidecar JSON next to part.stl, written by the Swift app on every
     // rebuild: a plain array of {id, type}, one per feature in the document.
-    let featuresPath = "features.json";
-    if (cacheBust) featuresPath += "?t=" + cacheBust;
+    function loadFeatures(token) {
+      fetch(urlWithCacheBust(featuresBase, token))
+        // file:// fetches report status 0, not 200, so response.ok is always
+        // false there — the same quirk STLLoader works around internally.
+        .then((response) => (response.ok || response.status === 0 ? response.json() : []))
+        .then(renderTimeline)
+        .catch((error) => console.error("failed to load features.json", error));
+    }
 
-    fetch(featuresPath)
-      // file:// fetches report status 0, not 200, so response.ok is always
-      // false there — the same quirk STLLoader works around internally.
-      .then((response) => (response.ok || response.status === 0 ? response.json() : []))
-      .then(renderTimeline)
-      .catch((error) => console.error("failed to load features.json", error));
+    // Called from Swift (see WebView.swift) after every op edit, instead of
+    // reloading the page: refetches part.stl/features.json in place so the
+    // camera position and zoom the user set survive a rebuild.
+    window.reloadPart = function (token) {
+      loadPart(token, { refit: false });
+      loadFeatures(token);
+    };
+
+    loadPart(params.get("t"), { refit: true });
+    loadFeatures(params.get("t"));
 
     // A chip's click sets rollback_index: an active chip rolls back to just
     // before it; a greyed-out one rolls forward to just past it. Cmd+Z /

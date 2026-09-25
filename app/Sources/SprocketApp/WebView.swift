@@ -27,6 +27,14 @@ struct WebView: NSViewRepresentable {
         Coordinator(onExtrudeFace: onExtrudeFace, onSetRollback: onSetRollback, onUndo: onUndo, onRedo: onRedo)
     }
 
+    /// Extracts the `t` cache-bust token ContentView appends to `url`, so
+    /// updateNSView can tell a real rebuild (token changed) from an
+    /// unrelated SwiftUI re-render (token unchanged).
+    private func cacheBustToken(of url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "t" })?.value
+    }
+
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         // WKWebView treats each file:// URL as its own origin, so the
@@ -65,16 +73,32 @@ struct WebView: NSViewRepresentable {
         )
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.loadFileURL(url, allowingReadAccessTo: readAccessURL)
+        context.coordinator.lastToken = cacheBustToken(of: url)
         return webView
     }
 
+    /// Was a full-page reload on every rebuild: the fresh page reset the
+    /// three.js camera, so every op edit threw away the user's zoom and
+    /// pan. Now only the very first load navigates; a rebuild instead
+    /// calls the page's own reloadPart(), which keeps the camera as-is.
     func updateNSView(_ webView: WKWebView, context: Context) {
-        if webView.url != url {
-            webView.loadFileURL(url, allowingReadAccessTo: readAccessURL)
+        let token = cacheBustToken(of: url)
+        guard token != context.coordinator.lastToken else { return }
+        context.coordinator.lastToken = token
+
+        let tokenLiteral = token.map { "\"\($0)\"" } ?? "null"
+        webView.evaluateJavaScript("window.reloadPart && window.reloadPart(\(tokenLiteral));") { _, error in
+            if let error {
+                print("[viewer] reloadPart failed: \(error)")
+            }
         }
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
+        /// The `t` token of the last URL this webView was navigated or
+        /// refreshed to. Lets updateNSView tell a real rebuild from a
+        /// SwiftUI re-render that didn't change anything.
+        var lastToken: String?
         private let onExtrudeFace: (ExtrudeFacePayload) -> Void
         private let onSetRollback: (Int) -> Void
         private let onUndo: () -> Void
