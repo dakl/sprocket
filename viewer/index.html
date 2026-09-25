@@ -133,9 +133,7 @@
 
     const params = new URLSearchParams(window.location.search);
     let stlPath = params.get("part") || "part.stl";
-    // file:// resource loads ignore query strings on the request path, so a
-    // cache-busting "?t=" only works when the page itself is served over http.
-    const cacheBust = window.location.protocol === "file:" ? null : params.get("t");
+    const cacheBust = params.get("t");
     if (cacheBust) stlPath += (stlPath.includes("?") ? "&" : "?") + "t=" + cacheBust;
 
     let mesh = null;
