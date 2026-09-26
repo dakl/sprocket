@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>View-cube test</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1e1e1e; overflow: hidden; }
+    canvas { display: block; }
+
+    #view-cube {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 132px;
+      height: 132px;
+    }
+
+    #view-cube canvas { cursor: pointer; }
+
+    #view-cube-home {
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: none;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #eee;
+      cursor: pointer;
+    }
+
+    #view-cube-home:hover { color: #5be0a0; }
+  </style>
+</head>
+<body>
+  <!--
+    Standalone sandbox for the view-cube widget, kept in sync by hand with
+    the same block in index.html - not loaded by the app itself. Lets you
+    iterate on the cube (reload this file alone) without the SprocketApp
+    rebuild-relaunch cycle. Port any fix back into index.html when done.
+  -->
+  <div id="view-cube">
+    <button id="view-cube-home" title="Reset to the default view">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+        <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      </svg>
+    </button>
+  </div>
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/OrbitControls.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e1e1e);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
+    camera.up.set(0, 0, 1);
+    camera.position.set(100, 100, 100);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 0.8);
+    key.position.set(1, -1, 2);
+    scene.add(key);
+
+    const grid = new THREE.GridHelper(200, 20, 0x444444, 0x333333);
+    grid.rotation.x = Math.PI / 2;
+    scene.add(grid);
+
+    // --- everything below this line is copy-pasted verbatim from index.html ---
+
+    const AXIS_VIEWS = [
+      // labelRotation counteracts BoxGeometry's default per-face UV
+      // orientation, which isn't consistent across faces - chosen by eye so
+      // every face reads upright at the default isometric view.
+      { label: "FRONT", dir: [1, 0, 0], up: [0, 0, 1], labelRotation: -90 },
+      { label: "BACK", dir: [-1, 0, 0], up: [0, 0, 1], labelRotation: 90 },
+      { label: "RIGHT", dir: [0, 1, 0], up: [0, 0, 1], labelRotation: 180 },
+      { label: "LEFT", dir: [0, -1, 0], up: [0, 0, 1], labelRotation: 0 },
+      { label: "TOP", dir: [0, 0, 1], up: [0, 1, 0], labelRotation: -90 },
+      { label: "BOTTOM", dir: [0, 0, -1], up: [0, 1, 0], labelRotation: 90 },
+    ];
+    const DEFAULT_VIEW_DIR = new THREE.Vector3(1, 1, 1).normalize();
+    const DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+
+    function makeFaceTexture(label, rotationDeg) {
+      const size = 512;
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#e8e8e8";
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = "#999";
+      ctx.lineWidth = 12;
+      ctx.strokeRect(6, 6, size - 12, size - 12);
+      ctx.translate(size / 2, size / 2);
+      ctx.rotate((rotationDeg * Math.PI) / 180);
+      ctx.fillStyle = "#222";
+      ctx.font = "bold 96px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, 0, 0);
+      const texture = new THREE.CanvasTexture(c);
+      // The cube sits at an angle by default, so most faces are seen edge-on
+      // (foreshortened) - without anisotropic filtering, mipmapping blurs
+      // that view heavily. maxAnisotropy sharpens it back up.
+      texture.anisotropy = cubeRenderer.capabilities.getMaxAnisotropy();
+      return texture;
+    }
+
+    function makeLabelSprite(text, color, fontPx, canvasSize, opts) {
+      const c = document.createElement("canvas");
+      c.width = c.height = canvasSize;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = color;
+      ctx.font = `bold ${fontPx}px -apple-system, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, canvasSize / 2, canvasSize / 2);
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), ...opts })
+      );
+      return sprite;
+    }
+
+    function snapToView(dir, up) {
+      const distance = camera.position.distanceTo(controls.target);
+      camera.up.set(up.x, up.y, up.z);
+      camera.position.copy(controls.target).addScaledVector(dir, distance);
+      controls.update();
+    }
+
+    const CUBE_SIZE = 132;
+    const HALF = 0.7; // BoxGeometry(1.4, 1.4, 1.4) half-extent
+
+    const cubeContainer = document.getElementById("view-cube");
+    const cubeCanvas = document.createElement("canvas");
+    cubeContainer.appendChild(cubeCanvas);
+
+    const cubeRenderer = new THREE.WebGLRenderer({ canvas: cubeCanvas, antialias: true, alpha: true });
+    cubeRenderer.setPixelRatio(window.devicePixelRatio || 1);
+    cubeRenderer.setSize(CUBE_SIZE, CUBE_SIZE);
+
+    const cubeScene = new THREE.Scene();
+    // Labels are baked into each face's own texture, not billboard sprites -
+    // a sprite always faces the camera, so on a foreshortened side face its
+    // plane can't coincide with the face plane without either floating
+    // forward or z-fighting against the face itself.
+    const cubeMaterials = AXIS_VIEWS.map(
+      (view) => new THREE.MeshBasicMaterial({ map: makeFaceTexture(view.label, view.labelRotation) })
+    );
+    const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), cubeMaterials);
+    cubeScene.add(cubeMesh);
+
+    // Cylinders instead of THREE.AxesHelper: WebGL ignores LineBasicMaterial's
+    // linewidth, so a fat line needs real geometry. Each one runs from the
+    // origin to AXIS_LENGTH, well short of the label so the label sits past
+    // the tip rather than along the shaft.
+    const AXIS_LENGTH = 1.0;
+    const AXIS_RADIUS = 0.03;
+    const AXIS_LABELS = [
+      { text: "X", color: "#f44", direction: new THREE.Vector3(1, 0, 0) },
+      { text: "Y", color: "#4f4", direction: new THREE.Vector3(0, 1, 0) },
+      { text: "Z", color: "#48f", direction: new THREE.Vector3(0, 0, 1) },
+    ];
+    AXIS_LABELS.forEach(({ text, color, direction }) => {
+      const line = new THREE.Mesh(
+        new THREE.CylinderGeometry(AXIS_RADIUS, AXIS_RADIUS, AXIS_LENGTH, 12),
+        new THREE.MeshBasicMaterial({ color })
+      );
+      line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+      line.position.copy(direction).multiplyScalar(AXIS_LENGTH / 2);
+      cubeScene.add(line);
+
+      const sprite = makeLabelSprite(text, color, 80, 128, { depthTest: false });
+      sprite.scale.set(0.3, 0.3, 1);
+      sprite.position.copy(direction).multiplyScalar(1.15);
+      cubeScene.add(sprite);
+    });
+
+    const REGION_DEFAULT_COLOR = 0xcfcfcf;
+    const REGION_HOVER_COLOR = 0x5be0a0;
+    const regionMeshes = [];
+    for (const nx of [-1, 0, 1]) {
+      for (const ny of [-1, 0, 1]) {
+        for (const nz of [-1, 0, 1]) {
+          const nonzero = [nx, ny, nz].filter((c) => c !== 0).length;
+          if (nonzero < 1) continue;
+          const thin = 0.22;
+          const long = 0.62;
+          const medium = 0.5; // face-handle footprint: smaller than the full face
+          const zeroAxisSize = nonzero === 1 ? medium : long;
+          const geometry = new THREE.BoxGeometry(
+            nx === 0 ? zeroAxisSize : thin,
+            ny === 0 ? zeroAxisSize : thin,
+            nz === 0 ? zeroAxisSize : thin
+          );
+          const material = new THREE.MeshBasicMaterial({
+            color: REGION_DEFAULT_COLOR,
+            transparent: true,
+            opacity: 0,
+          });
+          const mesh = new THREE.Mesh(geometry, material);
+          const flush = HALF - thin / 2;
+          mesh.position.set(nx * flush, ny * flush, nz * flush);
+          mesh.userData.viewDir = new THREE.Vector3(nx, ny, nz).normalize();
+          regionMeshes.push(mesh);
+          cubeScene.add(mesh);
+        }
+      }
+    }
+
+    const cubeCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 10);
+
+    function pickCubeNDC(event) {
+      const rect = cubeCanvas.getBoundingClientRect();
+      return new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+    }
+
+    let hoveredRegion = null;
+    cubeCanvas.addEventListener("pointermove", (event) => {
+      const cubeRaycaster = new THREE.Raycaster();
+      cubeRaycaster.setFromCamera(pickCubeNDC(event), cubeCamera);
+      const hit = cubeRaycaster.intersectObjects(regionMeshes)[0];
+      if (hoveredRegion) {
+        hoveredRegion.material.color.setHex(REGION_DEFAULT_COLOR);
+        hoveredRegion.material.opacity = 0;
+      }
+      hoveredRegion = hit ? hit.object : null;
+      if (hoveredRegion) {
+        hoveredRegion.material.color.setHex(REGION_HOVER_COLOR);
+        hoveredRegion.material.opacity = 0.85;
+      }
+    });
+    cubeCanvas.addEventListener("pointerleave", () => {
+      if (hoveredRegion) {
+        hoveredRegion.material.color.setHex(REGION_DEFAULT_COLOR);
+        hoveredRegion.material.opacity = 0;
+      }
+      hoveredRegion = null;
+    });
+
+    cubeCanvas.addEventListener("click", (event) => {
+      const cubeRaycaster = new THREE.Raycaster();
+      cubeRaycaster.setFromCamera(pickCubeNDC(event), cubeCamera);
+      const hit = cubeRaycaster.intersectObjects([cubeMesh, ...regionMeshes])[0];
+      if (!hit) return;
+      if (hit.object === cubeMesh) {
+        const view = AXIS_VIEWS[hit.face.materialIndex];
+        snapToView(new THREE.Vector3(...view.dir), new THREE.Vector3(...view.up));
+      } else {
+        snapToView(hit.object.userData.viewDir, new THREE.Vector3(0, 0, 1));
+      }
+    });
+
+    document.getElementById("view-cube-home").addEventListener("click", () => {
+      snapToView(DEFAULT_VIEW_DIR, DEFAULT_UP);
+    });
+
+    function renderViewCube() {
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      cubeCamera.position.copy(dir).multiplyScalar(4.6);
+      cubeCamera.up.copy(camera.up);
+      cubeCamera.lookAt(0, 0, 0);
+      cubeRenderer.render(cubeScene, cubeCamera);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      renderViewCube();
+    }
+    animate();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    snapToView(DEFAULT_VIEW_DIR, DEFAULT_UP);
+  </script>
+</body>
+</html>
