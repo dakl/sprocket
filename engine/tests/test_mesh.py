@@ -20,7 +20,19 @@ import pytest
 from sprocket_engine.mesh import export_mesh
 from sprocket_engine.replay import replay
 
-EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
+# The fixture builds its own document rather than reading examples/box.json.
+# That file is a scratchpad people edit while trying the app out, and the
+# pinned counts below then fail for a reason that has nothing to do with the
+# code. It happened: the counts were first written from an edited copy, so CI
+# read the committed file and failed while every local run passed.
+BOX_DOCUMENT = {
+    "schema_version": 1,
+    "units": {"length": "mm"},
+    "features": [
+        {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+        {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
+    ],
+}
 
 _NUMPY_TYPES = {"float32": "<f4", "uint32": "<u4"}
 
@@ -44,7 +56,7 @@ def read_mesh(path: Path) -> tuple[dict, dict]:
 
 @pytest.fixture(scope="module")
 def box_mesh(tmp_path_factory):
-    part = replay(json.loads((EXAMPLES_DIR / "box.json").read_text()))
+    part = replay(BOX_DOCUMENT)
     path = tmp_path_factory.mktemp("mesh") / "part.mesh"
     header = export_mesh(part, path)
     return part, header, read_mesh(path)
@@ -102,7 +114,7 @@ def test_edges_are_ready_to_draw_as_line_segments(box_mesh):
     assert len(buffers["edges"]) % 6 == 0
 
 
-def test_box_examples_topology_is_pinned(box_mesh):
+def test_box_topology_is_pinned(box_mesh):
     """A guard on OCCT, not on this code. Tessellation output is stable within
     an OCP version and reorders across upgrades (see ENGINE_VERSIONS), so these
     numbers changing means face indices moved and every stored face reference
@@ -110,11 +122,11 @@ def test_box_examples_topology_is_pinned(box_mesh):
     _part, _written, (header, _buffers) = box_mesh
 
     assert header["counts"] == {
-        "vertices": 84,
-        "triangles": 52,
-        "faces": 18,
-        "edges": 42,
-        "segments": 42,
+        "vertices": 24,
+        "triangles": 12,
+        "faces": 6,
+        "edges": 12,
+        "segments": 12,
     }
 
 
