@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+    {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
+    {
+      "id": "f3",
+      "type": "fillet",
+      "base": "f2",
+      "edges": {"from": "part", "select": [{"op": "edges"}, {"op": "filter_by", "axis": "Z"}]},
+      "radius": 2
+    }
+  ]
+}

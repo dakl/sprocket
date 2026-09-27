@@ -6,7 +6,7 @@ anything upstream changes. A selector is a query that re-resolves on every
 replay instead of a stored position.
 """
 
-from build123d import Axis
+from build123d import Axis, Edge
 
 AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 
@@ -61,3 +61,20 @@ def resolve_selector(shape, selector):
             raise SelectorError(f"unknown selector op: {op}")
 
     return list(current)
+
+
+def resolve_edges(shape, selector):
+    """Resolve a selector that has to land on edges, for fillet and chamfer.
+
+    A selector that matches nothing is the topological-naming failure SPEC.md
+    warns about: the op would quietly do nothing, and the part on screen looks
+    like the edit was never made rather than like it broke. Fail here so the
+    timeline can show the feature as failed.
+    """
+    matched = resolve_selector(shape, selector)
+    if not matched:
+        raise SelectorError("edge selector matched no edges")
+    other_kinds = {type(item).__name__ for item in matched if not isinstance(item, Edge)}
+    if other_kinds:
+        raise SelectorError(f"edge selector matched {sorted(other_kinds)}, expected edges")
+    return matched
