@@ -414,7 +414,6 @@
     </button>
   </div>
   <script src="vendor/three.min.js"></script>
-  <script src="vendor/STLLoader.js"></script>
   <script src="vendor/OrbitControls.js"></script>
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
@@ -506,10 +505,11 @@
     }
 
     const params = new URLSearchParams(window.location.search);
-    const partBase = params.get("part") || "part.stl";
+    const partBase = params.get("part") || "part.mesh";
     const featuresBase = "features.json";
 
     let mesh = null;
+    let edgeLines = null;
     let adjacency = null;
 
     function urlWithCacheBust(base, token) {
@@ -517,53 +517,150 @@
       return base + (base.includes("?") ? "&" : "?") + "t=" + token;
     }
 
+    // --- Mesh file (see engine/src/sprocket_engine/mesh.py) -------------
+    // uint32 header length, then that many bytes of UTF-8 JSON, then the
+    // buffers. A buffer's offset is relative to the payload, which starts
+    // right after the header.
+    const MESH_ARRAY_TYPES = { float32: Float32Array, uint32: Uint32Array };
+
+    function parseMesh(buffer) {
+      const headerLength = new DataView(buffer).getUint32(0, true);
+      const headerBytes = new Uint8Array(buffer, 4, headerLength);
+      // The header is zero-padded to keep the payload 4-aligned. JSON.parse
+      // chokes on the padding, so stop at the first NUL.
+      const nul = headerBytes.indexOf(0);
+      const text = new TextDecoder().decode(nul === -1 ? headerBytes : headerBytes.subarray(0, nul));
+      const header = JSON.parse(text);
+      if (header.format !== "sprocket-mesh" || header.version !== 1) {
+        throw new Error("unexpected mesh format " + header.format + " v" + header.version);
+      }
+
+      const payloadStart = 4 + headerLength;
+      const buffers = {};
+      for (const [name, entry] of Object.entries(header.buffers)) {
+        const ArrayType = MESH_ARRAY_TYPES[entry.type];
+        if (!ArrayType) throw new Error("unknown buffer type " + entry.type + " for " + name);
+        // A view, not a copy: the whole point of the 4-alignment.
+        buffers[name] = new ArrayType(buffer, payloadStart + entry.offset, entry.length);
+      }
+      return { header: header, buffers: buffers };
+    }
+
+    // One geometry group per B-rep face, in the order the engine's
+    // shape.faces() returns them. Nothing reads the groups yet: with a single
+    // material r128 ignores them at render time, so they cost one draw call
+    // total, not one per face. They are the face identity that replaces the
+    // old normal-matching flood fill.
+    function buildPartGeometry(mesh) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(mesh.buffers.vertices, 3));
+      // OCCT's own surface normals. The STL path had to call
+      // computeVertexNormals(), which averages triangle normals and so rounds
+      // the shading off a curved face.
+      geometry.setAttribute("normal", new THREE.BufferAttribute(mesh.buffers.normals, 3));
+      geometry.setIndex(new THREE.BufferAttribute(mesh.buffers.indices, 1));
+
+      let triangleStart = 0;
+      for (const triangleCount of mesh.buffers.triangles_per_face) {
+        geometry.addGroup(triangleStart * 3, triangleCount * 3, 0);
+        triangleStart += triangleCount;
+      }
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      return geometry;
+    }
+
+    function disposePart() {
+      if (mesh) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+        mesh = null;
+      }
+      if (edgeLines) {
+        scene.remove(edgeLines);
+        edgeLines.geometry.dispose();
+        edgeLines.material.dispose();
+        edgeLines = null;
+      }
+    }
+
     function loadPart(token, options) {
       const refit = Boolean(options && options.refit);
       const path = urlWithCacheBust(partBase, token);
-      new THREE.STLLoader().load(
-        path,
-        (geometry) => {
-          console.log("STL loaded", path);
-          geometry.computeVertexNormals();
+      fetch(path)
+        // file:// fetches report status 0, not 200, so response.ok is always
+        // false there.
+        .then((response) => {
+          if (!response.ok && response.status !== 0) throw new Error("HTTP " + response.status);
+          return response.arrayBuffer();
+        })
+        .then((buffer) => {
+          const parsed = parseMesh(buffer);
+          const counts = parsed.header.counts;
+          console.log(
+            "mesh loaded", path, counts.faces + " faces,", counts.triangles + " triangles,", counts.edges + " edges"
+          );
+
           // Replace, don't add: a rebuild reuses this scene instead of
           // reloading the page, so the old mesh must go or it doubles up.
-          if (mesh) {
-            scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
-          }
+          disposePart();
+
           // metalness 0: a metal surface takes its colour from reflections,
           // and there is no environment map here, so any metalness above 0
           // only drains the body colour towards black.
-          const material = new THREE.MeshStandardMaterial({ color: srgb(0x5b8dee), metalness: 0, roughness: 0.55 });
-          mesh = new THREE.Mesh(geometry, material);
+          //
+          // polygonOffset pushes the body away from the camera by a hair so
+          // the edge lines below, which sit exactly on the body's boundary,
+          // win the depth test instead of flickering against it.
+          const material = new THREE.MeshStandardMaterial({
+            color: srgb(0x5b8dee),
+            metalness: 0,
+            roughness: 0.55,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1,
+          });
+          mesh = new THREE.Mesh(buildPartGeometry(parsed), material);
           scene.add(mesh);
+
+          // The B-rep edge curves, already tessellated into consecutive point
+          // pairs. This is the difference that makes the viewport read like a
+          // CAD view: Fusion 360 separates faces with dark edge lines rather
+          // than with lighting, and measured against its shading its face
+          // tones span only about 0.14 of luma.
+          const edgeGeometry = new THREE.BufferGeometry();
+          edgeGeometry.setAttribute("position", new THREE.BufferAttribute(parsed.buffers.edges, 3));
+          edgeLines = new THREE.LineSegments(
+            edgeGeometry,
+            // srgb() like every other main-scene colour. Being unlit buys no
+            // exemption: outputEncoding encodes the final fragment whether a
+            // material samples lights or not. Measured, a raw hex here comes
+            // out #2a2c2f rather than #14181f, light enough to read as a grey
+            // seam instead of an edge.
+            new THREE.LineBasicMaterial({ color: srgb(0x14181f) })
+          );
+          scene.add(edgeLines);
+
           if (refit) frameCameraOn(mesh);
-          adjacency = buildAdjacency(geometry);
+          adjacency = buildAdjacency(mesh.geometry);
           applyVisibility();
           renderBrowser();
-        },
-        undefined,
-        (error) => {
-          // Also fires for a genuinely empty document (rolled back before
-          // the first feature): the engine deletes part.stl rather than
-          // export nothing, so clear the stale mesh instead of leaving the
-          // last-built part on screen.
+        })
+        .catch((error) => {
+          // Also fires for a genuinely empty document (rolled back before the
+          // first feature): the engine deletes the mesh file rather than
+          // export nothing, so clear the stale part instead of leaving the
+          // last-built one on screen.
           document.title = "Sprocket viewer";
-          console.log("no part.stl to load (empty document, or a real load failure)", path, error);
-          if (mesh) {
-            scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
-            mesh = null;
-          }
+          console.log("no mesh to load (empty document, or a real load failure)", path, error);
+          disposePart();
           renderBrowser();
-        }
-      );
+        });
     }
 
     // --- Timeline (M3) --------------------------------------------------
-    // A sidecar JSON next to part.stl, written by the Swift app on every
+    // A sidecar JSON next to part.mesh, written by the Swift app on every
     // rebuild: a plain array of {id, type}, one per feature in the document.
     function loadFeatures(token) {
       fetch(urlWithCacheBust(featuresBase, token))
@@ -594,7 +691,7 @@
     }
 
     // Called from Swift (see WebView.swift) after every op edit, instead of
-    // reloading the page: refetches part.stl/features.json in place so the
+    // reloading the page: refetches part.mesh/features.json in place so the
     // camera position and zoom the user set survive a rebuild.
     window.reloadPart = function (token) {
       loadPart(token, { refit: false });
@@ -676,20 +773,26 @@
 
     function vertexKey(pos, i) {
       // Round to make coincident vertices from different triangles compare
-      // equal. STLLoader geometry is non-indexed, so there is no shared
-      // index to rely on.
+      // equal. The tessellated mesh splits vertices per B-rep face, so two
+      // faces meeting at an edge hold their own copies of it.
       return Math.round(pos.getX(i) * 1000) + "," + Math.round(pos.getY(i) * 1000) + "," + Math.round(pos.getZ(i) * 1000);
     }
 
     function buildAdjacency(geometry) {
       const pos = geometry.attributes.position;
-      const triCount = pos.count / 3;
+      // The mesh is indexed, so triangle t's corner k lives at index[t*3+k],
+      // not at position[t*3+k]. Everything downstream reads a corner through
+      // adjacency.corner. Step 3 replaces this whole flood fill with a
+      // triangles_per_face lookup and all of it goes.
+      const index = geometry.index;
+      const corner = (t, k) => index.getX(t * 3 + k);
+      const triCount = index.count / 3;
       const triEdges = [];
       const edgeMap = new Map(); // "keyA|keyB" -> [triIndex, ...]
       const keyToPos = new Map();
 
       for (let t = 0; t < triCount; t++) {
-        const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+        const i0 = corner(t, 0), i1 = corner(t, 1), i2 = corner(t, 2);
         const k0 = vertexKey(pos, i0), k1 = vertexKey(pos, i1), k2 = vertexKey(pos, i2);
         if (!keyToPos.has(k0)) keyToPos.set(k0, new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0)));
         if (!keyToPos.has(k1)) keyToPos.set(k1, new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1)));
@@ -712,11 +815,11 @@
         }
       }
 
-      return { triCount, triEdges, neighbours, keyToPos };
+      return { triCount, triEdges, neighbours, keyToPos, corner };
     }
 
     function triNormal(pos, t) {
-      const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+      const i0 = adjacency.corner(t, 0), i1 = adjacency.corner(t, 1), i2 = adjacency.corner(t, 2);
       const a = new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
       const b = new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
       const c = new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
@@ -801,7 +904,7 @@
 
       for (const t of patch.triangles) {
         for (let k = 0; k < 3; k++) {
-          const i = t * 3 + k;
+          const i = adjacency.corner(t, k);
           positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
           offsets.push(1);
         }
@@ -834,7 +937,7 @@
       const positions = [];
       for (const t of patch.triangles) {
         for (let k = 0; k < 3; k++) {
-          const i = t * 3 + k;
+          const i = adjacency.corner(t, k);
           // nudge along the normal so the highlight doesn't z-fight the mesh
           positions.push(
             pos.getX(i) + patch.normal.x * 0.05,
@@ -927,6 +1030,7 @@
     function applyVisibility() {
       grid.visible = gridVisible;
       if (mesh) mesh.visible = bodyVisible;
+      if (edgeLines) edgeLines.visible = bodyVisible;
       sketchOutlines.forEach((entry) => {
         const visible = !hiddenSketchIDs.has(entry.feature.id);
         entry.line.visible = visible;
