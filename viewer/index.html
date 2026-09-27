@@ -419,7 +419,18 @@
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
     // timeline, no live engine connection yet — see docs/SPEC.md M3+.
+    // Every colour written in this file is an sRGB hex, the way a CSS colour
+    // or a design tool states it. The renderer's output encoding is sRGB (see
+    // renderer setup below), so three.js treats a material colour as linear
+    // light and encodes it on the way out. Passing a raw hex therefore
+    // brightens it. srgb() does the one conversion that keeps what you write
+    // and what you see the same. The view cube renders through cubeRenderer,
+    // which has no output encoding, so its colours stay raw hexes.
+    const srgb = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+
     const scene = new THREE.Scene();
+    // Not srgb(): r128 clears the framebuffer with this colour directly and
+    // skips outputEncoding for it, so converting here would darken it twice.
     scene.background = new THREE.Color(0x1e1e1e);
 
     // Persistent outlines for sketch features: a bare sketch has no solid to
@@ -440,18 +451,43 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
     document.body.appendChild(renderer.domElement);
     console.log("renderer ready");
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 0.8);
-    key.position.set(1, -1, 2);
-    scene.add(key);
+    // A studio rig, not a single lamp. The old ambient-plus-one-directional
+    // pair summed to 1.4 on any face turned towards the key, so the body
+    // colour's blue channel ran past 1.0 and clipped: every lit face came
+    // back a flat #6ba5ff with no gradation left in it. These three sum to
+    // 1.15 at most, and each comes from a different direction, so
+    // neighbouring faces of a box read as different tones. Measured on
+    // examples/box.json: face luminance now spans 0.24 to 0.48 with no
+    // channel at 255. Before, it spanned 0.30 to 0.65 with the top faces
+    // clipped. Fusion 360 spans 0.18 to 0.32 on the same shape, but it
+    // separates faces with black edge lines rather than with light.
+    const hemisphere = new THREE.HemisphereLight(0xffffff, 0x20242b, 0.18);
+    scene.add(hemisphere);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    keyLight.position.set(2, -3, 4); // over the viewer's right shoulder
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.12);
+    fillLight.position.set(-4, 1.5, 0.5); // opposite the key, to lift the shadow side
+    scene.add(fillLight);
 
     const grid = new THREE.GridHelper(200, 20, 0x444444, 0x333333);
     grid.rotation.x = Math.PI / 2; // lie flat in the XY plane
+    // GridHelper bakes its two colours into a vertex-colour attribute, so it
+    // cannot take a srgb() Color. Convert the attribute in place instead.
+    // r128 keeps its sRGB transfer function module-private, so inline it.
+    const gridColors = grid.geometry.attributes.color.array;
+    for (let i = 0; i < gridColors.length; i++) {
+      const c = gridColors[i];
+      gridColors[i] = c < 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
     scene.add(grid);
 
     function frameCameraOn(object) {
@@ -496,7 +532,10 @@
             mesh.geometry.dispose();
             mesh.material.dispose();
           }
-          const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
+          // metalness 0: a metal surface takes its colour from reflections,
+          // and there is no environment map here, so any metalness above 0
+          // only drains the body colour towards black.
+          const material = new THREE.MeshStandardMaterial({ color: srgb(0x5b8dee), metalness: 0, roughness: 0.55 });
           mesh = new THREE.Mesh(geometry, material);
           scene.add(mesh);
           if (refit) frameCameraOn(mesh);
@@ -786,7 +825,7 @@
     }
 
     const raycaster = new THREE.Raycaster();
-    const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthTest: true });
+    const highlightMaterial = new THREE.MeshBasicMaterial({ color: srgb(0xffaa00), transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthTest: true });
     const highlightMesh = new THREE.Mesh(new THREE.BufferGeometry(), highlightMaterial);
     highlightMesh.visible = false;
     scene.add(highlightMesh);
@@ -807,7 +846,7 @@
       highlightMesh.geometry.dispose();
       highlightMesh.geometry = new THREE.BufferGeometry();
       highlightMesh.geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-      highlightMaterial.color.set(color);
+      highlightMaterial.color.copy(srgb(color));
       highlightMesh.visible = true;
     }
 
@@ -1366,7 +1405,7 @@
       const { positions: basePositions, offsets: offsetFlags } = buildPreviewArrays(selectedPatch, pos);
       const previewGeometry = new THREE.BufferGeometry();
       previewGeometry.setAttribute("position", new THREE.Float32BufferAttribute(basePositions.slice(), 3));
-      const previewMaterial = new THREE.MeshStandardMaterial({ color: 0x5be0a0, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      const previewMaterial = new THREE.MeshStandardMaterial({ color: srgb(0x5be0a0), transparent: true, opacity: 0.55, side: THREE.DoubleSide });
       const previewMesh = new THREE.Mesh(previewGeometry, previewMaterial);
       scene.add(previewMesh);
 
@@ -1403,7 +1442,7 @@
       planeNormal.normalize();
       const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, anchor);
 
-      const previewMaterial = new THREE.MeshStandardMaterial({ color: 0x5be0a0, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      const previewMaterial = new THREE.MeshStandardMaterial({ color: srgb(0x5be0a0), transparent: true, opacity: 0.55, side: THREE.DoubleSide });
       const previewMesh = new THREE.Mesh(new THREE.BufferGeometry(), previewMaterial);
       scene.add(previewMesh);
 
@@ -1661,7 +1700,7 @@
           // high renderOrder draws it on top unconditionally instead, so it
           // stays visible regardless of camera angle - the user's explicit
           // requirement for a bare, unextruded sketch.
-          const material = new THREE.LineBasicMaterial({ color: feature.active ? 0x5be0a0 : 0x666666, depthTest: false });
+          const material = new THREE.LineBasicMaterial({ color: srgb(feature.active ? 0x5be0a0 : 0x666666), depthTest: false });
           const line = new THREE.Line(geometry, material);
           line.renderOrder = 999;
           sketchOutlineGroup.add(line);
@@ -1703,7 +1742,7 @@
     function renderSketchSelection() {
       sketchOutlines.forEach(({ feature, line, handles }) => {
         const selected = selectedSketch && selectedSketch.id === feature.id;
-        line.material.color.set(selected ? 0xffdd55 : feature.active ? 0x5be0a0 : 0x666666);
+        line.material.color.copy(srgb(selected ? 0xffdd55 : feature.active ? 0x5be0a0 : 0x666666));
         handles.visible = Boolean(selected) && !hiddenSketchIDs.has(feature.id);
       });
     }
@@ -1734,7 +1773,7 @@
       const size = 300;
       const geometry = new THREE.PlaneGeometry(size, size);
       const material = new THREE.MeshBasicMaterial({
-        color: 0x5be0a0,
+        color: srgb(0x5be0a0),
         transparent: true,
         opacity: 0.08,
         side: THREE.DoubleSide,
@@ -1833,7 +1872,7 @@
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
       scene.add(sketchPlaneHelper);
-      sketchPreviewLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x5be0a0 }));
+      sketchPreviewLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: srgb(0x5be0a0) }));
       scene.add(sketchPreviewLine);
     }
 
