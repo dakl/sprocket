@@ -510,7 +510,6 @@
 
     let mesh = null;
     let edgeLines = null;
-    let adjacency = null;
 
     function urlWithCacheBust(base, token) {
       if (!token) return base;
@@ -547,10 +546,9 @@
     }
 
     // One geometry group per B-rep face, in the order the engine's
-    // shape.faces() returns them. Nothing reads the groups yet: with a single
-    // material r128 ignores them at render time, so they cost one draw call
-    // total, not one per face. They are the face identity that replaces the
-    // old normal-matching flood fill.
+    // shape.faces() returns them. With a single material r128 ignores the
+    // groups at render time, so they cost one draw call total, not one per
+    // face. Picking reads them: a group index is a B-rep face index.
     function buildPartGeometry(mesh) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.BufferAttribute(mesh.buffers.vertices, 3));
@@ -560,11 +558,19 @@
       geometry.setAttribute("normal", new THREE.BufferAttribute(mesh.buffers.normals, 3));
       geometry.setIndex(new THREE.BufferAttribute(mesh.buffers.indices, 1));
 
+      // faceOfTriangle inverts the groups. A raycast hands back a triangle
+      // index and picking needs the face, which would otherwise be a search
+      // through the groups on every pointermove. On the geometry rather than in
+      // a global so it goes when the geometry is disposed.
+      const faceOfTriangle = new Uint32Array(mesh.header.counts.triangles);
       let triangleStart = 0;
-      for (const triangleCount of mesh.buffers.triangles_per_face) {
+      for (let faceIndex = 0; faceIndex < mesh.buffers.triangles_per_face.length; faceIndex++) {
+        const triangleCount = mesh.buffers.triangles_per_face[faceIndex];
         geometry.addGroup(triangleStart * 3, triangleCount * 3, 0);
+        faceOfTriangle.fill(faceIndex, triangleStart, triangleStart + triangleCount);
         triangleStart += triangleCount;
       }
+      geometry.userData.faceOfTriangle = faceOfTriangle;
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
       return geometry;
@@ -643,7 +649,6 @@
           scene.add(edgeLines);
 
           if (refit) frameCameraOn(mesh);
-          adjacency = buildAdjacency(mesh.geometry);
           applyVisibility();
           renderBrowser();
         })
@@ -665,7 +670,8 @@
     function loadFeatures(token) {
       fetch(urlWithCacheBust(featuresBase, token))
         // file:// fetches report status 0, not 200, so response.ok is always
-        // false there — the same quirk STLLoader works around internally.
+        // false in the app. Treat 0 as success or the timeline never loads
+        // outside a local server.
         .then((response) => (response.ok || response.status === 0 ? response.json() : []))
         .then((features) => {
           // A rebuild replaces every feature object, so a selection held from
@@ -766,103 +772,75 @@
     }
 
     // --- Push/pull picking (M3) ---------------------------------------
-    // A "patch" is the set of triangles reachable from a clicked triangle
-    // by crossing only shared edges into neighbours with the same normal
-    // (within tolerance). That is one flat face, even when the STL split
-    // it into several triangles.
+    // A "patch" is one B-rep face: geometry group `faceIndex`, a contiguous
+    // run of triangles in shape.faces() order (see mesh.py). It used to be a
+    // guess. With an STL there was no face information at all, so a click
+    // flood-filled from the hit triangle across shared edges into neighbours
+    // whose winding normals matched to within a tolerance. That found flat
+    // faces only, merged two coplanar faces that happened to touch, and
+    // needed a rounded-coordinate map to decide which triangles were even
+    // neighbours. OCCT knows the answer, so this reads it.
 
-    function vertexKey(pos, i) {
-      // Round to make coincident vertices from different triangles compare
-      // equal. The tessellated mesh splits vertices per B-rep face, so two
-      // faces meeting at an edge hold their own copies of it.
-      return Math.round(pos.getX(i) * 1000) + "," + Math.round(pos.getY(i) * 1000) + "," + Math.round(pos.getZ(i) * 1000);
+    /// The B-rep face under a raycast hit: which triangles are that face, and
+    /// the surface normal there.
+    ///
+    /// `normal` is OCCT's own node normal, not a cross product of the hit
+    /// triangle's edges. On a planar face the two agree, measured to 1e-6 on
+    /// examples/box.json, so the extrude axis is unchanged. On a curved face
+    /// the node normal is the surface's and the winding normal is one facet's.
+    function facePatchAt(hit) {
+      const geometry = mesh.geometry;
+      const normals = geometry.attributes.normal;
+      const faceIndex = geometry.userData.faceOfTriangle[hit.faceIndex];
+      const group = geometry.groups[faceIndex];
+      const corner = geometry.index.getX(hit.faceIndex * 3);
+      return {
+        faceIndex: faceIndex,
+        firstTriangle: group.start / 3,
+        triangleCount: group.count / 3,
+        normal: new THREE.Vector3(normals.getX(corner), normals.getY(corner), normals.getZ(corner)),
+      };
     }
 
-    function buildAdjacency(geometry) {
-      const pos = geometry.attributes.position;
-      // The mesh is indexed, so triangle t's corner k lives at index[t*3+k],
-      // not at position[t*3+k]. Everything downstream reads a corner through
-      // adjacency.corner. Step 3 replaces this whole flood fill with a
-      // triangles_per_face lookup and all of it goes.
-      const index = geometry.index;
-      const corner = (t, k) => index.getX(t * 3 + k);
-      const triCount = index.count / 3;
-      const triEdges = [];
-      const edgeMap = new Map(); // "keyA|keyB" -> [triIndex, ...]
-      const keyToPos = new Map();
-
-      for (let t = 0; t < triCount; t++) {
-        const i0 = corner(t, 0), i1 = corner(t, 1), i2 = corner(t, 2);
-        const k0 = vertexKey(pos, i0), k1 = vertexKey(pos, i1), k2 = vertexKey(pos, i2);
-        if (!keyToPos.has(k0)) keyToPos.set(k0, new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0)));
-        if (!keyToPos.has(k1)) keyToPos.set(k1, new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1)));
-        if (!keyToPos.has(k2)) keyToPos.set(k2, new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2)));
-
-        const edges = [[k0, k1], [k1, k2], [k2, k0]];
-        triEdges.push(edges);
-        for (const [a, b] of edges) {
-          const ek = a < b ? a + "|" + b : b + "|" + a;
-          if (!edgeMap.has(ek)) edgeMap.set(ek, []);
-          edgeMap.get(ek).push(t);
-        }
-      }
-
-      const neighbours = Array.from({ length: triCount }, () => []);
-      for (const tris of edgeMap.values()) {
-        if (tris.length === 2) {
-          neighbours[tris[0]].push(tris[1]);
-          neighbours[tris[1]].push(tris[0]);
-        }
-      }
-
-      return { triCount, triEdges, neighbours, keyToPos, corner };
+    /// The vertex indices of triangle `t`'s three corners.
+    function triangleCorners(t) {
+      const index = mesh.geometry.index;
+      return [index.getX(t * 3), index.getX(t * 3 + 1), index.getX(t * 3 + 2)];
     }
 
-    function triNormal(pos, t) {
-      const i0 = adjacency.corner(t, 0), i1 = adjacency.corner(t, 1), i2 = adjacency.corner(t, 2);
-      const a = new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
-      const b = new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
-      const c = new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
-      return new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    function edgeKey(a, b) {
+      return a < b ? a + "|" + b : b + "|" + a;
     }
 
-    function floodFillPatch(startTri, pos) {
-      const normal = triNormal(pos, startTri);
-      const triangles = new Set([startTri]);
-      const stack = [startTri];
-      while (stack.length) {
-        const t = stack.pop();
-        for (const n of adjacency.neighbours[t]) {
-          if (triangles.has(n)) continue;
-          if (triNormal(pos, n).dot(normal) > 0.999) {
-            triangles.add(n);
-            stack.push(n);
-          }
-        }
-      }
-      return { triangles, normal };
-    }
-
-    function boundaryEdges(triangles) {
+    /// A patch's outside edges: used by one of its triangles rather than
+    /// shared by two.
+    ///
+    /// By vertex index, with no coordinate rounding. Within one B-rep face
+    /// OCCT's triangulation shares its nodes, so two triangles that meet reuse
+    /// the same index. The old flood fill could not assume that, because a
+    /// patch could span faces and the tessellation splits vertices between
+    /// them. Measured on examples/box.json: all 18 faces share their interior
+    /// edges by index, and every boundary vertex has exactly two boundary
+    /// edges, so the loops below always close. Pinned by
+    /// test_a_faces_triangulation_is_index_shared_and_its_boundary_closes.
+    function boundaryEdges(patch) {
       const counts = new Map();
-      for (const t of triangles) {
-        for (const [a, b] of adjacency.triEdges[t]) {
-          const ek = a < b ? a + "|" + b : b + "|" + a;
-          counts.set(ek, (counts.get(ek) || 0) + 1);
-        }
-      }
       const edges = [];
-      for (const t of triangles) {
-        for (const [a, b] of adjacency.triEdges[t]) {
-          const ek = a < b ? a + "|" + b : b + "|" + a;
-          if (counts.get(ek) === 1) edges.push([a, b]);
+      const lastTriangle = patch.firstTriangle + patch.triangleCount;
+      for (let t = patch.firstTriangle; t < lastTriangle; t++) {
+        const [i0, i1, i2] = triangleCorners(t);
+        for (const edge of [[i0, i1], [i1, i2], [i2, i0]]) {
+          edges.push(edge);
+          const key = edgeKey(edge[0], edge[1]);
+          counts.set(key, (counts.get(key) || 0) + 1);
         }
       }
-      return edges;
+      return edges.filter(([a, b]) => counts.get(edgeKey(a, b)) === 1);
     }
 
-    // Walk the boundary edges into ordered loops, so consecutive vertices
-    // are connected. Assumes simple faces with no holes, true for boxy parts.
+    // Walk the boundary edges into ordered loops of vertex indices, so
+    // consecutive entries are connected. A face with a hole has more than one
+    // loop: two of box.json's 18 do.
     function orderLoops(edges) {
       const adj = new Map();
       for (const [a, b] of edges) {
@@ -874,19 +852,16 @@
       const used = new Set();
       const loops = [];
       for (const [a, b] of edges) {
-        const startKey = a < b ? a + "|" + b : b + "|" + a;
+        const startKey = edgeKey(a, b);
         if (used.has(startKey)) continue;
         used.add(startKey);
         const loop = [a];
         let cur = b;
         while (cur !== a) {
           loop.push(cur);
-          const next = adj.get(cur).find((n) => {
-            const ek = n < cur ? n + "|" + cur : cur + "|" + n;
-            return !used.has(ek);
-          });
+          const next = adj.get(cur).find((n) => !used.has(edgeKey(n, cur)));
           if (next === undefined) break;
-          used.add(next < cur ? next + "|" + cur : cur + "|" + next);
+          used.add(edgeKey(next, cur));
           cur = next;
         }
         loops.push(loop);
@@ -898,29 +873,31 @@
     // normal (the "cap"), plus a wall of quads connecting the original
     // boundary loop to its pushed-out copy. offsetFlags marks which
     // vertices move, so a drag only rewrites a position buffer - no rebuild.
-    function buildPreviewArrays(patch, pos) {
+    function buildPreviewArrays(patch) {
+      const geometry = mesh.geometry;
+      const pos = geometry.attributes.position;
+      const index = geometry.index;
       const positions = [];
       const offsets = [];
 
-      for (const t of patch.triangles) {
-        for (let k = 0; k < 3; k++) {
-          const i = adjacency.corner(t, k);
-          positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-          offsets.push(1);
-        }
+      // The cap: the face's own triangles, every vertex of which moves.
+      const lastCorner = (patch.firstTriangle + patch.triangleCount) * 3;
+      for (let c = patch.firstTriangle * 3; c < lastCorner; c++) {
+        const i = index.getX(c);
+        positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+        offsets.push(1);
       }
 
-      const loops = orderLoops(boundaryEdges(patch.triangles));
-      for (const loop of loops) {
+      // The wall: two triangles per boundary edge, from the edge to the copy
+      // of it that moves with the cap.
+      for (const loop of orderLoops(boundaryEdges(patch))) {
         for (let i = 0; i < loop.length; i++) {
-          const a = adjacency.keyToPos.get(loop[i]);
-          const b = adjacency.keyToPos.get(loop[(i + 1) % loop.length]);
-          positions.push(a.x, a.y, a.z); offsets.push(0);
-          positions.push(b.x, b.y, b.z); offsets.push(0);
-          positions.push(b.x, b.y, b.z); offsets.push(1);
-          positions.push(a.x, a.y, a.z); offsets.push(0);
-          positions.push(b.x, b.y, b.z); offsets.push(1);
-          positions.push(a.x, a.y, a.z); offsets.push(1);
+          const a = loop[i];
+          const b = loop[(i + 1) % loop.length];
+          for (const [vertex, offset] of [[a, 0], [b, 0], [b, 1], [a, 0], [b, 1], [a, 1]]) {
+            positions.push(pos.getX(vertex), pos.getY(vertex), pos.getZ(vertex));
+            offsets.push(offset);
+          }
         }
       }
 
@@ -933,18 +910,24 @@
     highlightMesh.visible = false;
     scene.add(highlightMesh);
 
-    function setHighlight(patch, pos, color) {
+    function setHighlight(patch, color) {
+      const geometry = mesh.geometry;
+      const pos = geometry.attributes.position;
+      const normals = geometry.attributes.normal;
+      const index = geometry.index;
       const positions = [];
-      for (const t of patch.triangles) {
-        for (let k = 0; k < 3; k++) {
-          const i = adjacency.corner(t, k);
-          // nudge along the normal so the highlight doesn't z-fight the mesh
-          positions.push(
-            pos.getX(i) + patch.normal.x * 0.05,
-            pos.getY(i) + patch.normal.y * 0.05,
-            pos.getZ(i) + patch.normal.z * 0.05
-          );
-        }
+      const lastCorner = (patch.firstTriangle + patch.triangleCount) * 3;
+      for (let c = patch.firstTriangle * 3; c < lastCorner; c++) {
+        const i = index.getX(c);
+        // Nudge off the surface so the highlight doesn't z-fight the body.
+        // Along each vertex's own normal, not one normal for the whole patch:
+        // on a curved face a single direction lifts one side of the highlight
+        // clear and buries the other.
+        positions.push(
+          pos.getX(i) + normals.getX(i) * 0.05,
+          pos.getY(i) + normals.getY(i) * 0.05,
+          pos.getZ(i) + normals.getZ(i) * 0.05
+        );
       }
       highlightMesh.geometry.dispose();
       highlightMesh.geometry = new THREE.BufferGeometry();
@@ -1231,7 +1214,7 @@
     // last, so loadFeatures clears it.
     function hideStatus() { statusEl.style.display = "none"; }
 
-    let selectedPatch = null; // { triangles, normal, anchorPoint }
+    let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
     let selectedSketch = null; // a features.json entry: any replayed sketch, picked in the 3D view or via its timeline chip
     // A live corner or edge drag on the selected sketch:
     // { feature, plane, kind, indices, polygon, lastUV }. polygon is a working
@@ -1261,8 +1244,7 @@
           clearHighlight();
           return;
         }
-        const patch = floodFillPatch(hit.faceIndex, mesh.geometry.attributes.position);
-        setHighlight(patch, mesh.geometry.attributes.position, 0xffaa00);
+        setHighlight(facePatchAt(hit), 0xffaa00);
         return;
       }
       if (sketchEditDrag) {
@@ -1283,8 +1265,7 @@
         clearHighlight();
         return;
       }
-      const patch = floodFillPatch(hit.faceIndex, mesh.geometry.attributes.position);
-      setHighlight(patch, mesh.geometry.attributes.position, 0xffaa00);
+      setHighlight(facePatchAt(hit), 0xffaa00);
     });
 
     // Grabbing the viewport cancels a camera move, unless the move is the one
@@ -1299,9 +1280,8 @@
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
         if (!hit) return;
-        const pos = mesh.geometry.attributes.position;
-        const patch = floodFillPatch(hit.faceIndex, pos);
-        sketchPlane = makeSketchPlane(hit.point, patch.normal, computeXDir(patch.normal));
+        const normal = facePatchAt(hit).normal;
+        sketchPlane = makeSketchPlane(hit.point, normal, computeXDir(normal));
         enterSketchDrawStage();
         return;
       }
@@ -1336,11 +1316,10 @@
         clearSelection();
         return;
       }
-      const pos = mesh.geometry.attributes.position;
-      const patch = floodFillPatch(hit.faceIndex, pos);
-      selectedPatch = { triangles: patch.triangles, normal: patch.normal, anchorPoint: hit.point.clone() };
+      selectedPatch = facePatchAt(hit);
+      selectedPatch.anchorPoint = hit.point.clone();
       selectedSketch = null;
-      setHighlight(selectedPatch, pos, 0xffdd55);
+      setHighlight(selectedPatch, 0xffdd55);
       renderSketchSelection();
       hideHint();
       showSelectionPanel("Face selected");
@@ -1505,8 +1484,7 @@
       planeNormal.normalize();
       const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, anchor);
 
-      const pos = mesh.geometry.attributes.position;
-      const { positions: basePositions, offsets: offsetFlags } = buildPreviewArrays(selectedPatch, pos);
+      const { positions: basePositions, offsets: offsetFlags } = buildPreviewArrays(selectedPatch);
       const previewGeometry = new THREE.BufferGeometry();
       previewGeometry.setAttribute("position", new THREE.Float32BufferAttribute(basePositions.slice(), 3));
       const previewMaterial = new THREE.MeshStandardMaterial({ color: srgb(0x5be0a0), transparent: true, opacity: 0.55, side: THREE.DoubleSide });
