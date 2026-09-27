@@ -1,0 +1,9 @@
+{
+  "volume": 4712.38898038469,
+  "surface_area": 2827.4333882308138,
+  "bounding_box": {"min": [-20, -20, 0], "max": [20, 20, 5]},
+  "center_of_mass": [0, 0, 2.5],
+  "faces": 4,
+  "edges": 6,
+  "vertices": 4
+}
