@@ -49,6 +49,44 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
+class DocumentError(Exception):
+    """A document that cannot be read or makes no sense as a document, as
+    opposed to one whose features no longer build. The second kind is normal
+    editing (see _build_document); this kind is a bad path or a bad file."""
+
+
+def _load_document(document_path: Path) -> dict:
+    """Reads a document and checks the shape replay() and _last_solid_index()
+    rely on. Both walk `features` and slice it by `rollback_index` without
+    guarding, so a missing file or a `features` that is not a list used to come
+    back as a traceback - past the error path that prints a readable message,
+    and past `serve`, whose caller only ever sees `output`."""
+    try:
+        text = Path(document_path).read_text()
+    except OSError as exc:
+        raise DocumentError(f"cannot read document {document_path}: {exc.strerror}") from exc
+
+    try:
+        document = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise DocumentError(f"{document_path} is not valid JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise DocumentError(f"{document_path}: a document must be a JSON object")
+
+    features = document.get("features")
+    if not isinstance(features, list) or not all(isinstance(feature, dict) for feature in features):
+        raise DocumentError(f"{document_path}: 'features' must be a list of objects")
+
+    rollback_index = document.get("rollback_index", len(features))
+    if type(rollback_index) is not int or not 0 <= rollback_index <= len(features):
+        raise DocumentError(
+            f"{document_path}: 'rollback_index' must be an integer in 0..{len(features)}, "
+            f"got {rollback_index!r}"
+        )
+
+    return document
+
+
 def _last_solid_index(features: list[dict], rollback_index: int) -> int:
     """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
     inert until something extrudes it. replay() only returns its last
@@ -72,10 +110,13 @@ def _build_document(
     the user still needs to see the part up to that point. So the export falls
     back to the prefix before the broken feature, and its id comes back so the
     app can mark it."""
-    document = json.loads(Path(document_path).read_text())
+    try:
+        document = _load_document(document_path)
+    except DocumentError as exc:
+        return False, f"error: {exc}", None
     resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
 
-    features = document.get("features", [])
+    features = document["features"]
     rollback_index = document.get("rollback_index", len(features))
     export_index = _last_solid_index(features, rollback_index)
     export_document = document if export_index == rollback_index else {**document, "rollback_index": export_index}
