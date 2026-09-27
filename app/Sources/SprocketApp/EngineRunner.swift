@@ -3,6 +3,12 @@ import Foundation
 struct EngineBuildResult {
     let success: Bool
     let output: String
+    /// The id of the first feature that no longer builds, or nil. Editing a
+    /// sketch can leave a later op unbuildable, and the engine then exports the
+    /// part up to that point instead of failing the whole build (see cli.py's
+    /// _build_document). The viewer marks this feature so the user can see
+    /// which op was dropped.
+    let failedFeature: String?
 }
 
 /// Runs the engine's `serve` subcommand (see engine/src/sprocket_engine/cli.py)
@@ -30,7 +36,7 @@ final class EngineRunner {
     func build(document: URL, stlOut: URL) -> EngineBuildResult {
         let request: [String: Any] = ["document": document.path, "stl": stlOut.path]
         guard let requestLine = try? JSONSerialization.data(withJSONObject: request) else {
-            return EngineBuildResult(success: false, output: "failed to encode build request")
+            return EngineBuildResult(success: false, output: "failed to encode build request", failedFeature: nil)
         }
         // One retry against a freshly spawned engine: enough to shrug off a
         // one-off OCCT segfault without masking a build that fails every time.
@@ -49,7 +55,7 @@ final class EngineRunner {
         if retriesLeft > 0 {
             return attemptBuild(requestLine, retriesLeft: retriesLeft - 1)
         }
-        return EngineBuildResult(success: false, output: "engine process is not responding")
+        return EngineBuildResult(success: false, output: "engine process is not responding", failedFeature: nil)
     }
 
     private func ensureRunning() -> Bool {
@@ -104,7 +110,7 @@ final class EngineRunner {
         else {
             return nil
         }
-        return EngineBuildResult(success: success, output: output)
+        return EngineBuildResult(success: success, output: output, failedFeature: json["failed_feature"] as? String)
     }
 
     /// Reads up to the next `\n` from `handle`, blocking on `availableData`

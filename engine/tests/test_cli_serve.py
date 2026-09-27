@@ -22,11 +22,41 @@ def test_rollback_to_empty_clears_a_stale_stl_instead_of_failing(tmp_path: Path)
     stl_out = tmp_path / "part.stl"
     stl_out.write_bytes(b"stale from before the rollback")
 
-    success, output = _build_document(document_path, None, stl_out, tmp_path / "cache")
+    success, output, failed_id = _build_document(document_path, None, stl_out, tmp_path / "cache")
 
     assert success is True
     assert "empty document" in output
+    assert failed_id is None
     assert not stl_out.exists()
+
+
+def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
+    """Editing a sketch can leave a later op unbuildable. The user needs the
+    part they still have, plus the id of the op that no longer applies."""
+    document_path = tmp_path / "document.json"
+    document = json.loads((Path(__file__).parent / "golden" / "rect_extrude" / "document.json").read_text())
+    document["features"].append(
+        {
+            "id": "f3",
+            "type": "extrude_face",
+            "base": "f2",
+            # An ambiguous selector: it matches all 6 faces, so the op refuses
+            # to guess. Editing a sketch can turn a once-unique selector into
+            # this.
+            "face": {"from": "part", "select": [{"op": "faces"}]},
+            "distance": 5,
+        }
+    )
+    document["rollback_index"] = 3
+    document_path.write_text(json.dumps(document))
+
+    stl_out = tmp_path / "part.stl"
+    success, output, failed_id = _build_document(document_path, None, stl_out, tmp_path / "cache")
+
+    assert success is True
+    assert failed_id == "f3"
+    assert "no longer builds" in output
+    assert stl_out.exists()
 
 
 def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):

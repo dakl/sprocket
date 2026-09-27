@@ -19,6 +19,14 @@ class ReplayError(Exception):
     pass
 
 
+def _tagged(error, feature, index):
+    """Records which feature failed, so the caller can name it to the user and
+    still export everything built before it."""
+    error.feature_id = feature.get("id")
+    error.feature_index = index
+    return error
+
+
 @dataclass
 class Context:
     """Carries each feature's result forward so later features can reference it."""
@@ -39,21 +47,29 @@ def replay(document: dict, cache_dir: Path | None = None):
     upstream_key = "root"
     last_result = None
 
-    for feature in features[:rollback_index]:
+    for index, feature in enumerate(features[:rollback_index]):
         op_type = feature.get("type")
         op = REGISTRY.get(op_type)
         if op is None:
-            raise ReplayError(f"unknown op type {op_type!r} in feature {feature.get('id')!r}")
+            raise _tagged(ReplayError(f"unknown op type {op_type!r} in feature {feature.get('id')!r}"), feature, index)
 
         try:
             jsonschema.validate(feature, op.schema)
         except jsonschema.ValidationError as exc:
-            raise ReplayError(f"feature {feature.get('id')!r} failed validation: {exc.message}") from exc
+            error = ReplayError(f"feature {feature.get('id')!r} failed validation: {exc.message}")
+            raise _tagged(error, feature, index) from exc
 
         key = feature_cache_key(feature, upstream_key)
         result = cache.get(key, op_type) if cache else None
         if result is None:
-            result = op.apply(feature, ctx)
+            try:
+                result = op.apply(feature, ctx)
+            except Exception as exc:
+                # Editing a sketch can leave a later feature unbuildable: a
+                # face selector may match nothing, or a cut may miss the part.
+                # The caller needs to know which feature broke, so tag the
+                # original exception instead of wrapping it in a new type.
+                raise _tagged(exc, feature, index) from None
             if cache:
                 cache.put(key, result)
 

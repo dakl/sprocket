@@ -49,18 +49,50 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
+def _last_solid_index(features: list[dict], rollback_index: int) -> int:
+    """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
+    inert until something extrudes it. replay() only returns its last
+    feature's result, so a bare sketch left at the tip would export as the
+    part and blank out whatever solid came before it. Walk back past any
+    trailing sketch features to the last one that actually produced a solid."""
+    index = rollback_index
+    while index > 0 and features[index - 1].get("type") == "sketch":
+        index -= 1
+    return index
+
+
 def _build_document(
     document_path: Path, step: Path | None, stl: Path | None, cache_dir: Path | None
-) -> tuple[bool, str]:
+) -> tuple[bool, str, str | None]:
     """Replays one document and exports it. Shared by `build` and `serve`
-    so the daemon path can't silently drift from the one-shot CLI path."""
+    so the daemon path can't silently drift from the one-shot CLI path.
+
+    Returns (success, message, failed_feature_id). A feature that no longer
+    builds is not a failed build: editing a sketch can break a later op, and
+    the user still needs to see the part up to that point. So the export falls
+    back to the prefix before the broken feature, and its id comes back so the
+    app can mark it."""
     document = json.loads(Path(document_path).read_text())
     resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
 
+    features = document.get("features", [])
+    rollback_index = document.get("rollback_index", len(features))
+    export_index = _last_solid_index(features, rollback_index)
+    export_document = document if export_index == rollback_index else {**document, "rollback_index": export_index}
+
+    failed_id = None
     try:
-        result = replay(document, cache_dir=resolved_cache_dir)
-    except ReplayError as exc:
-        return False, f"error: {exc}"
+        result = replay(export_document, cache_dir=resolved_cache_dir)
+    except Exception as exc:
+        failed_index = getattr(exc, "feature_index", None)
+        failed_id = getattr(exc, "feature_id", None)
+        if failed_index is None:
+            return False, f"error: {exc}", None
+        good_index = _last_solid_index(features, failed_index)
+        try:
+            result = replay({**document, "rollback_index": good_index}, cache_dir=resolved_cache_dir)
+        except Exception as earlier:
+            return False, f"error: {earlier}", failed_id
 
     if result is None:
         # rollback_index=0: a valid empty document, not a failure. Clear any
@@ -68,9 +100,11 @@ def _build_document(
         for path in (step, stl):
             if path and Path(path).exists():
                 Path(path).unlink()
-        return True, "replayed ok: empty document"
+        return True, "replayed ok: empty document", failed_id
 
     messages = []
+    if failed_id:
+        messages.append(f"feature {failed_id!r} no longer builds, showing the part before it")
     if step:
         export_step(result, Path(step))
         messages.append(f"wrote {step}")
@@ -79,11 +113,11 @@ def _build_document(
         messages.append(f"wrote {stl}")
     if not step and not stl:
         messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")
-    return True, "\n".join(messages)
+    return True, "\n".join(messages), failed_id
 
 
 def _build(args: argparse.Namespace) -> int:
-    success, output = _build_document(args.document, args.step, args.stl, args.cache_dir)
+    success, output, _ = _build_document(args.document, args.step, args.stl, args.cache_dir)
     if not success:
         print(output, file=sys.stderr)
         return 1
@@ -98,12 +132,12 @@ def _serve() -> int:
             continue
         try:
             request = json.loads(line)
-            success, output = _build_document(
+            success, output, failed_id = _build_document(
                 request["document"], request.get("step"), request.get("stl"), request.get("cache_dir")
             )
         except Exception as exc:
-            success, output = False, f"error: {exc}"
-        print(json.dumps({"success": success, "output": output}), flush=True)
+            success, output, failed_id = False, f"error: {exc}", None
+        print(json.dumps({"success": success, "output": output, "failed_feature": failed_id}), flush=True)
     return 0
 
 

@@ -11,6 +11,33 @@ struct ExtrudeFacePayload {
     let distance: Double
 }
 
+/// A sketch commit posted from the viewer's sketch mode (see index.html's
+/// finishSketch()). `plane` is either the string "XY"/"XZ"/"YZ", or a
+/// {origin, normal, x_dir} dict for a plane picked off a part face - passed
+/// through untouched, since the engine's sketch op accepts both forms
+/// directly. `polygon` is a closed loop of [u, v] points local to that plane.
+struct SketchPayload {
+    let plane: Any
+    let polygon: [[Double]]
+}
+
+/// An extrude-the-sketch commit, posted after armSketchExtrude()'s drag (see
+/// index.html). `profile` is the id of the sketch feature being extruded;
+/// Swift looks up what solid (if any) came before it to fuse/cut into.
+struct ExtrudeSketchPayload {
+    let profile: String
+    let distance: Double
+}
+
+/// A sketch edit posted when the viewer's corner or edge drag is released (see
+/// index.html's pointerup listener). `id` names an existing sketch feature and
+/// `polygon` replaces its points, in the same [u, v] plane-local form
+/// SketchPayload uses. The plane never moves, only the profile on it.
+struct UpdateSketchPayload {
+    let id: String
+    let polygon: [[Double]]
+}
+
 /// Loads viewer/index.html and grants it read access to the viewer
 /// directory, so it can fetch part.stl next to it. Registers a
 /// WKScriptMessageHandler named "sprocket" so the JS side can post a
@@ -19,12 +46,25 @@ struct WebView: NSViewRepresentable {
     let url: URL
     let readAccessURL: URL
     let onExtrudeFace: (ExtrudeFacePayload) -> Void
+    let onAddSketch: (SketchPayload) -> Void
+    let onExtrudeSketch: (ExtrudeSketchPayload) -> Void
+    let onUpdateSketch: (UpdateSketchPayload) -> Void
     let onSetRollback: (Int) -> Void
+    let onNewDocument: () -> Void
     let onUndo: () -> Void
     let onRedo: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onExtrudeFace: onExtrudeFace, onSetRollback: onSetRollback, onUndo: onUndo, onRedo: onRedo)
+        Coordinator(
+            onExtrudeFace: onExtrudeFace,
+            onAddSketch: onAddSketch,
+            onExtrudeSketch: onExtrudeSketch,
+            onUpdateSketch: onUpdateSketch,
+            onSetRollback: onSetRollback,
+            onNewDocument: onNewDocument,
+            onUndo: onUndo,
+            onRedo: onRedo
+        )
     }
 
     /// Extracts the `t` cache-bust token ContentView appends to `url`, so
@@ -100,18 +140,30 @@ struct WebView: NSViewRepresentable {
         /// SwiftUI re-render that didn't change anything.
         var lastToken: String?
         private let onExtrudeFace: (ExtrudeFacePayload) -> Void
+        private let onAddSketch: (SketchPayload) -> Void
+        private let onExtrudeSketch: (ExtrudeSketchPayload) -> Void
+        private let onUpdateSketch: (UpdateSketchPayload) -> Void
         private let onSetRollback: (Int) -> Void
+        private let onNewDocument: () -> Void
         private let onUndo: () -> Void
         private let onRedo: () -> Void
 
         init(
             onExtrudeFace: @escaping (ExtrudeFacePayload) -> Void,
+            onAddSketch: @escaping (SketchPayload) -> Void,
+            onExtrudeSketch: @escaping (ExtrudeSketchPayload) -> Void,
+            onUpdateSketch: @escaping (UpdateSketchPayload) -> Void,
             onSetRollback: @escaping (Int) -> Void,
+            onNewDocument: @escaping () -> Void,
             onUndo: @escaping () -> Void,
             onRedo: @escaping () -> Void
         ) {
             self.onExtrudeFace = onExtrudeFace
+            self.onAddSketch = onAddSketch
+            self.onExtrudeSketch = onExtrudeSketch
+            self.onUpdateSketch = onUpdateSketch
             self.onSetRollback = onSetRollback
+            self.onNewDocument = onNewDocument
             self.onUndo = onUndo
             self.onRedo = onRedo
         }
@@ -133,6 +185,11 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
+            if type == "new_document" {
+                onNewDocument()
+                return
+            }
+
             if type == "undo" {
                 onUndo()
                 return
@@ -143,12 +200,32 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
-            guard type == "extrude_face",
-                  let point = body["point"] as? [Double],
-                  let normal = body["normal"] as? [Double],
+            if type == "extrude_face" {
+                guard let point = body["point"] as? [Double],
+                      let normal = body["normal"] as? [Double],
+                      let distance = body["distance"] as? Double
+                else { return }
+                onExtrudeFace(ExtrudeFacePayload(point: point, normal: normal, distance: distance))
+                return
+            }
+
+            if type == "update_sketch" {
+                guard let id = body["id"] as? String, let polygon = body["polygon"] as? [[Double]] else { return }
+                onUpdateSketch(UpdateSketchPayload(id: id, polygon: polygon))
+                return
+            }
+
+            if type == "add_sketch" {
+                guard let plane = body["plane"], let polygon = body["polygon"] as? [[Double]] else { return }
+                onAddSketch(SketchPayload(plane: plane, polygon: polygon))
+                return
+            }
+
+            guard type == "extrude_sketch",
+                  let profile = body["profile"] as? String,
                   let distance = body["distance"] as? Double
             else { return }
-            onExtrudeFace(ExtrudeFacePayload(point: point, normal: normal, distance: distance))
+            onExtrudeSketch(ExtrudeSketchPayload(profile: profile, distance: distance))
         }
     }
 }
