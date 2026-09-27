@@ -39,7 +39,7 @@ struct UpdateSketchPayload {
 }
 
 /// Loads viewer/index.html and grants it read access to the viewer
-/// directory, so it can fetch part.stl next to it. Registers a
+/// directory, so it can fetch part.mesh next to it. Registers a
 /// WKScriptMessageHandler named "sprocket" so the JS side can post a
 /// push/pull commit back to Swift.
 struct WebView: NSViewRepresentable {
@@ -78,7 +78,7 @@ struct WebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         // WKWebView treats each file:// URL as its own origin, so the
-        // viewer's fetch() of part.stl/features.json next to it is blocked
+        // viewer's fetch() of part.mesh/features.json next to it is blocked
         // as cross-origin unless this is set (undocumented WebKit key, no
         // public API for it).
         configuration.setValue(true, forKey: "allowUniversalAccessFromFileURLs")

@@ -1,4 +1,5 @@
 app/.build/
 viewer/part.stl
+viewer/part.mesh
 viewer/features.json
 examples/cache/
