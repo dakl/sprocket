@@ -1144,6 +1144,14 @@
       setHighlight(patch, mesh.geometry.attributes.position, 0xffaa00);
     });
 
+    // Grabbing the viewport cancels a camera move, unless the move is the one
+    // that puts you square on to a sketch plane.
+    function cancelCameraMove() {
+      if (controls.enableRotate) cameraMove = null;
+    }
+    renderer.domElement.addEventListener("pointerdown", cancelCameraMove);
+    renderer.domElement.addEventListener("wheel", cancelCameraMove, { passive: true });
+
     renderer.domElement.addEventListener("pointerdown", (event) => {
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
@@ -1805,11 +1813,16 @@
       sketchToolPolygonEl.classList.toggle("active", sketchTool === "polygon");
       updateSketchDrawHint();
 
-      const distance = camera.position.distanceTo(controls.target) || 200;
-      controls.target.copy(sketchPlane.origin);
-      camera.up.copy(sketchPlane.yDir);
-      camera.position.copy(sketchPlane.origin).addScaledVector(sketchPlane.normal, distance);
-      controls.update();
+      // View the plane from whichever side the camera is already on, and roll
+      // to the plane axis nearest the current screen up. Both keep the move
+      // to the smallest rotation that still looks at the plane square on.
+      const up = screenUp();
+      const side = camera.position.clone().sub(sketchPlane.origin).dot(sketchPlane.normal) < 0 ? -1 : 1;
+      const rolls = [sketchPlane.yDir, sketchPlane.xDir];
+      const nearestRoll = rolls
+        .flatMap((axis) => [axis.clone(), axis.clone().negate()])
+        .reduce((best, axis) => (axis.dot(up) > best.dot(up) ? axis : best));
+      moveCameraTo(sketchPlane.normal.clone().multiplyScalar(side), nearestRoll, sketchPlane.origin);
       controls.enableRotate = false;
 
       if (mesh) {
@@ -2007,11 +2020,54 @@
       return sprite;
     }
 
+    // --- Camera moves ---------------------------------------------------
+    // A view change eases into place instead of jumping, so you can see where
+    // the model went. The rotation is a quaternion slerp between the old and
+    // new orientation, which always takes the short way round.
+    const LOCAL_UP = new THREE.Vector3(0, 1, 0);
+    const LOCAL_BACK = new THREE.Vector3(0, 0, 1);
+    const CAMERA_MOVE_MS = 350;
+    let cameraMove = null;
+
+    // The orientation of a camera that sits along `direction` and has `up`
+    // pointing up the screen.
+    function viewQuaternion(direction, up) {
+      const basis = new THREE.Matrix4().lookAt(direction, new THREE.Vector3(), up);
+      return new THREE.Quaternion().setFromRotationMatrix(basis);
+    }
+
+    function screenUp() {
+      return LOCAL_UP.clone().applyQuaternion(camera.quaternion);
+    }
+
+    function moveCameraTo(direction, up, target) {
+      const startTarget = controls.target.clone();
+      const offset = camera.position.clone().sub(startTarget);
+      cameraMove = {
+        startTime: performance.now(),
+        distance: offset.length() || 200,
+        startTarget,
+        endTarget: (target || startTarget).clone(),
+        startQuaternion: viewQuaternion(offset.normalize(), screenUp()),
+        endQuaternion: viewQuaternion(direction.clone().normalize(), up),
+      };
+    }
+
+    function stepCameraMove() {
+      const elapsed = performance.now() - cameraMove.startTime;
+      const t = Math.min(1, elapsed / CAMERA_MOVE_MS);
+      const eased = t * t * (3 - 2 * t);
+      const orientation = cameraMove.startQuaternion.clone().slerp(cameraMove.endQuaternion, eased);
+      controls.target.lerpVectors(cameraMove.startTarget, cameraMove.endTarget, eased);
+      camera.up.copy(LOCAL_UP).applyQuaternion(orientation);
+      camera.position
+        .copy(controls.target)
+        .addScaledVector(LOCAL_BACK.clone().applyQuaternion(orientation), cameraMove.distance);
+      if (t === 1) cameraMove = null;
+    }
+
     function snapToView(dir, up) {
-      const distance = camera.position.distanceTo(controls.target);
-      camera.up.set(up.x, up.y, up.z);
-      camera.position.copy(controls.target).addScaledVector(dir, distance);
-      controls.update();
+      moveCameraTo(dir, new THREE.Vector3(up.x, up.y, up.z));
     }
 
     const CUBE_SIZE = 132;
@@ -2169,6 +2225,7 @@
 
     function animate() {
       requestAnimationFrame(animate);
+      if (cameraMove) stepCameraMove();
       controls.update();
       renderer.render(scene, camera);
       renderViewCube();
