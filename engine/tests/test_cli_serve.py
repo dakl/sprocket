@@ -13,7 +13,7 @@ from sprocket_engine.cli import _build_document, _serve
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 
-def test_rollback_to_empty_clears_a_stale_stl_instead_of_failing(tmp_path: Path):
+def test_rollback_to_empty_clears_stale_exports_instead_of_failing(tmp_path: Path):
     document_path = tmp_path / "document.json"
     document = json.loads((Path(__file__).parent / "golden" / "rect_extrude" / "document.json").read_text())
     document["rollback_index"] = 0
@@ -21,13 +21,18 @@ def test_rollback_to_empty_clears_a_stale_stl_instead_of_failing(tmp_path: Path)
 
     stl_out = tmp_path / "part.stl"
     stl_out.write_bytes(b"stale from before the rollback")
+    mesh_out = tmp_path / "part.mesh"
+    mesh_out.write_bytes(b"stale from before the rollback")
 
-    success, output, failed_id = _build_document(document_path, None, stl_out, tmp_path / "cache")
+    success, output, failed_id = _build_document(
+        document_path, None, stl_out, tmp_path / "cache", mesh_out
+    )
 
     assert success is True
     assert "empty document" in output
     assert failed_id is None
     assert not stl_out.exists()
+    assert not mesh_out.exists()
 
 
 def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
@@ -61,11 +66,13 @@ def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
 
 def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):
     stl_out = tmp_path / "part.stl"
+    mesh_out = tmp_path / "part.mesh"
     requests = (
         json.dumps(
             {
                 "document": str(EXAMPLES_DIR / "box.json"),
                 "stl": str(stl_out),
+                "mesh": str(mesh_out),
                 "cache_dir": str(tmp_path / "cache"),
             }
         )
@@ -83,6 +90,9 @@ def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):
     first = json.loads(lines[0])
     assert first["success"] is True
     assert stl_out.exists()
+    # The app asks for the mesh, not the STL (see EngineRunner.build), so a
+    # renamed request key has to fail here.
+    assert mesh_out.exists()
 
     second = json.loads(lines[1])
     assert second["success"] is False

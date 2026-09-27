@@ -414,12 +414,22 @@
     </button>
   </div>
   <script src="vendor/three.min.js"></script>
-  <script src="vendor/STLLoader.js"></script>
   <script src="vendor/OrbitControls.js"></script>
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
     // timeline, no live engine connection yet — see docs/SPEC.md M3+.
+    // Every colour written in this file is an sRGB hex, the way a CSS colour
+    // or a design tool states it. The renderer's output encoding is sRGB (see
+    // renderer setup below), so three.js treats a material colour as linear
+    // light and encodes it on the way out. Passing a raw hex therefore
+    // brightens it. srgb() does the one conversion that keeps what you write
+    // and what you see the same. The view cube renders through cubeRenderer,
+    // which has no output encoding, so its colours stay raw hexes.
+    const srgb = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+
     const scene = new THREE.Scene();
+    // Not srgb(): r128 clears the framebuffer with this colour directly and
+    // skips outputEncoding for it, so converting here would darken it twice.
     scene.background = new THREE.Color(0x1e1e1e);
 
     // Persistent outlines for sketch features: a bare sketch has no solid to
@@ -440,18 +450,43 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
     document.body.appendChild(renderer.domElement);
     console.log("renderer ready");
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 0.8);
-    key.position.set(1, -1, 2);
-    scene.add(key);
+    // A studio rig, not a single lamp. The old ambient-plus-one-directional
+    // pair summed to 1.4 on any face turned towards the key, so the body
+    // colour's blue channel ran past 1.0 and clipped: every lit face came
+    // back a flat #6ba5ff with no gradation left in it. These three sum to
+    // 1.15 at most, and each comes from a different direction, so
+    // neighbouring faces of a box read as different tones. Measured on
+    // examples/box.json: face luminance now spans 0.24 to 0.48 with no
+    // channel at 255. Before, it spanned 0.30 to 0.65 with the top faces
+    // clipped. Fusion 360 spans 0.18 to 0.32 on the same shape, but it
+    // separates faces with black edge lines rather than with light.
+    const hemisphere = new THREE.HemisphereLight(0xffffff, 0x20242b, 0.18);
+    scene.add(hemisphere);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    keyLight.position.set(2, -3, 4); // over the viewer's right shoulder
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.12);
+    fillLight.position.set(-4, 1.5, 0.5); // opposite the key, to lift the shadow side
+    scene.add(fillLight);
 
     const grid = new THREE.GridHelper(200, 20, 0x444444, 0x333333);
     grid.rotation.x = Math.PI / 2; // lie flat in the XY plane
+    // GridHelper bakes its two colours into a vertex-colour attribute, so it
+    // cannot take a srgb() Color. Convert the attribute in place instead.
+    // r128 keeps its sRGB transfer function module-private, so inline it.
+    const gridColors = grid.geometry.attributes.color.array;
+    for (let i = 0; i < gridColors.length; i++) {
+      const c = gridColors[i];
+      gridColors[i] = c < 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
     scene.add(grid);
 
     function frameCameraOn(object) {
@@ -470,66 +505,173 @@
     }
 
     const params = new URLSearchParams(window.location.search);
-    const partBase = params.get("part") || "part.stl";
+    const partBase = params.get("part") || "part.mesh";
     const featuresBase = "features.json";
 
     let mesh = null;
-    let adjacency = null;
+    let edgeLines = null;
 
     function urlWithCacheBust(base, token) {
       if (!token) return base;
       return base + (base.includes("?") ? "&" : "?") + "t=" + token;
     }
 
+    // --- Mesh file (see engine/src/sprocket_engine/mesh.py) -------------
+    // uint32 header length, then that many bytes of UTF-8 JSON, then the
+    // buffers. A buffer's offset is relative to the payload, which starts
+    // right after the header.
+    const MESH_ARRAY_TYPES = { float32: Float32Array, uint32: Uint32Array };
+
+    function parseMesh(buffer) {
+      const headerLength = new DataView(buffer).getUint32(0, true);
+      const headerBytes = new Uint8Array(buffer, 4, headerLength);
+      // The header is zero-padded to keep the payload 4-aligned. JSON.parse
+      // chokes on the padding, so stop at the first NUL.
+      const nul = headerBytes.indexOf(0);
+      const text = new TextDecoder().decode(nul === -1 ? headerBytes : headerBytes.subarray(0, nul));
+      const header = JSON.parse(text);
+      if (header.format !== "sprocket-mesh" || header.version !== 1) {
+        throw new Error("unexpected mesh format " + header.format + " v" + header.version);
+      }
+
+      const payloadStart = 4 + headerLength;
+      const buffers = {};
+      for (const [name, entry] of Object.entries(header.buffers)) {
+        const ArrayType = MESH_ARRAY_TYPES[entry.type];
+        if (!ArrayType) throw new Error("unknown buffer type " + entry.type + " for " + name);
+        // A view, not a copy: the whole point of the 4-alignment.
+        buffers[name] = new ArrayType(buffer, payloadStart + entry.offset, entry.length);
+      }
+      return { header: header, buffers: buffers };
+    }
+
+    // One geometry group per B-rep face, in the order the engine's
+    // shape.faces() returns them. With a single material r128 ignores the
+    // groups at render time, so they cost one draw call total, not one per
+    // face. Picking reads them: a group index is a B-rep face index.
+    function buildPartGeometry(mesh) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(mesh.buffers.vertices, 3));
+      // OCCT's own surface normals. The STL path had to call
+      // computeVertexNormals(), which averages triangle normals and so rounds
+      // the shading off a curved face.
+      geometry.setAttribute("normal", new THREE.BufferAttribute(mesh.buffers.normals, 3));
+      geometry.setIndex(new THREE.BufferAttribute(mesh.buffers.indices, 1));
+
+      // faceOfTriangle inverts the groups. A raycast hands back a triangle
+      // index and picking needs the face, which would otherwise be a search
+      // through the groups on every pointermove. On the geometry rather than in
+      // a global so it goes when the geometry is disposed.
+      const faceOfTriangle = new Uint32Array(mesh.header.counts.triangles);
+      let triangleStart = 0;
+      for (let faceIndex = 0; faceIndex < mesh.buffers.triangles_per_face.length; faceIndex++) {
+        const triangleCount = mesh.buffers.triangles_per_face[faceIndex];
+        geometry.addGroup(triangleStart * 3, triangleCount * 3, 0);
+        faceOfTriangle.fill(faceIndex, triangleStart, triangleStart + triangleCount);
+        triangleStart += triangleCount;
+      }
+      geometry.userData.faceOfTriangle = faceOfTriangle;
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      return geometry;
+    }
+
+    function disposePart() {
+      if (mesh) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+        mesh = null;
+      }
+      if (edgeLines) {
+        scene.remove(edgeLines);
+        edgeLines.geometry.dispose();
+        edgeLines.material.dispose();
+        edgeLines = null;
+      }
+    }
+
     function loadPart(token, options) {
       const refit = Boolean(options && options.refit);
       const path = urlWithCacheBust(partBase, token);
-      new THREE.STLLoader().load(
-        path,
-        (geometry) => {
-          console.log("STL loaded", path);
-          geometry.computeVertexNormals();
+      fetch(path)
+        // file:// fetches report status 0, not 200, so response.ok is always
+        // false there.
+        .then((response) => {
+          if (!response.ok && response.status !== 0) throw new Error("HTTP " + response.status);
+          return response.arrayBuffer();
+        })
+        .then((buffer) => {
+          const parsed = parseMesh(buffer);
+          const counts = parsed.header.counts;
+          console.log(
+            "mesh loaded", path, counts.faces + " faces,", counts.triangles + " triangles,", counts.edges + " edges"
+          );
+
           // Replace, don't add: a rebuild reuses this scene instead of
           // reloading the page, so the old mesh must go or it doubles up.
-          if (mesh) {
-            scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
-          }
-          const material = new THREE.MeshStandardMaterial({ color: 0x5b8dee, metalness: 0.1, roughness: 0.6 });
-          mesh = new THREE.Mesh(geometry, material);
+          disposePart();
+
+          // metalness 0: a metal surface takes its colour from reflections,
+          // and there is no environment map here, so any metalness above 0
+          // only drains the body colour towards black.
+          //
+          // polygonOffset pushes the body away from the camera by a hair so
+          // the edge lines below, which sit exactly on the body's boundary,
+          // win the depth test instead of flickering against it.
+          const material = new THREE.MeshStandardMaterial({
+            color: srgb(0x5b8dee),
+            metalness: 0,
+            roughness: 0.55,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1,
+          });
+          mesh = new THREE.Mesh(buildPartGeometry(parsed), material);
           scene.add(mesh);
+
+          // The B-rep edge curves, already tessellated into consecutive point
+          // pairs. This is the difference that makes the viewport read like a
+          // CAD view: Fusion 360 separates faces with dark edge lines rather
+          // than with lighting, and measured against its shading its face
+          // tones span only about 0.14 of luma.
+          const edgeGeometry = new THREE.BufferGeometry();
+          edgeGeometry.setAttribute("position", new THREE.BufferAttribute(parsed.buffers.edges, 3));
+          edgeLines = new THREE.LineSegments(
+            edgeGeometry,
+            // srgb() like every other main-scene colour. Being unlit buys no
+            // exemption: outputEncoding encodes the final fragment whether a
+            // material samples lights or not. Measured, a raw hex here comes
+            // out #2a2c2f rather than #14181f, light enough to read as a grey
+            // seam instead of an edge.
+            new THREE.LineBasicMaterial({ color: srgb(0x14181f) })
+          );
+          scene.add(edgeLines);
+
           if (refit) frameCameraOn(mesh);
-          adjacency = buildAdjacency(geometry);
           applyVisibility();
           renderBrowser();
-        },
-        undefined,
-        (error) => {
-          // Also fires for a genuinely empty document (rolled back before
-          // the first feature): the engine deletes part.stl rather than
-          // export nothing, so clear the stale mesh instead of leaving the
-          // last-built part on screen.
+        })
+        .catch((error) => {
+          // Also fires for a genuinely empty document (rolled back before the
+          // first feature): the engine deletes the mesh file rather than
+          // export nothing, so clear the stale part instead of leaving the
+          // last-built one on screen.
           document.title = "Sprocket viewer";
-          console.log("no part.stl to load (empty document, or a real load failure)", path, error);
-          if (mesh) {
-            scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
-            mesh = null;
-          }
+          console.log("no mesh to load (empty document, or a real load failure)", path, error);
+          disposePart();
           renderBrowser();
-        }
-      );
+        });
     }
 
     // --- Timeline (M3) --------------------------------------------------
-    // A sidecar JSON next to part.stl, written by the Swift app on every
+    // A sidecar JSON next to part.mesh, written by the Swift app on every
     // rebuild: a plain array of {id, type}, one per feature in the document.
     function loadFeatures(token) {
       fetch(urlWithCacheBust(featuresBase, token))
         // file:// fetches report status 0, not 200, so response.ok is always
-        // false there — the same quirk STLLoader works around internally.
+        // false in the app. Treat 0 as success or the timeline never loads
+        // outside a local server.
         .then((response) => (response.ok || response.status === 0 ? response.json() : []))
         .then((features) => {
           // A rebuild replaces every feature object, so a selection held from
@@ -555,7 +697,7 @@
     }
 
     // Called from Swift (see WebView.swift) after every op edit, instead of
-    // reloading the page: refetches part.stl/features.json in place so the
+    // reloading the page: refetches part.mesh/features.json in place so the
     // camera position and zoom the user set survive a rebuild.
     window.reloadPart = function (token) {
       loadPart(token, { refit: false });
@@ -630,97 +772,75 @@
     }
 
     // --- Push/pull picking (M3) ---------------------------------------
-    // A "patch" is the set of triangles reachable from a clicked triangle
-    // by crossing only shared edges into neighbours with the same normal
-    // (within tolerance). That is one flat face, even when the STL split
-    // it into several triangles.
+    // A "patch" is one B-rep face: geometry group `faceIndex`, a contiguous
+    // run of triangles in shape.faces() order (see mesh.py). It used to be a
+    // guess. With an STL there was no face information at all, so a click
+    // flood-filled from the hit triangle across shared edges into neighbours
+    // whose winding normals matched to within a tolerance. That found flat
+    // faces only, merged two coplanar faces that happened to touch, and
+    // needed a rounded-coordinate map to decide which triangles were even
+    // neighbours. OCCT knows the answer, so this reads it.
 
-    function vertexKey(pos, i) {
-      // Round to make coincident vertices from different triangles compare
-      // equal. STLLoader geometry is non-indexed, so there is no shared
-      // index to rely on.
-      return Math.round(pos.getX(i) * 1000) + "," + Math.round(pos.getY(i) * 1000) + "," + Math.round(pos.getZ(i) * 1000);
+    /// The B-rep face under a raycast hit: which triangles are that face, and
+    /// the surface normal there.
+    ///
+    /// `normal` is OCCT's own node normal, not a cross product of the hit
+    /// triangle's edges. On a planar face the two agree, measured to 1e-6 on
+    /// examples/box.json, so the extrude axis is unchanged. On a curved face
+    /// the node normal is the surface's and the winding normal is one facet's.
+    function facePatchAt(hit) {
+      const geometry = mesh.geometry;
+      const normals = geometry.attributes.normal;
+      const faceIndex = geometry.userData.faceOfTriangle[hit.faceIndex];
+      const group = geometry.groups[faceIndex];
+      const corner = geometry.index.getX(hit.faceIndex * 3);
+      return {
+        faceIndex: faceIndex,
+        firstTriangle: group.start / 3,
+        triangleCount: group.count / 3,
+        normal: new THREE.Vector3(normals.getX(corner), normals.getY(corner), normals.getZ(corner)),
+      };
     }
 
-    function buildAdjacency(geometry) {
-      const pos = geometry.attributes.position;
-      const triCount = pos.count / 3;
-      const triEdges = [];
-      const edgeMap = new Map(); // "keyA|keyB" -> [triIndex, ...]
-      const keyToPos = new Map();
-
-      for (let t = 0; t < triCount; t++) {
-        const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
-        const k0 = vertexKey(pos, i0), k1 = vertexKey(pos, i1), k2 = vertexKey(pos, i2);
-        if (!keyToPos.has(k0)) keyToPos.set(k0, new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0)));
-        if (!keyToPos.has(k1)) keyToPos.set(k1, new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1)));
-        if (!keyToPos.has(k2)) keyToPos.set(k2, new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2)));
-
-        const edges = [[k0, k1], [k1, k2], [k2, k0]];
-        triEdges.push(edges);
-        for (const [a, b] of edges) {
-          const ek = a < b ? a + "|" + b : b + "|" + a;
-          if (!edgeMap.has(ek)) edgeMap.set(ek, []);
-          edgeMap.get(ek).push(t);
-        }
-      }
-
-      const neighbours = Array.from({ length: triCount }, () => []);
-      for (const tris of edgeMap.values()) {
-        if (tris.length === 2) {
-          neighbours[tris[0]].push(tris[1]);
-          neighbours[tris[1]].push(tris[0]);
-        }
-      }
-
-      return { triCount, triEdges, neighbours, keyToPos };
+    /// The vertex indices of triangle `t`'s three corners.
+    function triangleCorners(t) {
+      const index = mesh.geometry.index;
+      return [index.getX(t * 3), index.getX(t * 3 + 1), index.getX(t * 3 + 2)];
     }
 
-    function triNormal(pos, t) {
-      const i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
-      const a = new THREE.Vector3(pos.getX(i0), pos.getY(i0), pos.getZ(i0));
-      const b = new THREE.Vector3(pos.getX(i1), pos.getY(i1), pos.getZ(i1));
-      const c = new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2));
-      return new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    function edgeKey(a, b) {
+      return a < b ? a + "|" + b : b + "|" + a;
     }
 
-    function floodFillPatch(startTri, pos) {
-      const normal = triNormal(pos, startTri);
-      const triangles = new Set([startTri]);
-      const stack = [startTri];
-      while (stack.length) {
-        const t = stack.pop();
-        for (const n of adjacency.neighbours[t]) {
-          if (triangles.has(n)) continue;
-          if (triNormal(pos, n).dot(normal) > 0.999) {
-            triangles.add(n);
-            stack.push(n);
-          }
-        }
-      }
-      return { triangles, normal };
-    }
-
-    function boundaryEdges(triangles) {
+    /// A patch's outside edges: used by one of its triangles rather than
+    /// shared by two.
+    ///
+    /// By vertex index, with no coordinate rounding. Within one B-rep face
+    /// OCCT's triangulation shares its nodes, so two triangles that meet reuse
+    /// the same index. The old flood fill could not assume that, because a
+    /// patch could span faces and the tessellation splits vertices between
+    /// them. Measured on examples/box.json: all 18 faces share their interior
+    /// edges by index, and every boundary vertex has exactly two boundary
+    /// edges, so the loops below always close. Pinned by
+    /// test_a_faces_triangulation_is_index_shared_and_its_boundary_closes.
+    function boundaryEdges(patch) {
       const counts = new Map();
-      for (const t of triangles) {
-        for (const [a, b] of adjacency.triEdges[t]) {
-          const ek = a < b ? a + "|" + b : b + "|" + a;
-          counts.set(ek, (counts.get(ek) || 0) + 1);
-        }
-      }
       const edges = [];
-      for (const t of triangles) {
-        for (const [a, b] of adjacency.triEdges[t]) {
-          const ek = a < b ? a + "|" + b : b + "|" + a;
-          if (counts.get(ek) === 1) edges.push([a, b]);
+      const lastTriangle = patch.firstTriangle + patch.triangleCount;
+      for (let t = patch.firstTriangle; t < lastTriangle; t++) {
+        const [i0, i1, i2] = triangleCorners(t);
+        for (const edge of [[i0, i1], [i1, i2], [i2, i0]]) {
+          edges.push(edge);
+          const key = edgeKey(edge[0], edge[1]);
+          counts.set(key, (counts.get(key) || 0) + 1);
         }
       }
-      return edges;
+      return edges.filter(([a, b]) => counts.get(edgeKey(a, b)) === 1);
     }
 
-    // Walk the boundary edges into ordered loops, so consecutive vertices
-    // are connected. Assumes simple faces with no holes, true for boxy parts.
+    // Walk the boundary edges into ordered loops of vertex indices, so
+    // consecutive entries are connected. A face with a hole has more than one
+    // loop: two of box.json's 18 do.
     function orderLoops(edges) {
       const adj = new Map();
       for (const [a, b] of edges) {
@@ -732,19 +852,16 @@
       const used = new Set();
       const loops = [];
       for (const [a, b] of edges) {
-        const startKey = a < b ? a + "|" + b : b + "|" + a;
+        const startKey = edgeKey(a, b);
         if (used.has(startKey)) continue;
         used.add(startKey);
         const loop = [a];
         let cur = b;
         while (cur !== a) {
           loop.push(cur);
-          const next = adj.get(cur).find((n) => {
-            const ek = n < cur ? n + "|" + cur : cur + "|" + n;
-            return !used.has(ek);
-          });
+          const next = adj.get(cur).find((n) => !used.has(edgeKey(n, cur)));
           if (next === undefined) break;
-          used.add(next < cur ? next + "|" + cur : cur + "|" + next);
+          used.add(edgeKey(next, cur));
           cur = next;
         }
         loops.push(loop);
@@ -756,29 +873,31 @@
     // normal (the "cap"), plus a wall of quads connecting the original
     // boundary loop to its pushed-out copy. offsetFlags marks which
     // vertices move, so a drag only rewrites a position buffer - no rebuild.
-    function buildPreviewArrays(patch, pos) {
+    function buildPreviewArrays(patch) {
+      const geometry = mesh.geometry;
+      const pos = geometry.attributes.position;
+      const index = geometry.index;
       const positions = [];
       const offsets = [];
 
-      for (const t of patch.triangles) {
-        for (let k = 0; k < 3; k++) {
-          const i = t * 3 + k;
-          positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-          offsets.push(1);
-        }
+      // The cap: the face's own triangles, every vertex of which moves.
+      const lastCorner = (patch.firstTriangle + patch.triangleCount) * 3;
+      for (let c = patch.firstTriangle * 3; c < lastCorner; c++) {
+        const i = index.getX(c);
+        positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+        offsets.push(1);
       }
 
-      const loops = orderLoops(boundaryEdges(patch.triangles));
-      for (const loop of loops) {
+      // The wall: two triangles per boundary edge, from the edge to the copy
+      // of it that moves with the cap.
+      for (const loop of orderLoops(boundaryEdges(patch))) {
         for (let i = 0; i < loop.length; i++) {
-          const a = adjacency.keyToPos.get(loop[i]);
-          const b = adjacency.keyToPos.get(loop[(i + 1) % loop.length]);
-          positions.push(a.x, a.y, a.z); offsets.push(0);
-          positions.push(b.x, b.y, b.z); offsets.push(0);
-          positions.push(b.x, b.y, b.z); offsets.push(1);
-          positions.push(a.x, a.y, a.z); offsets.push(0);
-          positions.push(b.x, b.y, b.z); offsets.push(1);
-          positions.push(a.x, a.y, a.z); offsets.push(1);
+          const a = loop[i];
+          const b = loop[(i + 1) % loop.length];
+          for (const [vertex, offset] of [[a, 0], [b, 0], [b, 1], [a, 0], [b, 1], [a, 1]]) {
+            positions.push(pos.getX(vertex), pos.getY(vertex), pos.getZ(vertex));
+            offsets.push(offset);
+          }
         }
       }
 
@@ -786,28 +905,34 @@
     }
 
     const raycaster = new THREE.Raycaster();
-    const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthTest: true });
+    const highlightMaterial = new THREE.MeshBasicMaterial({ color: srgb(0xffaa00), transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthTest: true });
     const highlightMesh = new THREE.Mesh(new THREE.BufferGeometry(), highlightMaterial);
     highlightMesh.visible = false;
     scene.add(highlightMesh);
 
-    function setHighlight(patch, pos, color) {
+    function setHighlight(patch, color) {
+      const geometry = mesh.geometry;
+      const pos = geometry.attributes.position;
+      const normals = geometry.attributes.normal;
+      const index = geometry.index;
       const positions = [];
-      for (const t of patch.triangles) {
-        for (let k = 0; k < 3; k++) {
-          const i = t * 3 + k;
-          // nudge along the normal so the highlight doesn't z-fight the mesh
-          positions.push(
-            pos.getX(i) + patch.normal.x * 0.05,
-            pos.getY(i) + patch.normal.y * 0.05,
-            pos.getZ(i) + patch.normal.z * 0.05
-          );
-        }
+      const lastCorner = (patch.firstTriangle + patch.triangleCount) * 3;
+      for (let c = patch.firstTriangle * 3; c < lastCorner; c++) {
+        const i = index.getX(c);
+        // Nudge off the surface so the highlight doesn't z-fight the body.
+        // Along each vertex's own normal, not one normal for the whole patch:
+        // on a curved face a single direction lifts one side of the highlight
+        // clear and buries the other.
+        positions.push(
+          pos.getX(i) + normals.getX(i) * 0.05,
+          pos.getY(i) + normals.getY(i) * 0.05,
+          pos.getZ(i) + normals.getZ(i) * 0.05
+        );
       }
       highlightMesh.geometry.dispose();
       highlightMesh.geometry = new THREE.BufferGeometry();
       highlightMesh.geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-      highlightMaterial.color.set(color);
+      highlightMaterial.color.copy(srgb(color));
       highlightMesh.visible = true;
     }
 
@@ -888,6 +1013,7 @@
     function applyVisibility() {
       grid.visible = gridVisible;
       if (mesh) mesh.visible = bodyVisible;
+      if (edgeLines) edgeLines.visible = bodyVisible;
       sketchOutlines.forEach((entry) => {
         const visible = !hiddenSketchIDs.has(entry.feature.id);
         entry.line.visible = visible;
@@ -1088,7 +1214,7 @@
     // last, so loadFeatures clears it.
     function hideStatus() { statusEl.style.display = "none"; }
 
-    let selectedPatch = null; // { triangles, normal, anchorPoint }
+    let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
     let selectedSketch = null; // a features.json entry: any replayed sketch, picked in the 3D view or via its timeline chip
     // A live corner or edge drag on the selected sketch:
     // { feature, plane, kind, indices, polygon, lastUV }. polygon is a working
@@ -1118,8 +1244,7 @@
           clearHighlight();
           return;
         }
-        const patch = floodFillPatch(hit.faceIndex, mesh.geometry.attributes.position);
-        setHighlight(patch, mesh.geometry.attributes.position, 0xffaa00);
+        setHighlight(facePatchAt(hit), 0xffaa00);
         return;
       }
       if (sketchEditDrag) {
@@ -1140,8 +1265,7 @@
         clearHighlight();
         return;
       }
-      const patch = floodFillPatch(hit.faceIndex, mesh.geometry.attributes.position);
-      setHighlight(patch, mesh.geometry.attributes.position, 0xffaa00);
+      setHighlight(facePatchAt(hit), 0xffaa00);
     });
 
     // Grabbing the viewport cancels a camera move, unless the move is the one
@@ -1156,9 +1280,8 @@
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
         if (!hit) return;
-        const pos = mesh.geometry.attributes.position;
-        const patch = floodFillPatch(hit.faceIndex, pos);
-        sketchPlane = makeSketchPlane(hit.point, patch.normal, computeXDir(patch.normal));
+        const normal = facePatchAt(hit).normal;
+        sketchPlane = makeSketchPlane(hit.point, normal, computeXDir(normal));
         enterSketchDrawStage();
         return;
       }
@@ -1193,11 +1316,10 @@
         clearSelection();
         return;
       }
-      const pos = mesh.geometry.attributes.position;
-      const patch = floodFillPatch(hit.faceIndex, pos);
-      selectedPatch = { triangles: patch.triangles, normal: patch.normal, anchorPoint: hit.point.clone() };
+      selectedPatch = facePatchAt(hit);
+      selectedPatch.anchorPoint = hit.point.clone();
       selectedSketch = null;
-      setHighlight(selectedPatch, pos, 0xffdd55);
+      setHighlight(selectedPatch, 0xffdd55);
       renderSketchSelection();
       hideHint();
       showSelectionPanel("Face selected");
@@ -1362,11 +1484,10 @@
       planeNormal.normalize();
       const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, anchor);
 
-      const pos = mesh.geometry.attributes.position;
-      const { positions: basePositions, offsets: offsetFlags } = buildPreviewArrays(selectedPatch, pos);
+      const { positions: basePositions, offsets: offsetFlags } = buildPreviewArrays(selectedPatch);
       const previewGeometry = new THREE.BufferGeometry();
       previewGeometry.setAttribute("position", new THREE.Float32BufferAttribute(basePositions.slice(), 3));
-      const previewMaterial = new THREE.MeshStandardMaterial({ color: 0x5be0a0, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      const previewMaterial = new THREE.MeshStandardMaterial({ color: srgb(0x5be0a0), transparent: true, opacity: 0.55, side: THREE.DoubleSide });
       const previewMesh = new THREE.Mesh(previewGeometry, previewMaterial);
       scene.add(previewMesh);
 
@@ -1403,7 +1524,7 @@
       planeNormal.normalize();
       const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, anchor);
 
-      const previewMaterial = new THREE.MeshStandardMaterial({ color: 0x5be0a0, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      const previewMaterial = new THREE.MeshStandardMaterial({ color: srgb(0x5be0a0), transparent: true, opacity: 0.55, side: THREE.DoubleSide });
       const previewMesh = new THREE.Mesh(new THREE.BufferGeometry(), previewMaterial);
       scene.add(previewMesh);
 
@@ -1661,7 +1782,7 @@
           // high renderOrder draws it on top unconditionally instead, so it
           // stays visible regardless of camera angle - the user's explicit
           // requirement for a bare, unextruded sketch.
-          const material = new THREE.LineBasicMaterial({ color: feature.active ? 0x5be0a0 : 0x666666, depthTest: false });
+          const material = new THREE.LineBasicMaterial({ color: srgb(feature.active ? 0x5be0a0 : 0x666666), depthTest: false });
           const line = new THREE.Line(geometry, material);
           line.renderOrder = 999;
           sketchOutlineGroup.add(line);
@@ -1703,7 +1824,7 @@
     function renderSketchSelection() {
       sketchOutlines.forEach(({ feature, line, handles }) => {
         const selected = selectedSketch && selectedSketch.id === feature.id;
-        line.material.color.set(selected ? 0xffdd55 : feature.active ? 0x5be0a0 : 0x666666);
+        line.material.color.copy(srgb(selected ? 0xffdd55 : feature.active ? 0x5be0a0 : 0x666666));
         handles.visible = Boolean(selected) && !hiddenSketchIDs.has(feature.id);
       });
     }
@@ -1734,7 +1855,7 @@
       const size = 300;
       const geometry = new THREE.PlaneGeometry(size, size);
       const material = new THREE.MeshBasicMaterial({
-        color: 0x5be0a0,
+        color: srgb(0x5be0a0),
         transparent: true,
         opacity: 0.08,
         side: THREE.DoubleSide,
@@ -1833,7 +1954,7 @@
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
       scene.add(sketchPlaneHelper);
-      sketchPreviewLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x5be0a0 }));
+      sketchPreviewLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: srgb(0x5be0a0) }));
       scene.add(sketchPreviewLine);
     }
 

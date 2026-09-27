@@ -33,8 +33,8 @@ final class EngineRunner {
 
     private init() {}
 
-    func build(document: URL, stlOut: URL) -> EngineBuildResult {
-        let request: [String: Any] = ["document": document.path, "stl": stlOut.path]
+    func build(document: URL, meshOut: URL) -> EngineBuildResult {
+        let request: [String: Any] = ["document": document.path, "mesh": meshOut.path]
         guard let requestLine = try? JSONSerialization.data(withJSONObject: request) else {
             return EngineBuildResult(success: false, output: "failed to encode build request", failedFeature: nil)
         }
