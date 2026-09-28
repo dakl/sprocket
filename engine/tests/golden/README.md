@@ -13,6 +13,7 @@ the first one can tell you the engine is correct.
 | `checks.json` | hand, **before the code existed** | proof of correctness |
 | `expected.step` | captured from the engine | proof of sameness |
 | `expected.stl` | captured from the engine | proof of sameness |
+| `captured_with.json` | captured from the engine | which engine the two above belong to |
 | `README.md` | hand | what the case proves, and the arithmetic |
 
 `checks.json` is the only file that can fail for the right reason. Every number
@@ -42,8 +43,25 @@ volume ~0. Both directions matter: a one-way cut also passes when the result is
 a subset of the expectation, so a part missing a lump would slip through.
 
 **Layer 3, byte identity.** The normalised STEP and the raw binary STL must
-match byte for byte. This holds only within a pinned engine version, and it is
-the layer most likely to need an exemption after an OCCT upgrade.
+match byte for byte. It is the layer most likely to need an exemption after an
+OCCT upgrade, and it runs only on the engine that captured the files.
+
+That last part is measured, not cautious. CI failed five of these six cases on
+Linux x86_64 against files captured on macOS arm64, with `build123d` 0.13.0 and
+`ocp` 8.0.1.0.0 pinned identically by `uv.lock`, while layers 1 and 2 passed on
+all six. `cadquery-ocp` ships one compiled OCCT per platform, five wheels for
+that one version, so a version string cannot tell two of them apart. Volume and
+topology are mathematical, so they survive a recompile. A byte hash is a
+property of one binary's float formatting and meshing order.
+
+So `captured_with.json` records `build123d`, `ocp`, the platform and the
+machine, and the layer skips with the difference printed when they do not match.
+Skipping is the honest outcome: the layer claims byte identity within one
+compiled engine and nothing wider. On another machine it guards nothing, which
+is why it is the third layer and not the only one.
+
+`rect_extrude` did pass on Linux. One case agreeing across platforms is luck
+about a simple box, not a reason to expect the others to.
 
 STEP normalisation is one regex over the `FILE_NAME` timestamp. That is
 measured, not assumed: two exports of one solid ten hours apart differed on
@@ -86,10 +104,14 @@ written by hand and it stays that way.
 
 ## Verifying the harness itself
 
-A harness that cannot see a change reports clean and means nothing. Changing
-`fillet_box`'s radius from 2 to 2.1 fails all three layers, which is how this
-one was confirmed on 2026-09-28. Revert with an explicit edit afterwards and
-check the file's hash.
+A harness that cannot see a change reports clean and means nothing. Both checks
+below were run on 2026-09-28. Revert with an explicit edit afterwards and check
+the file's hash, rather than `git checkout`.
+
+- Changing `fillet_box`'s radius from 2 to 2.1 fails all three layers.
+- Changing one `captured_with.json` platform to `Linux` skips exactly that
+  case's byte test, with the difference in the skip reason, and leaves the other
+  25 tests running.
 
 There is no `expected.png`. SPEC.md lists one in the case-directory layout, but
 it is not one of the three comparison layers and the spec itself says to keep

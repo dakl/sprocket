@@ -22,9 +22,12 @@ import pytest
 from build123d import import_step
 
 from golden_support import (
+    CAPTURE_STAMP,
     CASES,
     EXPECTED_STEP,
     EXPECTED_STL,
+    capture_identity,
+    engine_identity,
     build,
     case_dir,
     checks,
@@ -88,7 +91,19 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
 
     STEP is compared with its FILE_NAME timestamp scrubbed, which is the only
     part of the file that varies between two exports of one solid.
+
+    It only runs on the engine that captured the files, and that is measured, not
+    cautious: CI failed five of these six cases on Linux x86_64 against files
+    captured on macOS arm64, with the library versions identical, while layers 1
+    and 2 passed on all six. See engine_identity() for why a version pin cannot
+    cover it. Skipping is the honest outcome, because the layer claims byte
+    identity within one compiled engine and nothing wider.
     """
+    recorded = capture_identity(case)
+    current = engine_identity()
+    if recorded != current:
+        pytest.skip(f"{case} was captured by {recorded}, this is {current}")
+
     part = parts[case]
     fresh_step = tmp_path / "fresh.step"
     fresh_stl = tmp_path / "fresh.stl"
@@ -105,9 +120,18 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
 @pytest.mark.parametrize("case", CASES)
 def test_every_case_ships_its_expected_files(case):
     """A case whose expected.* files are missing would otherwise skip two whole
-    layers by erroring in a way that looks like a setup problem."""
-    for name in (EXPECTED_STEP, EXPECTED_STL):
+    layers by erroring in a way that looks like a setup problem.
+
+    The stamp is checked here too. Without it the byte layer cannot tell "this is
+    a different engine" from "nobody recorded which engine", and both would read
+    as a skip, so a case could lose a layer in silence.
+    """
+    for name in (EXPECTED_STEP, EXPECTED_STL, CAPTURE_STAMP):
         assert (case_dir(case) / name).is_file(), f"{case} has no {name}, run make golden-update CASE={case}"
+
+    assert set(capture_identity(case)) == set(engine_identity()), (
+        f"{case}'s {CAPTURE_STAMP} does not describe the same fields as engine_identity()"
+    )
 
 
 def test_replay_is_deterministic(tmp_path: Path):

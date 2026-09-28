@@ -1,12 +1,16 @@
-"""Write a golden case's expected.step and expected.stl from the current engine.
+"""Write a golden case's captured files from the current engine.
+
+Three files: expected.step, expected.stl, and captured_with.json recording which
+engine made them. The byte-identity layer only runs when that stamp matches the
+engine running the tests, so all three are written together or not at all.
 
 Run it through the Makefile:
 
     make golden-update CASE=circle_extrude               # a new case
     make golden-update CASE=rect_extrude APPROVED=1      # an existing one
 
-These two files are the only golden files that are captured rather than written
-by hand, and that is exactly why an existing case needs approval. Regenerating
+These are the only golden files that are captured rather than written by hand,
+and that is exactly why an existing case needs approval. Regenerating
 one turns a real regression into the new expectation, silently, and the suite
 then defends the bug for as long as the case lives. checks.json is never
 touched here: those numbers are derived by hand before the code exists, and
@@ -24,7 +28,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
-from golden_support import CASES, EXPECTED_STEP, EXPECTED_STL, build, case_dir, write_step, write_stl  # noqa: E402
+from golden_support import (  # noqa: E402
+    CAPTURE_STAMP,
+    CASES,
+    EXPECTED_STEP,
+    EXPECTED_STL,
+    build,
+    case_dir,
+    engine_identity,
+    write_capture_identity,
+    write_step,
+    write_stl,
+)
+
+# Every file this script writes, so the approval gate and the atomic move stay
+# in step with each other. Anything added here is captured, not hand-written.
+CAPTURED = (EXPECTED_STEP, EXPECTED_STL, CAPTURE_STAMP)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     directory = case_dir(args.case)
-    already_there = [name for name in (EXPECTED_STEP, EXPECTED_STL) if (directory / name).is_file()]
+    already_there = [name for name in CAPTURED if (directory / name).is_file()]
     if already_there and not args.approved:
         print(
             f"{args.case} already has {', '.join(already_there)}.\n"
@@ -61,10 +80,16 @@ def main(argv: list[str] | None = None) -> int:
         # reads as a geometry change on the next run.
         write_step(part, scratch / EXPECTED_STEP)
         write_stl(part, scratch / EXPECTED_STL)
-        for name in (EXPECTED_STEP, EXPECTED_STL):
+        # The stamp moves with the bytes it describes. A stamp written separately
+        # could name an engine that did not produce the files beside it, and the
+        # byte layer would then compare against the wrong expectation or skip when
+        # it should have run.
+        write_capture_identity(scratch / CAPTURE_STAMP)
+        for name in CAPTURED:
             shutil.move(scratch / name, directory / name)
 
-    print(f"wrote {directory / EXPECTED_STEP} and {directory / EXPECTED_STL}")
+    print(f"wrote {', '.join(CAPTURED)} in {directory}")
+    print(f"engine {engine_identity()}")
     print(f"volume {part.volume:.6f} mm^3, {len(part.faces())} faces")
     return 0
 

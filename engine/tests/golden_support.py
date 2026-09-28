@@ -6,12 +6,14 @@ send somebody looking at the wrong thing.
 """
 
 import json
+import platform
 import re
 from collections import Counter
 from pathlib import Path
 
 from build123d import export_step, export_stl
 
+from sprocket_engine import ENGINE_VERSIONS
 from sprocket_engine.replay import replay
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -30,6 +32,7 @@ STL_ANGULAR_TOLERANCE = 0.1
 
 EXPECTED_STEP = "expected.step"
 EXPECTED_STL = "expected.stl"
+CAPTURE_STAMP = "captured_with.json"
 
 
 def case_dir(case: str) -> Path:
@@ -42,6 +45,33 @@ def document(case: str) -> dict:
 
 def checks(case: str) -> dict:
     return json.loads((case_dir(case) / "checks.json").read_text())
+
+
+def engine_identity() -> dict:
+    """What the expected.* bytes are actually a property of.
+
+    ENGINE_VERSIONS alone is not enough, and CI measured that on 2026-09-28.
+    With build123d 0.13.0 and ocp 8.0.1.0.0 pinned identically by uv.lock, five
+    of six cases captured on macOS arm64 failed byte identity on Linux x86_64,
+    while layers 1 and 2 passed on all six. cadquery-ocp ships one compiled
+    OCCT per platform, five wheels for that one version, so a version string
+    cannot tell them apart. The platform belongs in the stamp.
+    """
+    return {
+        **ENGINE_VERSIONS,
+        "platform": platform.system(),
+        "machine": platform.machine(),
+    }
+
+
+def capture_identity(case: str) -> dict | None:
+    """The engine that wrote this case's expected.* files, or None if unrecorded."""
+    path = case_dir(case) / CAPTURE_STAMP
+    return json.loads(path.read_text()) if path.is_file() else None
+
+
+def write_capture_identity(path: Path) -> None:
+    Path(path).write_text(json.dumps(engine_identity(), indent=2, sort_keys=True) + "\n")
 
 
 def build(case: str, cache_dir: Path):
