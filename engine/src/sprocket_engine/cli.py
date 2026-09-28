@@ -16,6 +16,7 @@ from pathlib import Path
 
 from build123d import export_step, export_stl
 
+from .document import Document, DocumentError
 from .mesh import export_mesh
 from .replay import build_shape
 
@@ -82,12 +83,25 @@ def _build_document(
     """Replays one document and exports it. Shared by `build` and `serve`
     so the daemon path can't silently drift from the one-shot CLI path.
 
-    Returns (success, message, failed_feature_id)."""
-    document = json.loads(Path(document_path).read_text())
+    Returns (success, message, failed_feature_id). A feature that no longer
+    builds is not a failed build: editing a sketch can break a later op, and
+    the user still needs to see the part up to that point. So the export falls
+    back to the prefix before the broken feature, and its id comes back so the
+    app can mark it.
+
+    The reading and checking is `Document.load`'s, not a second copy here. The
+    daemon and this path have to agree on what counts as a document, and going
+    through the same loader also means `build` resolves parameters the way the
+    daemon does."""
+    try:
+        document = Document.load(document_path)
+    except DocumentError as exc:
+        return False, f"error: {exc}", None
     resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
 
-    features = document.get("features", [])
-    rollback_index = document.get("rollback_index", len(features))
+    replayable = document.for_replay()
+    features = replayable["features"]
+    rollback_index = replayable["rollback_index"]
 
     try:
         result, failed_id = build_shape(features, rollback_index, resolved_cache_dir)
@@ -153,8 +167,7 @@ def _serve() -> int:
 
 def _daemon(args: argparse.Namespace) -> int:
     # Imported here, not at module scope, so `sprocket build` keeps starting
-    # without paying for the socket and MCP machinery it never uses.
-    from .document import Document, DocumentError
+    # without paying for the socket machinery it never uses.
     from .rpc import Daemon, Session
 
     try:

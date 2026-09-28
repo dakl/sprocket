@@ -246,14 +246,21 @@ class Document:
             raw = path.read_text()
         except OSError as exc:
             raise DocumentError(f"cannot read document {path}: {exc.strerror}") from None
+        except UnicodeDecodeError:
+            # A ValueError, not an OSError, so the clause above does not catch
+            # it. Pointing at an .stl or .step instead of the .json lands here.
+            raise DocumentError(f"{path} is not UTF-8 text, so it is not a document") from None
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise DocumentError(f"{path} is not valid JSON: {exc}") from None
         if not isinstance(data, dict):
-            raise DocumentError(f"{path} must hold a JSON object")
+            raise DocumentError(f"{path}: a document must be a JSON object")
 
-        features = data.get("features", [])
+        # Present, not merely well formed. A file with no `features` at all is
+        # a typo or the wrong file far more often than it is an empty part,
+        # and defaulting it to [] builds nothing and reports success.
+        features = data.get("features")
         if not isinstance(features, list) or not all(isinstance(item, dict) for item in features):
             raise DocumentError(f"{path}: 'features' must be a list of objects")
 
