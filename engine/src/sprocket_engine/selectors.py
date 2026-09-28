@@ -12,6 +12,22 @@ AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 
 STARTERS = {"faces", "edges", "vertices"}
 
+# The grammar, in one string, because both the op schemas and the agent-facing
+# `get_schemas` reply need it and "see selectors.py" is no help to a caller
+# that cannot read the file.
+SELECTOR_DESCRIPTION = (
+    "A query re-resolved on every rebuild, so it survives edits that renumber faces. "
+    'Form: {"select": [<step>, ...]}. The first step starts the set and is one of '
+    '{"op": "faces"}, {"op": "edges"} or {"op": "vertices"}. Later steps narrow it: '
+    '{"op": "filter_by", "axis": "Z"} keeps items aligned with that axis, '
+    '{"op": "sort_by", "axis": "Z"} orders them low to high, '
+    '{"op": "slice", "start": 0, "stop": 4} takes a range, '
+    '{"op": "first"} and {"op": "last"} take one end, and '
+    '{"op": "nearest_to", "point": [x, y, z]} takes the one closest to a point, with an '
+    'optional "normal" to break a tie across a thin wall. '
+    'Every edge is {"select": [{"op": "edges"}]}.'
+)
+
 
 class SelectorError(Exception):
     pass

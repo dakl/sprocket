@@ -17,7 +17,7 @@ from pathlib import Path
 from build123d import export_step, export_stl
 
 from .mesh import export_mesh
-from .replay import ReplayError, replay
+from .replay import build_shape
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,24 +45,31 @@ def main(argv: list[str] | None = None) -> int:
         help="read one JSON build request per line from stdin, keep build123d warm between builds",
     )
 
+    daemon = sub.add_parser(
+        "daemon", help="serve one document over a Unix socket, for the app, the viewer and agents"
+    )
+    daemon.add_argument("document", type=Path, help="path to a document JSON file")
+    daemon.add_argument("--socket", type=Path, default=None, help="socket path (default: <document>.sock)")
+    daemon.add_argument("--cache-dir", type=Path, default=None, help="BREP cache directory")
+    daemon.add_argument(
+        "--no-autosave",
+        action="store_true",
+        help="keep edits in memory instead of writing the document after each one",
+    )
+
+    mcp = sub.add_parser("mcp", help="expose a running daemon's document as MCP tools over stdio")
+    mcp.add_argument("--socket", type=Path, required=True, help="socket path of a running daemon")
+
     args = parser.parse_args(argv)
     if args.command == "build":
         return _build(args)
     if args.command == "serve":
         return _serve()
+    if args.command == "daemon":
+        return _daemon(args)
+    if args.command == "mcp":
+        return _mcp(args)
     return 1
-
-
-def _last_solid_index(features: list[dict], rollback_index: int) -> int:
-    """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
-    inert until something extrudes it. replay() only returns its last
-    feature's result, so a bare sketch left at the tip would export as the
-    part and blank out whatever solid came before it. Walk back past any
-    trailing sketch features to the last one that actually produced a solid."""
-    index = rollback_index
-    while index > 0 and features[index - 1].get("type") == "sketch":
-        index -= 1
-    return index
 
 
 def _build_document(
@@ -75,32 +82,17 @@ def _build_document(
     """Replays one document and exports it. Shared by `build` and `serve`
     so the daemon path can't silently drift from the one-shot CLI path.
 
-    Returns (success, message, failed_feature_id). A feature that no longer
-    builds is not a failed build: editing a sketch can break a later op, and
-    the user still needs to see the part up to that point. So the export falls
-    back to the prefix before the broken feature, and its id comes back so the
-    app can mark it."""
+    Returns (success, message, failed_feature_id)."""
     document = json.loads(Path(document_path).read_text())
     resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
 
     features = document.get("features", [])
     rollback_index = document.get("rollback_index", len(features))
-    export_index = _last_solid_index(features, rollback_index)
-    export_document = document if export_index == rollback_index else {**document, "rollback_index": export_index}
 
-    failed_id = None
     try:
-        result = replay(export_document, cache_dir=resolved_cache_dir)
+        result, failed_id = build_shape(features, rollback_index, resolved_cache_dir)
     except Exception as exc:
-        failed_index = getattr(exc, "feature_index", None)
-        failed_id = getattr(exc, "feature_id", None)
-        if failed_index is None:
-            return False, f"error: {exc}", None
-        good_index = _last_solid_index(features, failed_index)
-        try:
-            result = replay({**document, "rollback_index": good_index}, cache_dir=resolved_cache_dir)
-        except Exception as earlier:
-            return False, f"error: {earlier}", failed_id
+        return False, f"error: {exc}", getattr(exc, "feature_id", None)
 
     if result is None:
         # rollback_index=0: a valid empty document, not a failure. Clear any
@@ -157,6 +149,35 @@ def _serve() -> int:
             success, output, failed_id = False, f"error: {exc}", None
         print(json.dumps({"success": success, "output": output, "failed_feature": failed_id}), flush=True)
     return 0
+
+
+def _daemon(args: argparse.Namespace) -> int:
+    # Imported here, not at module scope, so `sprocket build` keeps starting
+    # without paying for the socket and MCP machinery it never uses.
+    from .document import Document, DocumentError
+    from .rpc import Daemon, Session
+
+    try:
+        document = Document.load(args.document)
+    except DocumentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    socket_path = args.socket or Path(str(args.document) + ".sock")
+    session = Session(document, args.cache_dir)
+    server = Daemon(session, socket_path, autosave=not args.no_autosave)
+    print(f"listening on {socket_path} (revision {document.revision})", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        server.shutdown()
+    return 0
+
+
+def _mcp(args: argparse.Namespace) -> int:
+    from .mcp_server import run
+
+    return run(args.socket)
 
 
 if __name__ == "__main__":

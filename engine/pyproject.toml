@@ -10,9 +10,17 @@ requires-python = ">=3.12"
 dependencies = [
     "build123d>=0.13.0",
     "jsonschema>=4.26.0",
+    # render.py rasterises with it. ocp-tessellate already pulls it in, but a
+    # module that imports it directly declares it directly.
+    "numpy>=2.0",
     "ocp-tessellate>=3.5.3",
     "pytest>=9.1.1",
 ]
+
+[project.optional-dependencies]
+# Only `sprocket mcp` needs this. The Swift app launches `sprocket daemon`,
+# which must not fail to start because an agent-facing dependency is missing.
+mcp = ["mcp>=2.0"]
 
 [project.scripts]
 sprocket = "sprocket_engine:main"

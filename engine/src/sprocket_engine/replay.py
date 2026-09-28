@@ -78,3 +78,41 @@ def replay(document: dict, cache_dir: Path | None = None):
         last_result = result
 
     return last_result
+
+
+def last_solid_index(features: list[dict], rollback_index: int) -> int:
+    """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
+    inert until something extrudes it. replay() only returns its last
+    feature's result, so a bare sketch left at the tip would become the part
+    and blank out whatever solid came before it. Walk back past any trailing
+    sketch features to the last one that actually produced a solid."""
+    index = rollback_index
+    while index > 0 and features[index - 1].get("type") == "sketch":
+        index -= 1
+    return index
+
+
+def build_shape(
+    features: list[dict], rollback_index: int, cache_dir: Path | None
+) -> tuple[object, str | None]:
+    """Replays as much of the document as still builds.
+
+    Returns (shape, failed_feature_id). A feature that no longer builds is not
+    a failed build: editing a sketch can break a later op, and the caller still
+    needs the part up to that point. So this falls back to the prefix before
+    the broken feature and names it, rather than raising.
+
+    This is the one copy of that policy. The CLI and the daemon both come
+    through here, because a daemon that tolerates a broken tip differently
+    from `sprocket build` would show the app a part the exporter never writes.
+    """
+    export_index = last_solid_index(features, rollback_index)
+    try:
+        return replay({"features": features, "rollback_index": export_index}, cache_dir=cache_dir), None
+    except Exception as exc:
+        failed_index = getattr(exc, "feature_index", None)
+        failed_id = getattr(exc, "feature_id", None)
+        if failed_index is None:
+            raise
+        good_index = last_solid_index(features, failed_index)
+        return replay({"features": features, "rollback_index": good_index}, cache_dir=cache_dir), failed_id

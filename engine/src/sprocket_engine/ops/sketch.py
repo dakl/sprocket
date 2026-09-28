@@ -20,6 +20,7 @@ PLANE_SCHEMA = {
 
 SCHEMA = {
     "type": "object",
+    "description": "A flat profile on a plane. Not a solid on its own: something has to extrude or revolve it.",
     "required": ["id", "type", "plane"],
     "oneOf": [{"required": ["rect"]}, {"required": ["polygon"]}, {"required": ["circle"]}],
     "properties": {
