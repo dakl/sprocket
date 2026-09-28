@@ -1,3 +1,5 @@
+from typing import NoReturn
+
 import build123d
 import OCP
 
@@ -10,7 +12,10 @@ ENGINE_VERSIONS = {
 }
 
 
-def main() -> None:
+def main() -> NoReturn:
     from .cli import main as cli_main
 
-    cli_main()
+    # cli.main returns the exit code (1 for a build that failed gracefully, so
+    # the app and any shell caller can tell a failed build from a good one).
+    # Dropping it here made every graceful failure exit 0.
+    raise SystemExit(cli_main())
