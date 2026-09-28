@@ -3,7 +3,9 @@
   "surface_area": 942.4777960769379,
   "bounding_box": {"min": [-5, -10, 0], "max": [15, 10, 5]},
   "center_of_mass": [5, 0, 2.5],
+  "solids": 1,
   "faces": 3,
   "edges": 3,
-  "vertices": 2
+  "vertices": 2,
+  "face_types": {"CYLINDER": 1, "PLANE": 2}
 }
