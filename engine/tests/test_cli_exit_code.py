@@ -103,6 +103,21 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     assert "Traceback" not in stderr
 
 
+def test_a_binary_file_is_a_readable_error_not_a_traceback(tmp_path: Path, capsys, monkeypatch):
+    """Picking an .stl or .step instead of the .json is an easy mistake. read_text
+    raises UnicodeDecodeError for it - a ValueError, so the OSError clause in
+    _load_document does not catch it."""
+    document_path = tmp_path / "part.stl"
+    document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
+
+    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
+
+    assert code == 1
+    stderr = capsys.readouterr().err
+    assert "is not UTF-8 text" in stderr
+    assert "Traceback" not in stderr
+
+
 def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
     """`serve` swallows every exception into one response line, so a traceback
     there reached the app as an unreadable `output`. Same message as `build`."""

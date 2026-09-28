@@ -69,6 +69,10 @@ def _load_document(document_path: Path) -> dict:
         text = Path(document_path).read_text()
     except OSError as exc:
         raise DocumentError(f"cannot read document {document_path}: {exc.strerror}") from exc
+    except UnicodeDecodeError as exc:
+        # A ValueError, not an OSError, so the clause above does not catch it.
+        # Pointing at an .stl or .step instead of the .json lands here.
+        raise DocumentError(f"{document_path} is not UTF-8 text, so it is not a document") from exc
 
     try:
         document = json.loads(text)
