@@ -1,4 +1,4 @@
-from build123d import Plane, Polygon, Pos, Rectangle
+from build123d import Circle, Plane, Polygon, Pos, Rectangle
 
 from .registry import register
 
@@ -21,7 +21,7 @@ PLANE_SCHEMA = {
 SCHEMA = {
     "type": "object",
     "required": ["id", "type", "plane"],
-    "oneOf": [{"required": ["rect"]}, {"required": ["polygon"]}],
+    "oneOf": [{"required": ["rect"]}, {"required": ["polygon"]}, {"required": ["circle"]}],
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "sketch"},
@@ -47,6 +47,23 @@ SCHEMA = {
         # Closed polygon, as [u, v] points local to `plane`. The sketcher UI
         # emits this for a freeform or rectangle draw instead of `rect`.
         "polygon": {"type": "array", "items": POINT2, "minItems": 3},
+        # A dimensioned circle. Radius rather than diameter, because every
+        # other length in a document is the distance the op actually uses,
+        # and a UI that wants diameter can halve it once.
+        "circle": {
+            "type": "object",
+            "required": ["radius"],
+            "properties": {
+                "radius": {"type": "number", "exclusiveMinimum": 0},
+                "center": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "default": [0, 0],
+                },
+            },
+        },
     },
 }
 
@@ -76,6 +93,10 @@ def apply(feature: dict, ctx):
     if "polygon" in feature:
         points = _counter_clockwise([tuple(point) for point in feature["polygon"]])
         return plane * Polygon(*points)
+    if "circle" in feature:
+        circle = feature["circle"]
+        cx, cy = circle.get("center", [0, 0])
+        return plane * Pos(cx, cy) * Circle(circle["radius"])
     rect = feature["rect"]
     cx, cy = rect.get("center", [0, 0])
     return plane * Pos(cx, cy) * Rectangle(rect["width"], rect["height"])

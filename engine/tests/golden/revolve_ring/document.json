@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "f1", "type": "sketch", "plane": "XZ", "rect": {"width": 10, "height": 5, "center": [15, 2.5]}},
+    {"id": "f2", "type": "revolve", "profile": "f1", "axis": "Z"}
+  ]
+}

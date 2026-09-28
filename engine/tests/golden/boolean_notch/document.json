@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+    {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
+    {"id": "f3", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10, "center": [20, 0]}},
+    {"id": "f4", "type": "extrude", "profile": "f3", "distance": 10},
+    {"id": "f5", "type": "boolean", "operation": "subtract", "base": "f2", "tool": "f4"}
+  ]
+}

@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from sprocket_engine.replay import replay
@@ -71,11 +73,67 @@ def test_rect_still_works_alongside_polygon_support():
     assert part.volume == pytest.approx(40 * 20 * 10, rel=1e-6)
 
 
-def test_sketch_needs_exactly_one_of_rect_or_polygon():
+def test_circle_extrudes_to_a_cylinder():
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},
-        "features": [{"id": "f1", "type": "sketch", "plane": "XY"}],
+        "features": [
+            {"id": "f1", "type": "sketch", "plane": "XY", "circle": {"radius": 10}},
+            {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5},
+        ],
+    }
+    part = replay(document)
+    assert part.volume == pytest.approx(math.pi * 10**2 * 5, rel=1e-4)
+
+
+def test_circle_center_offsets_the_profile():
+    """A dropped `center` still gives the right volume, so this asserts the
+    position instead."""
+    document = {
+        "schema_version": 1,
+        "units": {"length": "mm"},
+        "features": [
+            {"id": "f1", "type": "sketch", "plane": "XY", "circle": {"radius": 10, "center": [5, 0]}},
+            {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5},
+        ],
+    }
+    bbox = replay(document).bounding_box()
+    assert (bbox.min.X, bbox.max.X) == pytest.approx((-5, 15), abs=1e-6)
+
+
+def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
+    """The face-pick path hands extrude_face a plane taken off a B-rep face, so
+    a circle has to land on an arbitrary plane, not only a principal one."""
+    document = {
+        "schema_version": 1,
+        "units": {"length": "mm"},
+        "features": [
+            {
+                "id": "f1",
+                "type": "sketch",
+                "plane": {"origin": [0, 0, 0], "normal": [1, 0, 0], "x_dir": [0, 1, 0]},
+                "circle": {"radius": 10},
+            },
+            {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5},
+        ],
+    }
+    bbox = replay(document).bounding_box()
+    assert (bbox.min.X, bbox.max.X) == pytest.approx((0, 5), abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "case, sketch",
+    [
+        ("no shape at all", {}),
+        ("two shapes at once", {"rect": {"width": 10, "height": 10}, "circle": {"radius": 5}}),
+        ("a radius of zero", {"circle": {"radius": 0}}),
+    ],
+)
+def test_sketch_needs_exactly_one_valid_shape(case, sketch):
+    document = {
+        "schema_version": 1,
+        "units": {"length": "mm"},
+        "features": [{"id": "f1", "type": "sketch", "plane": "XY", **sketch}],
     }
     with pytest.raises(Exception):
         replay(document)
