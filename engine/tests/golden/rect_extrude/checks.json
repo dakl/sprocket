@@ -3,7 +3,9 @@
   "surface_area": 2800,
   "bounding_box": {"min": [-20, -10, 0], "max": [20, 10, 10]},
   "center_of_mass": [0, 0, 5],
+  "solids": 1,
   "faces": 6,
   "edges": 12,
-  "vertices": 8
+  "vertices": 8,
+  "face_types": {"PLANE": 6}
 }

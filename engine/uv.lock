@@ -74,6 +74,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "7.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/2c/3f18755527b03ca9ff6be724bd5370cb777c76a87f17301377cf04a4729b/cachetools-7.2.0.tar.gz", hash = "sha256:bcac1a1b8da6909994a2957238a57b8140dab7c5c5c69a43669654fe87a33c1d", size = 41129, upload-time = "2026-09-16T20:48:27.209Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/bb/1c6e7a89b11da19f137e4ef5a5c5fe47a5bb686449ba343944ccf8fb34b2/cachetools-7.2.0-py3-none-any.whl", hash = "sha256:3045213f186b89fdd95d94441354c4bd87c570b7a38d8c3fd1d9dd37f6dc90d8", size = 16918, upload-time = "2026-09-16T20:48:25.575Z" },
+]
+
+[[package]]
 name = "cadquery-ocp-novtk"
 version = "8.0.1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -396,6 +405,15 @@ wheels = [
 ]
 
 [[package]]
+name = "imagesize"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/5e/513ff06670c84e7b9887c1fdf61b2d42b4f574a831f2f1d2222023049d8a/imagesize-2.0.1.tar.gz", hash = "sha256:b2ba6a4dea487a7ebcd53248d3476aca449d30db12a2dde5e0c5ca9624fd77e5", size = 1883774, upload-time = "2026-08-24T12:35:19.13Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/f9/575c8d760eae1fc99651b7cc5efd96ad5379ca4d6b53750b0fb4fe983f34/imagesize-2.0.1-py3-none-any.whl", hash = "sha256:ea0c9a0384df69ed86a943a15cde37d0360b82491b3910dc2215e202e62b5b02", size = 14794, upload-time = "2026-08-24T12:35:12.548Z" },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -634,6 +652,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/35/b2/66ed6601660648ad5bf84a571460cd57e9db4b28c6833c55e229211a418d/ocp_gordon-0.3.1.tar.gz", hash = "sha256:e55e695fd421e4dc10fe91636e7f2fa376ad81572faaf74e7bbed4b78c7918b7", size = 114168, upload-time = "2026-09-09T03:42:12.379Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3e/dc/ffc8307cd048f4f1e28d95cff6fe694af74f2bae771af6da272701d9646a/ocp_gordon-0.3.1-py3-none-any.whl", hash = "sha256:5df14c38032dcca582ba788e53f8d2e8b39a646a5ea786a0309e8494b3061a81", size = 52347, upload-time = "2026-09-09T03:42:11.083Z" },
+]
+
+[[package]]
+name = "ocp-tessellate"
+version = "3.5.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cachetools" },
+    { name = "imagesize" },
+    { name = "numpy" },
+    { name = "typing-extensions" },
+    { name = "webcolors" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ef/59/f5affe69a54587413b03b22020b0353fba1b4aeb3a281912eb6eaeef9347/ocp_tessellate-3.5.3.tar.gz", hash = "sha256:3f627da7099cd078081432b26db179b7f225241d1ca9474ce959e714f6cac564", size = 88317, upload-time = "2026-09-15T15:51:54.35Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/27/da87f487ef3b1755e278888a72b83b11af7e47dc3321e79cefe0e6370277/ocp_tessellate-3.5.3-py3-none-any.whl", hash = "sha256:411017293e42817904f54f30268dae94ac18b18f3beeba9c0d10fbc12a3d277f", size = 61783, upload-time = "2026-09-15T15:51:53.156Z" },
 ]
 
 [[package]]
@@ -1135,6 +1169,7 @@ source = { editable = "." }
 dependencies = [
     { name = "build123d" },
     { name = "jsonschema" },
+    { name = "ocp-tessellate" },
     { name = "pytest" },
 ]
 
@@ -1142,6 +1177,7 @@ dependencies = [
 requires-dist = [
     { name = "build123d", specifier = ">=0.13.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "ocp-tessellate", specifier = ">=3.5.3" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]
 

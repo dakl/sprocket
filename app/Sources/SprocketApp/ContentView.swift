@@ -9,7 +9,7 @@ struct ContentView: View {
 
     @State private var status: BuildStatus = .building
     // Bumped on every rebuild and appended to the viewer URL as `?t=`, so
-    // WKWebView treats the reload as a new page and refetches part.stl
+    // WKWebView treats the reload as a new page and refetches part.mesh
     // instead of serving it from cache.
     @State private var reloadToken = Date().timeIntervalSince1970
 
@@ -27,7 +27,7 @@ struct ContentView: View {
     private let document = ProcessInfo.processInfo.environment["SPROCKET_DOCUMENT"]
         .map { URL(fileURLWithPath: $0) }
         ?? RepoPaths.examplesDir.appendingPathComponent("box.json")
-    private let stlOut = RepoPaths.viewerDir.appendingPathComponent("part.stl")
+    private let meshOut = RepoPaths.viewerDir.appendingPathComponent("part.mesh")
 
     var body: some View {
         Group {
@@ -75,13 +75,13 @@ struct ContentView: View {
     /// builds is only known once the engine has replayed the document, and the
     /// viewer reads the sidecar to mark it.
     private func rebuild() {
-        let result = EngineRunner.shared.build(document: document, stlOut: stlOut)
+        let result = EngineRunner.shared.build(document: document, meshOut: meshOut)
         writeFeaturesSidecar(failedFeature: result.failedFeature)
         status = result.success ? .ready : .failed(result.output)
     }
 
     /// Writes a small `id`/`type`/`active` summary of the document's features
-    /// next to part.stl, for the viewer's timeline strip. `active` marks
+    /// next to part.mesh, for the viewer's timeline strip. `active` marks
     /// features before rollback_index, the ones the current build replayed.
     /// A sketch feature also carries its `plane`/`polygon`, so the viewer can
     /// draw its outline - a bare sketch produces no solid (see
@@ -168,8 +168,8 @@ struct ContentView: View {
         }
         undoStack.append(previousData)
         redoStack.removeAll()
-        // rebuild() must finish writing part.stl before reloadToken changes,
-        // or WebView reloads to a URL whose STL is still the previous build.
+        // rebuild() must finish writing part.mesh before reloadToken changes,
+        // or WebView reloads to a URL whose mesh is still the previous build.
         rebuild()
         reloadToken = Date().timeIntervalSince1970
     }

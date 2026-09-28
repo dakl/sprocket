@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "f1", "type": "sketch", "plane": "XY", "circle": {"radius": 10, "center": [5, 0]}},
+    {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5}
+  ]
+}

@@ -1,4 +1,4 @@
-"""sprocket build doc.json --step out.step --stl out.stl
+"""sprocket build doc.json --step out.step --stl out.stl --mesh out.mesh
 sprocket serve
 
 `build` is the one-shot CLI: write a document as JSON, run this command,
@@ -16,6 +16,7 @@ from pathlib import Path
 
 from build123d import export_step, export_stl
 
+from .mesh import export_mesh
 from .replay import ReplayError, replay
 
 
@@ -29,6 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("document", type=Path, help="path to a document JSON file")
     build.add_argument("--step", type=Path, help="write STEP to this path")
     build.add_argument("--stl", type=Path, help="write STL to this path")
+    build.add_argument(
+        "--mesh", type=Path, help="write the viewer's tessellated mesh file to this path"
+    )
     build.add_argument(
         "--cache-dir",
         type=Path,
@@ -100,7 +104,11 @@ def _last_solid_index(features: list[dict], rollback_index: int) -> int:
 
 
 def _build_document(
-    document_path: Path, step: Path | None, stl: Path | None, cache_dir: Path | None
+    document_path: Path,
+    step: Path | None,
+    stl: Path | None,
+    cache_dir: Path | None,
+    mesh: Path | None = None,
 ) -> tuple[bool, str, str | None]:
     """Replays one document and exports it. Shared by `build` and `serve`
     so the daemon path can't silently drift from the one-shot CLI path.
@@ -138,7 +146,7 @@ def _build_document(
     if result is None:
         # rollback_index=0: a valid empty document, not a failure. Clear any
         # stale export from before the rollback instead of leaving it behind.
-        for path in (step, stl):
+        for path in (step, stl, mesh):
             if path and Path(path).exists():
                 Path(path).unlink()
         return True, "replayed ok: empty document", failed_id
@@ -152,13 +160,19 @@ def _build_document(
     if stl:
         export_stl(result, Path(stl))
         messages.append(f"wrote {stl}")
-    if not step and not stl:
+    if mesh:
+        header = export_mesh(result, Path(mesh))
+        counts = header["counts"]
+        messages.append(
+            f"wrote {mesh} ({counts['faces']} faces, {counts['triangles']} triangles, {counts['edges']} edges)"
+        )
+    if not step and not stl and not mesh:
         messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")
     return True, "\n".join(messages), failed_id
 
 
 def _build(args: argparse.Namespace) -> int:
-    success, output, _ = _build_document(args.document, args.step, args.stl, args.cache_dir)
+    success, output, _ = _build_document(args.document, args.step, args.stl, args.cache_dir, args.mesh)
     if not success:
         print(output, file=sys.stderr)
         return 1
@@ -174,7 +188,11 @@ def _serve() -> int:
         try:
             request = json.loads(line)
             success, output, failed_id = _build_document(
-                request["document"], request.get("step"), request.get("stl"), request.get("cache_dir")
+                request["document"],
+                request.get("step"),
+                request.get("stl"),
+                request.get("cache_dir"),
+                request.get("mesh"),
             )
         except Exception as exc:
             success, output, failed_id = False, f"error: {exc}", None
