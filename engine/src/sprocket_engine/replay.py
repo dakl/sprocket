@@ -60,7 +60,7 @@ def replay(document: dict, cache_dir: Path | None = None):
             raise _tagged(error, feature, index) from exc
 
         key = feature_cache_key(feature, upstream_key)
-        result = cache.get(key, op_type) if cache else None
+        result = cache.get(key) if cache else None
         if result is None:
             try:
                 result = op.apply(feature, ctx)

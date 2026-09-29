@@ -12,10 +12,6 @@ from build123d import Part, Shape, Sketch, export_brep, import_brep
 
 from . import ENGINE_VERSIONS
 
-# Each op type rewraps its cached shape as the build123d class its algebra
-# operators expect, not the generic base Shape that import_brep returns.
-RESULT_TYPE = {"sketch": Sketch, "extrude": Part, "extrude_face": Part}
-
 
 def feature_cache_key(feature: dict, upstream_key: str) -> str:
     payload = json.dumps(
@@ -33,11 +29,23 @@ class BrepCache:
     def _path(self, key: str) -> Path:
         return self.cache_dir / f"{key}.brep"
 
-    def get(self, key: str, op_type: str) -> Shape | None:
+    def get(self, key: str) -> Shape | None:
+        """A cached shape has to come back as the build123d class its algebra
+        operators expect, not the generic Compound that import_brep returns.
+
+        The class is read off the shape rather than off the op that made it.
+        This used to be a dict keyed by op type, and it named three of the
+        seven registered ops, so a second replay of a fillet, chamfer, boolean
+        or revolve raised KeyError on the op's own name. Nothing kept that dict
+        in step with the op registry, and adding the four missing entries would
+        have left the same trap for op number eight. The shape already knows:
+        an op that produced a solid has solids, a sketch does not.
+        """
         path = self._path(key)
         if not path.exists():
             return None
-        return RESULT_TYPE[op_type](import_brep(path).wrapped)
+        shape = import_brep(path)
+        return (Part if shape.solids() else Sketch)(shape.wrapped)
 
     def put(self, key: str, shape: Shape) -> None:
         export_brep(shape, self._path(key))

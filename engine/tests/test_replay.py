@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from golden_support import CASES, document as golden_document
 from sprocket_engine import ops
 from sprocket_engine.replay import ReplayError, replay
 
@@ -64,3 +65,32 @@ def test_changed_feature_invalidates_cache(tmp_path: Path):
 
     assert first.volume == pytest.approx(8000, rel=1e-6)
     assert second.volume == pytest.approx(16000, rel=1e-6)
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_every_op_type_survives_its_own_cache(case, tmp_path: Path):
+    """A cached shape has to come back as the same part the op produced, for
+    every op, not just the ones somebody remembered to list.
+
+    The other cache tests above all replay rect_extrude, so for a long time
+    they only ever exercised sketch and extrude. The cache read used to pick a
+    build123d class from a hand-written op-type map, which named three of the
+    seven registered ops, so a second replay of a fillet, chamfer, boolean or
+    revolve died with a bare KeyError on the op's own name. Nothing caught it:
+    the golden suite passes no cache_dir, and examples/box.json happens to use
+    only the three types the map covered.
+
+    Parametrising over the golden cases is the point rather than an accident.
+    Between them they cover every op type a document can currently end on, and
+    a new case is picked up here for free. A test naming the four broken types
+    would have gone out of date the same way the map did.
+    """
+    document = golden_document(case)
+    cache_dir = tmp_path / "cache"
+
+    cold = replay(document, cache_dir=cache_dir)
+    warm = replay(document, cache_dir=cache_dir)
+
+    assert list(cache_dir.iterdir()), "nothing was cached, so the second replay proves nothing"
+    assert type(warm) is type(cold)
+    assert warm.volume == pytest.approx(cold.volume, rel=1e-9)
