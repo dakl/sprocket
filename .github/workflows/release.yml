@@ -1,0 +1,50 @@
+name: release
+
+# Push a tag like v0.2.0 to publish the engine wheel and the example documents.
+# The app is not built here: it only runs from the source tree that compiled it
+# (see RepoPaths.swift), so a downloadable app waits on bundling the engine.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+
+      # A tag that disagrees with pyproject.toml would publish a wheel whose
+      # filename names a different version than the release.
+      - name: Check the tag matches the engine version
+        run: |
+          version=$(grep -m1 '^version' engine/pyproject.toml | cut -d'"' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match engine version v$version"
+            exit 1
+          fi
+
+      - name: Run the tests
+        working-directory: engine
+        run: |
+          uv sync --extra mcp
+          uv run pytest
+
+      - name: Build the wheel and sdist
+        working-directory: engine
+        run: uv build --out-dir dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            engine/dist/*.whl engine/dist/*.tar.gz examples/*.json
