@@ -74,6 +74,23 @@ test("clicking where the model says a face is selects that face", async ({ page,
   await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
 });
 
+test("clicking an edge selects the B-rep edge the engine numbers the same way", async ({ page, request }) => {
+  // The mesh's edge ID map has to agree with shape.edges(), because that order
+  // is what every later edge-based op will name. Only a top edge that faces
+  // the camera is clickable, so take the first of those.
+  const { edges } = await rpc(request, "describe_geometry");
+  const target = await page.evaluate((candidates) => {
+    for (const edge of candidates) {
+      const point = window.__tcad.screenPointOf({ edge });
+      if (point && point.visible) return { edge, x: point.x, y: point.y };
+    }
+    return null;
+  }, edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])));
+  expect(target).not.toBeNull();
+  await page.mouse.click(target.x, target.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(target.edge);
+});
+
 test("editing a feature's parameter by form rebuilds the part", async ({ page, request }) => {
   await chip(page, "f2").locator(".timeline-edit").click();
   const distance = page.getByTestId("field-distance");

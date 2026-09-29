@@ -705,6 +705,19 @@
           );
           scene.add(edgeLines);
 
+          // The same ID map faces have, for edges: segment k belongs to B-rep
+          // edge edgeOfSegment[k], and edge e owns segments edgeStart[e] up to
+          // edgeStart[e + 1], in shape.edges() order (see mesh.py).
+          const segmentsPerEdge = parsed.buffers.segments_per_edge;
+          const edgeStart = new Uint32Array(segmentsPerEdge.length + 1);
+          const edgeOfSegment = new Uint32Array(counts.segments);
+          segmentsPerEdge.forEach((segmentCount, edgeIndex) => {
+            edgeStart[edgeIndex + 1] = edgeStart[edgeIndex] + segmentCount;
+            edgeOfSegment.fill(edgeIndex, edgeStart[edgeIndex], edgeStart[edgeIndex + 1]);
+          });
+          edgeLines.userData.edgeStart = edgeStart;
+          edgeLines.userData.edgeOfSegment = edgeOfSegment;
+
           if (refit) frameCameraOn(mesh);
           applyVisibility();
           renderBrowser();
@@ -739,6 +752,7 @@
           const selectedSketchID = selectedSketch && selectedSketch.id;
           selectedSketch = null;
           selectedPatch = null;
+          clearEdgeSelection();
           hideSelectionPanel();
           hideStatus();
           renderTimeline(features);
@@ -1119,6 +1133,72 @@
       return hits.length ? hits[0] : null;
     }
 
+    // --- Edge picking ---------------------------------------------------
+    // A B-rep edge is a run of the edge line segments (see the ID map built in
+    // loadPart). The selection keeps the edge's index for the viewer and its
+    // midpoint for anything that has to name the edge to the engine, because
+    // documents refer to geometry by position, never by index.
+    const EDGE_PICK_PIXELS = 6;
+    const edgeHighlight = new THREE.LineSegments(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: srgb(0xffaa00), depthTest: false })
+    );
+    edgeHighlight.renderOrder = 2;
+    edgeHighlight.visible = false;
+    scene.add(edgeHighlight);
+
+    /// The edge line segment under the pointer, or null. Lines are hit-tested
+    /// without depth, so an edge on the far side of the part is dropped when a
+    /// face stands clearly in front of it.
+    function raycastEdge(event) {
+      if (!edgeLines || !edgeLines.visible) return null;
+      raycaster.setFromCamera(pointerNDC(event), camera);
+      const previous = raycaster.params.Line.threshold;
+      raycaster.params.Line.threshold = worldRadius(EDGE_PICK_PIXELS, controls.target);
+      const hits = raycaster.intersectObject(edgeLines);
+      raycaster.params.Line.threshold = previous;
+      if (!hits.length) return null;
+      const faceHit = raycastFace(event);
+      if (faceHit && faceHit.distance < hits[0].distance - 2 * worldRadius(EDGE_PICK_PIXELS, hits[0].point)) {
+        return null;
+      }
+      return hits[0];
+    }
+
+    function edgeIndexOfHit(hit) {
+      return edgeLines.userData.edgeOfSegment[Math.floor(hit.index / 2)];
+    }
+
+    function selectEdge(edgeIndex) {
+      const { edgeStart } = edgeLines.userData;
+      const positions = edgeLines.geometry.attributes.position.array;
+      // Two vertices of three floats per segment.
+      const run = positions.slice(edgeStart[edgeIndex] * 6, edgeStart[edgeIndex + 1] * 6);
+      edgeHighlight.geometry.dispose();
+      edgeHighlight.geometry = new THREE.BufferGeometry();
+      edgeHighlight.geometry.setAttribute("position", new THREE.BufferAttribute(run, 3));
+      edgeHighlight.visible = true;
+      selectedEdge = { edgeIndex };
+    }
+
+    function clearEdgeSelection() {
+      selectedEdge = null;
+      edgeHighlight.visible = false;
+    }
+
+    /// The middle of an edge's middle segment: a point that is on the edge
+    /// even when the edge is a curve.
+    function edgeMidpoint(edgeIndex) {
+      const { edgeStart } = edgeLines.userData;
+      const positions = edgeLines.geometry.attributes.position.array;
+      const segment = Math.floor((edgeStart[edgeIndex] + edgeStart[edgeIndex + 1] - 1) / 2);
+      return new THREE.Vector3(
+        (positions[segment * 6] + positions[segment * 6 + 3]) / 2,
+        (positions[segment * 6 + 1] + positions[segment * 6 + 4]) / 2,
+        (positions[segment * 6 + 2] + positions[segment * 6 + 5]) / 2
+      );
+    }
+
     const hintEl = document.getElementById("hint");
     const panelEl = document.getElementById("extrude-panel");
     const distanceEl = document.getElementById("extrude-distance");
@@ -1365,6 +1445,7 @@
     function clearSelection() {
       selectedPatch = null;
       selectedSketch = null;
+      clearEdgeSelection();
       renderer.domElement.style.cursor = "default";
       clearHighlight();
       hideSelectionPanel();
@@ -1377,6 +1458,7 @@
     function hideStatus() { statusEl.style.display = "none"; }
 
     let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
+    let selectedEdge = null; // { edgeIndex }: a B-rep edge, in shape.edges() order
     let selectedSketch = null; // a features.json entry: any replayed sketch, picked in the 3D view or via its timeline chip
     // A live corner or edge drag on the selected sketch:
     // { feature, plane, kind, indices, polygon, lastUV }. polygon is a working
@@ -1473,11 +1555,23 @@
         selectSketchForExtrude(sketch);
         return;
       }
+      const edgeHit = raycastEdge(event);
+      if (edgeHit) {
+        selectedPatch = null;
+        selectedSketch = null;
+        clearHighlight();
+        renderSketchSelection();
+        selectEdge(edgeIndexOfHit(edgeHit));
+        hideHint();
+        showSelectionPanel("Edge selected");
+        return;
+      }
       const hit = raycastFace(event);
       if (!hit) {
         clearSelection();
         return;
       }
+      clearEdgeSelection();
       selectedPatch = facePatchAt(hit);
       selectedPatch.anchorPoint = hit.point.clone();
       selectedSketch = null;
@@ -1508,6 +1602,7 @@
       if (extrudeArmed) return;
       selectedSketch = feature;
       selectedPatch = null;
+      clearEdgeSelection();
       clearHighlight();
       renderSketchSelection();
       hideHint();
@@ -2530,6 +2625,24 @@
     // viewer's own state, plus screenPointOf() so a test clicks where the
     // model says a face is instead of guessing pixels. Read-only: nothing here
     // changes the document, so it is safe in every build.
+    /// Where B-rep edge `edge` is on screen, and whether it is in front.
+    function screenPointOfEdge(edge) {
+      if (!mesh || !edgeLines || edge >= edgeLines.userData.edgeStart.length - 1) return null;
+      camera.updateMatrixWorld();
+      const point = edgeMidpoint(edge);
+      const ndc = point.clone().project(camera);
+      const rect = renderer.domElement.getBoundingClientRect();
+      raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+      const hits = raycaster.intersectObject(mesh);
+      const visible =
+        hits.length === 0 || hits[0].distance >= camera.position.distanceTo(point) - 2 * worldRadius(EDGE_PICK_PIXELS, point);
+      return {
+        x: rect.left + ((ndc.x + 1) / 2) * rect.width,
+        y: rect.top + ((1 - ndc.y) / 2) * rect.height,
+        visible,
+      };
+    }
+
     window.__tcad = {
       /// False while a mesh, a timeline or a command is still in flight.
       get idle() {
@@ -2552,6 +2665,7 @@
       get selection() {
         return {
           face: selectedPatch ? selectedPatch.faceIndex : null,
+          edge: selectedEdge ? selectedEdge.edgeIndex : null,
           sketch: selectedSketch ? selectedSketch.id : null,
         };
       },
@@ -2571,7 +2685,8 @@
       /// The point is the centroid of the face's largest triangle, not of the
       /// whole face: the centroid of a face with a hole or a concave outline
       /// can sit off the face altogether.
-      screenPointOf({ face }) {
+      screenPointOf({ face, edge }) {
+        if (edge !== undefined) return screenPointOfEdge(edge);
         if (!mesh || !mesh.geometry.groups[face]) return null;
         const geometry = mesh.geometry;
         const group = geometry.groups[face];
