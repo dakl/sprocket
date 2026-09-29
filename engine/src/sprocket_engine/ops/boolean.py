@@ -4,6 +4,7 @@ from .registry import register
 
 SCHEMA = {
     "type": "object",
+    "description": "Combines two earlier features, by union, subtract or intersect.",
     "required": ["id", "type", "operation", "base", "tool"],
     "properties": {
         "id": {"type": "string"},

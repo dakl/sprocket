@@ -16,8 +16,9 @@ from pathlib import Path
 
 from build123d import export_step, export_stl
 
+from .document import Document, DocumentError
 from .mesh import export_mesh
-from .replay import ReplayError, replay
+from .replay import build_shape
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,66 +46,31 @@ def main(argv: list[str] | None = None) -> int:
         help="read one JSON build request per line from stdin, keep build123d warm between builds",
     )
 
+    daemon = sub.add_parser(
+        "daemon", help="serve one document over a Unix socket, for the app, the viewer and agents"
+    )
+    daemon.add_argument("document", type=Path, help="path to a document JSON file")
+    daemon.add_argument("--socket", type=Path, default=None, help="socket path (default: <document>.sock)")
+    daemon.add_argument("--cache-dir", type=Path, default=None, help="BREP cache directory")
+    daemon.add_argument(
+        "--no-autosave",
+        action="store_true",
+        help="keep edits in memory instead of writing the document after each one",
+    )
+
+    mcp = sub.add_parser("mcp", help="expose a running daemon's document as MCP tools over stdio")
+    mcp.add_argument("--socket", type=Path, required=True, help="socket path of a running daemon")
+
     args = parser.parse_args(argv)
     if args.command == "build":
         return _build(args)
     if args.command == "serve":
         return _serve()
+    if args.command == "daemon":
+        return _daemon(args)
+    if args.command == "mcp":
+        return _mcp(args)
     return 1
-
-
-class DocumentError(Exception):
-    """A document that cannot be read or makes no sense as a document, as
-    opposed to one whose features no longer build. The second kind is normal
-    editing (see _build_document); this kind is a bad path or a bad file."""
-
-
-def _load_document(document_path: Path) -> dict:
-    """Reads a document and checks the shape replay() and _last_solid_index()
-    rely on. Both walk `features` and slice it by `rollback_index` without
-    guarding, so a missing file or a `features` that is not a list used to come
-    back as a traceback - past the error path that prints a readable message,
-    and past `serve`, whose caller only ever sees `output`."""
-    try:
-        text = Path(document_path).read_text()
-    except OSError as exc:
-        raise DocumentError(f"cannot read document {document_path}: {exc.strerror}") from exc
-    except UnicodeDecodeError as exc:
-        # A ValueError, not an OSError, so the clause above does not catch it.
-        # Pointing at an .stl or .step instead of the .json lands here.
-        raise DocumentError(f"{document_path} is not UTF-8 text, so it is not a document") from exc
-
-    try:
-        document = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise DocumentError(f"{document_path} is not valid JSON: {exc}") from exc
-    if not isinstance(document, dict):
-        raise DocumentError(f"{document_path}: a document must be a JSON object")
-
-    features = document.get("features")
-    if not isinstance(features, list) or not all(isinstance(feature, dict) for feature in features):
-        raise DocumentError(f"{document_path}: 'features' must be a list of objects")
-
-    rollback_index = document.get("rollback_index", len(features))
-    if type(rollback_index) is not int or not 0 <= rollback_index <= len(features):
-        raise DocumentError(
-            f"{document_path}: 'rollback_index' must be an integer in 0..{len(features)}, "
-            f"got {rollback_index!r}"
-        )
-
-    return document
-
-
-def _last_solid_index(features: list[dict], rollback_index: int) -> int:
-    """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
-    inert until something extrudes it. replay() only returns its last
-    feature's result, so a bare sketch left at the tip would export as the
-    part and blank out whatever solid came before it. Walk back past any
-    trailing sketch features to the last one that actually produced a solid."""
-    index = rollback_index
-    while index > 0 and features[index - 1].get("type") == "sketch":
-        index -= 1
-    return index
 
 
 def _build_document(
@@ -121,31 +87,26 @@ def _build_document(
     builds is not a failed build: editing a sketch can break a later op, and
     the user still needs to see the part up to that point. So the export falls
     back to the prefix before the broken feature, and its id comes back so the
-    app can mark it."""
+    app can mark it.
+
+    The reading and checking is `Document.load`'s, not a second copy here. The
+    daemon and this path have to agree on what counts as a document, and going
+    through the same loader also means `build` resolves parameters the way the
+    daemon does."""
     try:
-        document = _load_document(document_path)
+        document = Document.load(document_path)
     except DocumentError as exc:
         return False, f"error: {exc}", None
     resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
 
-    features = document["features"]
-    rollback_index = document.get("rollback_index", len(features))
-    export_index = _last_solid_index(features, rollback_index)
-    export_document = document if export_index == rollback_index else {**document, "rollback_index": export_index}
+    replayable = document.for_replay()
+    features = replayable["features"]
+    rollback_index = replayable["rollback_index"]
 
-    failed_id = None
     try:
-        result = replay(export_document, cache_dir=resolved_cache_dir)
+        result, failed_id = build_shape(features, rollback_index, resolved_cache_dir)
     except Exception as exc:
-        failed_index = getattr(exc, "feature_index", None)
-        failed_id = getattr(exc, "feature_id", None)
-        if failed_index is None:
-            return False, f"error: {exc}", None
-        good_index = _last_solid_index(features, failed_index)
-        try:
-            result = replay({**document, "rollback_index": good_index}, cache_dir=resolved_cache_dir)
-        except Exception as earlier:
-            return False, f"error: {earlier}", failed_id
+        return False, f"error: {exc}", getattr(exc, "feature_id", None)
 
     if result is None:
         # rollback_index=0: a valid empty document, not a failure. Clear any
@@ -202,6 +163,34 @@ def _serve() -> int:
             success, output, failed_id = False, f"error: {exc}", None
         print(json.dumps({"success": success, "output": output, "failed_feature": failed_id}), flush=True)
     return 0
+
+
+def _daemon(args: argparse.Namespace) -> int:
+    # Imported here, not at module scope, so `sprocket build` keeps starting
+    # without paying for the socket machinery it never uses.
+    from .rpc import Daemon, Session
+
+    try:
+        document = Document.load(args.document)
+    except DocumentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    socket_path = args.socket or Path(str(args.document) + ".sock")
+    session = Session(document, args.cache_dir)
+    server = Daemon(session, socket_path, autosave=not args.no_autosave)
+    print(f"listening on {socket_path} (revision {document.revision})", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        server.shutdown()
+    return 0
+
+
+def _mcp(args: argparse.Namespace) -> int:
+    from .mcp_server import run
+
+    return run(args.socket)
 
 
 if __name__ == "__main__":

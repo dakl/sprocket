@@ -1,17 +1,18 @@
 from build123d import Part
 from build123d import extrude as b3d_extrude
 
-from ..selectors import SelectorError, resolve_selector
+from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
 from .registry import register
 
 SCHEMA = {
     "type": "object",
+    "description": "Push/pull one face of an existing solid. Positive adds material, negative cuts into it.",
     "required": ["id", "type", "base", "face", "distance"],
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "extrude_face"},
         "base": {"type": "string", "description": "id of the feature this pushes off of"},
-        "face": {"type": "object", "description": "selector chain, see selectors.py"},
+        "face": {"type": "object", "description": SELECTOR_DESCRIPTION},
         "distance": {
             "type": "number",
             "not": {"const": 0},

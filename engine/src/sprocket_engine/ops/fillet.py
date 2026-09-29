@@ -1,16 +1,17 @@
 from build123d import fillet as b3d_fillet
 
-from ..selectors import resolve_edges
+from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
 from .registry import register
 
 SCHEMA = {
     "type": "object",
+    "description": "Rounds the selected edges of a solid.",
     "required": ["id", "type", "base", "edges", "radius"],
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "fillet"},
         "base": {"type": "string", "description": "id of the feature being rounded"},
-        "edges": {"type": "object", "description": "selector chain, see selectors.py"},
+        "edges": {"type": "object", "description": SELECTOR_DESCRIPTION},
         "radius": {"type": "number", "exclusiveMinimum": 0, "description": "mm"},
     },
 }

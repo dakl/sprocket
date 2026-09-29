@@ -5,6 +5,7 @@ from .registry import register
 
 SCHEMA = {
     "type": "object",
+    "description": "Pushes a sketch into a solid. With no base it makes a new body. With a base, a positive distance fuses and a negative one cuts.",
     "required": ["id", "type", "profile", "distance"],
     "properties": {
         "id": {"type": "string"},

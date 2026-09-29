@@ -84,7 +84,10 @@ def test_a_missing_document_is_a_readable_error_not_a_traceback(tmp_path: Path, 
         ('{"features": ["f1"]}', "'features' must be a list of objects"),
         ('{"units": {"length": "mm"}}', "'features' must be a list of objects"),
         ('{"features": [], "rollback_index": "2"}', "'rollback_index' must be an integer"),
-        ('{"features": [], "rollback_index": 3}', "'rollback_index' must be an integer"),
+        # The type and the range are separate messages now: telling someone an
+        # integer "must be an integer" sends them looking at the wrong thing.
+        # Document.load is the one copy of both checks.
+        ('{"features": [], "rollback_index": 3}', "'rollback_index' is 3, outside 0..0"),
         ("{not json", "is not valid JSON"),
         ("[]", "must be a JSON object"),
     ],
