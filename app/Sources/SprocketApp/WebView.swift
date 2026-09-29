@@ -38,6 +38,14 @@ struct UpdateSketchPayload {
     let polygon: [[Double]]
 }
 
+/// A parameter-form edit posted from the viewer's properties panel. `feature`
+/// is the whole edited feature, replacing the one with the same `id`. The
+/// engine checks it against the op's schema on the next build.
+struct UpdateFeaturePayload {
+    let id: String
+    let feature: [String: Any]
+}
+
 /// Loads viewer/index.html and grants it read access to the viewer
 /// directory, so it can fetch part.mesh next to it. Registers a
 /// WKScriptMessageHandler named "sprocket" so the JS side can post a
@@ -49,6 +57,7 @@ struct WebView: NSViewRepresentable {
     let onAddSketch: (SketchPayload) -> Void
     let onExtrudeSketch: (ExtrudeSketchPayload) -> Void
     let onUpdateSketch: (UpdateSketchPayload) -> Void
+    let onUpdateFeature: (UpdateFeaturePayload) -> Void
     let onSetRollback: (Int) -> Void
     let onNewDocument: () -> Void
     let onUndo: () -> Void
@@ -60,6 +69,7 @@ struct WebView: NSViewRepresentable {
             onAddSketch: onAddSketch,
             onExtrudeSketch: onExtrudeSketch,
             onUpdateSketch: onUpdateSketch,
+            onUpdateFeature: onUpdateFeature,
             onSetRollback: onSetRollback,
             onNewDocument: onNewDocument,
             onUndo: onUndo,
@@ -143,6 +153,7 @@ struct WebView: NSViewRepresentable {
         private let onAddSketch: (SketchPayload) -> Void
         private let onExtrudeSketch: (ExtrudeSketchPayload) -> Void
         private let onUpdateSketch: (UpdateSketchPayload) -> Void
+        private let onUpdateFeature: (UpdateFeaturePayload) -> Void
         private let onSetRollback: (Int) -> Void
         private let onNewDocument: () -> Void
         private let onUndo: () -> Void
@@ -153,6 +164,7 @@ struct WebView: NSViewRepresentable {
             onAddSketch: @escaping (SketchPayload) -> Void,
             onExtrudeSketch: @escaping (ExtrudeSketchPayload) -> Void,
             onUpdateSketch: @escaping (UpdateSketchPayload) -> Void,
+            onUpdateFeature: @escaping (UpdateFeaturePayload) -> Void,
             onSetRollback: @escaping (Int) -> Void,
             onNewDocument: @escaping () -> Void,
             onUndo: @escaping () -> Void,
@@ -162,6 +174,7 @@ struct WebView: NSViewRepresentable {
             self.onAddSketch = onAddSketch
             self.onExtrudeSketch = onExtrudeSketch
             self.onUpdateSketch = onUpdateSketch
+            self.onUpdateFeature = onUpdateFeature
             self.onSetRollback = onSetRollback
             self.onNewDocument = onNewDocument
             self.onUndo = onUndo
@@ -212,6 +225,12 @@ struct WebView: NSViewRepresentable {
             if type == "update_sketch" {
                 guard let id = body["id"] as? String, let polygon = body["polygon"] as? [[Double]] else { return }
                 onUpdateSketch(UpdateSketchPayload(id: id, polygon: polygon))
+                return
+            }
+
+            if type == "update_feature" {
+                guard let id = body["id"] as? String, let feature = body["feature"] as? [String: Any] else { return }
+                onUpdateFeature(UpdateFeaturePayload(id: id, feature: feature))
                 return
             }
 

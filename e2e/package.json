@@ -1,0 +1,11 @@
+{
+  "name": "sprocket-e2e",
+  "private": true,
+  "description": "Playwright tests that drive the real viewer against a real engine",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

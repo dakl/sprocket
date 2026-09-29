@@ -183,6 +183,56 @@
     .tool-button.active { border-color: #5be0a0; color: #5be0a0; }
     .tool-button:disabled { color: #555; cursor: default; }
 
+    .timeline-chip .timeline-edit { margin-left: 6px; color: #888; }
+    .timeline-chip .timeline-edit:hover { color: #5be0a0; }
+
+    /* --- Properties form -----------------------------------------------
+       Generated from the op's JSON Schema (params-form.js). Sits under the
+       view cube on the right. */
+    #properties {
+      position: fixed;
+      top: 216px;
+      right: 0;
+      width: 260px;
+      max-height: calc(100% - 272px);
+      overflow-y: auto;
+      background: rgba(28, 28, 28, 0.95);
+      border: 1px solid #333;
+      border-right: none;
+      border-radius: 6px 0 0 6px;
+      font: 12px -apple-system, sans-serif;
+      color: #ddd;
+      padding-bottom: 8px;
+      z-index: 5;
+    }
+    #properties[hidden] { display: none; }
+    .properties-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: #888;
+      padding: 6px 10px;
+      border-bottom: 1px solid #333;
+    }
+    .properties-close { background: none; border: none; color: #aaa; font-size: 16px; cursor: pointer; }
+    .properties-description { color: #999; padding: 6px 10px 2px; }
+    .properties-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px 0; }
+    .properties-row input[type="text"], .properties-row textarea, .properties-row select {
+      font: 12px ui-monospace, monospace;
+      background: #2c2c2c;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 3px;
+      padding: 3px 5px;
+    }
+    .properties-row input:focus, .properties-row textarea:focus, .properties-row select:focus {
+      outline: none;
+      border-color: #5be0a0;
+    }
+    .properties-error { color: #ff9a8a; padding: 6px 10px 0; min-height: 1em; }
+
     /* --- Browser tree --------------------------------------------------
        Visibility only, for now: one eye per body and per sketch. */
     #browser {
@@ -405,6 +455,7 @@
     <button id="sketch-cancel">Cancel</button>
   </div>
   <div id="timeline"></div>
+  <aside id="properties" hidden></aside>
   <div id="view-cube">
     <button id="view-cube-home" title="Reset to the default view">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -415,6 +466,7 @@
   </div>
   <script src="vendor/three.min.js"></script>
   <script src="vendor/OrbitControls.js"></script>
+  <script src="params-form.js"></script>
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
     // timeline, no live engine connection yet — see docs/SPEC.md M3+.
@@ -510,6 +562,10 @@
 
     let mesh = null;
     let edgeLines = null;
+    // In-flight loads and commands, and the revision on screen. Declared here
+    // because loadPart() runs at startup, before the transport block below.
+    let pendingCount = 0;
+    let loadedRevision = null;
 
     function urlWithCacheBust(base, token) {
       if (!token) return base;
@@ -594,7 +650,7 @@
     function loadPart(token, options) {
       const refit = Boolean(options && options.refit);
       const path = urlWithCacheBust(partBase, token);
-      fetch(path)
+      trackPending(fetch(path)
         // file:// fetches report status 0, not 200, so response.ok is always
         // false there.
         .then((response) => {
@@ -628,6 +684,7 @@
             polygonOffsetUnits: 1,
           });
           mesh = new THREE.Mesh(buildPartGeometry(parsed), material);
+          mesh.userData.counts = counts;
           scene.add(mesh);
 
           // The B-rep edge curves, already tessellated into consecutive point
@@ -661,14 +718,14 @@
           console.log("no mesh to load (empty document, or a real load failure)", path, error);
           disposePart();
           renderBrowser();
-        });
+        }));
     }
 
     // --- Timeline (M3) --------------------------------------------------
     // A sidecar JSON next to part.mesh, written by the Swift app on every
     // rebuild: a plain array of {id, type}, one per feature in the document.
     function loadFeatures(token) {
-      fetch(urlWithCacheBust(featuresBase, token))
+      trackPending(fetch(urlWithCacheBust(featuresBase, token))
         // file:// fetches report status 0, not 200, so response.ok is always
         // false in the app. Treat 0 as success or the timeline never loads
         // outside a local server.
@@ -685,6 +742,7 @@
           hideSelectionPanel();
           hideStatus();
           renderTimeline(features);
+          renderProperties();
           renderSketchOutlines(features);
           const stillThere = features.find(
             (feature) => feature.id === selectedSketchID && feature.type === "sketch" && feature.active
@@ -693,13 +751,14 @@
           reportFailedFeature(features);
           renderBrowser();
         })
-        .catch((error) => console.error("failed to load features.json", error));
+        .catch((error) => console.error("failed to load features.json", error)));
     }
 
     // Called from Swift (see WebView.swift) after every op edit, instead of
     // reloading the page: refetches part.mesh/features.json in place so the
     // camera position and zoom the user set survive a rebuild.
     window.reloadPart = function (token) {
+      loadedRevision = token;
       loadPart(token, { refit: false });
       loadFeatures(token);
     };
@@ -728,6 +787,16 @@
         chip.title = feature.failed ? feature.type + " - no longer applies" : feature.type;
         const icon = FEATURE_ICONS[feature.type] || "?";
         chip.innerHTML = '<span class="timeline-icon">' + icon + "</span>" + feature.id;
+        chip.dataset.featureId = feature.id;
+        const edit = document.createElement("span");
+        edit.className = "timeline-edit";
+        edit.title = "Edit parameters";
+        edit.textContent = "✎";
+        edit.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openProperties(feature.id);
+        });
+        chip.appendChild(edit);
         chip.addEventListener("click", () => {
           // A sketch is inert (see cli.py's _last_solid_index) - clicking one
           // selects it, for extruding or for dragging its corners, instead of
@@ -758,17 +827,110 @@
       warningEl.style.display = "block";
     }
 
-    function postToSwift(message) {
+    // --- Properties form --------------------------------------------------
+    // One form per feature, built from that op's JSON Schema. `schemas.json`
+    // is written by the engine (served live by `sprocket web`, generated into
+    // this folder by `make app`), so an op registered tomorrow gets a form
+    // without a viewer change.
+    const propertiesEl = document.getElementById("properties");
+    let editingFeatureId = null;
+    let schemas = null;
+
+    function loadSchemas() {
+      if (schemas) return Promise.resolve(schemas);
+      return trackPending(
+        fetch("schemas.json").then((response) => {
+          if (!response.ok && response.status !== 0) throw new Error("no schemas.json (HTTP " + response.status + ")");
+          return response.json();
+        })
+      ).then((loaded) => (schemas = loaded));
+    }
+
+    function openProperties(featureId) {
+      editingFeatureId = featureId;
+      loadSchemas()
+        .then(renderProperties)
+        .catch((error) => {
+          editingFeatureId = null;
+          console.error("cannot open the parameter form", error);
+        });
+    }
+
+    function closeProperties() {
+      editingFeatureId = null;
+      renderProperties();
+    }
+
+    function renderProperties() {
+      const entry = editingFeatureId && browserFeatures.find((item) => item.id === editingFeatureId);
+      if (!entry || !entry.feature || !schemas || !schemas[entry.type]) {
+        editingFeatureId = null;
+        propertiesEl.hidden = true;
+        return;
+      }
+      propertiesEl.hidden = false;
+      ParamsForm.render(propertiesEl, {
+        schema: schemas[entry.type],
+        feature: entry.feature,
+        onCommit: (feature) => sendCommand({ type: "update_feature", id: entry.id, feature: feature }),
+        onClose: closeProperties,
+      });
+    }
+
+    // --- Transport ------------------------------------------------------
+    // One outbound path for every gesture, two ways to carry it. Inside the
+    // Swift app it is a WKWebView message and Swift rewrites the document. Over
+    // http(s) it is a POST to `sprocket web`, which applies the same rule to
+    // the live document (see engine/src/sprocket_engine/viewer_commands.py).
+    // From a file:// page with no bridge there is nothing to send to.
+    //
+    // Returns a promise that rejects with the engine's reason. Swift gives no
+    // reply, so there it resolves at once and a failure arrives by the app's
+    // own status path.
+    function trackPending(promise) {
+      pendingCount++;
+      return promise.finally(() => {
+        pendingCount--;
+      });
+    }
+
+    function sendCommand(message) {
       if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket) {
         window.webkit.messageHandlers.sprocket.postMessage(message);
         showStatus("Rebuilding…");
-      } else {
-        console.log("(no Swift bridge, browser preview)", message);
+        return Promise.resolve();
       }
+      if (!/^https?:$/.test(window.location.protocol)) {
+        console.log("(no Swift bridge and no server, dropping)", message);
+        return Promise.resolve();
+      }
+      showStatus("Rebuilding…");
+      return trackPending(
+        fetch("/command", { method: "POST", body: JSON.stringify(message) })
+          .then((response) => response.json().then((body) => ({ ok: response.ok, body })))
+          .then(({ ok, body }) => {
+            if (!ok) throw new Error(body.error || "the engine refused the edit");
+            window.reloadPart(body.revision);
+          })
+          .catch((error) => {
+            hideStatus();
+            throw error;
+          })
+      );
+    }
+
+    // An edit made somewhere else, such as an agent on the daemon socket,
+    // arrives here. The viewer's own edits arrive twice, once as the reply to
+    // its POST and once as this event, so a revision already loaded is skipped.
+    if (/^https?:$/.test(window.location.protocol)) {
+      new EventSource("/events").addEventListener("document_changed", (event) => {
+        const revision = JSON.parse(event.data).params.revision;
+        if (revision !== loadedRevision) window.reloadPart(revision);
+      });
     }
 
     function setRollback(index) {
-      postToSwift({ type: "set_rollback", index: index });
+      sendCommand({ type: "set_rollback", index: index });
     }
 
     // --- Push/pull picking (M3) ---------------------------------------
@@ -989,7 +1151,7 @@
     // Cmd+Z brings the whole part back (see ContentView.performMutation).
     document.getElementById("tool-new").addEventListener("click", () => {
       if (sketchStage || extrudeArmed) return;
-      postToSwift({ type: "new_document" });
+      sendCommand({ type: "new_document" });
     });
 
     // --- Browser tree ---------------------------------------------------
@@ -1335,7 +1497,7 @@
       sketchEditDrag = null;
       controls.enabled = true;
       hideHint();
-      postToSwift({ type: "update_sketch", id: feature.id, polygon: polygon });
+      sendCommand({ type: "update_sketch", id: feature.id, polygon: polygon });
     });
 
     // Selects a sketch feature, from a click on the sketch in the 3D view or on
@@ -1653,7 +1815,7 @@
         ? { type: "extrude_sketch", profile: sketchExtrudeFeature.id, distance: previewState.distance }
         : { type: "extrude_face", point: selectedPatch.anchorPoint.toArray(), normal: selectedPatch.normal.toArray(), distance: previewState.distance };
       cancelExtrude();
-      postToSwift(message);
+      sendCommand(message);
     }
 
     document.getElementById("extrude-ok").addEventListener("click", () => { if (extrudeArmed) commitExtrude(); });
@@ -1663,6 +1825,9 @@
     document.getElementById("selection-cancel").addEventListener("click", clearSelection);
 
     window.addEventListener("keydown", (event) => {
+      // The parameter form is a text field: "e" and "s" are letters there, and
+      // Cmd+Z undoes the typing rather than the document.
+      if (propertiesEl.contains(document.activeElement)) return;
       if (sketchStage) {
         if (event.key === "Escape") {
           cancelSketch();
@@ -1691,7 +1856,7 @@
         commitExtrude();
       } else if (event.metaKey && event.key.toLowerCase() === "z" && !extrudeArmed) {
         event.preventDefault();
-        postToSwift({ type: event.shiftKey ? "redo" : "undo" });
+        sendCommand({ type: event.shiftKey ? "redo" : "undo" });
       }
     });
 
@@ -2011,7 +2176,7 @@
       };
       const message = { type: "add_sketch", plane: planePayload, polygon: polygon };
       exitSketchMode();
-      postToSwift(message);
+      sendCommand(message);
     }
 
     function cancelSketch() {
@@ -2359,6 +2524,86 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // --- Test hooks -----------------------------------------------------
+    // What a Playwright test or an agent asserts on, read straight from the
+    // viewer's own state, plus screenPointOf() so a test clicks where the
+    // model says a face is instead of guessing pixels. Read-only: nothing here
+    // changes the document, so it is safe in every build.
+    window.__tcad = {
+      /// False while a mesh, a timeline or a command is still in flight.
+      get idle() {
+        return pendingCount === 0;
+      },
+      get revision() {
+        return loadedRevision;
+      },
+      get timeline() {
+        return browserFeatures.map((entry) => ({
+          id: entry.id,
+          type: entry.type,
+          active: entry.active,
+          failed: Boolean(entry.failed),
+        }));
+      },
+      get features() {
+        return browserFeatures.map((entry) => entry.feature);
+      },
+      get selection() {
+        return {
+          face: selectedPatch ? selectedPatch.faceIndex : null,
+          sketch: selectedSketch ? selectedSketch.id : null,
+        };
+      },
+      get editing() {
+        return editingFeatureId;
+      },
+      get camera() {
+        return { position: camera.position.toArray(), target: controls.target.toArray() };
+      },
+      get mesh() {
+        return mesh ? { ...mesh.userData.counts } : null;
+      },
+
+      /// Where B-rep face `face` is on screen, in page pixels, and whether a
+      /// click there would land on it rather than on something in front.
+      ///
+      /// The point is the centroid of the face's largest triangle, not of the
+      /// whole face: the centroid of a face with a hole or a concave outline
+      /// can sit off the face altogether.
+      screenPointOf({ face }) {
+        if (!mesh || !mesh.geometry.groups[face]) return null;
+        const geometry = mesh.geometry;
+        const group = geometry.groups[face];
+        const position = geometry.attributes.position;
+        const a = new THREE.Vector3();
+        const b = new THREE.Vector3();
+        const c = new THREE.Vector3();
+        let best = null;
+        let bestArea = -1;
+        for (let t = group.start / 3; t < (group.start + group.count) / 3; t++) {
+          const [i0, i1, i2] = triangleCorners(t);
+          a.fromBufferAttribute(position, i0);
+          b.fromBufferAttribute(position, i1);
+          c.fromBufferAttribute(position, i2);
+          const area = b.clone().sub(a).cross(c.clone().sub(a)).length();
+          if (area > bestArea) {
+            bestArea = area;
+            best = a.clone().add(b).add(c).divideScalar(3);
+          }
+        }
+        // The render loop refreshes these, but it does not run in a hidden tab.
+        camera.updateMatrixWorld();
+        const ndc = best.clone().project(camera);
+        const rect = renderer.domElement.getBoundingClientRect();
+        const x = rect.left + ((ndc.x + 1) / 2) * rect.width;
+        const y = rect.top + ((1 - ndc.y) / 2) * rect.height;
+        raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+        const hits = raycaster.intersectObject(mesh);
+        const visible = hits.length > 0 && geometry.userData.faceOfTriangle[hits[0].faceIndex] === face;
+        return { x, y, visible };
+      },
+    };
   </script>
 </body>
 </html>

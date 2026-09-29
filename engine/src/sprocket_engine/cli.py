@@ -73,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
         help="keep edits in memory instead of writing the document after each one",
     )
 
+    sub.add_parser("schemas", help="print every op's JSON Schema, which the viewer builds its parameter forms from")
+
     mcp = sub.add_parser("mcp", help="expose a running daemon's document as MCP tools over stdio")
     mcp.add_argument("--socket", type=Path, required=True, help="socket path of a running daemon")
 
@@ -85,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
         return _daemon(args)
     if args.command == "web":
         return _web(args)
+    if args.command == "schemas":
+        return _schemas()
     if args.command == "mcp":
         return _mcp(args)
     return 1
@@ -201,6 +205,13 @@ def _daemon(args: argparse.Namespace) -> int:
         server.serve_forever()
     except KeyboardInterrupt:
         server.shutdown()
+    return 0
+
+
+def _schemas() -> int:
+    from .ops import REGISTRY
+
+    print(json.dumps({name: op.schema for name, op in sorted(REGISTRY.items())}, indent=2))
     return 0
 
 

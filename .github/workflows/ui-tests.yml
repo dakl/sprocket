@@ -1,0 +1,28 @@
+name: ui tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "engine/**"
+      - "viewer/**"
+      - "e2e/**"
+      - ".github/workflows/ui-tests.yml"
+
+jobs:
+  viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: uv sync
+        working-directory: engine
+      - run: make test-viewer
+      # The runner's own Chrome, which e2e/playwright.config.js selects.
+      - run: make test-ui

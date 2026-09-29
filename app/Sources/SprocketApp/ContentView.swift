@@ -42,6 +42,7 @@ struct ContentView: View {
                     onAddSketch: handleAddSketch,
                     onExtrudeSketch: handleExtrudeSketch,
                     onUpdateSketch: handleUpdateSketch,
+                    onUpdateFeature: handleUpdateFeature,
                     onSetRollback: handleSetRollback,
                     onNewDocument: handleNewDocument,
                     onUndo: undo,
@@ -99,8 +100,10 @@ struct ContentView: View {
 
         let rollbackIndex = root["rollback_index"] as? Int ?? features.count
         let summary = features.enumerated().map { index, feature -> [String: Any] in
+            // `feature` is the whole object, which the viewer's parameter form edits.
             var entry: [String: Any] = [
                 "id": feature["id"] ?? "", "type": feature["type"] ?? "", "active": index < rollbackIndex,
+                "feature": feature,
             ]
             if feature["type"] as? String == "sketch" {
                 entry["plane"] = feature["plane"]
@@ -129,6 +132,10 @@ struct ContentView: View {
 
     private func handleUpdateSketch(_ payload: UpdateSketchPayload) {
         performMutation { try updateSketchPolygon(payload) }
+    }
+
+    private func handleUpdateFeature(_ payload: UpdateFeaturePayload) {
+        performMutation { try replaceFeature(payload) }
     }
 
     /// Sets rollback_index, the boundary the engine replays up to. A click on
@@ -292,6 +299,25 @@ struct ContentView: View {
         }
 
         features[index]["polygon"] = payload.polygon
+        root["features"] = features
+
+        let output = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted])
+        try output.write(to: document)
+    }
+
+    /// Swaps one feature for the edited copy the parameter form sent. The
+    /// engine validates it against the op's schema when it replays, and a
+    /// value it refuses shows up as `failedFeature` like any other broken op.
+    private func replaceFeature(_ payload: UpdateFeaturePayload) throws {
+        let data = try Data(contentsOf: document)
+        guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var features = root["features"] as? [[String: Any]],
+              let index = features.firstIndex(where: { ($0["id"] as? String) == payload.id })
+        else {
+            throw NSError(domain: "Sprocket", code: 1, userInfo: [NSLocalizedDescriptionKey: "no feature with id \(payload.id)"])
+        }
+
+        features[index] = payload.feature
         root["features"] = features
 
         let output = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted])
