@@ -13,6 +13,7 @@
     "add_sketch",
     "extrude_sketch",
     "update_sketch",
+    "update_sketch_entities",
     "update_feature",
     "new_document",
   ];
@@ -81,17 +82,30 @@
     },
 
     add_sketch(state, message) {
-      require_(message, "plane", "polygon");
+      require_(message, "plane");
+      // A drawing of entities, or one polygon.
+      if (!message.entities && !message.polygon) fail("add_sketch needs entities or polygon");
       const { deletes, kept } = dropRolledBackTail(state);
-      const feature = { id: newId(kept), type: "sketch", plane: message.plane, polygon: message.polygon };
+      const shape = message.entities
+        ? { entities: message.entities, constraints: message.constraints || [] }
+        : { polygon: message.polygon };
+      const feature = { id: newId(kept), type: "sketch", plane: message.plane, ...shape };
       return [...deletes, { op: "insert", feature }];
     },
 
+    /// `profiles` names regions picked from sketches: [{sketch, bounded_by, inside?}].
+    /// `profile` is the older form, one sketch extruded whole.
     extrude_sketch(state, message) {
-      require_(message, "profile", "distance");
+      require_(message, "distance");
+      if (!message.profile && !message.profiles) fail("extrude_sketch needs profile or profiles");
       const { deletes, kept } = dropRolledBackTail(state);
-      if (!kept.some((feature) => feature.id === message.profile)) fail("unknown sketch id '" + message.profile + "'");
-      const feature = { id: newId(kept), type: "extrude", profile: message.profile, distance: message.distance };
+      const named = message.profiles ? message.profiles.map((profile) => profile.sketch) : [message.profile];
+      for (const id of named) {
+        if (!kept.some((feature) => feature.id === id && feature.type === "sketch")) fail("unknown sketch id '" + id + "'");
+      }
+      const feature = { id: newId(kept), type: "extrude", distance: message.distance };
+      if (message.profiles) feature.profiles = message.profiles;
+      else feature.profile = message.profile;
       const base = lastSolidId(kept);
       if (base !== null) feature.base = base;
       return [...deletes, { op: "insert", feature }];
@@ -105,6 +119,21 @@
       // corner turns any of them into a polygon.
       const { rect, circle, ...rest } = current;
       return [{ op: "update", id: message.id, feature: { ...rest, polygon: message.polygon } }];
+    },
+
+    /// Redrawing an entity sketch: new entities and constraints, same plane and id.
+    update_sketch_entities(state, message) {
+      require_(message, "id", "entities");
+      const current = state.features.find((feature) => feature.id === message.id);
+      if (!current || current.type !== "sketch") fail("no sketch with id '" + message.id + "'");
+      const { rect, circle, polygon, entities, constraints, ...rest } = current;
+      return [
+        {
+          op: "update",
+          id: message.id,
+          feature: { ...rest, entities: message.entities, constraints: message.constraints || [] },
+        },
+      ];
     },
 
     update_feature(state, message) {
