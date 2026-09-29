@@ -33,10 +33,9 @@ golden-update:
 	@test -n "$(CASE)" || { echo "usage: make golden-update CASE=<name> [APPROVED=1]"; exit 2; }
 	cd $(ENGINE) && uv run python tools/golden_update.py $(CASE) $(if $(APPROVED),--approved,)
 
-# The parameter form reads schemas.json off disk, so it is regenerated from the
-# op registry before the app opens.
+# The app starts `sprocket daemon`, which writes the viewer's part.mesh,
+# features.json and schemas.json into viewer/ itself.
 app:
-	cd $(ENGINE) && uv run sprocket schemas > ../viewer/schemas.json
 	cd app && swift run SprocketApp
 
 web:

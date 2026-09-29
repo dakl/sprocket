@@ -1,88 +1,20 @@
 import SwiftUI
 import WebKit
 
-/// A push/pull commit posted from the viewer's "OK" button (see
-/// viewer/index.html's commitExtrude()). Point and normal are in the
-/// engine's own mm coordinates — the viewer never rotates the mesh, so
-/// three.js world space already matches build123d space.
-struct ExtrudeFacePayload {
-    let point: [Double]
-    let normal: [Double]
-    let distance: Double
-}
-
-/// A sketch commit posted from the viewer's sketch mode (see index.html's
-/// finishSketch()). `plane` is either the string "XY"/"XZ"/"YZ", or a
-/// {origin, normal, x_dir} dict for a plane picked off a part face - passed
-/// through untouched, since the engine's sketch op accepts both forms
-/// directly. `polygon` is a closed loop of [u, v] points local to that plane.
-struct SketchPayload {
-    let plane: Any
-    let polygon: [[Double]]
-}
-
-/// An extrude-the-sketch commit, posted after armSketchExtrude()'s drag (see
-/// index.html). `profile` is the id of the sketch feature being extruded;
-/// Swift looks up what solid (if any) came before it to fuse/cut into.
-struct ExtrudeSketchPayload {
-    let profile: String
-    let distance: Double
-}
-
-/// A sketch edit posted when the viewer's corner or edge drag is released (see
-/// index.html's pointerup listener). `id` names an existing sketch feature and
-/// `polygon` replaces its points, in the same [u, v] plane-local form
-/// SketchPayload uses. The plane never moves, only the profile on it.
-struct UpdateSketchPayload {
-    let id: String
-    let polygon: [[Double]]
-}
-
-/// A parameter-form edit posted from the viewer's properties panel. `feature`
-/// is the whole edited feature, replacing the one with the same `id`. The
-/// engine checks it against the op's schema on the next build.
-struct UpdateFeaturePayload {
-    let id: String
-    let feature: [String: Any]
-}
-
-/// Loads viewer/index.html and grants it read access to the viewer
-/// directory, so it can fetch part.mesh next to it. Registers a
-/// WKScriptMessageHandler named "sprocket" so the JS side can post a
-/// push/pull commit back to Swift.
+/// Loads viewer/index.html and grants it read access to the viewer directory,
+/// so it can fetch part.mesh, features.json and schemas.json next to it.
+///
+/// The viewer talks to the engine through one WKScriptMessageHandler named
+/// "sprocket". Its only message is `{type: "rpc", id, method, params}`, which
+/// this forwards to the daemon, and the reply goes back through the page's own
+/// window.__rpcReply. The viewer decides what a click means (viewer/edits.js).
+/// Nothing here does.
 struct WebView: NSViewRepresentable {
     let url: URL
     let readAccessURL: URL
-    let onExtrudeFace: (ExtrudeFacePayload) -> Void
-    let onAddSketch: (SketchPayload) -> Void
-    let onExtrudeSketch: (ExtrudeSketchPayload) -> Void
-    let onUpdateSketch: (UpdateSketchPayload) -> Void
-    let onUpdateFeature: (UpdateFeaturePayload) -> Void
-    let onSetRollback: (Int) -> Void
-    let onNewDocument: () -> Void
-    let onUndo: () -> Void
-    let onRedo: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(
-            onExtrudeFace: onExtrudeFace,
-            onAddSketch: onAddSketch,
-            onExtrudeSketch: onExtrudeSketch,
-            onUpdateSketch: onUpdateSketch,
-            onUpdateFeature: onUpdateFeature,
-            onSetRollback: onSetRollback,
-            onNewDocument: onNewDocument,
-            onUndo: onUndo,
-            onRedo: onRedo
-        )
-    }
-
-    /// Extracts the `t` cache-bust token ContentView appends to `url`, so
-    /// updateNSView can tell a real rebuild (token changed) from an
-    /// unrelated SwiftUI re-render (token unchanged).
-    private func cacheBustToken(of url: URL) -> String? {
-        URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?.first(where: { $0.name == "t" })?.value
+        Coordinator()
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -122,63 +54,25 @@ struct WebView: NSViewRepresentable {
             WKUserScript(source: debugScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        context.coordinator.webView = webView
         webView.loadFileURL(url, allowingReadAccessTo: readAccessURL)
-        context.coordinator.lastToken = cacheBustToken(of: url)
         return webView
     }
 
-    /// Was a full-page reload on every rebuild: the fresh page reset the
-    /// three.js camera, so every op edit threw away the user's zoom and
-    /// pan. Now only the very first load navigates; a rebuild instead
-    /// calls the page's own reloadPart(), which keeps the camera as-is.
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        let token = cacheBustToken(of: url)
-        guard token != context.coordinator.lastToken else { return }
-        context.coordinator.lastToken = token
-
-        let tokenLiteral = token.map { "\"\($0)\"" } ?? "null"
-        webView.evaluateJavaScript("window.reloadPart && window.reloadPart(\(tokenLiteral));") { _, error in
-            if let error {
-                print("[viewer] reloadPart failed: \(error)")
-            }
-        }
-    }
+    func updateNSView(_ webView: WKWebView, context: Context) {}
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
-        /// The `t` token of the last URL this webView was navigated or
-        /// refreshed to. Lets updateNSView tell a real rebuild from a
-        /// SwiftUI re-render that didn't change anything.
-        var lastToken: String?
-        private let onExtrudeFace: (ExtrudeFacePayload) -> Void
-        private let onAddSketch: (SketchPayload) -> Void
-        private let onExtrudeSketch: (ExtrudeSketchPayload) -> Void
-        private let onUpdateSketch: (UpdateSketchPayload) -> Void
-        private let onUpdateFeature: (UpdateFeaturePayload) -> Void
-        private let onSetRollback: (Int) -> Void
-        private let onNewDocument: () -> Void
-        private let onUndo: () -> Void
-        private let onRedo: () -> Void
-
-        init(
-            onExtrudeFace: @escaping (ExtrudeFacePayload) -> Void,
-            onAddSketch: @escaping (SketchPayload) -> Void,
-            onExtrudeSketch: @escaping (ExtrudeSketchPayload) -> Void,
-            onUpdateSketch: @escaping (UpdateSketchPayload) -> Void,
-            onUpdateFeature: @escaping (UpdateFeaturePayload) -> Void,
-            onSetRollback: @escaping (Int) -> Void,
-            onNewDocument: @escaping () -> Void,
-            onUndo: @escaping () -> Void,
-            onRedo: @escaping () -> Void
-        ) {
-            self.onExtrudeFace = onExtrudeFace
-            self.onAddSketch = onAddSketch
-            self.onExtrudeSketch = onExtrudeSketch
-            self.onUpdateSketch = onUpdateSketch
-            self.onUpdateFeature = onUpdateFeature
-            self.onSetRollback = onSetRollback
-            self.onNewDocument = onNewDocument
-            self.onUndo = onUndo
-            self.onRedo = onRedo
+        weak var webView: WKWebView? {
+            didSet {
+                // Any client's edit, the viewer's own or an agent's, arrives
+                // here as a revision. The viewer refetches the files in place,
+                // which keeps the camera where the user left it.
+                EngineDaemon.shared.onDocumentChanged = { [weak self] revision in
+                    self?.webView?.evaluateJavaScript("window.reloadPart && window.reloadPart(\(revision));") { _, error in
+                        if let error { print("[viewer] reloadPart failed: \(error)") }
+                    }
+                }
+            }
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -192,59 +86,40 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
-            if type == "set_rollback" {
-                guard let index = body["index"] as? Int else { return }
-                onSetRollback(index)
-                return
-            }
-
-            if type == "new_document" {
-                onNewDocument()
-                return
-            }
-
-            if type == "undo" {
-                onUndo()
-                return
-            }
-
-            if type == "redo" {
-                onRedo()
-                return
-            }
-
-            if type == "extrude_face" {
-                guard let point = body["point"] as? [Double],
-                      let normal = body["normal"] as? [Double],
-                      let distance = body["distance"] as? Double
-                else { return }
-                onExtrudeFace(ExtrudeFacePayload(point: point, normal: normal, distance: distance))
-                return
-            }
-
-            if type == "update_sketch" {
-                guard let id = body["id"] as? String, let polygon = body["polygon"] as? [[Double]] else { return }
-                onUpdateSketch(UpdateSketchPayload(id: id, polygon: polygon))
-                return
-            }
-
-            if type == "update_feature" {
-                guard let id = body["id"] as? String, let feature = body["feature"] as? [String: Any] else { return }
-                onUpdateFeature(UpdateFeaturePayload(id: id, feature: feature))
-                return
-            }
-
-            if type == "add_sketch" {
-                guard let plane = body["plane"], let polygon = body["polygon"] as? [[Double]] else { return }
-                onAddSketch(SketchPayload(plane: plane, polygon: polygon))
-                return
-            }
-
-            guard type == "extrude_sketch",
-                  let profile = body["profile"] as? String,
-                  let distance = body["distance"] as? Double
+            guard type == "rpc",
+                  let id = body["id"] as? Int,
+                  let method = body["method"] as? String
             else { return }
-            onExtrudeSketch(ExtrudeSketchPayload(profile: profile, distance: distance))
+            let params = body["params"] as? [String: Any] ?? [:]
+            EngineDaemon.shared.call(method: method, params: params) { [weak self] result in
+                self?.reply(id: id, result: result)
+            }
+        }
+
+        /// Hands the daemon's answer to window.__rpcReply. Encoded as JSON text
+        /// and passed as a string literal, so nothing in it is ever run as code.
+        private func reply(id: Int, result: Result<[String: Any], EngineError>) {
+            let script: String
+            switch result {
+            case .success(let value):
+                guard let data = try? JSONSerialization.data(withJSONObject: value),
+                      let json = String(data: data, encoding: .utf8)
+                else { return }
+                script = "window.__rpcReply(\(id), JSON.parse(\(Self.literal(json))));"
+            case .failure(let error):
+                script = "window.__rpcReply(\(id), null, \(Self.literal(error.message)));"
+            }
+            DispatchQueue.main.async {
+                self.webView?.evaluateJavaScript(script) { _, error in
+                    if let error { print("[viewer] rpc reply failed: \(error)") }
+                }
+            }
+        }
+
+        private static func literal(_ text: String) -> String {
+            let data = try? JSONSerialization.data(withJSONObject: [text])
+            let array = data.flatMap { String(data: $0, encoding: .utf8) } ?? "[\"\"]"
+            return String(array.dropFirst().dropLast())
         }
     }
 }
