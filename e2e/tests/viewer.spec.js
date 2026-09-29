@@ -83,6 +83,16 @@ test("clicking a visible side wall selects the wall, not the sketch behind it", 
   }
 });
 
+test("a selected face is extruded from the toolbar, with no floating panel", async ({ page, request }) => {
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await expect(page.locator("#tool-extrude")).toBeDisabled();
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator("#tool-extrude")).toBeEnabled();
+  await expect(page.locator("#selection-panel")).toHaveCount(0);
+});
+
 test("clicking an edge selects the B-rep edge the engine numbers the same way", async ({ page, request }) => {
   // The mesh's edge ID map has to agree with shape.edges(), because that order
   // is what every later edge-based op will name. Only a top edge that faces

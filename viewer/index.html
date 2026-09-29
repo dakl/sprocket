@@ -39,7 +39,7 @@
       max-width: 70%;
     }
 
-    #extrude-panel, #selection-panel {
+    #extrude-panel {
       position: fixed;
       left: 50%;
       bottom: 56px;
@@ -69,7 +69,7 @@
 
     #extrude-distance:focus { outline: none; border-color: #5be0a0; }
 
-    #extrude-panel button, #selection-panel button {
+    #extrude-panel button {
       font: 13px -apple-system, sans-serif;
       padding: 4px 12px;
       border-radius: 4px;
@@ -77,9 +77,8 @@
       cursor: pointer;
     }
 
-    #extrude-ok, #selection-extrude { background: #5be0a0; color: #103; }
-    #extrude-cancel, #selection-cancel { background: #444; color: #eee; }
-    #selection-shortcut { color: #999; }
+    #extrude-ok { background: #5be0a0; color: #103; }
+    #extrude-cancel { background: #444; color: #eee; }
 
     #timeline {
       position: fixed;
@@ -374,12 +373,6 @@
     <input id="extrude-distance" type="text" autocomplete="off" spellcheck="false" />
     <button id="extrude-ok">OK</button>
     <button id="extrude-cancel">Cancel</button>
-  </div>
-  <div id="selection-panel">
-    <span id="selection-label"></span>
-    <button id="selection-extrude">Extrude</button>
-    <span id="selection-shortcut">or press E</span>
-    <button id="selection-cancel">Cancel</button>
   </div>
   <div id="toolbar">
     <div id="toolbar-groups">
@@ -754,7 +747,7 @@
           selectedSketch = null;
           selectedPatch = null;
           clearEdgeSelection();
-          hideSelectionPanel();
+          selectionChanged();
           hideStatus();
           renderTimeline(features);
           renderProperties();
@@ -1471,27 +1464,15 @@
     function showHint(text) { hintEl.textContent = text; hintEl.style.display = "block"; }
     function hideHint() { hintEl.style.display = "none"; }
 
-    // The panel that turns a selection into an extrude. Selecting used to
-    // show a "Press E" hint only, which left no visible way in for anyone
-    // who didn't know the shortcut.
-    const selectionPanelEl = document.getElementById("selection-panel");
-    const selectionLabelEl = document.getElementById("selection-label");
-
-    function showSelectionPanel(label) {
-      selectionLabelEl.textContent = label;
-      selectionPanelEl.style.display = "flex";
-      updateToolbarState();
-      renderBrowser();
-    }
-
-    function hideSelectionPanel() {
-      selectionPanelEl.style.display = "none";
+    /// A selection changed: the toolbar's Extrude button and the browser tree
+    /// follow it. Extrude is the toolbar button or the E key, and Escape clears.
+    function selectionChanged() {
       updateToolbarState();
       renderBrowser();
     }
 
     /// Arms whichever of the two selections is live. The E key and the
-    /// panel's Extrude button both come through here.
+    /// toolbar's Extrude button both come through here.
     function armCurrentSelection() {
       if (extrudeArmed) return;
       if (selectedPatch) armExtrude();
@@ -1504,7 +1485,7 @@
       clearEdgeSelection();
       renderer.domElement.style.cursor = "default";
       clearHighlight();
-      hideSelectionPanel();
+      selectionChanged();
       hideHint();
       renderSketchSelection();
     }
@@ -1627,7 +1608,7 @@
         renderSketchSelection();
         selectEdge(edgeIndexOfHit(edgeHit));
         hideHint();
-        showSelectionPanel("Edge selected");
+        selectionChanged();
         return;
       }
       const hit = raycastFace(event);
@@ -1642,7 +1623,7 @@
       setHighlight(selectedPatch, 0xffdd55);
       renderSketchSelection();
       hideHint();
-      showSelectionPanel("Face selected");
+      selectionChanged();
     });
 
     // Ends a corner or edge drag and sends the new profile to Swift, which
@@ -1670,7 +1651,8 @@
       clearHighlight();
       renderSketchSelection();
       hideHint();
-      showSelectionPanel("Sketch " + feature.id + " selected, drag a corner or edge to change it");
+      showHint("Sketch " + feature.id + " selected, drag a corner or edge to change it");
+      selectionChanged();
     }
 
     // How close, in screen pixels, the pointer must be to a corner or an edge
@@ -1818,7 +1800,7 @@
       distanceTyped = false;
       controls.enabled = false;
       hideHint();
-      hideSelectionPanel();
+      selectionChanged();
       panelEl.style.display = "flex";
       updatePreviewGeometry(previewState.distance);
       focusDistanceBox();
@@ -1858,7 +1840,7 @@
       distanceTyped = false;
       controls.enabled = false;
       hideHint();
-      hideSelectionPanel();
+      selectionChanged();
       panelEl.style.display = "flex";
       updateSketchPreviewGeometry(previewState.distance);
       focusDistanceBox();
@@ -1980,8 +1962,6 @@
     document.getElementById("extrude-ok").addEventListener("click", () => { if (extrudeArmed) commitExtrude(); });
     document.getElementById("extrude-cancel").addEventListener("click", () => { if (extrudeArmed) cancelExtrude(); });
 
-    document.getElementById("selection-extrude").addEventListener("click", armCurrentSelection);
-    document.getElementById("selection-cancel").addEventListener("click", clearSelection);
 
     window.addEventListener("keydown", (event) => {
       // The parameter form is a text field: "e" and "s" are letters there, and
