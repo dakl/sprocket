@@ -1,0 +1,135 @@
+"""`sprocket web` against a real HTTP server and a real document.
+
+The gesture rules are in viewer/edits.js and tested there. These cover what the
+server owns: the files it serves, the rpc route and who may call it.
+"""
+
+import json
+import tempfile
+import threading
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+import pytest
+
+from sprocket_engine.document import Document
+from sprocket_engine.mesh import FORMAT
+from sprocket_engine.rpc import Daemon, Session
+from sprocket_engine.web import WebApp, make_server
+
+SKETCH = {"id": "s1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 30}}
+EXTRUDE = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
+
+
+@pytest.fixture
+def server(tmp_path: Path):
+    path = tmp_path / "part.json"
+    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    viewer_dir = tmp_path / "viewer"
+    viewer_dir.mkdir()
+    (viewer_dir / "index.html").write_text("<title>viewer</title>")
+
+    socket_dir = Path(tempfile.mkdtemp())
+    daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock")
+    http = make_server(WebApp(daemon, viewer_dir), 0)
+    threading.Thread(target=http.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{http.server_address[1]}"
+    yield base, daemon
+    http.shutdown()
+    http.server_close()
+
+
+def get(base: str, route: str) -> bytes:
+    with urllib.request.urlopen(base + route) as response:
+        return response.read()
+
+
+def post(base: str, route: str, body: dict, headers: dict | None = None) -> dict:
+    request = urllib.request.Request(
+        base + route, data=json.dumps(body).encode(), method="POST", headers=headers or {}
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            return json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        return {"status": error.code, **json.loads(error.read())}
+
+
+def mesh_header(base: str) -> dict:
+    mesh = get(base, "/part.mesh")
+    header_length = int.from_bytes(mesh[:4], "little")
+    return json.loads(mesh[4 : 4 + header_length].rstrip(b"\0"))
+
+
+def feature_ids(base: str) -> list[str]:
+    return [entry["id"] for entry in json.loads(get(base, "/features.json"))]
+
+
+def test_serves_the_viewer_files(server):
+    base, _ = server
+    assert b"<title>viewer</title>" in get(base, "/index.html")
+
+
+def test_the_mesh_route_serves_the_built_part(server):
+    base, _ = server
+    header = mesh_header(base)
+    assert header["format"] == FORMAT
+    assert header["counts"]["faces"] == 6
+
+
+def rpc(base: str, method: str, **params) -> dict:
+    reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    return reply["result"]
+
+
+def test_an_empty_document_has_no_mesh_and_the_viewer_sees_a_404(server):
+    base, _ = server
+    rpc(base, "apply_edit", edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}])
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        get(base, "/part.mesh")
+    assert caught.value.code == 404
+
+
+def test_the_timeline_carries_each_full_feature_for_the_parameter_form(server):
+    base, _ = server
+    entries = json.loads(get(base, "/features.json"))
+    assert entries[1]["feature"] == EXTRUDE
+    assert [entry["active"] for entry in entries] == [True, True]
+
+
+def test_the_schemas_route_lists_every_op(server):
+    base, _ = server
+    assert {"sketch", "extrude", "fillet"} <= set(json.loads(get(base, "/schemas.json")))
+
+
+def test_rpc_route_takes_the_daemons_methods(server):
+    base, _ = server
+    reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": "ping"})
+    assert reply["result"]["ok"] is True
+
+
+def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server):
+    base, _ = server
+    feature = {"id": "f3", "type": "extrude_face", "base": "e1", "distance": 5,
+               "face": {"from": "part", "select": [{"op": "faces"}, {"op": "nearest_to", "point": [0, 0, 10], "normal": [0, 0, 1]}]}}
+    result = rpc(base, "apply_edit", edits=[{"op": "insert", "feature": feature}])
+    assert result["built"]["ok"] is True
+    assert feature_ids(base) == ["s1", "e1", "f3"]
+    assert mesh_header(base)["counts"]["faces"] == 6
+
+
+def test_a_page_on_another_origin_cannot_edit_the_document(server):
+    """Any web page in the user's browser can reach 127.0.0.1. A simple POST
+    needs no permission from the server, so the server has to check."""
+    base, _ = server
+    body = {"jsonrpc": "2.0", "id": 1, "method": "set_rollback", "params": {"index": 0}}
+    refused = post(base, "/rpc", body, headers={"Origin": "https://evil.example"})
+    assert refused["status"] == 403
+    rebound = post(base, "/rpc", body, headers={"Host": "evil.example"})
+    assert rebound["status"] == 403
+    assert json.loads(get(base, "/features.json"))[1]["active"] is True
+    # The viewer's own origin still works.
+    port = base.rsplit(":", 1)[1]
+    allowed = post(base, "/rpc", body, headers={"Origin": f"http://127.0.0.1:{port}"})
+    assert "result" in allowed

@@ -18,6 +18,7 @@ op schema still only ever see numbers.
 """
 
 import ast
+import copy
 import json
 import operator
 import time
@@ -387,6 +388,22 @@ class Document:
         for entry in entries:
             entry["revision"] = self.revision
             self.log.append(entry)
+        return self.revision
+
+    def snapshot(self) -> dict:
+        """The editable state, deep-copied, for undo. The log is not part of it:
+        undoing an edit is itself an entry in the log, not an erasure."""
+        return copy.deepcopy(
+            {"features": self.features, "rollback_index": self.rollback_index, "parameters": self.parameters}
+        )
+
+    def restore(self, snapshot: dict, author: str) -> int:
+        """Puts back a state taken with `snapshot()` and returns the new revision."""
+        self.features = copy.deepcopy(snapshot["features"])
+        self.rollback_index = snapshot["rollback_index"]
+        self.parameters = copy.deepcopy(snapshot["parameters"])
+        self.revision += 1
+        self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
         return self.revision
 
     def _apply_one(self, edit: dict, author: str) -> dict:

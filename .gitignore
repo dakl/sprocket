@@ -3,3 +3,6 @@ viewer/part.stl
 viewer/part.mesh
 viewer/features.json
 examples/cache/
+viewer/schemas.json
+e2e/node_modules/
+e2e/test-results/

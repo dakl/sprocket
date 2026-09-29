@@ -1,5 +1,6 @@
 """sprocket build doc.json --step out.step --stl out.stl --mesh out.mesh
 sprocket serve
+sprocket web doc.json
 
 `build` is the one-shot CLI: write a document as JSON, run this command,
 read the exported files back. `serve` is the same replay() call kept behind
@@ -53,10 +54,32 @@ def main(argv: list[str] | None = None) -> int:
     daemon.add_argument("--socket", type=Path, default=None, help="socket path (default: <document>.sock)")
     daemon.add_argument("--cache-dir", type=Path, default=None, help="BREP cache directory")
     daemon.add_argument(
+        "--viewer-dir",
+        type=Path,
+        default=None,
+        help="write part.mesh, features.json and schemas.json here after every change, for a viewer opened from disk",
+    )
+    daemon.add_argument(
         "--no-autosave",
         action="store_true",
         help="keep edits in memory instead of writing the document after each one",
     )
+
+    web = sub.add_parser(
+        "web", help="serve one document to the viewer in a plain browser, and to agents over the daemon socket"
+    )
+    web.add_argument("document", type=Path, help="path to a document JSON file")
+    web.add_argument("--port", type=int, default=8765, help="HTTP port on 127.0.0.1 (0 picks a free one)")
+    web.add_argument("--socket", type=Path, default=None, help="daemon socket path (default: <document>.sock)")
+    web.add_argument("--cache-dir", type=Path, default=None, help="BREP cache directory")
+    web.add_argument("--viewer-dir", type=Path, default=None, help="the viewer's static files (default: the repo's viewer/)")
+    web.add_argument(
+        "--no-autosave",
+        action="store_true",
+        help="keep edits in memory instead of writing the document after each one",
+    )
+
+    sub.add_parser("schemas", help="print every op's JSON Schema, which the viewer builds its parameter forms from")
 
     mcp = sub.add_parser("mcp", help="expose a running daemon's document as MCP tools over stdio")
     mcp.add_argument("--socket", type=Path, required=True, help="socket path of a running daemon")
@@ -68,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
         return _serve()
     if args.command == "daemon":
         return _daemon(args)
+    if args.command == "web":
+        return _web(args)
+    if args.command == "schemas":
+        return _schemas()
     if args.command == "mcp":
         return _mcp(args)
     return 1
@@ -178,12 +205,50 @@ def _daemon(args: argparse.Namespace) -> int:
 
     socket_path = args.socket or Path(str(args.document) + ".sock")
     session = Session(document, args.cache_dir)
-    server = Daemon(session, socket_path, autosave=not args.no_autosave)
+    server = Daemon(session, socket_path, autosave=not args.no_autosave, viewer_dir=args.viewer_dir)
+    server.publish_viewer_files()
     print(f"listening on {socket_path} (revision {document.revision})", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         server.shutdown()
+    return 0
+
+
+def _schemas() -> int:
+    from .ops import REGISTRY
+
+    print(json.dumps({name: op.schema for name, op in sorted(REGISTRY.items())}, indent=2))
+    return 0
+
+
+def _web(args: argparse.Namespace) -> int:
+    from .rpc import Daemon, Session
+    from .web import WebApp, make_server
+
+    try:
+        document = Document.load(args.document)
+    except DocumentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    viewer_dir = args.viewer_dir or Path(__file__).resolve().parents[3] / "viewer"
+    if not (viewer_dir / "index.html").exists():
+        print(f"error: no viewer at {viewer_dir}: pass --viewer-dir", file=sys.stderr)
+        return 1
+
+    socket_path = args.socket or Path(str(args.document) + ".sock")
+    daemon = Daemon(Session(document, args.cache_dir), socket_path, autosave=not args.no_autosave)
+    daemon.start_in_background()
+    server = make_server(WebApp(daemon, viewer_dir), args.port)
+    print(f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at {socket_path})", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        daemon.shutdown()
     return 0
 
 

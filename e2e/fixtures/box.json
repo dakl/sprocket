@@ -1,0 +1,7 @@
+{
+  "features": [
+    {"id": "f1", "type": "sketch", "plane": "XY", "polygon": [[-20, -15], [20, -15], [20, 15], [-20, 15]]},
+    {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10}
+  ],
+  "rollback_index": 2
+}
