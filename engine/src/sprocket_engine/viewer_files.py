@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .mesh import export_mesh
 from .ops import REGISTRY
+from .ops.sketch import sketch_profiles
 
 
 def features_summary(document, failed_feature: str | None) -> list[dict]:
@@ -29,6 +30,13 @@ def features_summary(document, failed_feature: str | None) -> list[dict]:
         if feature.get("type") == "sketch" and "polygon" in feature:
             entry["plane"] = feature["plane"]
             entry["polygon"] = feature["polygon"]
+        if feature.get("type") == "sketch":
+            try:
+                entry["regions"] = sketch_profiles(feature)
+            except Exception:
+                # A sketch the engine cannot read has no regions to show. The
+                # timeline still has to list it so it can be fixed.
+                entry["regions"] = []
         if feature.get("id") == failed_feature:
             entry["failed"] = True
         entries.append(entry)

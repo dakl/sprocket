@@ -114,6 +114,13 @@ def document_tools() -> list[types.Tool]:
             {},
         ),
         _tool(
+            "get_profiles",
+            "The closed regions of one sketch, each named by the ids of the entities that bound it. "
+            "Copy a region's bounded_by (and inside, if two regions share it) into an extrude's profiles.",
+            {"feature": {"type": "string", "description": "id of a sketch feature"}},
+            ["feature"],
+        ),
+        _tool(
             "describe_geometry",
             "Every face and edge of the built part, with a handle and a sentence describing it.",
             {},
@@ -248,7 +255,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "describe_geometry", "measure", "preview_feature", "export"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "measure", "preview_feature", "export"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

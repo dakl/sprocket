@@ -1,3 +1,5 @@
+import math
+
 from build123d import Circle, Compound, Plane, Polygon, Pos, Rectangle, Sketch
 from OCP.BRep import BRep_Builder
 from OCP.TopoDS import TopoDS_Compound
@@ -133,6 +135,10 @@ def resolve_plane(plane_ref):
     return Plane(origin=tuple(plane_ref["origin"]), z_dir=tuple(plane_ref["normal"]), x_dir=tuple(plane_ref["x_dir"]))
 
 
+def _polygon_area(points) -> float:
+    return abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1]))) / 2
+
+
 def _counter_clockwise(points):
     """Returns `points` wound counter-clockwise in the plane's own uv axes.
 
@@ -184,6 +190,47 @@ def check_entities(feature: dict) -> None:
         for name in ("a", "b", "e"):
             if name in constraint:
                 check_reference(constraint, name)
+
+
+def _round(points):
+    return [[round(u, 6), round(v, 6)] for u, v in points]
+
+
+def sketch_profiles(feature: dict) -> list[dict]:
+    """The regions a user can pick from `feature`, as plain JSON.
+
+    An entity sketch gives one per closed region. A sketch of one shape gives
+    one with no boundary ids, which `extrude` reads as "the whole sketch". Each
+    carries an outline and its holes in the sketch's own [u, v] frame, so the
+    viewer can fill it and preview an extrude without asking the engine again.
+    """
+    if "entities" in feature:
+        return [
+            {
+                "bounded_by": region.bounded_by,
+                "inside": [round(region.inside[0], 6), round(region.inside[1], 6)],
+                "outline": _round(region.outline),
+                "holes": [_round(hole) for hole in region.holes],
+                "area": round(region.area, 6),
+            }
+            for region in find_regions(feature["entities"])
+        ]
+    if "polygon" in feature:
+        outline = _counter_clockwise([tuple(point) for point in feature["polygon"]])
+        area = _polygon_area(outline)
+    elif "circle" in feature:
+        (cx, cy), radius = feature["circle"].get("center", [0, 0]), feature["circle"]["radius"]
+        outline = [(cx + radius * math.cos(step * math.tau / 48), cy + radius * math.sin(step * math.tau / 48)) for step in range(48)]
+        area = math.pi * radius**2
+    else:
+        rect = feature["rect"]
+        (cx, cy), half_w, half_h = rect.get("center", [0, 0]), rect["width"] / 2, rect["height"] / 2
+        outline = [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h), (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
+        area = rect["width"] * rect["height"]
+    # The mean of the outline is inside every shape a legacy sketch can be
+    # except a concave polygon, which is why `extrude` ignores `inside` here.
+    inside = [sum(point[axis] for point in outline) / len(outline) for axis in (0, 1)]
+    return [{"bounded_by": [], "inside": _round([inside])[0], "outline": _round(outline), "holes": [], "area": round(area, 6)}]
 
 
 def _empty_sketch() -> Sketch:

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "units": {
+    "length": "mm"
+  },
+  "features": [
+    {
+      "id": "f1",
+      "type": "sketch",
+      "plane": "XY",
+      "entities": [
+        {
+          "id": "e1",
+          "kind": "line",
+          "p0": [
+            0,
+            0
+          ],
+          "p1": [
+            40,
+            0
+          ]
+        },
+        {
+          "id": "e2",
+          "kind": "line",
+          "p0": [
+            40,
+            0
+          ],
+          "p1": [
+            40,
+            20
+          ]
+        },
+        {
+          "id": "e3",
+          "kind": "line",
+          "p0": [
+            40,
+            20
+          ],
+          "p1": [
+            0,
+            20
+          ]
+        },
+        {
+          "id": "e4",
+          "kind": "line",
+          "p0": [
+            0,
+            20
+          ],
+          "p1": [
+            0,
+            0
+          ]
+        },
+        {
+          "id": "e5",
+          "kind": "circle",
+          "c": [
+            20,
+            10
+          ],
+          "r": 4
+        }
+      ],
+      "constraints": [
+        {
+          "kind": "radius",
+          "e": "e5",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "id": "f2",
+      "type": "extrude",
+      "profiles": [
+        {
+          "sketch": "f1",
+          "bounded_by": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5"
+          ]
+        }
+      ],
+      "distance": 10
+    }
+  ]
+}

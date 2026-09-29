@@ -115,5 +115,5 @@ the file's hash, rather than `git checkout`.
 
 There is no `expected.png`. SPEC.md lists one in the case-directory layout, but
 it is not one of the three comparison layers and the spec itself says to keep
-human-review cases rare. All six cases here have analytical checks, so none of
+human-review cases rare. Every case here has analytical checks, so none of
 them needs an eyeball.
