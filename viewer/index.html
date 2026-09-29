@@ -467,6 +467,7 @@
   <script src="vendor/three.min.js"></script>
   <script src="vendor/OrbitControls.js"></script>
   <script src="params-form.js"></script>
+  <script src="edits.js"></script>
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
     // timeline, no live engine connection yet — see docs/SPEC.md M3+.
@@ -892,15 +893,17 @@
     }
 
     // --- Transport ------------------------------------------------------
-    // One outbound path for every gesture, two ways to carry it. Inside the
-    // Swift app it is a WKWebView message and Swift rewrites the document. Over
-    // http(s) it is a POST to `sprocket web`, which applies the same rule to
-    // the live document (see engine/src/sprocket_engine/viewer_commands.py).
-    // From a file:// page with no bridge there is nothing to send to.
+    // A gesture becomes edits (edits.js), and edits go to the daemon's
+    // JSON-RPC methods. The two transports differ only in how a call reaches
+    // it. Inside the Swift app it is a WKWebView message that Swift forwards to
+    // the daemon socket and answers through window.__rpcReply. Over http(s) it
+    // is a POST to `sprocket web`. From a file:// page with no bridge there is
+    // nothing to call.
     //
-    // Returns a promise that rejects with the engine's reason. Swift gives no
-    // reply, so there it resolves at once and a failure arrives by the app's
-    // own status path.
+    // sendCommand returns a promise that rejects with the engine's reason.
+    let nextRpcId = 1;
+    const pendingRpc = new Map();
+
     function trackPending(promise) {
       pendingCount++;
       return promise.finally(() => {
@@ -908,23 +911,76 @@
       });
     }
 
-    function sendCommand(message) {
-      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket) {
-        window.webkit.messageHandlers.sprocket.postMessage(message);
-        showStatus("Rebuilding…");
-        return Promise.resolve();
+    const hasSwiftBridge = () =>
+      Boolean(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket);
+
+    // Called from Swift with the daemon's reply to a call made below.
+    window.__rpcReply = function (id, result, errorMessage) {
+      const call = pendingRpc.get(id);
+      if (!call) return;
+      pendingRpc.delete(id);
+      if (errorMessage) call.reject(new Error(errorMessage));
+      else call.resolve(result);
+    };
+
+    function rpcCall(method, params) {
+      if (hasSwiftBridge()) {
+        const id = nextRpcId++;
+        return new Promise((resolve, reject) => {
+          pendingRpc.set(id, { resolve, reject });
+          window.webkit.messageHandlers.sprocket.postMessage({ type: "rpc", id, method, params });
+        });
       }
-      if (!/^https?:$/.test(window.location.protocol)) {
+      return fetch("/rpc", {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      })
+        .then((response) => response.json())
+        .then((body) => {
+          if (body.error) throw new Error(body.error.message);
+          return body.result;
+        });
+    }
+
+    /// The document as the viewer last loaded it, which is what edits.js reads.
+    function documentState() {
+      return {
+        features: browserFeatures.map((entry) => entry.feature),
+        rollbackIndex: browserFeatures.filter((entry) => entry.active).length,
+      };
+    }
+
+    // A gesture nobody awaits, such as a timeline click, still has to say why the
+    // engine refused it.
+    window.addEventListener("unhandledrejection", (event) => {
+      if (!(event.reason instanceof Error)) return;
+      warningEl.textContent = event.reason.message;
+      warningEl.style.display = "block";
+    });
+
+    function sendCommand(message) {
+      if (!hasSwiftBridge() && !/^https?:$/.test(window.location.protocol)) {
         console.log("(no Swift bridge and no server, dropping)", message);
         return Promise.resolve();
       }
+      let call;
+      if (message.type === "undo" || message.type === "redo") {
+        call = () => rpcCall(message.type, {});
+      } else {
+        let edits;
+        try {
+          edits = ViewerEdits.editsFor(documentState(), message);
+        } catch (error) {
+          return Promise.reject(error);
+        }
+        call = () => rpcCall("apply_edit", { edits, author: "viewer" });
+      }
       showStatus("Rebuilding…");
       return trackPending(
-        fetch("/command", { method: "POST", body: JSON.stringify(message) })
-          .then((response) => response.json().then((body) => ({ ok: response.ok, body })))
-          .then(({ ok, body }) => {
-            if (!ok) throw new Error(body.error || "the engine refused the edit");
-            window.reloadPart(body.revision);
+        call()
+          .then((result) => {
+            if (result.changed !== false && result.revision !== loadedRevision) window.reloadPart(result.revision);
+            else hideStatus();
           })
           .catch((error) => {
             hideStatus();

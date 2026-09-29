@@ -1,8 +1,7 @@
 """`sprocket web` against a real HTTP server and a real document.
 
-The viewer's gestures are checked through `WebApp.command` and the routes, not
-through `edits_for` alone: a rule that produces edits the document then refuses
-is the failure that matters, and only the full path shows it.
+The gesture rules are in viewer/edits.js and tested there. These cover what the
+server owns: the files it serves, the rpc route and who may call it.
 """
 
 import json
@@ -21,7 +20,6 @@ from sprocket_engine.web import WebApp, make_server
 
 SKETCH = {"id": "s1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 30}}
 EXTRUDE = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
-TOP_FACE = {"point": [0, 0, 10], "normal": [0, 0, 1], "distance": 5}
 
 
 @pytest.fixture
@@ -47,8 +45,10 @@ def get(base: str, route: str) -> bytes:
         return response.read()
 
 
-def post(base: str, route: str, body: dict) -> dict:
-    request = urllib.request.Request(base + route, data=json.dumps(body).encode(), method="POST")
+def post(base: str, route: str, body: dict, headers: dict | None = None) -> dict:
+    request = urllib.request.Request(
+        base + route, data=json.dumps(body).encode(), method="POST", headers=headers or {}
+    )
     try:
         with urllib.request.urlopen(request) as response:
             return json.loads(response.read())
@@ -78,9 +78,14 @@ def test_the_mesh_route_serves_the_built_part(server):
     assert header["counts"]["faces"] == 6
 
 
+def rpc(base: str, method: str, **params) -> dict:
+    reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    return reply["result"]
+
+
 def test_an_empty_document_has_no_mesh_and_the_viewer_sees_a_404(server):
     base, _ = server
-    post(base, "/command", {"type": "new_document"})
+    rpc(base, "apply_edit", edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}])
     with pytest.raises(urllib.error.HTTPError) as caught:
         get(base, "/part.mesh")
     assert caught.value.code == 404
@@ -98,72 +103,33 @@ def test_the_schemas_route_lists_every_op(server):
     assert {"sketch", "extrude", "fillet"} <= set(json.loads(get(base, "/schemas.json")))
 
 
-def test_extrude_face_appends_a_feature_that_builds(server):
-    base, _ = server
-    result = post(base, "/command", {"type": "extrude_face", **TOP_FACE})
-    assert result["failed_feature"] is None
-    assert feature_ids(base) == ["s1", "e1", "f3"]
-    assert mesh_header(base)["counts"]["faces"] == 6
-
-
-def test_building_after_a_rollback_discards_the_rolled_back_tail(server):
-    base, _ = server
-    post(base, "/command", {"type": "set_rollback", "index": 1})
-    post(base, "/command", {"type": "add_sketch", "plane": "XY", "polygon": [[0, 0], [5, 0], [5, 5]]})
-    # e1 sat past the bar, so it is gone and the new sketch takes its place.
-    assert feature_ids(base) == ["s1", "f2"]
-
-
-def test_extrude_sketch_fuses_into_the_solid_at_the_tip(server):
-    base, _ = server
-    post(base, "/command", {"type": "add_sketch", "plane": "XY", "polygon": [[0, 0], [5, 0], [5, 5]]})
-    post(base, "/command", {"type": "extrude_sketch", "profile": "f3", "distance": 4})
-    extrude = json.loads(get(base, "/features.json"))[-1]["feature"]
-    assert extrude["type"] == "extrude"
-    assert extrude["base"] == "e1"
-
-
-def test_update_feature_edits_a_parameter_and_undo_puts_it_back(server):
-    base, _ = server
-    result = post(base, "/command", {"type": "update_feature", "id": "e1", "feature": {**EXTRUDE, "distance": 25}})
-    assert result["revision"] == 1
-    assert json.loads(get(base, "/features.json"))[1]["feature"]["distance"] == 25
-
-    post(base, "/command", {"type": "undo"})
-    assert json.loads(get(base, "/features.json"))[1]["feature"]["distance"] == 10
-    post(base, "/command", {"type": "redo"})
-    assert json.loads(get(base, "/features.json"))[1]["feature"]["distance"] == 25
-
-
-def test_a_new_edit_clears_redo(server):
-    base, _ = server
-    post(base, "/command", {"type": "extrude_face", **TOP_FACE})
-    post(base, "/command", {"type": "undo"})
-    post(base, "/command", {"type": "extrude_face", **TOP_FACE, "distance": 2})
-    post(base, "/command", {"type": "redo"})
-    assert feature_ids(base) == ["s1", "e1", "f3"]
-
-
-def test_rolling_back_is_not_undoable(server):
-    """Cmd+Z after scrubbing the timeline must undo the last edit, not the scrub."""
-    base, _ = server
-    post(base, "/command", {"type": "update_feature", "id": "e1", "feature": {**EXTRUDE, "distance": 25}})
-    post(base, "/command", {"type": "set_rollback", "index": 1})
-    post(base, "/command", {"type": "undo"})
-    entries = json.loads(get(base, "/features.json"))
-    assert entries[1]["feature"]["distance"] == 10
-
-
-def test_a_bad_command_is_a_400_with_the_reason(server):
-    base, _ = server
-    result = post(base, "/command", {"type": "update_feature", "id": "e1", "feature": {**EXTRUDE, "distance": 0}})
-    assert result["status"] == 400
-    assert "e1" in result["error"]
-    # And the document is untouched.
-    assert json.loads(get(base, "/features.json"))[1]["feature"]["distance"] == 10
-
-
 def test_rpc_route_takes_the_daemons_methods(server):
     base, _ = server
     reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": "ping"})
     assert reply["result"]["ok"] is True
+
+
+def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server):
+    base, _ = server
+    feature = {"id": "f3", "type": "extrude_face", "base": "e1", "distance": 5,
+               "face": {"from": "part", "select": [{"op": "faces"}, {"op": "nearest_to", "point": [0, 0, 10], "normal": [0, 0, 1]}]}}
+    result = rpc(base, "apply_edit", edits=[{"op": "insert", "feature": feature}])
+    assert result["built"]["ok"] is True
+    assert feature_ids(base) == ["s1", "e1", "f3"]
+    assert mesh_header(base)["counts"]["faces"] == 6
+
+
+def test_a_page_on_another_origin_cannot_edit_the_document(server):
+    """Any web page in the user's browser can reach 127.0.0.1. A simple POST
+    needs no permission from the server, so the server has to check."""
+    base, _ = server
+    body = {"jsonrpc": "2.0", "id": 1, "method": "set_rollback", "params": {"index": 0}}
+    refused = post(base, "/rpc", body, headers={"Origin": "https://evil.example"})
+    assert refused["status"] == 403
+    rebound = post(base, "/rpc", body, headers={"Host": "evil.example"})
+    assert rebound["status"] == 403
+    assert json.loads(get(base, "/features.json"))[1]["active"] is True
+    # The viewer's own origin still works.
+    port = base.rsplit(":", 1)[1]
+    allowed = post(base, "/rpc", body, headers={"Origin": f"http://127.0.0.1:{port}"})
+    assert "result" in allowed

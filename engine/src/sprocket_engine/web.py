@@ -1,11 +1,14 @@
 """`sprocket web`: the viewer in a plain browser, on top of the daemon.
 
 The spec's architecture rule is that the viewer must run outside the Swift app,
-or an agent and Playwright have nothing to drive. In the app the shell writes
-`part.mesh` and `features.json` next to the viewer and the viewer posts its
-gestures to Swift. Here the same two files are served from the live document
-instead, and the gestures arrive as `POST /command`. The viewer's own code does
-not know the difference.
+or an agent and Playwright have nothing to drive. In the app, the daemon writes
+`part.mesh` and `features.json` next to the viewer (`--viewer-dir`) and Swift
+forwards the viewer's edits to it. Here the same files are served from the live
+document instead, and the edits arrive as `POST /rpc`. The viewer's own code
+does not know the difference.
+
+The viewer works out which edits a gesture means (viewer/edits.js) and sends
+them to `apply_edit`. Nothing here knows what a gesture is.
 
 Plain HTTP, not a WebSocket. The spec names a WebSocket bridge, but the stdlib
 has no WebSocket server and one request per gesture plus a one-way event stream
@@ -19,27 +22,21 @@ Routes:
     GET  /features.json   the timeline, each entry carrying its full feature
     GET  /schemas.json    every op's JSON Schema, which the parameter form is built from
     GET  /events          server-sent events: document_changed
-    POST /command         one viewer gesture (see viewer_commands.py); undo and redo too
     POST /rpc             one JSON-RPC request, the same methods the socket takes
     GET  anything else    a static file from the viewer directory
 """
 
 import json
-import tempfile
 import threading
 import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .document import DocumentError, StaleRevision
-from .mesh import export_mesh
-from .ops import REGISTRY
-from .rpc import Daemon, _commit, _handle_line
-from .viewer_commands import edits_for
+from .rpc import Daemon, _handle_line
+from .viewer_files import features_summary, mesh_bytes, schemas
 
 HEARTBEAT_SECONDS = 15
-UNDO_LIMIT = 100
 
 
 class WebApp:
@@ -48,8 +45,6 @@ class WebApp:
     def __init__(self, daemon: Daemon, viewer_dir: Path):
         self.daemon = daemon
         self.viewer_dir = Path(viewer_dir)
-        self._undo: list[dict] = []
-        self._redo: list[dict] = []
         self._mesh: tuple[int, bytes | None] | None = None
 
     @property
@@ -59,24 +54,7 @@ class WebApp:
     def features_json(self) -> list[dict]:
         with self.daemon.lock:
             _, failed = self.daemon.session.shape()
-            document = self.document
-            entries = []
-            for index, feature in enumerate(document.features):
-                entry = {
-                    "id": feature.get("id"),
-                    "type": feature.get("type"),
-                    "active": index < document.rollback_index,
-                    "feature": feature,
-                }
-                # The viewer draws a sketch's outline from these two, and only
-                # knows how for a polygon. A rect or circle sketch has none.
-                if feature.get("type") == "sketch" and "polygon" in feature:
-                    entry["plane"] = feature["plane"]
-                    entry["polygon"] = feature["polygon"]
-                if feature.get("id") == failed:
-                    entry["failed"] = True
-                entries.append(entry)
-            return entries
+            return features_summary(self.document, failed)
 
     def mesh_bytes(self) -> bytes | None:
         """The mesh for the current revision, or None for an empty document."""
@@ -84,46 +62,8 @@ class WebApp:
             revision = self.document.revision
             if self._mesh is None or self._mesh[0] != revision:
                 shape, _ = self.daemon.session.shape()
-                if shape is None:
-                    self._mesh = (revision, None)
-                else:
-                    with tempfile.TemporaryDirectory() as directory:
-                        path = Path(directory) / "part.mesh"
-                        export_mesh(shape, path)
-                        self._mesh = (revision, path.read_bytes())
+                self._mesh = (revision, mesh_bytes(shape))
             return self._mesh[1]
-
-    def schemas(self) -> dict:
-        return {name: op.schema for name, op in sorted(REGISTRY.items())}
-
-    def command(self, message: dict) -> dict:
-        """Runs one viewer gesture and returns what a caller needs to refresh."""
-        kind = message.get("type") if isinstance(message, dict) else None
-        with self.daemon.lock:
-            if kind == "undo":
-                self._step_history(self._undo, self._redo, "undo")
-            elif kind == "redo":
-                self._step_history(self._redo, self._undo, "redo")
-            else:
-                before = self.document.snapshot()
-                edits = edits_for(self.document, message)
-                revision = self.document.apply_edits(edits, message.get("base_revision"), "viewer")
-                _commit(self.daemon, revision)
-                # Rolling back is navigation, not an edit: undoing it would
-                # leave the user wondering what Cmd+Z just did to the part.
-                if kind != "set_rollback":
-                    self._undo.append(before)
-                    del self._undo[:-UNDO_LIMIT]
-                    self._redo.clear()
-            _, failed = self.daemon.session.shape()
-            return {"revision": self.document.revision, "failed_feature": failed}
-
-    def _step_history(self, take_from: list, put_on: list, author: str) -> None:
-        if not take_from:
-            return
-        put_on.append(self.document.snapshot())
-        revision = self.document.restore(take_from.pop(), f"viewer:{author}")
-        _commit(self.daemon, revision)
 
 
 class _EventStream:
@@ -180,9 +120,12 @@ def make_handler(app: WebApp):
                 elif route == "/features.json":
                     self._send_json(app.features_json())
                 elif route == "/schemas.json":
-                    self._send_json(app.schemas())
+                    self._send_json(schemas())
                 elif route == "/events":
-                    self._stream_events()
+                    if self._is_local_request():
+                        self._stream_events()
+                    else:
+                        self._send_json({"error": "requests from other origins are refused"}, HTTPStatus.FORBIDDEN)
                 else:
                     super().do_GET()
             except (BrokenPipeError, ConnectionResetError):
@@ -190,7 +133,26 @@ def make_handler(app: WebApp):
             except Exception as exc:
                 self._send_json({"error": f"{type(exc).__name__}: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
+        def _is_local_request(self) -> bool:
+            """Refuses requests from other web pages.
+
+            Anything on this machine can reach 127.0.0.1, including a page open
+            in the user's browser, and a POST with a plain-text body needs no
+            permission from the server. The Host check stops DNS rebinding and
+            the Origin check stops a cross-site page. A script with no Origin
+            header, such as curl or a test, is the user's own process.
+            """
+            port = self.server.server_address[1]
+            local = {f"127.0.0.1:{port}", f"localhost:{port}"}
+            origin = self.headers.get("Origin")
+            return self.headers.get("Host") in local and (
+                origin is None or origin.removeprefix("http://") in local
+            )
+
         def do_POST(self):
+            if not self._is_local_request():
+                self._send_json({"error": "requests from other origins are refused"}, HTTPStatus.FORBIDDEN)
+                return
             route = self.path.split("?", 1)[0]
             length = int(self.headers.get("Content-Length") or 0)
             try:
@@ -199,17 +161,11 @@ def make_handler(app: WebApp):
                 self._send_json({"error": f"not valid JSON: {exc}"}, HTTPStatus.BAD_REQUEST)
                 return
             try:
-                if route == "/command":
-                    self._send_json(app.command(body))
-                elif route == "/rpc":
+                if route == "/rpc":
                     response = _handle_line(app.daemon, json.dumps(body).encode())
                     self._send_json(response if response is not None else {})
                 else:
                     self._send_json({"error": f"no route {route}"}, HTTPStatus.NOT_FOUND)
-            except StaleRevision as exc:
-                self._send_json({"error": str(exc)}, HTTPStatus.CONFLICT)
-            except DocumentError as exc:
-                self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             except Exception as exc:
                 self._send_json({"error": f"{type(exc).__name__}: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
 

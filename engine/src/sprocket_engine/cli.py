@@ -54,6 +54,12 @@ def main(argv: list[str] | None = None) -> int:
     daemon.add_argument("--socket", type=Path, default=None, help="socket path (default: <document>.sock)")
     daemon.add_argument("--cache-dir", type=Path, default=None, help="BREP cache directory")
     daemon.add_argument(
+        "--viewer-dir",
+        type=Path,
+        default=None,
+        help="write part.mesh, features.json and schemas.json here after every change, for a viewer opened from disk",
+    )
+    daemon.add_argument(
         "--no-autosave",
         action="store_true",
         help="keep edits in memory instead of writing the document after each one",
@@ -199,7 +205,8 @@ def _daemon(args: argparse.Namespace) -> int:
 
     socket_path = args.socket or Path(str(args.document) + ".sock")
     session = Session(document, args.cache_dir)
-    server = Daemon(session, socket_path, autosave=not args.no_autosave)
+    server = Daemon(session, socket_path, autosave=not args.no_autosave, viewer_dir=args.viewer_dir)
+    server.publish_viewer_files()
     print(f"listening on {socket_path} (revision {document.revision})", flush=True)
     try:
         server.serve_forever()

@@ -35,6 +35,7 @@ from .geometry import describe, measure
 from .ops import REGISTRY
 from .render import render_png
 from .replay import build_shape, replay
+from .viewer_files import write_viewer_files
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -103,11 +104,20 @@ class Session:
 class Daemon:
     """Owns the socket, the session lock and the connected clients."""
 
-    def __init__(self, session: Session, socket_path: Path, autosave: bool = True):
+    def __init__(
+        self, session: Session, socket_path: Path, autosave: bool = True, viewer_dir: Path | None = None
+    ):
         self.session = session
+        # When set, the viewer's files are rewritten after every change (see
+        # viewer_files.py). The Swift app reads them off disk.
+        self.viewer_dir = Path(viewer_dir) if viewer_dir else None
         self.socket_path = Path(socket_path)
         self.autosave = autosave
         self.lock = threading.RLock()
+        # Snapshots of the editable state, one per undoable edit. Shared by
+        # every client, so an undo undoes the newest edit whoever made it.
+        self.undo_stack: list[dict] = []
+        self.redo_stack: list[dict] = []
         self._clients: set = set()
         self._clients_lock = threading.Lock()
         self._server = None
@@ -141,7 +151,18 @@ class Daemon:
             except OSError:
                 self.remove_client(client)
 
+    def publish_viewer_files(self) -> None:
+        if self.viewer_dir is None:
+            return
+        try:
+            write_viewer_files(self.session, self.viewer_dir)
+        except Exception as exc:
+            # A document that will not build must not stop the edit that
+            # caused it. The viewer keeps the files from the last good build.
+            print(f"viewer files not written: {type(exc).__name__}: {exc}", flush=True)
+
     def announce_change(self) -> None:
+        self.publish_viewer_files()
         self.broadcast(
             "document_changed",
             {
@@ -378,32 +399,59 @@ def _get_timeline(daemon: Daemon, params: dict) -> dict:
     }
 
 
+UNDO_LIMIT = 100
+
+
+def _edit(daemon: Daemon, edits, params: dict) -> dict:
+    """Applies edits, and makes them undoable unless they only move the rollback bar.
+
+    Scrubbing the timeline is navigation. Undoing it would leave the user
+    wondering what Cmd+Z just did to the part.
+    """
+    document = daemon.session.document
+    before = document.snapshot()
+    revision = document.apply_edits(
+        edits, params.get("base_revision"), params.get("author", "agent:unknown")
+    )
+    if any(isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits):
+        daemon.undo_stack.append(before)
+        del daemon.undo_stack[:-UNDO_LIMIT]
+        daemon.redo_stack.clear()
+    return _commit(daemon, revision)
+
+
 def _apply_edit(daemon: Daemon, params: dict) -> dict:
     edits = params.get("edits")
     if edits is None and "edit" in params:
         edits = [params["edit"]]
-    revision = daemon.session.document.apply_edits(
-        edits, params.get("base_revision"), params.get("author", "agent:unknown")
-    )
-    return _commit(daemon, revision)
+    return _edit(daemon, edits, params)
 
 
 def _set_rollback(daemon: Daemon, params: dict) -> dict:
-    revision = daemon.session.document.apply_edits(
-        [{"op": "set_rollback", "index": params.get("index")}],
-        params.get("base_revision"),
-        params.get("author", "agent:unknown"),
-    )
-    return _commit(daemon, revision)
+    return _edit(daemon, [{"op": "set_rollback", "index": params.get("index")}], params)
 
 
 def _set_parameter(daemon: Daemon, params: dict) -> dict:
-    revision = daemon.session.document.apply_edits(
-        [{"op": "set_parameter", "name": params.get("name"), "value": params.get("value")}],
-        params.get("base_revision"),
-        params.get("author", "agent:unknown"),
+    return _edit(
+        daemon, [{"op": "set_parameter", "name": params.get("name"), "value": params.get("value")}], params
     )
-    return _commit(daemon, revision)
+
+
+def _step_history(daemon: Daemon, take_from: list, put_on: list, params: dict) -> dict:
+    document = daemon.session.document
+    if not take_from:
+        return {"revision": document.revision, "changed": False}
+    put_on.append(document.snapshot())
+    revision = document.restore(take_from.pop(), params.get("author", "agent:unknown"))
+    return {**_commit(daemon, revision), "changed": True}
+
+
+def _undo(daemon: Daemon, params: dict) -> dict:
+    return _step_history(daemon, daemon.undo_stack, daemon.redo_stack, params)
+
+
+def _redo(daemon: Daemon, params: dict) -> dict:
+    return _step_history(daemon, daemon.redo_stack, daemon.undo_stack, params)
 
 
 def _preview_feature(daemon: Daemon, params: dict) -> dict:
@@ -527,6 +575,8 @@ METHODS = {
     "apply_edit": _apply_edit,
     "set_rollback": _set_rollback,
     "set_parameter": _set_parameter,
+    "undo": _undo,
+    "redo": _redo,
     "preview_feature": _preview_feature,
     "describe_geometry": _describe_geometry,
     "measure": _measure,

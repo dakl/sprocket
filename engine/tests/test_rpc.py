@@ -7,6 +7,8 @@ that did not build was reported as a success.
 """
 
 import json
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -161,3 +163,69 @@ def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(tmp_path
     daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket)
     with pytest.raises(DocumentError, match="shorter --socket"):
         daemon.start_in_background()
+
+
+def distance_of_e1(client) -> float:
+    return next(f for f in client.call("get_document")["features"] if f["id"] == "e1")["distance"]
+
+
+def set_distance(client, distance: float) -> None:
+    client.call("apply_edit", edits=[{"op": "update", "id": "e1", "feature": {**EXTRUDE, "distance": distance}}])
+
+
+def test_undo_and_redo_step_through_edits(client):
+    set_distance(client, 25)
+    set_distance(client, 30)
+
+    assert client.call("undo")["changed"] is True
+    assert distance_of_e1(client) == 25
+    client.call("undo")
+    assert distance_of_e1(client) == 10
+    assert client.call("undo")["changed"] is False
+
+    client.call("redo")
+    assert distance_of_e1(client) == 25
+
+
+def test_a_new_edit_clears_redo(client):
+    set_distance(client, 25)
+    client.call("undo")
+    set_distance(client, 40)
+    assert client.call("redo")["changed"] is False
+    assert distance_of_e1(client) == 40
+
+
+def test_moving_the_rollback_bar_is_not_undoable(client):
+    """Cmd+Z after scrubbing the timeline must undo the last edit, not the scrub."""
+    set_distance(client, 25)
+    client.call("set_rollback", index=1)
+    client.call("undo")
+    assert distance_of_e1(client) == 10
+
+
+def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Path):
+    """The Swift app opens the viewer from disk. After every change the
+    daemon rewrites the mesh and the timeline beside it, before it says so."""
+    viewer_dir = tmp_path / "viewer"
+    viewer_dir.mkdir()
+    path = tmp_path / "part.json"
+    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    socket_dir = Path(tempfile.mkdtemp())
+    daemon = Daemon(
+        Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock", viewer_dir=viewer_dir
+    )
+    daemon.publish_viewer_files()
+    daemon.start_in_background()
+    try:
+        assert (viewer_dir / "part.mesh").exists()
+        assert "extrude" in json.loads((viewer_dir / "features.json").read_text())[1]["type"]
+        assert "sketch" in json.loads((viewer_dir / "schemas.json").read_text())
+
+        with Client(daemon.socket_path) as client:
+            client.call("set_rollback", index=0)
+        # An empty document deletes the mesh, which the viewer reads as nothing to show.
+        assert not (viewer_dir / "part.mesh").exists()
+        assert [entry["active"] for entry in json.loads((viewer_dir / "features.json").read_text())] == [False, False]
+    finally:
+        daemon.shutdown()
+        shutil.rmtree(socket_dir, ignore_errors=True)
