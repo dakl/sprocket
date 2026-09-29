@@ -1550,10 +1550,18 @@
       }
       // The sketch is tested first: its outline sits on the part surface, so a
       // face hit at the same pixel would otherwise always win.
-      const sketch = raycastSketch(event);
-      if (sketch) {
-        selectSketchForExtrude(sketch);
-        return;
+      // A sketch behind a face is not under the pointer: without this test the
+      // outline of a sketch on the underside of a part took every click on a
+      // side wall in front of it. A sketch lying on the visible surface is at
+      // the same distance as the face, so the tolerance keeps it pickable.
+      const sketchHit = raycastSketch(event);
+      if (sketchHit) {
+        const faceInFront = raycastFace(event);
+        const tolerance = worldRadius(SKETCH_PICK_PIXELS, sketchHit.point);
+        if (!faceInFront || faceInFront.distance >= sketchHit.distance - tolerance) {
+          selectSketchForExtrude(sketchHit.feature);
+          return;
+        }
       }
       const edgeHit = raycastEdge(event);
       if (edgeHit) {
@@ -2102,7 +2110,7 @@
       const hits = raycaster.intersectObjects(candidates.map(({ fill }) => fill));
       if (!hits.length) return null;
       const entry = candidates.find(({ fill }) => fill === hits[0].object);
-      return entry ? entry.feature : null;
+      return entry ? { feature: entry.feature, distance: hits[0].distance, point: hits[0].point } : null;
     }
 
     function rectangleCorners(a, b) {

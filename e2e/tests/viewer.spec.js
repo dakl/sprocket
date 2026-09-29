@@ -62,16 +62,25 @@ test("scrubbing the timeline rolls the part back and forward", async ({ page }) 
   expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, true]);
 });
 
-test("clicking where the model says a face is selects that face", async ({ page, request }) => {
-  // The top face, by the engine's own description: the viewer's sketch outline
-  // is hit-tested without occlusion, so a click on a side wall can land on the
-  // sketch behind it instead.
+test("clicking a visible side wall selects the wall, not the sketch behind it", async ({ page, request }) => {
+  // The sketch sits on the underside at z=0, and its outline projects behind
+  // the walls. Every visible face has to win the click.
   const { faces } = await rpc(request, "describe_geometry");
-  const top = faces.findIndex((face) => face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
-  expect(point.visible).toBe(true);
-  await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+  const visible = await page.evaluate(
+    (count) =>
+      Array.from({ length: count }, (_, face) => ({ face, ...window.__tcad.screenPointOf({ face }) })).filter(
+        (point) => point.visible
+      ),
+    faces.length
+  );
+  expect(visible.length).toBeGreaterThanOrEqual(3);
+  for (const target of visible) {
+    await page.mouse.click(target.x, target.y);
+    await expect
+      .poll(() => page.evaluate(() => window.__tcad.selection))
+      .toEqual({ face: target.face, edge: null, sketch: null });
+    await page.keyboard.press("Escape");
+  }
 });
 
 test("clicking an edge selects the B-rep edge the engine numbers the same way", async ({ page, request }) => {
