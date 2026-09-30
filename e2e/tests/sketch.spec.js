@@ -124,7 +124,27 @@ test("a circle across a side cuts three regions, and picking one extrudes just t
   expect(extrude.profiles[0].bounded_by).toEqual(regions[smallest].bounded_by);
 });
 
-test("constraints are counted: a rectangle has freedom left until it is dimensioned and pinned", async ({ page }) => {
+test("a circle inside a circle cuts a hole: picking the ring extrudes a tube, not a disc", async ({ page, request }) => {
+  await startSketch(page);
+  await tool(page, "circle").click();
+  await click(page, [0, 0]);
+  await click(page, [20, 0]);
+  await click(page, [0, 0]);
+  await click(page, [10, 0]);
+  await expect.poll(async () => (await sketchState(page)).entities.length).toBe(2);
+  await finishSketch(page);
+
+  const regions = (await page.evaluate(() => window.__tcad.regions))[0].regions;
+  expect(regions).toHaveLength(2);
+  const ring = regions.reduce((best, region, index) => (region.area > regions[best].area ? index : best), 0);
+  expect(regions[ring].holes).toHaveLength(1);
+
+  await extrudeRegion(page, "f1", ring, 5);
+  const measured = await rpc(request, "measure");
+  expect(measured.volume).toBeCloseTo(Math.PI * (20 ** 2 - 10 ** 2) * 5, 0);
+});
+
+test("constraints are counted:a rectangle has freedom left until it is dimensioned and pinned", async ({ page }) => {
   await startSketch(page);
   await drawRectangle(page, [-20, -10], [20, 10]);
   await expect.poll(async () => (await sketchState(page)).dof).toBeGreaterThan(0);
