@@ -28,20 +28,11 @@ async function settled(page) {
 }
 
 /// Waits for the camera to stop easing into a sketch plane. A click made while
-/// it moves lands somewhere the test did not aim.
+/// it moves lands somewhere the test did not aim. The viewer says when it is
+/// still, so this does not guess from two readings that a slow machine can
+/// make equal before the move has begun.
 async function cameraStill(page) {
-  await page.evaluate(() => {
-    window.__cameraReadings = [];
-  });
-  await page.waitForFunction(
-    () => {
-      const readings = window.__cameraReadings;
-      readings.push(JSON.stringify(window.__tcad.camera));
-      return readings.length >= 3 && readings.slice(-3).every((reading) => reading === readings[readings.length - 1]);
-    },
-    null,
-    { polling: 100 }
-  );
+  await page.waitForFunction(() => !window.__tcad.cameraMoving);
 }
 
 module.exports = { rpc, resetDocument, settled, cameraStill };

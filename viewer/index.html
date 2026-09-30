@@ -2352,12 +2352,21 @@
       // View the plane from whichever side the camera is already on, and roll
       // to the plane axis nearest the current screen up. Both keep the move
       // to the smallest rotation that still looks at the plane square on.
+      //
+      // A principal plane is the exception. It always opens the way Fusion does:
+      // seen from the side its normal points to, with v up the screen and u to
+      // the right (Top for XY, Front for XZ, Right for YZ). From an isometric
+      // camera the nearest roll is a coin toss, and a sketch that opens turned
+      // on its side or upside down is harder to draw in.
       const up = screenUp();
-      const side = camera.position.clone().sub(sketchPlane.origin).dot(sketchPlane.normal) < 0 ? -1 : 1;
+      const canonical = Boolean(sketchPlane.ref);
+      const side = canonical ? 1 : camera.position.clone().sub(sketchPlane.origin).dot(sketchPlane.normal) < 0 ? -1 : 1;
       const rolls = [sketchPlane.yDir, sketchPlane.xDir];
-      const nearestRoll = rolls
-        .flatMap((axis) => [axis.clone(), axis.clone().negate()])
-        .reduce((best, axis) => (axis.dot(up) > best.dot(up) ? axis : best));
+      const nearestRoll = canonical
+        ? sketchPlane.yDir.clone()
+        : rolls
+            .flatMap((axis) => [axis.clone(), axis.clone().negate()])
+            .reduce((best, axis) => (axis.dot(up) > best.dot(up) ? axis : best));
       // A new sketch starts where the click was, at the distance the camera
       // already has. A sketch being redrawn may sit anywhere on its plane, so
       // frame what is already drawn.
@@ -2830,6 +2839,11 @@
       },
       get editing() {
         return editingFeatureId;
+      },
+      /// True while the camera eases into a new view. A test that clicks before
+      /// it stops aims at where things were.
+      get cameraMoving() {
+        return cameraMove !== null;
       },
       get camera() {
         return { position: camera.position.toArray(), target: controls.target.toArray() };
