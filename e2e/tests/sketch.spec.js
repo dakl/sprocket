@@ -289,3 +289,40 @@ test("delete removes the selected shape and the constraints that pointed at it",
   expect(after.entities.map((entity) => entity.id)).toEqual(["e2", "e3", "e4"]);
   expect(JSON.stringify(after.constraints)).not.toContain('"e1');
 });
+
+test("the constraint buttons act on the selection: horizontal levels a line, tangent touches it to a circle", async ({ page }) => {
+  await startSketch(page);
+  // A slanted line, well past the few degrees the line tool snaps.
+  await click(page, [-20, 0]);
+  await click(page, [20, 12]);
+  await page.keyboard.press("Escape");
+  await tool(page, "circle").click();
+  await click(page, [0, 30]);
+  await click(page, [6, 30]);
+  await expect.poll(async () => (await sketchState(page)).entities.length).toBe(2);
+
+  await tool(page, "select").click();
+  await click(page, [0, 6]); // the middle of the line
+  await expect.poll(async () => (await sketchState(page)).selection).toEqual(["e1"]);
+  await expect(constraint(page, "horizontal")).toBeEnabled();
+  await expect(constraint(page, "tangent")).toBeDisabled();
+  await constraint(page, "horizontal").click();
+  let { entities } = await sketchState(page);
+  expect(Math.abs(entities[0].p0[1] - entities[0].p1[1])).toBeLessThan(1e-6);
+
+  // Line and circle together: tangent becomes available, and the circle ends
+  // up one radius from the line.
+  const circle = entities[1];
+  // Applying a constraint clears the selection, so pick the line again.
+  await click(page, [0, entities[0].p0[1]]);
+  await expect.poll(async () => (await sketchState(page)).selection).toEqual(["e1"]);
+  await page.keyboard.down("Shift");
+  await click(page, [circle.c[0] + circle.r, circle.c[1]]);
+  await page.keyboard.up("Shift");
+  await expect.poll(async () => (await sketchState(page)).selection.sort()).toEqual(["e1", "e2"]);
+  await expect(constraint(page, "tangent")).toBeEnabled();
+  await constraint(page, "tangent").click();
+  ({ entities } = await sketchState(page));
+  const [line, touching] = entities;
+  expect(Math.abs(touching.c[1] - line.p0[1])).toBeCloseTo(touching.r, 6);
+});
