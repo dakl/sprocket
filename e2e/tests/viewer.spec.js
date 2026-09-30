@@ -5,34 +5,10 @@
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
 
-async function rpc(request, method, params = {}) {
-  const response = await request.post("/rpc", { data: { jsonrpc: "2.0", id: 1, method, params } });
-  const body = await response.json();
-  if (body.error) throw new Error(body.error.message);
-  return body.result;
-}
-
-/// Puts the shared document back to the fixture, through the same edit API an
-/// agent uses. The server outlives the tests, so each one starts from here.
-async function resetDocument(request) {
-  const current = await rpc(request, "get_document");
-  const edits = [
-    ...current.features.map((feature) => ({ op: "delete", id: feature.id })).reverse(),
-    ...fixture.features.map((feature) => ({ op: "insert", feature })),
-    { op: "set_rollback", index: fixture.rollback_index },
-  ];
-  await rpc(request, "apply_edit", { edits });
-  for (const name of Object.keys(current.parameters)) {
-    await rpc(request, "set_parameter", { name, value: null });
-  }
-}
-
-async function settled(page) {
-  await page.waitForFunction(() => window.__tcad && window.__tcad.idle);
-}
+const { rpc, resetDocument, settled } = require("./helpers");
 
 test.beforeEach(async ({ page, request }) => {
-  await resetDocument(request);
+  await resetDocument(request, fixture);
   await page.goto("/index.html");
   await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
   await settled(page);
@@ -78,7 +54,7 @@ test("clicking a visible side wall selects the wall, not the sketch behind it", 
     await page.mouse.click(target.x, target.y);
     await expect
       .poll(() => page.evaluate(() => window.__tcad.selection))
-      .toEqual({ face: target.face, edge: null, sketch: null });
+      .toEqual({ face: target.face, edge: null, sketch: null, regions: [] });
     await page.keyboard.press("Escape");
   }
 });

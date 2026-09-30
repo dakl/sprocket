@@ -4,6 +4,9 @@ const PORT = 8790;
 
 module.exports = defineConfig({
   testDir: "./tests",
+  // A busy machine makes headless Chrome's software WebGL slow to start, and a
+  // page that takes 40 s to load is not a failing test.
+  timeout: 60_000,
   // One document behind one server, so tests cannot run side by side.
   workers: 1,
   fullyParallel: false,
