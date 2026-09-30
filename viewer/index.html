@@ -2366,7 +2366,10 @@
         sketchPlane.normal.clone().multiplyScalar(side),
         nearestRoll,
         framing ? framing.centre : sketchPlane.origin,
-        framing ? framing.distance : undefined
+        // On a principal plane the camera may be framed tight on a small part,
+        // and a sketch is usually wider than that. Back off to about 100 mm of
+        // view. On a picked face the user chose the zoom, so keep it.
+        framing ? framing.distance : sketchPlane.ref ? Math.max(camera.position.distanceTo(controls.target), 120) : undefined
       );
       controls.enableRotate = false;
 

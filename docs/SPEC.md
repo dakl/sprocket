@@ -128,6 +128,7 @@ Never reference geometry by index. OCCT renumbers faces and edges when anything 
 **Sketch references: stable IDs you own**
 
 - Sketch entities have IDs assigned by the client (`e1`, `e2`, …) that never change. Reference profiles as `{"sketch": "f3", "bounded_by": ["e1", "e2", "e5"]}`, never as "region 0".
+- `bounded_by` alone can match two regions: a circle across one side of a rectangle leaves an outside half and an inside half, both bounded by that side and the circle. A profile may therefore carry `"inside": [u, v]`, a point in the region, and the engine uses it only to break that tie. A reference that matches nothing fails the extrude, as a selector count mismatch does.
 - Hole centers reference sketch point entity IDs.
 - Profiles therefore survive dimension changes, which is an area where this design can beat Fusion 360.
 
@@ -154,11 +155,11 @@ flowchart LR
 
 1. **Pick a plane or face.** The click becomes a plane reference: `"XY"` or a face selector. The engine returns the resolved plane (origin, local X/Y axes).
 2. **Enter sketch mode.** The camera animates to look normal to the plane, and the model dims. All drawing happens in local 2D coordinates.
-3. **Projected reference geometry.** The engine sends the face's boundary edges in local 2D as non-editable reference entities to snap and constrain against.
+3. **Projected reference geometry.** The engine sends the face's boundary edges in local 2D as non-editable reference entities to snap and constrain against. *(Not built in M3. It belongs with sketch-on-face in M5.)*
 4. **Draw and constrain client-side.** planegcs solves on every mouse move, with no engine roundtrips. Infer constraints while drawing (auto-horizontal, auto-coincident on snap), support inline dimension entry, and color by constraint state (Fusion convention: blue = under-constrained, black = fully constrained).
 5. **Finish sketch.** Commit one `sketch` op containing entities, constraints, dimensions and solved positions. The engine trusts the solved geometry.
 6. **Profiles light up.** The engine computes closed regions and returns them as pickable fills, each tagged with its bounding entity IDs.
-7. **Apply an op.** Select regions, choose the op (E for extrude), drag the handle or type values, preview, commit.
+7. **Apply an op.** Select regions, choose the op (E for extrude), drag the handle or type values, preview, commit. The M3 preview is drawn in the viewer from the region outlines the engine sends in `features.json` and `get_profiles`. It does not call `preview_feature`.
 
 Sketch op shape:
 
@@ -173,7 +174,9 @@ Sketch op shape:
    {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": "40 mm"}]}
 ```
 
-**Region detection** is the hardest engine piece in this loop. Intersecting curves form a planar arrangement: a rectangle crossed by a circle yields three regions. Use an OCCT general fuse to split all edges at intersections, build faces from the resulting wires, and track which entity IDs bound each face. Test this heavily with overlapping and tangent geometry.
+What M3 shipped of the sketch op: an entity is a `line` (`p0`, `p1`), an `arc` (`c`, `r`, `a0`, `a1`, counter-clockwise from `a0` to `a1`, in radians) or a `circle` (`c`, `r`), with an optional `construction` flag that bounds no region. A constraint reference is an entity id or `<id>.<point>`, where the point is `p0`, `p1` or `c`. Kinds: `coincident`, `horizontal`, `vertical`, `parallel`, `perpendicular`, `tangent`, `equal`, `fix`, `distance`, `radius`, `diameter` and `angle` (degrees). A line's length is a `distance` between its own ends. The engine checks that every reference resolves and otherwise ignores constraints, so a sketch replays from its solved geometry alone. The viewer solves with planegcs, bundled into `viewer/vendor/planegcs.js` (rebuild with `viewer/vendor/build-planegcs.sh`). The Swift app loads the viewer from `file://`, which refuses module scripts and a fetched `.wasm`, so the bundle is one classic script with the wasm inlined. On the dark background "fully constrained" draws light grey rather than black.
+
+**Region detection** is the hardest engine piece in this loop. Intersecting curves form a planar arrangement: a rectangle crossed by a circle yields three regions. M3 does it by splitting a frame face, a quarter wider than the sketch on every side, along every entity (`BRepAlgoAPI_Splitter`) and dropping the cells that touch the frame. `BOPAlgo_BuilderFace` was tried first and is wrong for this: it returns maximal areas, so a circle across a rectangle came back as the rectangle plus its outside half, with no cut along the circle. Each cell's bounding ids come from which entity each of its edges lies on. Test this heavily with overlapping and tangent geometry.
 
 **Editing an existing sketch:** double-click it in the timeline. The model rolls back to just before it, the sketcher reopens with its entities, and committing replays downstream features.
 
