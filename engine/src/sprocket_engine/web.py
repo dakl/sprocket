@@ -45,7 +45,7 @@ class WebApp:
     def __init__(self, daemon: Daemon, viewer_dir: Path):
         self.daemon = daemon
         self.viewer_dir = Path(viewer_dir)
-        self._mesh: tuple[int, bytes | None] | None = None
+        self._mesh: tuple[tuple[int, int], bytes | None] | None = None
 
     @property
     def document(self):
@@ -59,10 +59,12 @@ class WebApp:
     def mesh_bytes(self) -> bytes | None:
         """The mesh for the current revision, or None for an empty document."""
         with self.daemon.lock:
-            revision = self.document.revision
-            if self._mesh is None or self._mesh[0] != revision:
+            # Two documents can sit at the same revision, so the revision alone
+            # would serve one document's mesh for the other.
+            key = (self.daemon.session.generation, self.document.revision)
+            if self._mesh is None or self._mesh[0] != key:
                 shape, _ = self.daemon.session.shape()
-                self._mesh = (revision, mesh_bytes(shape))
+                self._mesh = (key, mesh_bytes(shape))
             return self._mesh[1]
 
 

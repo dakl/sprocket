@@ -229,3 +229,84 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
     finally:
         daemon.shutdown()
         shutil.rmtree(socket_dir, ignore_errors=True)
+
+
+# ---- opening, creating and saving documents ----------------------------------
+
+
+def write_document(path: Path, features: list[dict]) -> Path:
+    path.write_text(json.dumps({"features": features, "rollback_index": len(features)}))
+    return path
+
+
+def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(client, tmp_path):
+    other = write_document(tmp_path / "other.json", [SKETCH])
+    before = other.read_text()
+    client.call("set_parameter", name="width", value=40)  # an undoable edit on the first document
+
+    opened = client.call("open_document", path=str(other))
+
+    assert opened["path"] == str(other)
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1"]
+    assert client.call("get_document")["path"] == str(other)
+    assert other.read_text() == before, "opening a file must not rewrite it"
+    assert client.call("undo")["changed"] is False, "the undo history belonged to the first document"
+
+
+def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_path):
+    broken = tmp_path / "broken.json"
+    broken.write_text("{ not json")
+    with pytest.raises(RpcError, match="not valid JSON"):
+        client.call("open_document", path=str(broken))
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1", "e1"]
+
+
+@pytest.mark.parametrize("path", ["part.json", "/tmp/part.txt", ""])
+def test_file_methods_want_an_absolute_json_path(client, path):
+    with pytest.raises(RpcError):
+        client.call("open_document", path=path)
+    with pytest.raises(RpcError):
+        client.call("save_as", path=path)
+
+
+def test_opening_announces_a_replacement_not_an_edit(daemon, tmp_path):
+    other = write_document(tmp_path / "other.json", [SKETCH])
+    heard = []
+    with Client(daemon.socket_path, on_notification=lambda method, params: heard.append(params)) as watcher:
+        watcher.call("ping")
+        with Client(daemon.socket_path) as other_client:
+            other_client.call("open_document", path=str(other))
+        watcher.call("ping")  # reading a reply is what delivers the queued notification
+    assert heard[-1]["opened"] is True
+    assert heard[-1]["path"] == str(other)
+
+
+def test_a_new_document_is_empty_saved_and_never_overwrites(client, tmp_path):
+    fresh = tmp_path / "fresh.json"
+    made = client.call("new_document", path=str(fresh))
+    assert made["path"] == str(fresh)
+    assert fresh.exists()
+    assert client.call("get_document")["features"] == []
+
+    with pytest.raises(RpcError, match="already exists"):
+        client.call("new_document", path=str(fresh))
+
+
+def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
+    original = tmp_path / "part.json"
+    copy = tmp_path / "copy.json"
+    client.call("save_as", path=str(copy))
+    assert Document.load(copy).features == Document.load(original).features
+
+    client.call("set_parameter", name="width", value=55)
+    assert Document.load(copy).parameters == {"width": 55}
+    assert Document.load(original).parameters == {}, "the first file is where it was left"
+
+
+def test_an_agent_cannot_swap_the_users_document():
+    """Opening and saving are the user's, through the app's menus. The agent's
+    tools edit the open document and nothing else."""
+    from sprocket_engine.mcp_server import document_tools, op_tools
+
+    names = {tool.name for tool in document_tools() + op_tools()}
+    assert not names & {"open_document", "new_document", "save_as"}

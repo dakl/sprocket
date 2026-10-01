@@ -7,13 +7,8 @@ struct ContentView: View {
         case failed(String)
     }
 
+    @EnvironmentObject private var store: DocumentStore
     @State private var status: Status = .starting
-
-    // SPROCKET_DOCUMENT opens a different part, so a throwaway document can be
-    // edited without risking the one in examples/.
-    private let document = ProcessInfo.processInfo.environment["SPROCKET_DOCUMENT"]
-        .map { URL(fileURLWithPath: $0) }
-        ?? RepoPaths.examplesDir.appendingPathComponent("box.json")
 
     var body: some View {
         Group {
@@ -35,6 +30,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 640, minHeight: 480)
+        .navigationTitle(store.title)
         .task {
             await start()
         }
@@ -45,12 +41,15 @@ struct ContentView: View {
     /// connection, so the page has a part to load when it opens.
     private func start() async {
         EngineDaemon.shared.onExit = { status = .failed("The engine stopped. Quit and reopen the app.") }
+        let document = store.startupDocument()
         do {
-            try await Task.detached { [document] in
+            try await Task.detached {
                 try EngineDaemon.shared.start(document: document, viewerDir: RepoPaths.viewerDir)
             }.value
             status = .ready
+            store.ready = true
         } catch {
+            store.forgetLastDocument()
             status = .failed("Could not start the engine: \(error.localizedDescription)")
         }
     }

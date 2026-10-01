@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct SprocketApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var store = DocumentStore()
 
     init() {
         // Redirected stdout is fully buffered, not line-buffered, so log
@@ -34,8 +35,13 @@ struct SprocketApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Sprocket") {
+        // One window: the engine daemon holds one open document.
+        Window("Sprocket", id: "main") {
             ContentView()
+                .environmentObject(store)
+        }
+        .commands {
+            FileCommands(store: store)
         }
     }
 }
