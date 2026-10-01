@@ -33,6 +33,7 @@ from pathlib import Path
 from .document import Document, DocumentError, StaleRevision, validate_feature
 from .geometry import describe, measure
 from .ops import REGISTRY
+from .ops.sketch import sketch_profiles
 from .render import render_png
 from .replay import build_shape, replay
 from .viewer_files import write_viewer_files
@@ -503,6 +504,17 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
     }
 
 
+def _get_profiles(daemon: Daemon, params: dict) -> dict:
+    """The regions of one sketch that an extrude can pick, each named by the
+    entity ids that bound it. An agent reads this to write `profiles`."""
+    feature_id = params.get("feature")
+    document = daemon.session.document
+    feature = document.for_replay()["features"][document.index_of(feature_id)]
+    if feature.get("type") != "sketch":
+        raise DocumentError(f"feature {feature_id!r} is a {feature.get('type')}, not a sketch")
+    return {"feature": feature_id, "profiles": sketch_profiles(feature)}
+
+
 def _describe_geometry(daemon: Daemon, params: dict) -> dict:
     return describe(daemon.session.require_shape())
 
@@ -578,6 +590,7 @@ METHODS = {
     "undo": _undo,
     "redo": _redo,
     "preview_feature": _preview_feature,
+    "get_profiles": _get_profiles,
     "describe_geometry": _describe_geometry,
     "measure": _measure,
     "render_view": _render_view,

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .mesh import export_mesh
 from .ops import REGISTRY
+from .ops.sketch import sketch_profiles
 
 
 def features_summary(document, failed_feature: str | None) -> list[dict]:
@@ -24,11 +25,18 @@ def features_summary(document, failed_feature: str | None) -> list[dict]:
             "active": index < document.rollback_index,
             "feature": feature,
         }
-        # The viewer draws a sketch's outline from these two, and only knows how
-        # for a polygon. A rect or circle sketch has none.
-        if feature.get("type") == "sketch" and "polygon" in feature:
+        if feature.get("type") == "sketch":
             entry["plane"] = feature["plane"]
-            entry["polygon"] = feature["polygon"]
+            # Only a polygon has corners the viewer can drag.
+            if "polygon" in feature:
+                entry["polygon"] = feature["polygon"]
+        if feature.get("type") == "sketch":
+            try:
+                entry["regions"] = sketch_profiles(feature)
+            except Exception:
+                # A sketch the engine cannot read has no regions to show. The
+                # timeline still has to list it so it can be fixed.
+                entry["regions"] = []
         if feature.get("id") == failed_feature:
             entry["failed"] = True
         entries.append(entry)

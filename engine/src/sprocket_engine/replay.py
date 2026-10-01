@@ -32,6 +32,9 @@ class Context:
     """Carries each feature's result forward so later features can reference it."""
 
     results: dict = field(default_factory=dict)
+    # The features replayed so far, by id. An extrude that picks a region needs
+    # the sketch's entities, which the sketch's shape no longer carries.
+    features: dict = field(default_factory=dict)
 
 
 def replay(document: dict, cache_dir: Path | None = None):
@@ -74,6 +77,7 @@ def replay(document: dict, cache_dir: Path | None = None):
                 cache.put(key, result)
 
         ctx.results[feature["id"]] = result
+        ctx.features[feature["id"]] = feature
         upstream_key = key
         last_result = result
 

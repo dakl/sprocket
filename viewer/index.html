@@ -318,6 +318,7 @@
       white-space: nowrap;
     }
 
+    #sketch-draw-panel { flex-wrap: wrap; justify-content: center; max-width: 92vw; white-space: normal; }
     #sketch-plane-panel > *, #sketch-draw-panel > * { flex-shrink: 0; }
 
     #sketch-plane-panel button, #sketch-draw-panel button {
@@ -330,11 +331,60 @@
       cursor: pointer;
     }
 
+    #sketch-draw-panel button:disabled { opacity: 0.35; cursor: default; }
+    #sketch-draw-panel button.active { background: #5be0a0; color: #103; border-color: #5be0a0; }
+    .sketch-panel-group { display: flex; gap: 4px; padding-right: 10px; border-right: 1px solid #444; }
     .sketch-hint-inline { color: #999; }
-    #sketch-tool-rect.active, #sketch-tool-polygon.active { background: #5be0a0; color: #103; border-color: #5be0a0; }
     #sketch-finish { background: #5be0a0; color: #103; border-color: #5be0a0; }
     #sketch-plane-cancel, #sketch-cancel { background: #444; }
-    #sketch-draw-hint { color: #999; min-width: 12em; }
+    #sketch-status { color: #bbb; min-width: 14em; }
+    #sketch-state { color: #5be0a0; }
+
+    #sketch-labels { position: fixed; left: 0; top: 0; pointer-events: none; }
+    .sketch-dimension-label {
+      position: fixed;
+      pointer-events: auto;
+      background: rgba(30, 30, 30, 0.85);
+      color: #ffdd55;
+      font: 12px -apple-system, sans-serif;
+      padding: 1px 5px;
+      border-radius: 3px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .sketch-snap { position: fixed; pointer-events: none; }
+    .sketch-snap .glyph {
+      position: absolute;
+      left: -6px;
+      top: -6px;
+      width: 12px;
+      height: 12px;
+      box-sizing: border-box;
+      border: 2px solid #ffdd55;
+    }
+    .sketch-snap[data-kind="curve"] .glyph { border-radius: 50%; }
+    .sketch-snap .text {
+      position: absolute;
+      left: 12px;
+      top: 8px;
+      white-space: nowrap;
+      background: rgba(30, 30, 30, 0.85);
+      color: #ffdd55;
+      font: 12px -apple-system, sans-serif;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    #sketch-dimension {
+      position: fixed;
+      display: none;
+      width: 84px;
+      font: 13px -apple-system, sans-serif;
+      padding: 3px 6px;
+      border: 1px solid #ffdd55;
+      border-radius: 4px;
+      background: #222;
+      color: #fff;
+    }
 
     #view-cube {
       position: fixed;
@@ -441,12 +491,32 @@
     <button id="sketch-plane-cancel">Cancel</button>
   </div>
   <div id="sketch-draw-panel">
-    <button id="sketch-tool-rect" class="active">Rectangle</button>
-    <button id="sketch-tool-polygon">Polygon</button>
-    <span id="sketch-draw-hint"></span>
-    <button id="sketch-finish">Finish</button>
+    <div class="sketch-panel-group">
+      <button data-tool="select" title="Select and drag (S)">Select</button>
+      <button data-tool="line" title="Line (L)">Line</button>
+      <button data-tool="rectangle" title="Rectangle (R)">Rectangle</button>
+      <button data-tool="circle" title="Circle (C)">Circle</button>
+      <button data-tool="arc" title="Three-point arc (A)">Arc</button>
+      <button data-tool="dimension" title="Dimension (D)">Dimension</button>
+    </div>
+    <div class="sketch-panel-group">
+      <button data-constraint="coincident" title="Two points meet">Coincident</button>
+      <button data-constraint="point_on" title="A point lies on a line, circle or arc">On curve</button>
+      <button data-constraint="horizontal" title="A line, or two points, level">Horizontal</button>
+      <button data-constraint="vertical" title="A line, or two points, upright">Vertical</button>
+      <button data-constraint="parallel" title="Two lines parallel">Parallel</button>
+      <button data-constraint="perpendicular" title="Two lines at a right angle">Perpendicular</button>
+      <button data-constraint="tangent" title="A curve touches a line or curve">Tangent</button>
+      <button data-constraint="equal" title="Equal length or radius">Equal</button>
+      <button data-constraint="fix" title="Lock a point or shape in place">Fix</button>
+    </div>
+    <span id="sketch-status"></span>
+    <span id="sketch-state"></span>
+    <button id="sketch-finish">Finish sketch</button>
     <button id="sketch-cancel">Cancel</button>
   </div>
+  <div id="sketch-labels"></div>
+  <input id="sketch-dimension" type="text" autocomplete="off" spellcheck="false" />
   <div id="timeline"></div>
   <aside id="properties" hidden></aside>
   <div id="view-cube">
@@ -461,6 +531,10 @@
   <script src="vendor/OrbitControls.js"></script>
   <script src="params-form.js"></script>
   <script src="edits.js"></script>
+  <script src="vendor/planegcs.js"></script>
+  <script src="sketch-solver.js"></script>
+  <script src="sketch-model.js"></script>
+  <script src="sketcher.js"></script>
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
     // timeline, no live engine connection yet — see docs/SPEC.md M3+.
@@ -534,6 +608,26 @@
       gridColors[i] = c < 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     }
     scene.add(grid);
+
+    // The world axes, hidden until the browser tree turns them on. They run as
+    // far as the grid. While a sketch is open, a visible axis that lies in its
+    // plane is something to snap to (see sketcher.js).
+    const AXES = {
+      x: { name: "X", direction: new THREE.Vector3(1, 0, 0), colour: 0xff5a5a },
+      y: { name: "Y", direction: new THREE.Vector3(0, 1, 0), colour: 0x5ad25a },
+      z: { name: "Z", direction: new THREE.Vector3(0, 0, 1), colour: 0x5a9bff },
+    };
+    const axesVisible = { x: false, y: false, z: false };
+    const axisLines = {};
+    for (const [key, axis] of Object.entries(AXES)) {
+      const reach = axis.direction.clone().multiplyScalar(100);
+      axisLines[key] = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([reach.clone().negate(), reach]),
+        new THREE.LineBasicMaterial({ color: srgb(axis.colour) })
+      );
+      axisLines[key].visible = false;
+      scene.add(axisLines[key]);
+    }
 
     function frameCameraOn(object) {
       const box = new THREE.Box3().setFromObject(object);
@@ -805,6 +899,9 @@
           openProperties(feature.id);
         });
         chip.appendChild(edit);
+        chip.addEventListener("dblclick", () => {
+          if (feature.type === "sketch" && feature.active && feature.feature.entities) editSketch(feature);
+        });
         chip.addEventListener("click", () => {
           // A sketch is inert (see cli.py's _last_solid_index) - clicking one
           // selects it, for extruding or for dragging its corners, instead of
@@ -1303,14 +1400,15 @@
     /// to visible.
     function applyVisibility() {
       grid.visible = gridVisible;
+      for (const key of Object.keys(AXES)) axisLines[key].visible = axesVisible[key];
       if (mesh) mesh.visible = bodyVisible;
       if (edgeLines) edgeLines.visible = bodyVisible;
       sketchOutlines.forEach((entry) => {
         const visible = !hiddenSketchIDs.has(entry.feature.id);
         entry.line.visible = visible;
-        // The fill is the click target (see raycastSketch), so hiding it is
-        // also what makes a hidden sketch unpickable in the viewport.
-        entry.fill.visible = visible;
+        // The fills are the click targets (see raycastSketch), so hiding them
+        // is also what makes a hidden sketch unpickable in the viewport.
+        entry.fills.forEach((fill) => (fill.visible = visible));
         if (!visible) entry.handles.visible = false;
       });
     }
@@ -1327,12 +1425,13 @@
 
     function visibleSketches() {
       return browserFeatures.filter(
-        (feature) => feature.type === "sketch" && feature.plane && feature.polygon && !hiddenSketchIDs.has(feature.id)
+        (feature) => feature.type === "sketch" && feature.plane && feature.regions && !hiddenSketchIDs.has(feature.id)
       );
     }
 
     function setEverythingVisible(visible) {
       gridVisible = visible;
+      for (const key of Object.keys(AXES)) axesVisible[key] = visible;
       bodyVisible = visible;
       hiddenSketchIDs.clear();
       if (!visible) {
@@ -1382,9 +1481,10 @@
       }
 
       const sketches = browserFeatures.filter(
-        (feature) => feature.type === "sketch" && feature.plane && feature.polygon
+        (feature) => feature.type === "sketch" && feature.plane && feature.regions
       );
-      const anythingVisible = gridVisible || (Boolean(mesh) && bodyVisible) || visibleSketches().length > 0;
+      const anyAxisVisible = Object.values(axesVisible).some(Boolean);
+      const anythingVisible = gridVisible || anyAxisVisible || (Boolean(mesh) && bodyVisible) || visibleSketches().length > 0;
 
       addRow({
         depth: 0,
@@ -1405,6 +1505,32 @@
           renderBrowser();
         },
       });
+
+      addRow({
+        depth: 1,
+        group: "origin",
+        label: "Origin",
+        visible: anyAxisVisible,
+        onToggle: () => {
+          for (const key of Object.keys(AXES)) axesVisible[key] = !anyAxisVisible;
+          applyVisibility();
+          renderBrowser();
+        },
+      });
+      if (!collapsedGroups.has("origin")) {
+        for (const [key, axis] of Object.entries(AXES)) {
+          addRow({
+            depth: 2,
+            label: axis.name + " axis",
+            visible: axesVisible[key],
+            onToggle: () => {
+              axesVisible[key] = !axesVisible[key];
+              applyVisibility();
+              renderBrowser();
+            },
+          });
+        }
+      }
 
       addRow({
         depth: 1,
@@ -1496,6 +1622,7 @@
 
     let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
     let selectedEdge = null; // { edgeIndex }: a B-rep edge, in shape.edges() order
+    let selectedRegions = []; // indices into selectedSketch.regions that Extrude will push
     let selectedSketch = null; // a features.json entry: any replayed sketch, picked in the 3D view or via its timeline chip
     // A live corner or edge drag on the selected sketch:
     // { feature, plane, kind, indices, polygon, lastUV }. polygon is a working
@@ -1506,13 +1633,14 @@
     let dragLocked = false; // true once the user clicks to fix the distance, before OK
     let distanceTyped = false; // the user typed into the distance box, so the drag stops writing to it
     let previewState = null; // { basePositions, offsetFlags, previewMesh, previewGeometry, dragPlane, distance }
+    let sketchExtrudeRegions = []; // the regions armSketchExtrude() is pushing
     let sketchExtrudeFeature = null; // the features.json entry armSketchExtrude() is dragging
     let sketchExtrudeAxis = null; // THREE.Vector3, the sketch plane's normal
     let sketchExtrudeAnchor = null; // THREE.Vector3, the sketch polygon's centroid
 
     renderer.domElement.addEventListener("pointermove", (event) => {
       if (sketchStage === "draw") {
-        handleSketchHover(event);
+        sketcher.pointerMove(event);
         return;
       }
       if (sketchStage === "pick-plane") {
@@ -1567,7 +1695,7 @@
         return;
       }
       if (sketchStage === "draw") {
-        handleSketchClick(event);
+        sketcher.pointerDown(event);
         return;
       }
       if (extrudeArmed && !dragLocked) {
@@ -1596,7 +1724,7 @@
         const faceInFront = raycastFace(event);
         const tolerance = worldRadius(SKETCH_PICK_PIXELS, sketchHit.point);
         if (!faceInFront || faceInFront.distance >= sketchHit.distance - tolerance) {
-          selectSketchForExtrude(sketchHit.feature);
+          selectSketchForExtrude(sketchHit.feature, sketchHit.regionIndex, event.shiftKey);
           return;
         }
       }
@@ -1631,6 +1759,7 @@
     // ContentView's updateSketchPolygon). Not on the canvas: releasing outside
     // it would otherwise leave the drag live.
     window.addEventListener("pointerup", () => {
+      if (sketchStage === "draw") sketcher.pointerUp();
       if (!sketchEditDrag) return;
       const { feature, polygon } = sketchEditDrag;
       sketchEditDrag = null;
@@ -1643,18 +1772,29 @@
     // its timeline chip. A selected sketch is what E extrudes, and what a
     // corner or edge drag edits - the user's own rule is "a sketch stays flat
     // until you select it and choose extrude."
-    function selectSketchForExtrude(feature) {
+     function selectSketchForExtrude(feature, regionIndex, additive) {
       if (extrudeArmed) return;
+      const sameSketch = selectedSketch && selectedSketch.id === feature.id;
+      const all = feature.regions.map((_, index) => index);
+      if (regionIndex === undefined) selectedRegions = all;
+      else if (additive && sameSketch) {
+        selectedRegions = selectedRegions.includes(regionIndex)
+          ? selectedRegions.filter((index) => index !== regionIndex)
+          : [...selectedRegions, regionIndex];
+      } else selectedRegions = [regionIndex];
       selectedSketch = feature;
       selectedPatch = null;
       clearEdgeSelection();
       clearHighlight();
       renderSketchSelection();
       hideHint();
-      showHint("Sketch " + feature.id + " selected, drag a corner or edge to change it");
+      showHint(
+        feature.polygon
+          ? "Sketch " + feature.id + " selected, drag a corner or edge to change it"
+          : "Sketch " + feature.id + ": " + selectedRegions.length + " of " + all.length + " regions picked. Shift adds more, E extrudes."
+      );
       selectionChanged();
     }
-
     // How close, in screen pixels, the pointer must be to a corner or an edge
     // to grab it. In pixels rather than mm so it holds at any zoom.
     const SKETCH_PICK_PIXELS = 10;
@@ -1810,13 +1950,16 @@
     // same drag-to-set-distance interaction as armExtrude(), but there's no
     // mesh patch to push - the "face" is the sketch's own flat polygon, and
     // its normal is the sketch plane's normal.
-    function armSketchExtrude(feature) {
+     function armSketchExtrude(feature) {
       armedMode = "sketch";
       const plane = resolveStoredPlane(feature.plane);
       const axis = new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize();
-      const anchor = feature.polygon
-        .reduce((sum, [u, v]) => sum.add(plane.origin.clone().addScaledVector(plane.xDir, u).addScaledVector(plane.yDir, v)), new THREE.Vector3())
-        .divideScalar(feature.polygon.length);
+      const picked = selectedRegions.map((index) => feature.regions[index]);
+      if (!picked.length) return;
+      // Anchor the drag at the middle of the first picked region's outline.
+      const [first] = picked;
+      const mean = first.outline.reduce((sum, [u, v]) => [sum[0] + u / first.outline.length, sum[1] + v / first.outline.length], [0, 0]);
+      const anchor = worldOfPlane(plane, mean);
 
       const cameraToAnchor = anchor.clone().sub(camera.position).normalize();
       let planeNormal = new THREE.Vector3().crossVectors(axis, cameraToAnchor).cross(axis);
@@ -1832,6 +1975,7 @@
       scene.add(previewMesh);
 
       sketchExtrudeFeature = feature;
+      sketchExtrudeRegions = picked;
       sketchExtrudeAxis = axis;
       sketchExtrudeAnchor = anchor;
       previewState = { previewMesh, previewGeometry: previewMesh.geometry, dragPlane, distance: 0.01 };
@@ -1845,7 +1989,6 @@
       updateSketchPreviewGeometry(previewState.distance);
       focusDistanceBox();
     }
-
     /// Puts the caret in the distance box on arm, so a typed value needs no
     /// click first. Selected, so the first keystroke replaces the drag's value.
     function focusDistanceBox() {
@@ -1855,11 +1998,15 @@
 
     // Builds a prism from the sketch's own polygon, extruded along its plane
     // normal by `distance` (negative goes the other way, previewing a cut).
-    function buildSketchExtrudePreviewGeometry(feature, distance) {
+     function buildSketchExtrudePreviewGeometry(feature, regions, distance) {
       const plane = resolveStoredPlane(feature.plane);
-      const shape = new THREE.Shape(feature.polygon.map(([u, v]) => new THREE.Vector2(u, v)));
+      const shapes = regions.map((region) => {
+        const shape = new THREE.Shape(region.outline.map(([u, v]) => new THREE.Vector2(u, v)));
+        region.holes.forEach((hole) => shape.holes.push(new THREE.Path(hole.map(([u, v]) => new THREE.Vector2(u, v)))));
+        return shape;
+      });
       const depth = Math.max(Math.abs(distance), 0.001);
-      const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 1 });
+      const geometry = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false, curveSegments: 1 });
       if (distance < 0) geometry.translate(0, 0, -depth);
       const normal = new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize();
       const basis = new THREE.Matrix4().makeBasis(plane.xDir, plane.yDir, normal);
@@ -1867,9 +2014,8 @@
       geometry.applyMatrix4(basis);
       return geometry;
     }
-
     function updateSketchPreviewGeometry(distance) {
-      const geometry = buildSketchExtrudePreviewGeometry(sketchExtrudeFeature, distance);
+      const geometry = buildSketchExtrudePreviewGeometry(sketchExtrudeFeature, sketchExtrudeRegions, distance);
       previewState.previewMesh.geometry.dispose();
       previewState.previewMesh.geometry = geometry;
       previewState.previewGeometry = geometry;
@@ -1953,7 +2099,11 @@
 
     function commitExtrude() {
       const message = armedMode === "sketch"
-        ? { type: "extrude_sketch", profile: sketchExtrudeFeature.id, distance: previewState.distance }
+        ? {
+            type: "extrude_sketch",
+            profiles: sketchExtrudeRegions.map((region) => ({ sketch: sketchExtrudeFeature.id, bounded_by: region.bounded_by, inside: region.inside })),
+            distance: previewState.distance,
+          }
         : { type: "extrude_face", point: selectedPatch.anchorPoint.toArray(), normal: selectedPatch.normal.toArray(), distance: previewState.distance };
       cancelExtrude();
       sendCommand(message);
@@ -1967,12 +2117,12 @@
       // The parameter form is a text field: "e" and "s" are letters there, and
       // Cmd+Z undoes the typing rather than the document.
       if (propertiesEl.contains(document.activeElement)) return;
+      if (sketchStage === "draw") {
+        sketcher.keyDown(event);
+        return;
+      }
       if (sketchStage) {
-        if (event.key === "Escape") {
-          cancelSketch();
-        } else if (event.key === "Enter" && sketchTool === "polygon" && sketchPoints.length >= 3) {
-          finishSketch(sketchPoints);
-        }
+        if (event.key === "Escape") cancelSketch();
         return;
       }
       // Typing in the distance box must not trigger shortcuts: "e" would
@@ -2015,18 +2165,50 @@
 
     let sketchStage = null; // null | "pick-plane" | "draw"
     let sketchPlane = null; // { origin, normal, xDir, yDir, ref } - ref is "XY"/"XZ"/"YZ" or null for a picked face
-    let sketchTool = "rect"; // "rect" | "polygon"
-    let sketchPoints = []; // Vector3[], world-space, placed so far
-    let sketchHoverPoint = null;
     let sketchPlaneHelper = null;
-    let sketchPreviewLine = null;
     let dimmedMeshState = null; // { transparent, opacity } to restore on exit
 
     const sketchPlanePanelEl = document.getElementById("sketch-plane-panel");
     const sketchDrawPanelEl = document.getElementById("sketch-draw-panel");
-    const sketchDrawHintEl = document.getElementById("sketch-draw-hint");
-    const sketchToolRectEl = document.getElementById("sketch-tool-rect");
-    const sketchToolPolygonEl = document.getElementById("sketch-tool-polygon");
+    const sketcher = createSketcher({
+      THREE,
+      scene,
+      camera,
+      renderer,
+      srgb,
+      model: SketchModel,
+      solver: SketchSolver,
+      rayFor(event) {
+        raycaster.setFromCamera(pointerNDC(event), camera);
+        return raycaster.ray;
+      },
+      worldRadius,
+      /// The world axes now shown, as {name, direction}.
+      visibleAxes: () => Object.entries(AXES).filter(([key]) => axesVisible[key]).map(([, axis]) => axis),
+      setCameraEnabled(enabled) {
+        controls.enabled = enabled;
+      },
+      cancel: () => cancelSketch(),
+      commit(message) {
+        exitSketchMode();
+        sendCommand(message);
+      },
+      planePayload: (plane) =>
+        plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
+      ui: {
+        tools: [...sketchDrawPanelEl.querySelectorAll("[data-tool]")],
+        constraints: [...sketchDrawPanelEl.querySelectorAll("[data-constraint]")],
+        status: document.getElementById("sketch-status"),
+        state: document.getElementById("sketch-state"),
+        finish: document.getElementById("sketch-finish"),
+        cancel: document.getElementById("sketch-cancel"),
+        labels: document.getElementById("sketch-labels"),
+        dimension: document.getElementById("sketch-dimension"),
+      },
+    });
+    renderer.domElement.addEventListener("dblclick", () => {
+      if (sketchStage === "draw") sketcher.doubleClick();
+    });
 
     // A picked face only gives a normal, not an in-plane x-axis, so one is
     // built the same way for JS and Python: cross world-up into the normal,
@@ -2071,90 +2253,140 @@
     // Draws a closed outline for every sketch feature in the timeline, since
     // a bare sketch has no solid of its own to show. Rebuilt wholesale on
     // every features.json load - cheap, and simpler than diffing.
+     function worldOfPlane(plane, [u, v]) {
+      return plane.origin.clone().addScaledVector(plane.xDir, u).addScaledVector(plane.yDir, v);
+    }
+
+    /// Every entity of a drawn sketch as one run of line segments, in world space.
+    function entityOutlinePoints(feature, plane) {
+      const points = [];
+      const arcPoints = (entity, steps, start, end) =>
+        Array.from({ length: steps + 1 }, (_, step) => {
+          const angle = start + ((end - start) * step) / steps;
+          return worldOfPlane(plane, [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)]);
+        });
+      for (const entity of feature.feature.entities) {
+        const run =
+          entity.kind === "line"
+            ? [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)]
+            : entity.kind === "circle"
+              ? arcPoints(entity, 72, 0, 2 * Math.PI)
+              : arcPoints(entity, 48, entity.a0, entity.a1);
+        run.slice(1).forEach((point, index) => points.push(run[index], point));
+      }
+      return points;
+    }
+
+    /// A region as a flat mesh in world space: its outline with its holes cut out.
+    function regionFillGeometry(region, plane) {
+      const shape = new THREE.Shape(region.outline.map(([u, v]) => new THREE.Vector2(u, v)));
+      region.holes.forEach((hole) => shape.holes.push(new THREE.Path(hole.map(([u, v]) => new THREE.Vector2(u, v)))));
+      const geometry = new THREE.ShapeGeometry(shape);
+      // Baked into the geometry rather than set as the mesh's matrix, so
+      // raycasting needs no matrixWorld update pass to see it.
+      geometry.applyMatrix4(
+        new THREE.Matrix4()
+          .makeBasis(plane.xDir, plane.yDir, new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize())
+          .setPosition(plane.origin)
+      );
+      return geometry;
+    }
+
+    // Draws every sketch feature in the timeline, since a bare sketch has no
+    // solid of its own to show. A drawn sketch shows its entities and one fill
+    // per closed region, which is what a click picks and Extrude pushes. A
+    // polygon sketch shows its outline and corner handles. Rebuilt wholesale on
+    // every features.json load: cheap, and simpler than diffing.
     function renderSketchOutlines(features) {
       sketchOutlineGroup.clear();
       sketchOutlines = [];
       features
-        .filter((feature) => feature.type === "sketch" && feature.plane && feature.polygon)
+        .filter((feature) => feature.type === "sketch" && feature.plane && feature.regions)
         .forEach((feature) => {
           const plane = resolveStoredPlane(feature.plane);
-          const points = feature.polygon.map(([u, v]) => plane.origin.clone().addScaledVector(plane.xDir, u).addScaledVector(plane.yDir, v));
-          points.push(points[0]);
-          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const drawn = Boolean(feature.feature.entities);
+          const points = drawn ? entityOutlinePoints(feature, plane) : feature.polygon ? feature.polygon.map(([u, v]) => worldOfPlane(plane, [u, v])) : [];
+          const geometry = new THREE.BufferGeometry().setFromPoints(drawn || !points.length ? points : points.concat([points[0]]));
           // A sketch drawn on an existing face sits exactly on the mesh
           // surface, which z-fights with a normal line. depthTest off plus a
           // high renderOrder draws it on top unconditionally instead, so it
-          // stays visible regardless of camera angle - the user's explicit
+          // stays visible regardless of camera angle: the user's explicit
           // requirement for a bare, unextruded sketch.
           const material = new THREE.LineBasicMaterial({ color: srgb(feature.active ? 0x5be0a0 : 0x666666), depthTest: false });
-          const line = new THREE.Line(geometry, material);
+          const line = drawn ? new THREE.LineSegments(geometry, material) : new THREE.Line(geometry, material);
           line.renderOrder = 999;
           sketchOutlineGroup.add(line);
 
-          // An invisible fill over the same polygon, so a click anywhere
-          // inside the sketch picks it. Raycasting the outline alone would
-          // need pixel-accurate aim along a 1px line.
-          const shape = new THREE.Shape(feature.polygon.map(([u, v]) => new THREE.Vector2(u, v)));
-          const fillGeometry = new THREE.ShapeGeometry(shape);
-          // Baked into the geometry rather than set as the mesh's matrix, so
-          // raycasting needs no matrixWorld update pass to see it.
-          fillGeometry.applyMatrix4(
-            new THREE.Matrix4()
-              .makeBasis(plane.xDir, plane.yDir, new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize())
-              .setPosition(plane.origin)
-          );
-          const fill = new THREE.Mesh(fillGeometry, new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
-          sketchOutlineGroup.add(fill);
+          // One mesh per region, so a click anywhere inside picks it instead
+          // of needing pixel-accurate aim along a 1px line. Faintly visible for
+          // a drawn sketch, which is how the regions "light up" once it is
+          // finished. A polygon's stays invisible: the outline is the cue.
+          const fills = feature.regions.map((region, regionIndex) => {
+            const fill = new THREE.Mesh(
+              regionFillGeometry(region, plane),
+              new THREE.MeshBasicMaterial({
+                color: srgb(0x5be0a0),
+                transparent: true,
+                opacity: 0,
+                visible: drawn,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+              })
+            );
+            fill.userData.regionIndex = regionIndex;
+            sketchOutlineGroup.add(fill);
+            return fill;
+          });
 
-          // Corner markers, shown only while the sketch is selected. They are
-          // the visible cue that a corner can be dragged; the hit test itself
-          // works in the plane's uv (see pickSketchPart), not off these points.
-          // Fixed pixel size, so they stay grabbable at any zoom.
+          // Corner markers, shown only while a polygon sketch is selected. They
+          // are the visible cue that a corner can be dragged; the hit test
+          // itself works in the plane's uv (see pickSketchPart), not off these
+          // points. Fixed pixel size, so they stay grabbable at any zoom.
           const handles = new THREE.Points(
-            new THREE.BufferGeometry().setFromPoints(points.slice(0, -1)),
+            new THREE.BufferGeometry().setFromPoints(feature.polygon ? points : []),
             new THREE.PointsMaterial({ color: 0xffdd55, size: 8, sizeAttenuation: false, depthTest: false })
           );
           handles.renderOrder = 1000;
           sketchOutlineGroup.add(handles);
-          sketchOutlines.push({ feature, line, fill, handles });
+          sketchOutlines.push({ feature, line, fills, handles, drawn });
         });
       renderSketchSelection();
       applyVisibility();
     }
-
     /// Recolours every sketch outline and shows the selected one's corner
     /// handles: the selected sketch yellow, the rest by whether the build
     /// replayed them. Called after any selection change.
-    function renderSketchSelection() {
-      sketchOutlines.forEach(({ feature, line, handles }) => {
+     function renderSketchSelection() {
+      sketchOutlines.forEach(({ feature, line, fills, handles, drawn }) => {
         const selected = selectedSketch && selectedSketch.id === feature.id;
         line.material.color.copy(srgb(selected ? 0xffdd55 : feature.active ? 0x5be0a0 : 0x666666));
         handles.visible = Boolean(selected) && !hiddenSketchIDs.has(feature.id);
+        // A drawn sketch's regions glow faintly, and the picked ones brightly.
+        fills.forEach((fill) => {
+          const picked = selected && selectedRegions.includes(fill.userData.regionIndex);
+          fill.material.opacity = !drawn || !feature.active ? 0 : picked ? 0.55 : 0.16;
+          fill.material.color.copy(srgb(picked ? 0xffaa00 : 0x5be0a0));
+        });
       });
     }
-
     /// The nearest sketch under the pointer, or null. Every replayed sketch
     /// qualifies, not just the one at the tip: extruding one appends onto the
     /// current tip solid (see ContentView's appendExtrudeSketchFeature), and
     /// editing one replays the whole timeline over the new profile. A sketch
     /// the build rolled past is skipped - it is not in the document prefix an
     /// extrude would be appended to.
-    function raycastSketch(event) {
-      const candidates = sketchOutlines.filter(({ feature, fill }) => feature.active && fill.visible);
+     function raycastSketch(event) {
+      const candidates = sketchOutlines.filter(({ feature, fills }) => feature.active && fills[0] && fills[0].visible);
       if (!candidates.length) return null;
       raycaster.setFromCamera(pointerNDC(event), camera);
-      const hits = raycaster.intersectObjects(candidates.map(({ fill }) => fill));
+      const hits = raycaster.intersectObjects(candidates.flatMap(({ fills }) => fills));
       if (!hits.length) return null;
-      const entry = candidates.find(({ fill }) => fill === hits[0].object);
-      return entry ? { feature: entry.feature, distance: hits[0].distance, point: hits[0].point } : null;
+      const entry = candidates.find(({ fills }) => fills.includes(hits[0].object));
+      return entry
+        ? { feature: entry.feature, regionIndex: hits[0].object.userData.regionIndex, distance: hits[0].distance, point: hits[0].point }
+        : null;
     }
-
-    function rectangleCorners(a, b) {
-      const [ua, va] = sketchToLocal(a);
-      const [ub, vb] = sketchToLocal(b);
-      return [sketchToWorld(ua, va), sketchToWorld(ub, va), sketchToWorld(ub, vb), sketchToWorld(ua, vb)];
-    }
-
+ 
     function buildSketchPlaneHelper(plane) {
       const size = 300;
       const geometry = new THREE.PlaneGeometry(size, size);
@@ -2171,83 +2403,57 @@
       return helperMesh;
     }
 
-    function sketchRaycastPoint(event) {
-      const rect = renderer.domElement.getBoundingClientRect();
-      const ndc = new THREE.Vector2(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1
-      );
-      raycaster.setFromCamera(ndc, camera);
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(sketchPlane.normal, sketchPlane.origin);
-      const hit = new THREE.Vector3();
-      return raycaster.ray.intersectPlane(plane, hit) ? hit : null;
-    }
-
-    function isNearScreenPoint(event, worldPoint, thresholdPx) {
-      const rect = renderer.domElement.getBoundingClientRect();
-      const projected = worldPoint.clone().project(camera);
-      const screenX = ((projected.x + 1) / 2) * rect.width + rect.left;
-      const screenY = ((1 - projected.y) / 2) * rect.height + rect.top;
-      const dx = event.clientX - screenX;
-      const dy = event.clientY - screenY;
-      return Math.sqrt(dx * dx + dy * dy) < thresholdPx;
-    }
-
-    function updateSketchDrawHint() {
-      if (sketchTool === "rect") {
-        sketchDrawHintEl.textContent = sketchPoints.length === 0 ? "Click first corner" : "Click opposite corner";
-      } else {
-        sketchDrawHintEl.textContent =
-          sketchPoints.length < 3
-            ? "Click to add points (" + sketchPoints.length + ")"
-            : "Click near the start to finish, or press Enter";
-      }
-    }
-
-    function updateSketchPreview() {
-      let previewPoints = [];
-      if (sketchTool === "rect") {
-        if (sketchPoints.length === 1 && sketchHoverPoint) {
-          const corners = rectangleCorners(sketchPoints[0], sketchHoverPoint);
-          previewPoints = [...corners, corners[0]];
-        }
-      } else {
-        previewPoints = sketchPoints.slice();
-        if (sketchHoverPoint) previewPoints.push(sketchHoverPoint);
-      }
-      sketchPreviewLine.geometry.dispose();
-      sketchPreviewLine.geometry =
-        previewPoints.length >= 2 ? new THREE.BufferGeometry().setFromPoints(previewPoints) : new THREE.BufferGeometry();
-    }
-
+ 
+ 
+ 
+ 
     function startSketchPickPlane() {
       sketchStage = "pick-plane";
       sketchPlanePanelEl.style.display = "flex";
       updateToolbarState();
     }
 
-    function enterSketchDrawStage() {
+    /// Opens the sketcher on `sketchPlane`. Pass an entity sketch's feature to
+    /// redraw it instead of starting a new one.
+    function enterSketchDrawStage(feature) {
       sketchStage = "draw";
       clearHighlight();
       hideHint();
       sketchPlanePanelEl.style.display = "none";
       sketchDrawPanelEl.style.display = "flex";
-      sketchPoints = [];
-      sketchHoverPoint = null;
-      sketchToolRectEl.classList.toggle("active", sketchTool === "rect");
-      sketchToolPolygonEl.classList.toggle("active", sketchTool === "polygon");
-      updateSketchDrawHint();
+      sketcher.begin(sketchPlane, feature);
 
       // View the plane from whichever side the camera is already on, and roll
       // to the plane axis nearest the current screen up. Both keep the move
       // to the smallest rotation that still looks at the plane square on.
+      //
+      // A principal plane is the exception. It always opens the way Fusion does:
+      // seen from the side its normal points to, with v up the screen and u to
+      // the right (Top for XY, Front for XZ, Right for YZ). From an isometric
+      // camera the nearest roll is a coin toss, and a sketch that opens turned
+      // on its side or upside down is harder to draw in.
       const up = screenUp();
-      const side = camera.position.clone().sub(sketchPlane.origin).dot(sketchPlane.normal) < 0 ? -1 : 1;
+      const canonical = Boolean(sketchPlane.ref);
+      const side = canonical ? 1 : camera.position.clone().sub(sketchPlane.origin).dot(sketchPlane.normal) < 0 ? -1 : 1;
       const rolls = [sketchPlane.yDir, sketchPlane.xDir];
-      const nearestRoll = rolls
-        .flatMap((axis) => [axis.clone(), axis.clone().negate()])
-        .reduce((best, axis) => (axis.dot(up) > best.dot(up) ? axis : best));
-      moveCameraTo(sketchPlane.normal.clone().multiplyScalar(side), nearestRoll, sketchPlane.origin);
+      const nearestRoll = canonical
+        ? sketchPlane.yDir.clone()
+        : rolls
+            .flatMap((axis) => [axis.clone(), axis.clone().negate()])
+            .reduce((best, axis) => (axis.dot(up) > best.dot(up) ? axis : best));
+      // A new sketch starts where the click was, at the distance the camera
+      // already has. A sketch being redrawn may sit anywhere on its plane, so
+      // frame what is already drawn.
+      const framing = feature ? framingFor(feature) : null;
+      moveCameraTo(
+        sketchPlane.normal.clone().multiplyScalar(side),
+        nearestRoll,
+        framing ? framing.centre : sketchPlane.origin,
+        // On a principal plane the camera may be framed tight on a small part,
+        // and a sketch is usually wider than that. Back off to about 100 mm of
+        // view. On a picked face the user chose the zoom, so keep it.
+        framing ? framing.distance : sketchPlane.ref ? Math.max(camera.position.distanceTo(controls.target), 120) : undefined
+      );
       controls.enableRotate = false;
 
       if (mesh) {
@@ -2258,75 +2464,55 @@
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
       scene.add(sketchPlaneHelper);
-      sketchPreviewLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: srgb(0x5be0a0) }));
-      scene.add(sketchPreviewLine);
     }
 
-    function handleSketchHover(event) {
-      const point = sketchRaycastPoint(event);
-      if (!point) return;
-      sketchHoverPoint = point;
-      updateSketchPreview();
+    /// The middle of a drawn sketch's entities on the sketch plane, and a camera
+    /// distance that keeps all of them in view.
+    function framingFor(feature) {
+      const points = feature.entities.flatMap((entity) =>
+        entity.kind === "line"
+          ? [entity.p0, entity.p1]
+          : [[entity.c[0] - entity.r, entity.c[1] - entity.r], [entity.c[0] + entity.r, entity.c[1] + entity.r]]
+      );
+      const us = points.map((point) => point[0]);
+      const vs = points.map((point) => point[1]);
+      const middle = [(Math.min(...us) + Math.max(...us)) / 2, (Math.min(...vs) + Math.max(...vs)) / 2];
+      const size = Math.max(Math.max(...us) - Math.min(...us), Math.max(...vs) - Math.min(...vs));
+      return { centre: worldOfPlane(sketchPlane, middle), distance: size * 1.6 + 30 };
     }
 
-    function handleSketchClick(event) {
-      const point = sketchRaycastPoint(event);
-      if (!point) return;
-
-      if (sketchTool === "rect") {
-        if (sketchPoints.length === 0) {
-          sketchPoints.push(point);
-          updateSketchDrawHint();
-          return;
-        }
-        finishSketch(rectangleCorners(sketchPoints[0], point));
-        return;
-      }
-
-      if (sketchPoints.length >= 3 && isNearScreenPoint(event, sketchPoints[0], 12)) {
-        finishSketch(sketchPoints);
-        return;
-      }
-      sketchPoints.push(point);
-      updateSketchDrawHint();
-      updateSketchPreview();
+    /// Reopens an entity sketch for redrawing, on the plane it was drawn on.
+    let editedSketchId = null;
+    function editSketch(entry) {
+      if (sketchStage || extrudeArmed) return;
+      const feature = entry.feature;
+      const stored = resolveStoredPlane(entry.plane);
+      const normal = new THREE.Vector3().crossVectors(stored.xDir, stored.yDir).normalize();
+      sketchPlane = makeSketchPlane(stored.origin, normal, stored.xDir);
+      sketchPlane.ref = typeof entry.plane === "string" ? entry.plane : null;
+      // The sketcher draws it now, and the saved outline would sit under it.
+      editedSketchId = entry.id;
+      hiddenSketchIDs.add(entry.id);
+      applyVisibility();
+      enterSketchDrawStage(feature);
     }
 
-    function setSketchTool(tool) {
-      if (sketchStage !== "draw") return;
-      sketchTool = tool;
-      sketchPoints = [];
-      sketchToolRectEl.classList.toggle("active", tool === "rect");
-      sketchToolPolygonEl.classList.toggle("active", tool === "polygon");
-      updateSketchDrawHint();
-      updateSketchPreview();
-    }
-
-    function dedupeConsecutivePoints(points) {
-      return points.filter((point, index) => index === 0 || point.distanceTo(points[index - 1]) > 1e-6);
-    }
-
-    function finishSketch(points) {
-      const polygon = dedupeConsecutivePoints(points).map((point) => sketchToLocal(point));
-      const planePayload = sketchPlane.ref || {
-        origin: sketchPlane.origin.toArray(),
-        normal: sketchPlane.normal.toArray(),
-        x_dir: sketchPlane.xDir.toArray(),
-      };
-      const message = { type: "add_sketch", plane: planePayload, polygon: polygon };
-      exitSketchMode();
-      sendCommand(message);
-    }
-
+ 
+ 
+ 
+ 
+ 
     function cancelSketch() {
       exitSketchMode();
     }
 
     function exitSketchMode() {
+      sketcher.end();
+      if (editedSketchId) hiddenSketchIDs.delete(editedSketchId);
+      editedSketchId = null;
+      applyVisibility();
       sketchStage = null;
       sketchPlane = null;
-      sketchPoints = [];
-      sketchHoverPoint = null;
       sketchPlanePanelEl.style.display = "none";
       sketchDrawPanelEl.style.display = "none";
       clearHighlight();
@@ -2339,12 +2525,6 @@
         sketchPlaneHelper.geometry.dispose();
         sketchPlaneHelper.material.dispose();
         sketchPlaneHelper = null;
-      }
-      if (sketchPreviewLine) {
-        scene.remove(sketchPreviewLine);
-        sketchPreviewLine.geometry.dispose();
-        sketchPreviewLine.material.dispose();
-        sketchPreviewLine = null;
       }
       if (mesh && dimmedMeshState) {
         mesh.material.transparent = dimmedMeshState.transparent;
@@ -2364,16 +2544,6 @@
     });
 
     document.getElementById("sketch-plane-cancel").addEventListener("click", cancelSketch);
-    document.getElementById("sketch-cancel").addEventListener("click", cancelSketch);
-    sketchToolRectEl.addEventListener("click", () => setSketchTool("rect"));
-    sketchToolPolygonEl.addEventListener("click", () => setSketchTool("polygon"));
-    document.getElementById("sketch-finish").addEventListener("click", () => {
-      if (sketchStage === "draw" && sketchTool === "polygon" && sketchPoints.length >= 3) finishSketch(sketchPoints);
-    });
-
-    renderer.domElement.addEventListener("dblclick", () => {
-      if (sketchStage === "draw" && sketchTool === "polygon" && sketchPoints.length >= 3) finishSketch(sketchPoints);
-    });
 
     // --- View cube ---------------------------------------------------
     // A small always-on gizmo showing the main camera's orientation. Its
@@ -2465,12 +2635,12 @@
       return LOCAL_UP.clone().applyQuaternion(camera.quaternion);
     }
 
-    function moveCameraTo(direction, up, target) {
+    function moveCameraTo(direction, up, target, distance) {
       const startTarget = controls.target.clone();
       const offset = camera.position.clone().sub(startTarget);
       cameraMove = {
         startTime: performance.now(),
-        distance: offset.length() || 200,
+        distance: distance || offset.length() || 200,
         startTarget,
         endTarget: (target || startTarget).clone(),
         startQuaternion: viewQuaternion(offset.normalize(), screenUp()),
@@ -2652,6 +2822,7 @@
       requestAnimationFrame(animate);
       if (cameraMove) stepCameraMove();
       controls.update();
+      sketcher.frame();
       renderer.render(scene, camera);
       renderViewCube();
     }
@@ -2688,6 +2859,9 @@
     }
 
     window.__tcad = {
+      get axes() {
+        return { ...axesVisible };
+      },
       /// False while a mesh, a timeline or a command is still in flight.
       get idle() {
         return pendingCount === 0;
@@ -2711,10 +2885,42 @@
           face: selectedPatch ? selectedPatch.faceIndex : null,
           edge: selectedEdge ? selectedEdge.edgeIndex : null,
           sketch: selectedSketch ? selectedSketch.id : null,
+          regions: selectedSketch ? [...selectedRegions] : [],
         };
+      },
+      /// The sketcher's own state while it is open: what is drawn, how
+      /// constrained it is, and what is selected.
+      get sketch() {
+        return sketcher.snapshot();
+      },
+      /// The regions of every sketch, as the engine reported them.
+      get regions() {
+        return browserFeatures.filter((entry) => entry.regions).map((entry) => ({ sketch: entry.id, regions: entry.regions }));
+      },
+      get extruding() {
+        return extrudeArmed ? { distance: previewState.distance, regions: sketchExtrudeRegions.length } : null;
+      },
+      /// Where [u, v] on the sketch plane is on screen, in page pixels.
+      sketchPoint(uv) {
+        return sketcher.screenPointOfUV(uv);
+      },
+      /// Where a sketch's region `index` is on screen: the middle of its interior point.
+      regionPoint(sketchId, index) {
+        const entry = browserFeatures.find((item) => item.id === sketchId);
+        if (!entry || !entry.regions[index]) return null;
+        camera.updateMatrixWorld();
+        const plane = resolveStoredPlane(entry.plane);
+        const ndc = worldOfPlane(plane, entry.regions[index].inside).project(camera);
+        const rect = renderer.domElement.getBoundingClientRect();
+        return { x: rect.left + ((ndc.x + 1) / 2) * rect.width, y: rect.top + ((1 - ndc.y) / 2) * rect.height };
       },
       get editing() {
         return editingFeatureId;
+      },
+      /// True while the camera eases into a new view. A test that clicks before
+      /// it stops aims at where things were.
+      get cameraMoving() {
+        return cameraMove !== null;
       },
       get camera() {
         return { position: camera.position.toArray(), target: controls.target.toArray() };

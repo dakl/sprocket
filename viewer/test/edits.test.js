@@ -74,3 +74,30 @@ test("new_document deletes every feature newest first, then rolls back to zero",
 test("an unknown gesture is an error, not a silent no-op", () => {
   assert.throws(() => editsFor(box, { type: "bogus" }), /unknown viewer command/);
 });
+
+const drawn = [{ id: "e1", kind: "line", p0: [0, 0], p1: [1, 0] }];
+
+test("add_sketch takes entities and constraints as well as a polygon", () => {
+  const [insert] = editsFor({ features: [], rollbackIndex: 0 }, { type: "add_sketch", plane: "XY", entities: drawn, constraints: [{ kind: "horizontal", e: "e1" }] });
+  assert.deepEqual(insert.feature, { id: "f1", type: "sketch", plane: "XY", entities: drawn, constraints: [{ kind: "horizontal", e: "e1" }] });
+  assert.throws(() => editsFor(box, { type: "add_sketch", plane: "XY" }), /entities or polygon/);
+});
+
+test("extrude_sketch with profiles keeps the region names and checks every sketch exists", () => {
+  const profiles = [{ sketch: "s1", bounded_by: ["e1", "e2"], inside: [1, 1] }];
+  const [insert] = editsFor(box, { type: "extrude_sketch", profiles, distance: 3 });
+  assert.deepEqual(insert.feature.profiles, profiles);
+  assert.equal("profile" in insert.feature, false);
+  assert.equal(insert.feature.base, "e1");
+  assert.throws(() => editsFor(box, { type: "extrude_sketch", profiles: [{ sketch: "e1", bounded_by: [] }], distance: 3 }), /unknown sketch id 'e1'/);
+  assert.throws(() => editsFor(box, { type: "extrude_sketch", distance: 3 }), /profile or profiles/);
+});
+
+test("update_sketch_entities redraws a sketch and drops its old single shape", () => {
+  const [update] = editsFor(box, { type: "update_sketch_entities", id: "s1", entities: drawn });
+  assert.equal("rect" in update.feature, false);
+  assert.deepEqual(update.feature.entities, drawn);
+  assert.deepEqual(update.feature.constraints, []);
+  assert.equal(update.feature.plane, "XY");
+  assert.throws(() => editsFor(box, { type: "update_sketch_entities", id: "e1", entities: drawn }), /no sketch/);
+});

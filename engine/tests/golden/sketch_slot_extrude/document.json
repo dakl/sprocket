@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "units": {
+    "length": "mm"
+  },
+  "features": [
+    {
+      "id": "f1",
+      "type": "sketch",
+      "plane": "XY",
+      "entities": [
+        {
+          "id": "e1",
+          "kind": "line",
+          "p0": [
+            0,
+            0
+          ],
+          "p1": [
+            20,
+            0
+          ]
+        },
+        {
+          "id": "e2",
+          "kind": "arc",
+          "c": [
+            20,
+            5
+          ],
+          "r": 5,
+          "a0": -1.5707963267948966,
+          "a1": 1.5707963267948966
+        },
+        {
+          "id": "e3",
+          "kind": "line",
+          "p0": [
+            20,
+            10
+          ],
+          "p1": [
+            0,
+            10
+          ]
+        },
+        {
+          "id": "e4",
+          "kind": "arc",
+          "c": [
+            0,
+            5
+          ],
+          "r": 5,
+          "a0": 1.5707963267948966,
+          "a1": 4.71238898038469
+        }
+      ],
+      "constraints": [
+        {
+          "kind": "horizontal",
+          "e": "e1"
+        },
+        {
+          "kind": "horizontal",
+          "e": "e3"
+        },
+        {
+          "kind": "coincident",
+          "a": "e1.p1",
+          "b": "e2.p0"
+        },
+        {
+          "kind": "coincident",
+          "a": "e2.p1",
+          "b": "e3.p0"
+        },
+        {
+          "kind": "coincident",
+          "a": "e3.p1",
+          "b": "e4.p0"
+        },
+        {
+          "kind": "coincident",
+          "a": "e4.p1",
+          "b": "e1.p0"
+        },
+        {
+          "kind": "tangent",
+          "a": "e1",
+          "b": "e2"
+        },
+        {
+          "kind": "distance",
+          "a": "e1.p0",
+          "b": "e1.p1",
+          "value": 20
+        },
+        {
+          "kind": "radius",
+          "e": "e2",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "id": "f2",
+      "type": "extrude",
+      "profile": "f1",
+      "distance": 6
+    }
+  ]
+}

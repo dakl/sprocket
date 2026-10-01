@@ -1,6 +1,6 @@
 [project]
 name = "sprocket-engine"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sprocket's headless geometry engine: JSON op log -> build123d -> BREP"
 readme = "README.md"
 authors = [
@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "build123d>=0.13.0",
+    "hypothesis>=6.168.3",
     "jsonschema>=4.26.0",
     # render.py rasterises with it. ocp-tessellate already pulls it in, but a
     # module that imports it directly declares it directly.
