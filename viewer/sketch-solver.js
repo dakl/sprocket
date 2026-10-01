@@ -15,6 +15,11 @@
   const POINTS = { line: ["p0", "p1"], arc: ["c", "p0", "p1"], circle: ["c"] };
   // planegcs SolveStatus: Success 0, Converged 1, Failed 2, SuccessfulSolutionInvalid 3.
   const SOLVED = [0, 1];
+  // The sketch plane's own origin: a point every sketch has and none can move.
+  const ORIGIN = "origin";
+  // The sketch's own axes through the origin, as lines a point can be put on.
+  // `axis_u` runs along the sketch's x direction and `axis_v` along its y.
+  const AXES = { axis_u: [1, 0], axis_v: [0, 1] };
 
   function fail(message) {
     throw new Error(message);
@@ -29,6 +34,7 @@
   /// The [u, v] of a point reference such as "e1.p0". An arc's p0 and p1 are
   /// derived from its centre, radius and angles.
   function pointOf(sketch, reference) {
+    if (reference === ORIGIN) return [0, 0];
     const [id, name] = reference.split(".");
     const entity = entityById(sketch, id);
     if (entity.kind === "arc" && name !== "c") {
@@ -40,12 +46,15 @@
 
   function primitivesFor(sketch) {
     const primitives = [];
-    const point = (id, [x, y]) => primitives.push({ id, type: "point", x, y, fixed: false });
+    const point = (id, [x, y], fixed = false) => primitives.push({ id, type: "point", x, y, fixed });
 
+    point(ORIGIN, [0, 0], true);
+    for (const [id, along] of Object.entries(AXES)) point(id + "_end", along, true);
     // Points before the shapes that use them: planegcs wants lower ids first.
     for (const entity of sketch.entities) {
       for (const name of POINTS[entity.kind]) point(entity.id + "." + name, pointOf(sketch, entity.id + "." + name));
     }
+    for (const id of Object.keys(AXES)) primitives.push({ id, type: "line", p1_id: ORIGIN, p2_id: id + "_end" });
     for (const entity of sketch.entities) {
       const at = (name) => entity.id + "." + name;
       if (entity.kind === "line") {
@@ -113,6 +122,12 @@
     switch (kind) {
       case "coincident":
         return [{ type: "p2p_coincident", p1_id: constraint.a, p2_id: constraint.b }];
+      case "point_on": {
+        if (AXES[constraint.b]) return [{ type: "point_on_line_pl", p_id: constraint.a, l_id: constraint.b }];
+        const curve = requireKind(sketch, constraint.b, "line", "circle", "arc");
+        const field = { line: "l_id", circle: "c_id", arc: "a_id" }[curve.kind];
+        return [{ type: curve.kind === "line" ? "point_on_line_pl" : "point_on_" + curve.kind, p_id: constraint.a, [field]: curve.id }];
+      }
       case "horizontal":
       case "vertical": {
         if (constraint.e) {
@@ -311,7 +326,7 @@
     return { dof: baseDof, states };
   }
 
-  const api = { solve, entityStates, pointOf, POINTS };
+  const api = { solve, entityStates, pointOf, POINTS, ORIGIN, AXES };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SketchSolver = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -43,10 +43,18 @@ ENTITY_SCHEMA = {
     },
 }
 
-# Kind -> the fields it needs. A reference is an entity id, or `<id>.<point>`
-# where point is p0 or p1 (line, arc) or c (arc, circle).
+# What the sketch plane gives every sketch. `origin` is a point, and a constraint
+# may name it, as in `{"kind": "coincident", "a": "e1.c", "b": "origin"}`.
+# `axis_u` and `axis_v` are the lines through it along the plane's x and y
+# directions, for `{"kind": "point_on", "a": "e1.p0", "b": "axis_u"}`.
+ORIGIN = "origin"
+PLANE_REFERENCES = (ORIGIN, "axis_u", "axis_v")
+
+# Kind -> the fields it needs. A reference is an entity id, `<id>.<point>`
+# where point is p0 or p1 (line, arc) or c (arc, circle), or `origin`.
 CONSTRAINT_FIELDS = {
     "coincident": ("a", "b"),
+    "point_on": ("a", "b"),
     "horizontal": (),
     "vertical": (),
     "parallel": ("a", "b"),
@@ -66,8 +74,8 @@ CONSTRAINT_SCHEMA = {
     "properties": {
         "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
         "e": {"type": "string", "description": "the one entity or point a constraint acts on"},
-        "a": {"type": "string", "description": "first entity or point"},
-        "b": {"type": "string", "description": "second entity or point"},
+        "a": {"type": "string", "description": "first entity or point. For point_on, the point"},
+        "b": {"type": "string", "description": "second entity or point. For point_on, the line, circle or arc it lies on"},
         "value": {"type": "number", "description": "mm for distance, radius and diameter; degrees for angle"},
     },
 }
@@ -173,6 +181,8 @@ def check_entities(feature: dict) -> None:
 
     def check_reference(constraint, name):
         reference = constraint[name]
+        if reference in PLANE_REFERENCES:
+            return
         entity_id, _, point = reference.partition(".")
         if entity_id not in kinds:
             raise ValueError(f"constraint {constraint['kind']!r} refers to {reference!r}, and there is no entity {entity_id!r}")

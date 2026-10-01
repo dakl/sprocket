@@ -228,3 +228,70 @@ test("a corner dragged where a dimension forbids stops at the nearest legal plac
   assert.ok(dragged.ok, "an impossible drag is not an error");
   near(length(line(dragged, "e1").p0, line(dragged, "e1").p1), 40, "the width dimension still holds");
 });
+
+test("point_on keeps a point on a line, a circle and an arc", () => {
+  const sketch = {
+    entities: [
+      { id: "e1", kind: "line", p0: [0, 0], p1: [10, 0] },
+      { id: "e2", kind: "circle", c: [30, 0], r: 5 },
+      { id: "e3", kind: "arc", c: [0, 30], r: 5, a0: 0, a1: Math.PI },
+      { id: "e4", kind: "line", p0: [4, 3], p1: [4, 9] },
+      { id: "e5", kind: "line", p0: [33, 8], p1: [40, 8] },
+      { id: "e6", kind: "line", p0: [1, 36], p1: [-9, 40] },
+    ],
+    constraints: [
+      { kind: "fix", e: "e1" },
+      { kind: "fix", e: "e2" },
+      { kind: "fix", e: "e3" },
+      { kind: "point_on", a: "e4.p0", b: "e1" },
+      { kind: "point_on", a: "e5.p0", b: "e2" },
+      { kind: "point_on", a: "e6.p0", b: "e3" },
+    ],
+  };
+  const result = solve(gcs, sketch);
+  assert.ok(result.ok);
+  near(line(result, "e4").p0[1], 0, "on the line");
+  near(length(line(result, "e5").p0, [30, 0]), 5, "on the circle");
+  near(length(line(result, "e6").p0, [0, 30]), 5, "on the arc");
+});
+
+test("coincident with the origin pins a point to [0, 0], and the origin never moves", () => {
+  const sketch = {
+    entities: [{ id: "e1", kind: "line", p0: [3, 4], p1: [20, 4] }],
+    constraints: [{ kind: "coincident", a: "e1.p0", b: "origin" }],
+  };
+  const result = solve(gcs, sketch);
+  assert.ok(result.ok);
+  assert.deepEqual(line(result, "e1").p0.map((value) => Math.round(value * 1e6) / 1e6), [0, 0]);
+  const dragged = solve(gcs, result.sketch, { drag: { ref: "e1.p0", delta: [5, 5] } });
+  assert.ok(dragged.ok);
+  near(line(dragged, "e1").p0[0], 0, "the pinned point holds");
+});
+
+test("a distance from the origin dimensions a point", () => {
+  const sketch = {
+    entities: [{ id: "e1", kind: "circle", c: [3, 4], r: 2 }],
+    constraints: [{ kind: "distance", a: "origin", b: "e1.c", value: 10 }],
+  };
+  const result = solve(gcs, sketch);
+  assert.ok(result.ok);
+  near(length([0, 0], result.sketch.entities[0].c), 10);
+});
+
+test("point_on the sketch axes puts a point on the line through the origin, however far out", () => {
+  const sketch = {
+    entities: [
+      { id: "e1", kind: "line", p0: [40, 3], p1: [50, 20] },
+      { id: "e2", kind: "line", p0: [-4, -30], p1: [-4, -50] },
+    ],
+    constraints: [
+      { kind: "point_on", a: "e1.p0", b: "axis_u" },
+      { kind: "point_on", a: "e2.p0", b: "axis_v" },
+    ],
+  };
+  const result = solve(gcs, sketch);
+  assert.ok(result.ok);
+  near(line(result, "e1").p0[1], 0, "on the x axis");
+  near(line(result, "e2").p0[0], 0, "on the y axis");
+  near(line(result, "e1").p0[0], 40, "and it slid along the axis, not to the origin");
+});

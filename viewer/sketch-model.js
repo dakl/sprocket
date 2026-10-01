@@ -29,7 +29,8 @@
     return "e" + (Math.max(0, ...used) + 1);
   }
 
-  const isPointReference = (reference) => reference.includes(".");
+  const ORIGIN = "origin";
+  const isPointReference = (reference) => reference === ORIGIN || reference.includes(".");
   const entityIdOf = (reference) => reference.split(".")[0];
 
   function withEntity(sketch, entity) {
@@ -119,6 +120,14 @@
     return first === second ? sketch : withConstraint(sketch, { kind: "coincident", a: first, b: second });
   }
 
+  /// Joins the new point `fresh` to what a click snapped to: coincident with a
+  /// point, on a curve, or nothing when it snapped to neither.
+  function join(sketch, snapped, fresh) {
+    if (snapped.reference) return connect(sketch, snapped.reference, fresh);
+    if (snapped.curve) return withConstraint(sketch, { kind: "point_on", a: fresh, b: snapped.curve });
+    return sketch;
+  }
+
   /// Removes entities, and every constraint that mentions one.
   function deleteEntities(sketch, ids) {
     const gone = new Set(ids);
@@ -144,9 +153,11 @@
   // --- Hit testing, in the sketch's own [u, v] ---------------------------
 
   function allPoints(sketch) {
-    return sketch.entities.flatMap((entity) =>
+    const own = sketch.entities.flatMap((entity) =>
       solver().POINTS[entity.kind].map((name) => ({ reference: entity.id + "." + name, uv: pointOf(sketch, entity.id + "." + name) }))
     );
+    // Last, so a shape drawn from the origin snaps to its own point on a tie.
+    return [...own, { reference: ORIGIN, uv: [0, 0] }];
   }
 
   /// The nearest point within `radius`, skipping `exclude`, or null.
@@ -160,21 +171,62 @@
     return best;
   }
 
-  function distanceToEntity(entity, uv) {
+  const sweep = (from, to) => (((to - from) % TWO_PI) + TWO_PI) % TWO_PI;
+
+  /// The point of `entity` closest to `uv`.
+  function nearestOnEntity(entity, uv) {
     if (entity.kind === "line") {
       const [ax, ay] = entity.p0;
       const [bx, by] = entity.p1;
       const lengthSquared = (bx - ax) ** 2 + (by - ay) ** 2;
       const t = lengthSquared ? Math.max(0, Math.min(1, ((uv[0] - ax) * (bx - ax) + (uv[1] - ay) * (by - ay)) / lengthSquared)) : 0;
-      return distance(uv, [ax + t * (bx - ax), ay + t * (by - ay)]);
+      return [ax + t * (bx - ax), ay + t * (by - ay)];
     }
     const fromCentre = distance(uv, entity.c);
-    if (entity.kind === "circle") return Math.abs(fromCentre - entity.r);
-    const sweep = (from, to) => (((to - from) % TWO_PI) + TWO_PI) % TWO_PI;
-    const angle = Math.atan2(uv[1] - entity.c[1], uv[0] - entity.c[0]);
-    if (sweep(entity.a0, angle) <= sweep(entity.a0, entity.a1)) return Math.abs(fromCentre - entity.r);
+    const angle = fromCentre ? Math.atan2(uv[1] - entity.c[1], uv[0] - entity.c[0]) : 0;
+    const onCircle = [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)];
+    if (entity.kind === "circle" || sweep(entity.a0, angle) <= sweep(entity.a0, entity.a1)) return onCircle;
     // Off the end of the arc: the nearer endpoint is the nearest part of it.
-    return Math.min(distance(uv, pointOf({ entities: [entity] }, entity.id + ".p0")), distance(uv, pointOf({ entities: [entity] }, entity.id + ".p1")));
+    const ends = ["p0", "p1"].map((name) => pointOf({ entities: [entity] }, entity.id + "." + name));
+    return distance(uv, ends[0]) <= distance(uv, ends[1]) ? ends[0] : ends[1];
+  }
+
+  const distanceToEntity = (entity, uv) => distance(uv, nearestOnEntity(entity, uv));
+
+  /// A point on a line, circle or arc within `radius` of `uv`: {entity, uv}.
+  function snapToCurve(sketch, uv, radius) {
+    let best = null;
+    for (const entity of sketch.entities) {
+      const onIt = nearestOnEntity(entity, uv);
+      const gap = distance(onIt, uv);
+      if (gap <= radius && (!best || gap < best.gap)) best = { entity: entity.id, kind: entity.kind, uv: onIt, gap };
+    }
+    return best;
+  }
+
+  /// A shown sketch axis within `radius` of `uv`. `axes` is a list of
+  /// {ref, name}, `ref` being "axis_u" (the sketch's x) or "axis_v" (its y).
+  function snapToAxis(axes, uv, radius) {
+    let best = null;
+    for (const axis of axes) {
+      const onIt = axis.ref === "axis_u" ? [uv[0], 0] : [0, uv[1]];
+      const gap = distance(onIt, uv);
+      if (gap <= radius && (!best || gap < best.gap)) best = { ref: axis.ref, name: axis.name, uv: onIt, gap };
+    }
+    return best;
+  }
+
+  /// Where a click lands: a point if one is near, else the nearer of a curve
+  /// and a shown axis, else the raw position. `reference` or `curve` says what
+  /// it snapped to, and joining a new shape to it adds the matching constraint.
+  function snap(sketch, uv, radius, axes = []) {
+    const point = snapTarget(sketch, uv, radius);
+    if (point) return { uv: point.uv, reference: point.reference, curve: null };
+    const curve = snapToCurve(sketch, uv, radius);
+    const axis = snapToAxis(axes, uv, radius);
+    if (axis && (!curve || axis.gap < curve.gap)) return { uv: axis.uv, reference: null, curve: axis.ref, label: "On " + axis.name };
+    if (curve) return { uv: curve.uv, reference: null, curve: curve.entity, label: "On " + curve.kind };
+    return { uv, reference: null, curve: null };
   }
 
   /// What is under `uv`: a point if one is within `radius`, else the nearest
@@ -236,7 +288,13 @@
           return { kind, a: first, b: second };
         }
         return fail("Select a circle or arc and a line, circle or arc to make them tangent");
+      case "point_on": {
+        const [point, curve] = selection.length === 2 && isPointReference(first) ? [first, second] : [second, first];
+        if (selection.length === 2 && isPointReference(point) && !isPointReference(curve) && curve !== entityIdOf(point)) return { kind, a: point, b: curve };
+        return fail("Select a point and a line, circle or arc to put it on");
+      }
       case "fix":
+        if (selection.length === 1 && first === ORIGIN) return fail("The origin is already fixed");
         if (selection.length === 1) return { kind, e: first };
         return fail("Select one point or shape to fix");
       default:
@@ -305,6 +363,8 @@
     arcThrough,
     circumcircle,
     connect,
+    join,
+    snap,
     withConstraint,
     replaceConstraint,
     removeConstraint,
@@ -318,6 +378,7 @@
     toFeature,
     isPointReference,
     entityIdOf,
+    ORIGIN,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SketchModel = api;

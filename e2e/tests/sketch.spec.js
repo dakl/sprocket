@@ -144,7 +144,87 @@ test("a circle inside a circle cuts a hole: picking the ring extrudes a tube, no
   expect(measured.volume).toBeCloseTo(Math.PI * (20 ** 2 - 10 ** 2) * 5, 0);
 });
 
-test("constraints are counted:a rectangle has freedom left until it is dimensioned and pinned", async ({ page }) => {
+async function hover(page, uv) {
+  const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+  await page.mouse.move(point.x, point.y);
+}
+
+const snapOf = async (page) => (await sketchState(page)).snap;
+
+test("the pointer shows what it would snap to: a centre, the origin, a spot on a curve", async ({ page }) => {
+  await startSketch(page);
+  await tool(page, "circle").click();
+  await click(page, [30, 0]);
+  await click(page, [40, 0]);
+  await expect.poll(async () => (await sketchState(page)).entities.length).toBe(1);
+  await tool(page, "line").click();
+
+  const marker = page.locator(".sketch-snap .text");
+  await hover(page, [30, 0]);
+  expect((await snapOf(page)).name).toBe("Centre");
+  await expect(marker).toBeVisible();
+  await expect(marker).toContainText("Centre");
+  await expect(page.locator(".sketch-snap")).toHaveAttribute("data-kind", "point");
+
+  await hover(page, [0, 0]);
+  expect((await snapOf(page)).name).toBe("Origin");
+  await expect(marker).toContainText("Origin");
+
+  await hover(page, [30, 10.1]);
+  expect((await snapOf(page)).name).toBe("On circle");
+  await expect(page.locator(".sketch-snap")).toHaveAttribute("data-kind", "curve");
+
+  await hover(page, [-25, 20]);
+  expect(await snapOf(page)).toBeNull();
+  await expect(marker).toBeHidden();
+});
+
+test("a line drawn from the origin to a circle is joined to both: coincident at one end, on the curve at the other", async ({ page }) => {
+  await startSketch(page);
+  await tool(page, "circle").click();
+  await click(page, [30, 0]);
+  await click(page, [40, 0]);
+  await expect.poll(async () => (await sketchState(page)).entities.length).toBe(1);
+  await tool(page, "line").click();
+  await click(page, [0, 0]);
+  await click(page, [30, 10.1]);
+  await expect.poll(async () => (await sketchState(page)).entities.length).toBe(2);
+
+  const { constraints, entities } = await sketchState(page);
+  expect(constraints).toContainEqual({ kind: "coincident", a: "origin", b: "e2.p0" });
+  expect(constraints).toContainEqual({ kind: "point_on", a: "e2.p1", b: "e1" });
+  expect(Math.hypot(entities[1].p1[0] - 30, entities[1].p1[1])).toBeCloseTo(10, 4);
+});
+
+test("the axes are hidden until the browser shows them, and only a shown axis is snapped to", async ({ page }) => {
+  await startSketch(page);
+  expect(await page.evaluate(() => window.__tcad.axes)).toEqual({ x: false, y: false, z: false });
+  await hover(page, [35, 0.3]);
+  expect(await snapOf(page)).toBeNull();
+
+  await page.locator(".browser-row", { hasText: "X axis" }).locator(".browser-eye").click();
+  expect(await page.evaluate(() => window.__tcad.axes)).toEqual({ x: true, y: false, z: false });
+  await hover(page, [35, 0.2]);
+  expect((await snapOf(page)).name).toBe("On X axis");
+  await hover(page, [0.2, 25]);
+  expect(await snapOf(page), "the y axis is still hidden").toBeNull();
+
+  await page.locator(".browser-row", { hasText: "Y axis" }).locator(".browser-eye").click();
+  await hover(page, [0.2, 25]);
+  expect((await snapOf(page)).name).toBe("On Y axis");
+
+  // A line from the x axis out to the y axis is joined to both, and stays on them.
+  await click(page, [35, 0.2]);
+  await click(page, [0.2, 25]);
+  await expect.poll(async () => (await sketchState(page)).entities.length).toBe(1);
+  const { constraints, entities } = await sketchState(page);
+  expect(constraints).toContainEqual({ kind: "point_on", a: "e1.p0", b: "axis_u" });
+  expect(constraints).toContainEqual({ kind: "point_on", a: "e1.p1", b: "axis_v" });
+  expect(entities[0].p0[1]).toBeCloseTo(0, 6);
+  expect(entities[0].p1[0]).toBeCloseTo(0, 6);
+});
+
+test("constraints are counted: a rectangle has freedom left until it is dimensioned and pinned", async ({ page }) => {
   await startSketch(page);
   await drawRectangle(page, [-20, -10], [20, 10]);
   await expect.poll(async () => (await sketchState(page)).dof).toBeGreaterThan(0);
@@ -268,7 +348,9 @@ test("lines chained with the line tool snap level, join at their corners, and cl
   const drawn = await sketchState(page);
   expect(drawn.entities).toHaveLength(4);
   expect(drawn.constraints.some((item) => item.kind === "horizontal" && item.e === "e1")).toBe(true);
-  expect(drawn.constraints.filter((item) => item.kind === "coincident")).toHaveLength(4);
+  // Four corners joined, and the first one sits on the origin.
+  expect(drawn.constraints.filter((item) => item.kind === "coincident" && item.a !== "origin")).toHaveLength(4);
+  expect(drawn.constraints).toContainEqual({ kind: "coincident", a: "origin", b: "e1.p0" });
   expect(Math.abs(drawn.entities[0].p0[1] - drawn.entities[0].p1[1])).toBeLessThan(1e-6);
 
   await finishSketch(page);
@@ -334,7 +416,7 @@ test("the constraint buttons act on the selection: horizontal levels a line, tan
   // up one radius from the line.
   const circle = entities[1];
   // Applying a constraint clears the selection, so pick the line again.
-  await click(page, [0, entities[0].p0[1]]);
+  await click(page, [10, entities[0].p0[1]]);
   await expect.poll(async () => (await sketchState(page)).selection).toEqual(["e1"]);
   await page.keyboard.down("Shift");
   await click(page, [circle.c[0] + circle.r, circle.c[1]]);

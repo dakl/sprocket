@@ -147,6 +147,23 @@ def test_constraints_that_name_real_things_are_accepted_and_change_nothing():
     assert with_constraints.volume == pytest.approx(800 * 10)
 
 
+def test_point_on_and_the_origin_are_valid_references():
+    constraints = [
+        {"kind": "point_on", "a": "e5.c", "b": "e1"},
+        {"kind": "coincident", "a": "e1.p0", "b": "origin"},
+        {"kind": "distance", "a": "origin", "b": "e5.c", "value": 22},
+        {"kind": "point_on", "a": "e5.c", "b": "axis_u"},
+        {"kind": "point_on", "a": "e1.p1", "b": "axis_v"},
+    ]
+    part = build(sketch(RING_AND_DISC, constraints), {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10})
+    assert part.volume == pytest.approx(800 * 10)
+
+
+def test_a_misspelled_origin_is_refused():
+    with pytest.raises(ValueError, match="no entity 'orign'"):
+        build(sketch(RING_AND_DISC, [{"kind": "coincident", "a": "e1.p0", "b": "orign"}]))
+
+
 def test_extruding_a_sketch_with_nothing_closed_says_so():
     open_line = sketch([{"id": "e1", "kind": "line", "p0": [0, 0], "p1": [5, 5]}])
     with pytest.raises(ProfileError, match="no closed region"):

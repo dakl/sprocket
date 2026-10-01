@@ -58,7 +58,8 @@ test("snapTarget finds the nearest point in range and can skip one", () => {
   const { sketch } = model.addLine(model.emptySketch(), [0, 0], [10, 0]);
   assert.equal(model.snapTarget(sketch, [9.5, 0.2], 1).reference, "e1.p1");
   assert.equal(model.snapTarget(sketch, [5, 5], 1), null);
-  assert.equal(model.snapTarget(sketch, [0.1, 0], 1, ["e1.p0"]), null);
+  assert.equal(model.snapTarget(sketch, [0.1, 0], 1, ["e1.p0"]).reference, "origin", "the origin sits under the line's start");
+  assert.equal(model.snapTarget(sketch, [0.1, 0], 1, ["e1.p0", "origin"]), null);
 });
 
 test("hit prefers a point to the entity it sits on, and finds circles and arcs by their curve", () => {
@@ -146,4 +147,70 @@ test("toFeature copies, so later edits to the sketch do not reach the feature", 
   sketch.entities[0].p1[0] = 99;
   assert.equal(feature.entities[0].p1[0], 1);
   assert.equal(feature.plane, "XY");
+});
+
+test("snap prefers a point, then a spot on a curve, then the raw position", () => {
+  let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
+  sketch = model.addCircle(sketch, [20, 20], 5).sketch; // e2
+  const radius = 0.5;
+  assert.deepEqual(model.snap(sketch, [10.2, 0.1], radius), { uv: [10, 0], reference: "e1.p0", curve: null });
+  assert.deepEqual(model.snap(sketch, [0.2, -0.1], radius), { uv: [0, 0], reference: "origin", curve: null }, "the origin is a point");
+  assert.deepEqual(model.snap(sketch, [20, 20.1], radius), { uv: [20, 20], reference: "e2.c", curve: null });
+  const onLine = model.snap(sketch, [20, 0.3], radius);
+  assert.deepEqual([onLine.uv, onLine.reference, onLine.curve], [[20, 0], null, "e1"]);
+  const onCircle = model.snap(sketch, [25.2, 20.1], radius);
+  assert.equal(onCircle.curve, "e2");
+  assert.ok(Math.abs(Math.hypot(onCircle.uv[0] - 20, onCircle.uv[1] - 20) - 5) < 1e-9, "the snapped spot is on the circle");
+  assert.deepEqual(model.snap(sketch, [50, 50], radius), { uv: [50, 50], reference: null, curve: null });
+});
+
+test("a curve snap stops at the end of an arc instead of reaching the missing half", () => {
+  const { sketch } = model.addArc(model.emptySketch(), [-5, 0], [5, 0], [0, 5]); // the upper half
+  assert.equal(model.snap(sketch, [0, 5.2], 0.5).curve, "e1");
+  assert.equal(model.snap(sketch, [0, -5.2], 0.5).curve, null, "the lower half is not drawn");
+});
+
+test("joining a click to what it snapped to adds coincident for a point and point_on for a curve", () => {
+  let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
+  sketch = model.addCircle(sketch, [20, 20], 5).sketch;
+  const joined = model.join(sketch, { reference: "origin", curve: null }, "e2.c");
+  assert.deepEqual(joined.constraints, [{ kind: "coincident", a: "origin", b: "e2.c" }]);
+  const onCurve = model.join(sketch, { reference: null, curve: "e1" }, "e2.c");
+  assert.deepEqual(onCurve.constraints, [{ kind: "point_on", a: "e2.c", b: "e1" }]);
+  assert.deepEqual(model.join(sketch, { reference: null, curve: null }, "e2.c").constraints, []);
+});
+
+test("point_on takes a point and a curve in either order, and the origin takes a coincident or a dimension but not a fix", () => {
+  let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
+  sketch = model.addCircle(sketch, [20, 20], 5).sketch;
+  assert.deepEqual(model.constraintFor(sketch, "point_on", ["e2.c", "e1"]), { kind: "point_on", a: "e2.c", b: "e1" });
+  assert.deepEqual(model.constraintFor(sketch, "point_on", ["e1", "e2.c"]), { kind: "point_on", a: "e2.c", b: "e1" });
+  assert.throws(() => model.constraintFor(sketch, "point_on", ["e1.p0", "e1"]), /Select a point and a line/, "a line's own end is on it already");
+  assert.throws(() => model.constraintFor(sketch, "point_on", ["e1", "e2"]), /Select a point/);
+  assert.throws(() => model.constraintFor(sketch, "point_on", ["e1.p0"]), /Select a point/);
+  assert.deepEqual(model.constraintFor(sketch, "coincident", ["origin", "e2.c"]), { kind: "coincident", a: "origin", b: "e2.c" });
+  assert.throws(() => model.constraintFor(sketch, "fix", ["origin"]), /already fixed/);
+  assert.equal(model.suggestDimension(sketch, ["origin", "e2.c"]).constraint.value, Math.hypot(20, 20));
+});
+
+test("deleting an entity leaves a constraint on the origin that names no deleted entity alone", () => {
+  let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
+  sketch = model.addCircle(sketch, [20, 20], 5).sketch;
+  sketch = model.withConstraint(sketch, { kind: "coincident", a: "origin", b: "e2.c" });
+  assert.equal(model.deleteEntities(sketch, ["e1"]).constraints.length, 1);
+  assert.equal(model.deleteEntities(sketch, ["e2"]).constraints.length, 0);
+});
+
+test("snap reaches a shown axis, only when told it is shown, and a curve wins when it is nearer", () => {
+  const axes = [{ ref: "axis_u", name: "X axis" }, { ref: "axis_v", name: "Y axis" }];
+  const { sketch } = model.addLine(model.emptySketch(), [10, 5], [30, 5]);
+  const onX = model.snap(sketch, [50, 0.3], 0.5, axes);
+  assert.deepEqual([onX.uv, onX.curve, onX.label], [[50, 0], "axis_u", "On X axis"]);
+  const onY = model.snap(sketch, [-0.3, 40], 0.5, axes);
+  assert.deepEqual([onY.uv, onY.curve, onY.label], [[0, 40], "axis_v", "On Y axis"]);
+  assert.equal(model.snap(sketch, [50, 0.3], 0.5).curve, null, "an axis that is hidden is not there");
+  assert.equal(model.snap(sketch, [20, 5.1], 0.5, axes).curve, "e1");
+  const crowded = model.snap(sketch, [20, 4.9], 5, [{ ref: "axis_u", name: "X axis" }]);
+  assert.equal(crowded.curve, "e1", "the line is 0.1 away and the axis 4.9");
+  assert.deepEqual(model.join(sketch, onX, "e1.p1").constraints, [{ kind: "point_on", a: "e1.p1", b: "axis_u" }]);
 });

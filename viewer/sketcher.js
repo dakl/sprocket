@@ -14,7 +14,7 @@
   const SNAP_PIXELS = 10;
   const ALIGN_DEGREES = 4;
   const DRAG_PIXELS = 4;
-  const COLOURS = { free: 0x4da3ff, fixed: 0xe8e8e8, selected: 0xffaa00, hover: 0xffdd55, preview: 0x5be0a0 };
+  const COLOURS = { free: 0x4da3ff, fixed: 0xe8e8e8, selected: 0xffaa00, hover: 0xffdd55, preview: 0x5be0a0, origin: 0xff6b6b };
   const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension" };
   const HINTS = {
     select: "Click to select, drag to move. Delete removes.",
@@ -30,7 +30,7 @@
     circle: ["Click a point on the circle"],
     arc: ["Click the arc's end", "Click a point the arc passes through"],
   };
-  const CONSTRAINTS = ["coincident", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "fix"];
+  const CONSTRAINTS = ["coincident", "point_on", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "fix"];
 
   function createSketcher(host) {
     const { THREE, scene, camera, renderer, model, solver } = host;
@@ -116,23 +116,44 @@
       }
       for (const entity of sketch.entities) group.add(line(polyline(entity), colourOf(entity.id)));
 
-      const references = sketch.entities.flatMap((entity) => solver.POINTS[entity.kind].map((name) => entity.id + "." + name));
+      const references = [model.ORIGIN, ...sketch.entities.flatMap((entity) => solver.POINTS[entity.kind].map((name) => entity.id + "." + name))];
       const dotColours = references.map((reference) => {
         const isHover = hover && hover.hit && hover.hit.kind === "point" && hover.hit.reference === reference;
-        return new THREE.Color(host.srgb(selection.includes(reference) ? COLOURS.selected : isHover ? COLOURS.hover : 0xffffff));
+        const plain = reference === model.ORIGIN ? COLOURS.origin : 0xffffff;
+        return new THREE.Color(host.srgb(selection.includes(reference) ? COLOURS.selected : isHover ? COLOURS.hover : plain));
       });
-      if (references.length) {
-        const geometry = new THREE.BufferGeometry().setFromPoints(references.map((reference) => toWorld(solver.pointOf(sketch, reference))));
-        geometry.setAttribute("color", new THREE.Float32BufferAttribute(dotColours.flatMap((colour) => [colour.r, colour.g, colour.b]), 3));
-        dots = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, vertexColors: true, depthTest: false }));
-        dots.renderOrder = 1001;
-        group.add(dots);
-      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(references.map((reference) => toWorld(solver.pointOf(sketch, reference))));
+      geometry.setAttribute("color", new THREE.Float32BufferAttribute(dotColours.flatMap((colour) => [colour.r, colour.g, colour.b]), 3));
+      dots = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, vertexColors: true, depthTest: false }));
+      dots.renderOrder = 1001;
+      group.add(dots);
 
       const preview = previewShape();
       if (preview) group.add(line(preview, COLOURS.preview));
       renderLabels();
+      renderSnap();
       renderPanel();
+    }
+
+    // --- The snap marker -----------------------------------------------------------
+
+    const snapMarker = document.createElement("div");
+    snapMarker.className = "sketch-snap";
+    snapMarker.style.display = "none";
+    snapMarker.innerHTML = '<span class="glyph"></span><span class="text"></span>';
+    ui.labels.appendChild(snapMarker);
+
+    const SNAP_NAMES = { origin: "Origin", p0: "Endpoint", p1: "Endpoint", c: "Centre" };
+
+    /// What the next click would snap to, in words: "Centre", "On circle".
+    const snapName = (snapped) => (snapped.reference ? SNAP_NAMES[snapped.reference.split(".").pop()] : snapped.label);
+
+    function renderSnap() {
+      const snapped = active && hover && hover.snap;
+      snapMarker.style.display = snapped ? "block" : "none";
+      if (!snapped) return;
+      snapMarker.dataset.kind = snapped.reference ? "point" : "curve";
+      snapMarker.lastChild.textContent = snapName(snapped);
     }
 
     /// The shape the next click would finish, following the pointer.
@@ -198,6 +219,7 @@
       };
       labels.forEach((label) => place(label.element, label.anchor, 6, -22));
       if (dimension) place(ui.dimension, dimension.anchor, 6, 6);
+      if (hover && hover.snap) place(snapMarker, hover.snap.uv, 0, 0);
     }
 
     function openDimension(open) {
@@ -272,27 +294,41 @@
       tool = name;
       pending = [];
       selection = [];
+      hover = null;
       if (dimension) closeDimension();
       setMessage("");
       render();
     }
     const TOOL_KEYS_INVERSE = Object.values(TOOL_KEYS);
 
-    /// Where a click means: a snapped point if one is near, else the raw position.
-    function target(uv, exclude) {
-      const snapped = model.snapTarget(sketch, uv, radius(SNAP_PIXELS, uv), exclude);
-      return snapped ? { uv: snapped.uv, reference: snapped.reference } : { uv, reference: null };
+    /// The world axes that are shown and lie in the sketch plane, as the sketch
+    /// axes a point can be put on. An axis that crosses the plane, or runs
+    /// beside it, gives nothing to snap to, so Z on an XY sketch adds nothing
+    /// that the origin does not already give.
+    function shownAxes() {
+      const along = { axis_u: plane.xDir.clone().normalize(), axis_v: plane.yDir.clone().normalize() };
+      return host.visibleAxes().flatMap((world) => {
+        const offAxis = plane.origin.clone().addScaledVector(world.direction, -plane.origin.dot(world.direction));
+        if (offAxis.length() > 1e-6) return [];
+        return Object.entries(along)
+          .filter(([, direction]) => Math.abs(direction.dot(world.direction)) > 1 - 1e-6)
+          .map(([ref]) => ({ ref, name: world.name + " axis" }));
+      });
     }
+
+    /// Where a click means: a point if one is near, else a spot on a curve or
+    /// a shown axis, else the raw position.
+    const target = (uv) => model.snap(sketch, uv, radius(SNAP_PIXELS, uv), shownAxes());
 
     function place(event) {
       const raw = pointerUV(event);
       if (!raw) return;
       let point = target(raw);
-      if (tool === "line" && pending.length && !point.reference) {
+      if (tool === "line" && pending.length && !point.reference && !point.curve) {
         // Drawing nearly level or upright makes the line exactly so.
         const direction = model.alignment(pending[0].uv, point.uv, ALIGN_DEGREES);
-        if (direction === "horizontal") point = { uv: [point.uv[0], pending[0].uv[1]], reference: null, align: direction };
-        if (direction === "vertical") point = { uv: [pending[0].uv[0], point.uv[1]], reference: null, align: direction };
+        if (direction === "horizontal") point = { uv: [point.uv[0], pending[0].uv[1]], reference: null, curve: null, align: direction };
+        if (direction === "vertical") point = { uv: [pending[0].uv[0], point.uv[1]], reference: null, curve: null, align: direction };
       }
       pending.push(point);
       if (pending.length < 1 + PLACING[tool].length) {
@@ -310,17 +346,18 @@
       let joins = [];
       if (tool === "line") {
         added = model.addLine(sketch, points[0].uv, points[1].uv);
-        joins = [[points[0].reference, added.id + ".p0"], [points[1].reference, added.id + ".p1"]];
+        joins = [[points[0], added.id + ".p0"], [points[1], added.id + ".p1"]];
         next = added.sketch;
         if (points[1].align) next = model.withConstraint(next, { kind: points[1].align, e: added.id });
       } else if (tool === "rectangle") {
         added = model.addRectangle(sketch, points[0].uv, points[1].uv);
         next = added && added.sketch;
+        if (added) joins = [[points[0], added.ids[0] + ".p0"], [points[1], added.ids[2] + ".p0"]];
       } else if (tool === "circle") {
         const r = Math.hypot(points[1].uv[0] - points[0].uv[0], points[1].uv[1] - points[0].uv[1]);
         added = r > 1e-6 ? model.addCircle(sketch, points[0].uv, r) : null;
         next = added && added.sketch;
-        if (added) joins = [[points[0].reference, added.id + ".c"]];
+        if (added) joins = [[points[0], added.id + ".c"]];
       } else if (tool === "arc") {
         added = model.addArc(sketch, points[0].uv, points[1].uv, points[2].uv);
         next = added && added.sketch;
@@ -331,7 +368,7 @@
           const ends = ["p0", "p1"].map((name) => solver.pointOf(next, added.id + "." + name));
           points.slice(0, 2).forEach((point) => {
             const nearer = Math.hypot(ends[0][0] - point.uv[0], ends[0][1] - point.uv[1]) <= Math.hypot(ends[1][0] - point.uv[0], ends[1][1] - point.uv[1]) ? "p0" : "p1";
-            joins.push([point.reference, arc.id + "." + nearer]);
+            joins.push([point, arc.id + "." + nearer]);
           });
         }
       }
@@ -341,7 +378,7 @@
         render();
         return;
       }
-      for (const [existing, fresh] of joins) if (existing) next = model.connect(next, existing, fresh);
+      for (const [snapped, fresh] of joins) next = model.join(next, snapped, fresh);
       const closedLoop = tool === "line" && points[1].reference && points[1].reference === chainStart;
       if (!change(next)) {
         pending = [];
@@ -400,7 +437,8 @@
     }
 
     function deleteSelection() {
-      const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))];
+      const known = new Set(sketch.entities.map((entity) => entity.id));
+      const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))].filter((id) => known.has(id));
       if (!ids.length) return;
       selection = [];
       change(model.deleteEntities(sketch, ids));
@@ -411,7 +449,7 @@
     function pointerMove(event) {
       const uv = pointerUV(event);
       if (!uv) return;
-      if (press && !press.dragging && Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_PIXELS && press.hit) {
+      if (press && !press.dragging && Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_PIXELS && press.hit && press.hit.reference !== model.ORIGIN) {
         press.dragging = true;
         host.setCameraEnabled(false);
       }
@@ -422,8 +460,8 @@
       }
       const under = tool === "line" || tool === "select" || tool === "dimension" ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) : null;
       const snapped = tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc" ? target(uv) : { uv };
-      hover = { uv: snapped.uv, hit: under };
-      if (tool === "line" && pending.length && !snapped.reference) {
+      hover = { uv: snapped.uv, hit: under, snap: snapped.reference || snapped.curve ? snapped : null };
+      if (tool === "line" && pending.length && !snapped.reference && !snapped.curve) {
         const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
         if (direction === "horizontal") hover.uv = [uv[0], pending[0].uv[1]];
         if (direction === "vertical") hover.uv = [pending[0].uv[0], uv[1]];
@@ -563,6 +601,8 @@
       ui.dimension.style.display = "none";
       labels.forEach((label) => label.element.remove());
       labels = [];
+      hover = null;
+      snapMarker.style.display = "none";
       while (group.children.length) dispose(group.children.pop());
     }
 
@@ -584,6 +624,7 @@
         dof,
         states: { ...states },
         selection: [...selection],
+        snap: hover && hover.snap ? { name: snapName(hover.snap), reference: hover.snap.reference, curve: hover.snap.curve, uv: hover.snap.uv } : null,
         message,
         dirty,
         editing: editing ? editing.id : null,

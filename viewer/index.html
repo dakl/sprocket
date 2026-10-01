@@ -352,6 +352,28 @@
       cursor: pointer;
       user-select: none;
     }
+    .sketch-snap { position: fixed; pointer-events: none; }
+    .sketch-snap .glyph {
+      position: absolute;
+      left: -6px;
+      top: -6px;
+      width: 12px;
+      height: 12px;
+      box-sizing: border-box;
+      border: 2px solid #ffdd55;
+    }
+    .sketch-snap[data-kind="curve"] .glyph { border-radius: 50%; }
+    .sketch-snap .text {
+      position: absolute;
+      left: 12px;
+      top: 8px;
+      white-space: nowrap;
+      background: rgba(30, 30, 30, 0.85);
+      color: #ffdd55;
+      font: 12px -apple-system, sans-serif;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
     #sketch-dimension {
       position: fixed;
       display: none;
@@ -479,6 +501,7 @@
     </div>
     <div class="sketch-panel-group">
       <button data-constraint="coincident" title="Two points meet">Coincident</button>
+      <button data-constraint="point_on" title="A point lies on a line, circle or arc">On curve</button>
       <button data-constraint="horizontal" title="A line, or two points, level">Horizontal</button>
       <button data-constraint="vertical" title="A line, or two points, upright">Vertical</button>
       <button data-constraint="parallel" title="Two lines parallel">Parallel</button>
@@ -585,6 +608,26 @@
       gridColors[i] = c < 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     }
     scene.add(grid);
+
+    // The world axes, hidden until the browser tree turns them on. They run as
+    // far as the grid. While a sketch is open, a visible axis that lies in its
+    // plane is something to snap to (see sketcher.js).
+    const AXES = {
+      x: { name: "X", direction: new THREE.Vector3(1, 0, 0), colour: 0xff5a5a },
+      y: { name: "Y", direction: new THREE.Vector3(0, 1, 0), colour: 0x5ad25a },
+      z: { name: "Z", direction: new THREE.Vector3(0, 0, 1), colour: 0x5a9bff },
+    };
+    const axesVisible = { x: false, y: false, z: false };
+    const axisLines = {};
+    for (const [key, axis] of Object.entries(AXES)) {
+      const reach = axis.direction.clone().multiplyScalar(100);
+      axisLines[key] = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([reach.clone().negate(), reach]),
+        new THREE.LineBasicMaterial({ color: srgb(axis.colour) })
+      );
+      axisLines[key].visible = false;
+      scene.add(axisLines[key]);
+    }
 
     function frameCameraOn(object) {
       const box = new THREE.Box3().setFromObject(object);
@@ -1357,6 +1400,7 @@
     /// to visible.
     function applyVisibility() {
       grid.visible = gridVisible;
+      for (const key of Object.keys(AXES)) axisLines[key].visible = axesVisible[key];
       if (mesh) mesh.visible = bodyVisible;
       if (edgeLines) edgeLines.visible = bodyVisible;
       sketchOutlines.forEach((entry) => {
@@ -1387,6 +1431,7 @@
 
     function setEverythingVisible(visible) {
       gridVisible = visible;
+      for (const key of Object.keys(AXES)) axesVisible[key] = visible;
       bodyVisible = visible;
       hiddenSketchIDs.clear();
       if (!visible) {
@@ -1438,7 +1483,8 @@
       const sketches = browserFeatures.filter(
         (feature) => feature.type === "sketch" && feature.plane && feature.regions
       );
-      const anythingVisible = gridVisible || (Boolean(mesh) && bodyVisible) || visibleSketches().length > 0;
+      const anyAxisVisible = Object.values(axesVisible).some(Boolean);
+      const anythingVisible = gridVisible || anyAxisVisible || (Boolean(mesh) && bodyVisible) || visibleSketches().length > 0;
 
       addRow({
         depth: 0,
@@ -1459,6 +1505,32 @@
           renderBrowser();
         },
       });
+
+      addRow({
+        depth: 1,
+        group: "origin",
+        label: "Origin",
+        visible: anyAxisVisible,
+        onToggle: () => {
+          for (const key of Object.keys(AXES)) axesVisible[key] = !anyAxisVisible;
+          applyVisibility();
+          renderBrowser();
+        },
+      });
+      if (!collapsedGroups.has("origin")) {
+        for (const [key, axis] of Object.entries(AXES)) {
+          addRow({
+            depth: 2,
+            label: axis.name + " axis",
+            visible: axesVisible[key],
+            onToggle: () => {
+              axesVisible[key] = !axesVisible[key];
+              applyVisibility();
+              renderBrowser();
+            },
+          });
+        }
+      }
 
       addRow({
         depth: 1,
@@ -2111,6 +2183,8 @@
         return raycaster.ray;
       },
       worldRadius,
+      /// The world axes now shown, as {name, direction}.
+      visibleAxes: () => Object.entries(AXES).filter(([key]) => axesVisible[key]).map(([, axis]) => axis),
       setCameraEnabled(enabled) {
         controls.enabled = enabled;
       },
@@ -2785,6 +2859,9 @@
     }
 
     window.__tcad = {
+      get axes() {
+        return { ...axesVisible };
+      },
       /// False while a mesh, a timeline or a command is still in flight.
       get idle() {
         return pendingCount === 0;
