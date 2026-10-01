@@ -8,6 +8,10 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // A bare binary has no bundle icon, so set the Dock icon from the viewer's copy.
+        if let icon = NSImage(contentsOf: RepoPaths.viewerDir.appendingPathComponent("icon.png")) {
+            NSApp.applicationIconImage = icon
+        }
         NSApp.activate(ignoringOtherApps: true)
     }
 }

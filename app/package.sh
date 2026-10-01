@@ -12,6 +12,19 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp .build/debug/SprocketApp "$APP/Contents/MacOS/SprocketApp"
 
+# Finder and the Dock read the bundle's .icns. Build it from the viewer's
+# 512 px icon, so the repo keeps one copy of the artwork.
+ICONSET=".build/AppIcon.iconset"
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET" "$APP/Contents/Resources"
+for size in 16 32 128 256 512; do
+    sips -z $size $size ../viewer/icon.png --out "$ICONSET/icon_${size}x${size}.png" > /dev/null
+done
+for size in 16 32 128 256; do
+    sips -z $((size * 2)) $((size * 2)) ../viewer/icon.png --out "$ICONSET/icon_${size}x${size}@2x.png" > /dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -19,6 +32,8 @@ cat > "$APP/Contents/Info.plist" <<EOF
 <dict>
     <key>CFBundleExecutable</key>
     <string>SprocketApp</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>dev.sprocket.app</string>
     <key>CFBundleName</key>
