@@ -57,16 +57,26 @@ def schemas() -> dict:
     return {name: op.schema for name, op in sorted(REGISTRY.items())}
 
 
-def write_viewer_files(session, viewer_dir: Path) -> None:
+def write_viewer_files(session, viewer_dir: Path) -> str | None:
     """Writes the three files for the session's current revision.
 
     An empty document deletes part.mesh, which the viewer reads as "nothing to
     show". Each file is written beside its final name and renamed, so a viewer
     fetching mid-write never reads half of one.
+
+    A part that builds but cannot be written as a mesh also deletes part.mesh,
+    because the old file belongs to another revision and would show the wrong
+    part. The timeline is still written, and the reason comes back as text for
+    the viewer to show. Returns None when the mesh was written.
     """
     viewer_dir = Path(viewer_dir)
     shape, failed = session.shape()
-    data = mesh_bytes(shape)
+    mesh_error = None
+    try:
+        data = mesh_bytes(shape)
+    except Exception as exc:
+        data = None
+        mesh_error = f"{type(exc).__name__}: {exc}"
     mesh_path = viewer_dir / "part.mesh"
     if data is None:
         mesh_path.unlink(missing_ok=True)
@@ -76,6 +86,7 @@ def write_viewer_files(session, viewer_dir: Path) -> None:
         viewer_dir / "features.json", json.dumps(features_summary(session.document, failed)).encode()
     )
     _write_atomically(viewer_dir / "schemas.json", json.dumps(schemas()).encode())
+    return mesh_error
 
 
 def _write_atomically(path: Path, data: bytes) -> None:

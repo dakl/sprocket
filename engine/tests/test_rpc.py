@@ -231,6 +231,40 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
         shutil.rmtree(socket_dir, ignore_errors=True)
 
 
+def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path, monkeypatch):
+    """The part builds, but the export refuses it. The daemon used to log that
+    to stderr and leave the previous document's mesh on screen, so opening the
+    file looked like nothing happened. Now the mesh is deleted and the
+    notification carries the reason."""
+    import sprocket_engine.viewer_files as viewer_files
+
+    def refuse(shape):
+        raise ValueError("tessellation disagrees with the B-rep")
+
+    viewer_dir = tmp_path / "viewer"
+    viewer_dir.mkdir()
+    (viewer_dir / "part.mesh").write_bytes(b"the previous document")
+    path = tmp_path / "part.sprocket"
+    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    socket_dir = Path(tempfile.mkdtemp())
+    daemon = Daemon(
+        Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock", viewer_dir=viewer_dir
+    )
+    monkeypatch.setattr(viewer_files, "mesh_bytes", refuse)
+    daemon.start_in_background()
+    heard = []
+    try:
+        with Client(daemon.socket_path, on_notification=lambda method, params: heard.append(params)) as client:
+            client.call("set_rollback", index=1)
+            client.call("ping")  # reading a reply is what delivers the queued notification
+        assert heard[-1]["viewer_error"] == "ValueError: tessellation disagrees with the B-rep"
+        assert not (viewer_dir / "part.mesh").exists(), "the old mesh would show the wrong part"
+        assert len(json.loads((viewer_dir / "features.json").read_text())) == 2, "the timeline is still written"
+    finally:
+        daemon.shutdown()
+        shutil.rmtree(socket_dir, ignore_errors=True)
+
+
 # ---- opening, creating and saving documents ----------------------------------
 
 

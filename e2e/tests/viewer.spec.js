@@ -142,3 +142,15 @@ test("undo puts back the value before the last form edit", async ({ page }) => {
   await page.keyboard.press("Meta+z");
   await page.waitForFunction(() => window.__tcad.features[1].distance === 10);
 });
+
+test("a mesh the engine could not write is shown, and clears with the next good build", async ({ page }) => {
+  const banner = page.locator("#mesh-error");
+  await expect(banner).toBeHidden();
+
+  await page.evaluate(() => window.reloadPart(window.__tcad.revision || 0, false, "ValueError: tessellation disagrees"));
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveText("Could not draw the part: ValueError: tessellation disagrees");
+
+  await page.evaluate(() => window.reloadPart(window.__tcad.revision || 0, false, null));
+  await expect(banner).toBeHidden();
+});

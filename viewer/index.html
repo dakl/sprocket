@@ -24,7 +24,7 @@
 
     /* Top-centre, not next to #status: a dropped op has to stay readable
        while the extrude and selection panels sit at the bottom. */
-    #warning {
+    #warning, #mesh-error {
       position: fixed;
       left: 50%;
       top: 70px;
@@ -39,6 +39,10 @@
       pointer-events: none;
       max-width: 70%;
     }
+
+    /* Under #warning, so a dropped op and a mesh that would not write can both
+       be on screen. */
+    #mesh-error { top: 110px; }
 
     #extrude-panel {
       position: fixed;
@@ -420,6 +424,7 @@
   <div id="hint"></div>
   <div id="status"></div>
   <div id="warning"></div>
+  <div id="mesh-error"></div>
   <div id="extrude-panel">
     <input id="extrude-distance" type="text" autocomplete="off" spellcheck="false" />
     <button id="extrude-ok">OK</button>
@@ -864,13 +869,22 @@
     // `opened` means the engine swapped in another document. Its revision can
     // equal the old one's, so its files are fetched under a fresh URL, and the
     // selection, a sketch in progress and hidden sketches belonged to the old one.
-    window.reloadPart = function (token, opened) {
+    window.reloadPart = function (token, opened, viewerError) {
       loadedRevision = token;
+      showMeshError(viewerError);
       if (opened) resetForNewDocument();
       const fetchToken = opened ? token + "-" + Date.now() : token;
       loadPart(fetchToken, { refit: Boolean(opened) });
       loadFeatures(fetchToken);
     };
+
+    /// The engine could not write the part as a mesh, so it deleted the mesh
+    /// and sent the reason. Without this the screen shows nothing and says
+    /// nothing, which looks like the file did not open.
+    function showMeshError(text) {
+      meshErrorEl.textContent = text ? "Could not draw the part: " + text : "";
+      meshErrorEl.style.display = text ? "block" : "none";
+    }
 
     function resetForNewDocument() {
       if (extrudeArmed) cancelExtrude();
@@ -1098,8 +1112,9 @@
     // its POST and once as this event, so a revision already loaded is skipped.
     if (/^https?:$/.test(window.location.protocol)) {
       new EventSource("/events").addEventListener("document_changed", (event) => {
-        const { revision, opened } = JSON.parse(event.data).params;
-        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened);
+        const { revision, opened, viewer_error } = JSON.parse(event.data).params;
+        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error);
+        else showMeshError(viewer_error);
       });
     }
 
@@ -1364,6 +1379,7 @@
     const distanceEl = document.getElementById("extrude-distance");
     const statusEl = document.getElementById("status");
     const warningEl = document.getElementById("warning");
+    const meshErrorEl = document.getElementById("mesh-error");
 
     // --- Toolbar --------------------------------------------------------
     // Only three commands exist so far. Every other toolbar button is a

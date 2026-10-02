@@ -168,21 +168,26 @@ class Daemon:
             except OSError:
                 self.remove_client(client)
 
-    def publish_viewer_files(self) -> None:
+    def publish_viewer_files(self) -> str | None:
+        """Rewrites the viewer's files. Returns why the part could not be drawn,
+        or None, so a change notification can carry it to the viewer."""
         if self.viewer_dir is None:
-            return
+            return None
         try:
-            write_viewer_files(self.session, self.viewer_dir)
+            error = write_viewer_files(self.session, self.viewer_dir)
         except Exception as exc:
             # A document that will not build must not stop the edit that
             # caused it. The viewer keeps the files from the last good build.
-            print(f"viewer files not written: {type(exc).__name__}: {exc}", flush=True)
+            error = f"{type(exc).__name__}: {exc}"
+        if error:
+            print(f"viewer files not written: {error}", flush=True)
+        return error
 
     def announce_change(self, opened: bool = False) -> None:
         """`opened` says the document was replaced by another, not edited. A
         viewer then drops its selection and refits the camera, and cannot
         trust that an unchanged revision number means an unchanged part."""
-        self.publish_viewer_files()
+        viewer_error = self.publish_viewer_files()
         document = self.session.document
         self.broadcast(
             "document_changed",
@@ -192,6 +197,7 @@ class Daemon:
                 "rollback_index": document.rollback_index,
                 "path": str(document.path) if document.path else None,
                 "opened": opened,
+                "viewer_error": viewer_error,
             },
         )
 

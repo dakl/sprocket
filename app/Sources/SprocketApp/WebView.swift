@@ -67,8 +67,9 @@ struct WebView: NSViewRepresentable {
                 // Any client's edit, the viewer's own or an agent's, arrives
                 // here as a revision. The viewer refetches the files in place,
                 // which keeps the camera where the user left it.
-                EngineDaemon.shared.onDocumentChanged = { [weak self] revision, opened in
-                    self?.webView?.evaluateJavaScript("window.reloadPart && window.reloadPart(\(revision), \(opened));") { _, error in
+                EngineDaemon.shared.onDocumentChanged = { [weak self] revision, opened, viewerError in
+                    let errorLiteral = viewerError.map { Self.literal($0) } ?? "null"
+                    self?.webView?.evaluateJavaScript("window.reloadPart && window.reloadPart(\(revision), \(opened), \(errorLiteral));") { _, error in
                         if let error { print("[viewer] reloadPart failed: \(error)") }
                     }
                 }
