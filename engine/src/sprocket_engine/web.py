@@ -192,7 +192,15 @@ def make_handler(app: WebApp):
     return Handler
 
 
+class _Server(ThreadingHTTPServer):
+    # The stdlib default is 5. A page load opens about eight connections at
+    # once, and when the accept queue is full the kernel resets the extra ones,
+    # so a <script src> fails with ERR_CONNECTION_RESET and the page never
+    # starts. The OS caps this value (128 on macOS), so a large number is safe.
+    request_queue_size = 128
+
+
 def make_server(app: WebApp, port: int) -> ThreadingHTTPServer:
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
+    server = _Server(("127.0.0.1", port), make_handler(app))
     server.daemon_threads = True
     return server

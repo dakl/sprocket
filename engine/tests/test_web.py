@@ -5,6 +5,7 @@ server owns: the files it serves, the rpc route and who may call it.
 """
 
 import json
+import socket
 import tempfile
 import threading
 import urllib.error
@@ -154,3 +155,28 @@ def test_opening_another_document_at_the_same_revision_serves_its_mesh(server, t
     post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": "open_document", "params": {"path": str(cylinder)}})
     assert mesh_header(base)["counts"]["faces"] == 3
     assert feature_ids(base) == ["s1", "e1"]
+
+
+def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(tmp_path: Path):
+    """A page load opens several connections at once.
+
+    The stdlib's listen backlog of 5 made the kernel reset the extras while the
+    server was busy, so a viewer <script src> failed with ERR_CONNECTION_RESET
+    and the page never started. Here 20 clients connect before the server
+    accepts any.
+    """
+    (tmp_path / "index.html").write_text("<title>viewer</title>")
+    http = make_server(WebApp(None, tmp_path), 0)
+    clients = []
+    try:
+        port = http.server_address[1]
+        clients = [socket.create_connection(("127.0.0.1", port), timeout=1) for _ in range(20)]
+        threading.Thread(target=http.serve_forever, daemon=True).start()
+        for client in clients:
+            client.sendall(b"GET /index.html HTTP/1.0\r\n\r\n")
+            assert b" 200 " in client.recv(64)
+    finally:
+        for client in clients:
+            client.close()
+        http.shutdown()
+        http.server_close()
