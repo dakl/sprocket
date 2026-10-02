@@ -25,7 +25,7 @@ SCHEMA = {
 @register("extrude_face", SCHEMA)
 def apply(feature: dict, ctx):
     base = ctx.results[feature["base"]]
-    faces = resolve_selector(base, feature["face"])
+    faces = resolve_selector(base, feature["face"], ctx)
     if len(faces) != 1:
         raise SelectorError(f"face selector matched {len(faces)} faces, expected exactly 1")
 

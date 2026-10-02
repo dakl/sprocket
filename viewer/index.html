@@ -2357,8 +2357,20 @@
             distance: previewState.distance,
           }
         : { type: "extrude_face", point: selectedPatch.anchorPoint.toArray(), normal: selectedPatch.normal.toArray(), distance: previewState.distance };
+      const handle = armedMode === "sketch" ? null : "f" + selectedPatch.faceIndex;
       cancelExtrude();
-      sendCommand(message);
+      if (!handle) {
+        sendCommand(message);
+        return;
+      }
+      // The engine turns the picked face into a selector that follows the part
+      // through later edits. If it cannot, the face is named by where it was clicked.
+      trackPending(
+        rpcCall("resolve_selection", { handles: [handle] }).then(
+          (answer) => sendCommand({ ...message, face: answer.selector }),
+          () => sendCommand(message)
+        )
+      );
     }
 
     document.getElementById("extrude-ok").addEventListener("click", () => { if (extrudeArmed) commitExtrude(); });

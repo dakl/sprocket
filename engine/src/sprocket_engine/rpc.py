@@ -36,7 +36,9 @@ from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 from .render import render_png
-from .replay import build_shape, replay
+from .replay import build_shape, last_solid_index, replay
+from .selectors import SelectorError
+from .synthesis import synthesize
 from .viewer_files import write_viewer_files
 
 PARSE_ERROR = -32700
@@ -700,6 +702,33 @@ def _get_selection(daemon: Daemon, params: dict) -> dict:
     return _selection_view(daemon)
 
 
+def _resolve_selection(daemon: Daemon, params: dict) -> dict:
+    """Turns picked handles into a selector that survives upstream edits.
+
+    `handles` defaults to the person's current selection. The reply holds the
+    selector to paste into a fillet's `edges`, with the `expected_count` that
+    makes a rebuild fail loudly instead of rounding the wrong edges, and the
+    `strategy` that found it: `new_since` and `structure` follow the geometry,
+    and `position` only follows where it is, so it can move when a dimension does.
+    """
+    if params.get("handles") is None:
+        selection = _selection_view(daemon)
+        if selection["stale"]:
+            raise DocumentError("the selection is stale: the part was rebuilt since it was picked")
+        handles = selection["handles"]
+    else:
+        handles = _handles(params)
+    shape = daemon.session.require_shape()
+    replayable = daemon.session.document.for_replay()
+    features = replayable["features"]
+    tip = last_solid_index(features, replayable["rollback_index"])
+    _, ctx = replay({"features": features, "rollback_index": tip}, cache_dir=daemon.session.cache_dir, return_context=True)
+    try:
+        return synthesize(shape, ctx, handles, [feature["id"] for feature in features[:tip] if feature.get("type") != "sketch"])
+    except SelectorError as exc:
+        raise DocumentError(str(exc)) from None
+
+
 def _highlight(daemon: Daemon, params: dict) -> dict:
     """Shows handles in the viewer, in a colour that is not the selection's.
     An empty list clears it. It does not change what is selected."""
@@ -792,6 +821,7 @@ METHODS = {
     "describe_geometry": _describe_geometry,
     "set_selection": _set_selection,
     "get_selection": _get_selection,
+    "resolve_selection": _resolve_selection,
     "highlight": _highlight,
     "measure": _measure,
     "render_view": _render_view,
