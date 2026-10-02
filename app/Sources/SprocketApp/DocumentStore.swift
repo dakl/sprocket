@@ -18,10 +18,11 @@ final class DocumentStore: ObservableObject {
 
     private static let lastDocumentKey = "lastDocument"
 
-    /// A `.sprocket` file is JSON inside. The app is not bundled, so the type
-    /// has no Info.plist declaration. macOS makes one up from the extension,
-    /// which is all the open and save panels need.
-    private static let documentType = UTType(filenameExtension: "sprocket", conformingTo: .json) ?? .data
+    /// The app is not bundled, so the type has no Info.plist declaration and
+    /// macOS makes one up from the extension. A file on disk gets exactly that
+    /// made-up type. Adding `conformingTo: .json` makes a different one that the
+    /// file does not conform to, and the open panel greys the file out.
+    private static let documentType = UTType(filenameExtension: "sprocket") ?? .data
 
     private static var untitledDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
