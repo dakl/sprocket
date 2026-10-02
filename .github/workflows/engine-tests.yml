@@ -19,6 +19,8 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.12"
-      # The MCP tests need the extra; a plain sync leaves out mcp and anyio.
-      - run: uv sync --extra mcp
+      # The MCP tests need the mcp extra; a plain sync leaves out mcp and anyio. The
+      # solver extra is planegcs, which tests/test_solver_parity.py compares with
+      # the viewer's solver under node. Linux has a wheel for it.
+      - run: uv sync --extra mcp --extra solver
       - run: uv run pytest -v

@@ -3,11 +3,19 @@
 
 ENGINE := engine
 
-.PHONY: help test test-engine test-viewer test-ui golden-update app web
+# planegcs has no macOS wheel, so a Mac builds it from source (brew install eigen
+# boost). CMake then picks the Command Line Tools SDK, which can be newer than
+# the linker Xcode ships, so point it at Xcode's own.
+ifeq ($(shell uname),Darwin)
+SOLVER_ENV := SDKROOT=$(shell xcrun --sdk macosx --show-sdk-path) CMAKE_PREFIX_PATH=/opt/homebrew
+endif
+
+.PHONY: help test test-engine test-solver test-viewer test-ui golden-update app web
 
 help:
 	@echo "make test                                    engine, viewer unit and browser tests"
 	@echo "make test-engine                             the engine suite, golden cases included"
+	@echo "make test-solver                             the engine solver against the viewer solver (needs node, brew eigen and boost on a Mac)"
 	@echo "make test-viewer                             the viewer's node unit tests"
 	@echo "make test-ui                                 Playwright against a live engine, in headless Chrome"
 	@echo "make golden-update CASE=<name>               capture a new golden case's expected.step and expected.stl"
@@ -19,6 +27,10 @@ test: test-engine test-viewer test-ui
 
 test-engine:
 	cd $(ENGINE) && uv run pytest
+
+# The parity tests skip without the `solver` extra, so test-engine alone does not run them.
+test-solver:
+	cd $(ENGINE) && $(SOLVER_ENV) uv run --extra solver pytest tests/test_solver_parity.py -v
 
 test-viewer:
 	node --test viewer/test/*.test.js
