@@ -9,13 +9,11 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "build123d>=0.13.0",
-    "hypothesis>=6.168.3",
     "jsonschema>=4.26.0",
     # render.py rasterises with it. ocp-tessellate already pulls it in, but a
     # module that imports it directly declares it directly.
     "numpy>=2.0",
     "ocp-tessellate>=3.5.3",
-    "pytest>=9.1.1",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +23,13 @@ mcp = ["mcp>=2.0"]
 
 [project.scripts]
 sprocket = "sprocket_engine:main"
+
+# Tests only. The bundled app installs without them (`uv sync --no-dev`).
+[dependency-groups]
+dev = [
+    "hypothesis>=6.168.3",
+    "pytest>=9.1.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]

@@ -49,10 +49,10 @@ final class EngineDaemon {
         try? FileManager.default.removeItem(atPath: path)
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [
-            "uv", "run", "--directory", RepoPaths.engineDir.path,
-            "sprocket", "daemon", document.path,
+        let launch = AppPaths.engineLaunch
+        process.executableURL = launch.executable
+        process.arguments = launch.arguments + [
+            "daemon", document.path,
             "--socket", path, "--viewer-dir", viewerDir.path,
         ]
         // Both streams go to our own log, and both must be drained: a full

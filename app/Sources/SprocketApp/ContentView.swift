@@ -17,8 +17,8 @@ struct ContentView: View {
                 ProgressView("Starting the engine\u{2026}")
             case .ready:
                 WebView(
-                    url: RepoPaths.viewerDir.appendingPathComponent("index.html"),
-                    readAccessURL: RepoPaths.viewerDir
+                    url: AppPaths.viewerDir.appendingPathComponent("index.html"),
+                    readAccessURL: AppPaths.viewerDir
                 )
             case .failed(let message):
                 ScrollView {
@@ -44,7 +44,8 @@ struct ContentView: View {
         let document = store.startupDocument()
         do {
             try await Task.detached {
-                try EngineDaemon.shared.start(document: document, viewerDir: RepoPaths.viewerDir)
+                try AppPaths.prepareViewerDir()
+                try EngineDaemon.shared.start(document: document, viewerDir: AppPaths.viewerDir)
             }.value
             status = .ready
             store.ready = true

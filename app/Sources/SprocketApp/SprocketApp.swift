@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         // A bare binary has no bundle icon, so set the Dock icon from app/AppIcon.png.
         // The Dock draws it as is, so the squircle is in the picture (see make_icon.py).
-        if let icon = NSImage(contentsOf: RepoPaths.repoRoot.appendingPathComponent("app/AppIcon.png")) {
+        if let iconURL = AppPaths.devIcon, let icon = NSImage(contentsOf: iconURL) {
             NSApp.applicationIconImage = icon
         }
         NSApp.activate(ignoringOtherApps: true)

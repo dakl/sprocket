@@ -1,6 +1,6 @@
 # Packaging plan
 
-Status: proposal. Nothing here is built yet.
+Status: phase 1 is built (this PR). Phases 2 to 4 are not.
 This plan replaces the "Packaging: deferred" row in `SPEC.md` once it is accepted.
 
 ## Goal
@@ -24,22 +24,23 @@ Ship Sprocket as one signed, notarised `.app` that runs on a Mac with no
 
 | # | Change | Where | Risk |
 | --- | --- | --- | --- |
-| 1 | Write the viewer's `part.mesh`, `features.json` and `schemas.json` to Application Support, not `viewer/` | `EngineDaemon.swift`, `cli.py` (`--viewer-dir`), `viewer/` fetch URLs | High: a signed bundle is read-only |
-| 2 | Resolve paths from `Bundle.main.resourceURL`, not `#filePath` | `RepoPaths.swift`, `ContentView.swift`, `SprocketApp.swift` | Low |
-| 3 | Launch the bundled Python, not `uv run` | `EngineDaemon.swift` line 54 | Low |
-| 4 | Move `pytest`, `hypothesis` and IPython to a dev group | `engine/pyproject.toml` | Low |
-| 5 | Build a release bundle, not a debug one | `app/package.sh` | Low |
-| 6 | Strip tests, caches and unused OCP data from the bundle | new `app/bundle_engine.sh` | Medium: needs a size check |
+| 1 | Write the viewer's `part.mesh`, `features.json` and `schemas.json` to Application Support, not `viewer/` | `AppPaths.prepareViewerDir()` copies the bundled viewer to `~/Library/Caches/dev.sprocket.app/viewer` on each launch | High: a signed bundle is read-only. Done, no viewer change needed |
+| 2 | Resolve paths from `Bundle.main.resourceURL`, not `#filePath` | `AppPaths.swift` (was `RepoPaths.swift`) | Low. Done |
+| 3 | Launch the bundled Python, not `uv run` | `AppPaths.engineLaunch` | Low. Done |
+| 4 | Move `pytest`, `hypothesis` and IPython to a dev group | `engine/pyproject.toml` | Low. Done for `pytest` and `hypothesis`. IPython comes in through build123d, so it stays |
+| 5 | Build a release bundle, not a debug one | `app/package.sh --bundle` | Low. Done |
+| 6 | Strip tests, caches and unused OCP data from the bundle | `app/bundle_engine.sh` | Medium. Started: it removes Python's own test and GUI folders only |
 | 7 | Sign, notarise and staple | new `app/release.sh` | Medium |
 | 8 | Run the golden suite against the bundled interpreter | CI | Medium |
 
-Item 1 is cheaper than it looks: `sprocket daemon` already takes `--viewer-dir`.
+Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 
 ## Phases
 
-1. **Relocatable (items 1 to 3).** The app runs from a copied folder with no `uv` and no repo.
+1. **Relocatable (items 1 to 3). Built.** The app runs from a copied folder with no `uv` and no repo.
+   Checked so far: `app/package.sh --bundle` builds an app whose engine starts from the bundled Python with `env -i` (no `uv`, no `PATH` beyond `/usr/bin`), writes its viewer files to Caches and answers a JSON-RPC call. Not yet checked: a clean user account, and a full edit in the window.
    Exit check: copy the built `.app` to a clean user account, open `examples/box.sprocket`, edit a feature.
-2. **Lean (items 4 to 6).** Measure the bundle. Record the installed size and the DMG size here.
+2. **Lean (items 4 to 6).** Measured 2026-10-02: the bundle is 618 MB installed. OCP is 223 MB, scipy 72 MB and numpy 22 MB. The DMG size is not measured.
 3. **Signed (item 7).** Sign every Mach-O file (native binary), inner files first, the app last.
    Turn on the hardened runtime, then notarise with `notarytool`.
    Exit check: `spctl --assess` passes on a machine that never built the app.
@@ -53,7 +54,8 @@ Item 1 is cheaper than it looks: `sprocket daemon` already takes `--viewer-dir`.
   CPython needs no JIT entitlement. This is untested.
 - **First-launch time.** Importing build123d takes 2 to 3 seconds. Gatekeeper scanning may add to it on first run.
 - **Licences.** OCCT is LGPL with an exception. Check the notice and relinking terms before a public release.
-- **Size.** The dev `.venv` is 650 MB and OCP is 224 MB of that. The target size is unmeasured.
+- **Size.** 618 MB installed is too large for a download. Phase 2 must cut it. Look at scipy first, and at unused OCP modules.
+- **Orphan engine.** `kill` on the app (SIGTERM) leaves the engine running, because `shutdown()` only runs on a normal quit. This predates packaging.
 
 ## Out of scope
 
@@ -64,6 +66,6 @@ Item 1 is cheaper than it looks: `sprocket daemon` already takes `--viewer-dir`.
 
 ## Open questions
 
-- Does the engine need `ocp-tessellate` at run time, or only for rendering and tests?
+- Which package needs scipy, and can the engine do without it? (`ocp-tessellate` is needed: `mesh.py` imports it.)
 - Which OCP data files can be removed without breaking a fillet or a boolean?
 - Is a paid Developer Program membership available for the release?
