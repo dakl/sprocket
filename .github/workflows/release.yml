@@ -1,18 +1,23 @@
 name: release
 
-# Push a tag like v0.2.0 to publish the engine wheel and the example documents.
-# The app is not built here: it only runs from the source tree that compiled it
-# (see RepoPaths.swift), so a downloadable app waits on bundling the engine.
+# Push a tag like v0.2.0 to publish the engine wheel, the example documents and
+# the app as a DMG. The DMG is unsigned until phase 3 of docs/PACKAGING.md, so
+# Gatekeeper blocks it on other Macs.
+#
+# Run the workflow by hand ("Run workflow") to try the DMG build with no tag. It
+# then skips the release and keeps the DMG as a build artifact.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   release:
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,3 +53,29 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             engine/dist/*.whl engine/dist/*.tar.gz examples/*.sprocket
+
+  dmg:
+    needs: release
+    # Also runs when the release job was skipped (a manual run).
+    if: ${{ !cancelled() && needs.release.result != 'failure' }}
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Build the DMG
+        run: app/make_dmg.sh
+
+      - name: Name the DMG after the version
+        run: cp app/.build/Sprocket.dmg "Sprocket-${GITHUB_REF_NAME//\//-}.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: Sprocket-*.dmg
+
+      - name: Add the DMG to the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" Sprocket-*.dmg

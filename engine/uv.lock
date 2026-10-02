@@ -1674,11 +1674,9 @@ version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
-    { name = "hypothesis" },
     { name = "jsonschema" },
     { name = "numpy" },
     { name = "ocp-tessellate" },
-    { name = "pytest" },
 ]
 
 [package.optional-dependencies]
@@ -1689,18 +1687,28 @@ solver = [
     { name = "planegcs" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "hypothesis" },
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "build123d", specifier = ">=0.13.0" },
-    { name = "hypothesis", specifier = ">=6.168.3" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "ocp-tessellate", specifier = ">=3.5.3" },
     { name = "planegcs", marker = "extra == 'solver'", specifier = "==0.8.0" },
-    { name = "pytest", specifier = ">=9.1.1" },
 ]
 provides-extras = ["mcp", "solver"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hypothesis", specifier = ">=6.168.3" },
+    { name = "pytest", specifier = ">=9.1.1" },
+]
 
 [[package]]
 name = "sse-starlette"

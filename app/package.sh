@@ -2,15 +2,24 @@
 # Builds SprocketApp and wraps it in a proper .app bundle, so macOS gives it
 # a Dock icon and a Cmd-Tab entry. Without a bundle identifier the raw
 # executable from `swift build` has neither.
+#
+# With --bundle it also builds in release mode and copies the viewer and a
+# self-contained Python engine inside, so the .app runs with no source tree.
+# Add --prune after it to cut the bundle's size (see docs/PACKAGING.md).
 set -e
 
 cd "$(dirname "$0")"
-swift build
+if [ "$1" = "--bundle" ]; then
+    CONFIG=release
+else
+    CONFIG=debug
+fi
+swift build -c "$CONFIG"
 
-APP=".build/SprocketApp.app"
+APP=".build/Sprocket.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
-cp .build/debug/SprocketApp "$APP/Contents/MacOS/SprocketApp"
+cp ".build/$CONFIG/SprocketApp" "$APP/Contents/MacOS/Sprocket"
 
 # Finder and the Dock read the bundle's .icns. Build it from AppIcon.png, which
 # already has the squircle and shadow (make_icon.py). macOS adds neither.
@@ -31,7 +40,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>SprocketApp</string>
+    <string>Sprocket</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
@@ -47,5 +56,10 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </dict>
 </plist>
 EOF
+
+if [ "$1" = "--bundle" ]; then
+    if [ "$2" = "--prune" ]; then export SPROCKET_PRUNE=1; fi
+    ./bundle_engine.sh "$APP/Contents/Resources"
+fi
 
 echo "built $APP"
