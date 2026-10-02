@@ -11,10 +11,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-  # Temporary: lets PR #16 test the DMG job before the workflow reaches main.
-  # Remove once the job has passed.
-  pull_request:
-    paths: [".github/workflows/release.yml", "app/**"]
 
 permissions:
   contents: write
