@@ -181,8 +181,8 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "apply_edit",
-            "The general edit path: a list of insert, update, delete, move, set_rollback or "
-            "set_parameter edits applied as one unit. Prefer the add_* tools for adding features.",
+            "The general edit path: a list of insert, update, delete, move, set_rollback, set_parameter or "
+            "edit_sketch edits applied as one unit. Prefer the add_* tools for adding features.",
             {
                 "edits": {"type": "array", "items": {"type": "object"}},
                 "base_revision": EDIT_PROPERTIES["base_revision"],
@@ -197,6 +197,59 @@ def document_tools() -> list[types.Tool]:
                 "stl": {"type": "string", "description": "path to write STL to"},
                 "mesh": {"type": "string", "description": "path to write the viewer mesh to"},
             },
+        ),
+    ]
+
+
+SKETCH_TOOL_PROPERTIES = {
+    "feature": {"type": "string", "description": "id of a sketch feature made of lines, arcs and circles"},
+    "base_revision": EDIT_PROPERTIES["base_revision"],
+}
+CONSTRAINT_ID = {"type": "string", "description": "a constraint id from the sketch, such as 'c3'"}
+ENTITY_ID = {"type": "string", "description": "an entity id from the sketch, such as 'e2'"}
+CHANGES = {"type": "object", "description": "the fields to set. The id and the kind cannot change."}
+
+
+def sketch_tools() -> list[types.Tool]:
+    """Edits inside one sketch. Each one solves the sketch and returns the solved geometry."""
+    # Prefixed `sketch_` because every tool that starts with `add_` is an op.
+    common = "The sketch is solved after the edit, and the reply holds the solved sketch and its degrees of freedom (dof). "
+    return [
+        _tool(
+            "sketch_add_constraint",
+            common + "A constraint with no solution is refused, and the reply names the ones that conflict.",
+            {**SKETCH_TOOL_PROPERTIES, "constraint": {"type": "object", "description": "{kind, and a, b or e, and value for a dimension}"}},
+            ["feature", "constraint"],
+        ),
+        _tool(
+            "sketch_update_constraint",
+            common + "Use it to change a dimension's value.",
+            {**SKETCH_TOOL_PROPERTIES, "constraint_id": CONSTRAINT_ID, "changes": CHANGES},
+            ["feature", "constraint_id", "changes"],
+        ),
+        _tool(
+            "sketch_remove_constraint",
+            common,
+            {**SKETCH_TOOL_PROPERTIES, "constraint_id": CONSTRAINT_ID},
+            ["feature", "constraint_id"],
+        ),
+        _tool(
+            "sketch_add_entity",
+            common + "Join it to the rest with sketch_add_constraint.",
+            {**SKETCH_TOOL_PROPERTIES, "entity": {"type": "object", "description": "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind"}},
+            ["feature", "entity"],
+        ),
+        _tool(
+            "sketch_update_entity",
+            common + "The solver moves the entity to the nearest place that obeys the constraints.",
+            {**SKETCH_TOOL_PROPERTIES, "entity_id": ENTITY_ID, "changes": CHANGES},
+            ["feature", "entity_id", "changes"],
+        ),
+        _tool(
+            "sketch_remove_entity",
+            common + "Constraints that mention the entity go with it.",
+            {**SKETCH_TOOL_PROPERTIES, "entity_id": ENTITY_ID},
+            ["feature", "entity_id"],
         ),
     ]
 
@@ -228,8 +281,14 @@ def _next_id(client: Client, op_name: str) -> str:
     return f"{op_name}{index}"
 
 
+SKETCH_TOOL_NAMES = {tool.name for tool in sketch_tools()}
+
+
 def call(client: Client, name: str, arguments: dict) -> list:
     """Runs one tool against the daemon and returns MCP content."""
+    if name in SKETCH_TOOL_NAMES:
+        return _json_content(client.call(name[len("sketch_"):], author=AUTHOR, **arguments))
+
     if name.startswith("add_"):
         op_name = name[len("add_"):]
         if op_name not in REGISTRY:
@@ -286,7 +345,7 @@ def _json_content(result) -> list:
 
 def build_server(client: Client) -> Server:
     async def on_list_tools(ctx, params):
-        return types.ListToolsResult(tools=document_tools() + op_tools())
+        return types.ListToolsResult(tools=document_tools() + sketch_tools() + op_tools())
 
     async def on_call_tool(ctx, params):
         try:

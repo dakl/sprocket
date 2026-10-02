@@ -517,6 +517,36 @@ def _set_parameter(daemon: Daemon, params: dict) -> dict:
     )
 
 
+SKETCH_EDIT_FIELDS = {
+    "add_constraint": ("constraint",),
+    "update_constraint": ("constraint_id", "changes"),
+    "remove_constraint": ("constraint_id",),
+    "add_entity": ("entity",),
+    "update_entity": ("entity_id", "changes"),
+    "remove_entity": ("entity_id",),
+}
+
+
+def _sketch_method(action: str):
+    """A daemon method that does one `edit_sketch` action on the sketch named by `feature`.
+
+    The reply carries the solved sketch, so a caller sees where the solver put
+    everything without a second request.
+    """
+
+    def method(daemon: Daemon, params: dict) -> dict:
+        edit = {"op": "edit_sketch", "action": action, "id": params.get("feature")}
+        edit.update({field: params[field] for field in SKETCH_EDIT_FIELDS[action] if field in params})
+        result = _edit(daemon, [edit], params)
+        document = daemon.session.document
+        entry = document.log[-1]
+        sketch = document.features[entry["index"]]
+        detail = {key: entry[key] for key in ("constraint_id", "entity_id", "dof", "redundant") if key in entry}
+        return {**result, **detail, "sketch": {"entities": sketch["entities"], "constraints": sketch["constraints"]}}
+
+    return method
+
+
 def _step_history(daemon: Daemon, take_from: list, put_on: list, params: dict) -> dict:
     document = daemon.session.document
     if not take_from:
@@ -669,6 +699,7 @@ METHODS = {
     "apply_edit": _apply_edit,
     "set_rollback": _set_rollback,
     "set_parameter": _set_parameter,
+    **{action: _sketch_method(action) for action in SKETCH_EDIT_FIELDS},
     "undo": _undo,
     "redo": _redo,
     "preview_feature": _preview_feature,
