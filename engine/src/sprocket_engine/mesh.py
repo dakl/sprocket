@@ -32,7 +32,13 @@ import json
 import struct
 from pathlib import Path
 
+import numpy as np
 import ocp_tessellate.convert as tessellate_convert
+from OCP.BRep import BRep_Tool
+from OCP.TopAbs import TopAbs_EDGE
+from OCP.TopExp import TopExp
+from OCP.TopoDS import TopoDS
+from ocp_tessellate.ocp_utils import TopTools_IndexedMapOfShape
 
 FORMAT = "sprocket-mesh"
 VERSION = 1
@@ -66,7 +72,39 @@ def tessellate(shape) -> dict:
     )
     if len(instances) != 1:
         raise ValueError(f"expected one tessellated instance, got {len(instances)}")
-    return instances[0]
+    instance = instances[0]
+    _drop_degenerate_edges(shape, instance)
+    return instance
+
+
+def _drop_degenerate_edges(shape, instance: dict) -> None:
+    """Removes the zero-length edges ocp-tessellate draws and build123d hides.
+
+    A sphere's pole or a cone's apex is a degenerate edge: a B-rep edge with no
+    length. `shape.edges()` skips them, so the mesh's edge runs have to skip
+    them too, or every edge after the first one is off by one and the counts
+    stop matching. A filleted tooth ring hit this with 52 of them. ocp-tessellate
+    emits one 1-segment run per degenerate edge, in the order of OCCT's edge map.
+
+    If the run count does not match the map, an edge was skipped for another
+    reason and the order is unknown. The mesh is left alone and `export_mesh`
+    reports the mismatch.
+    """
+    edge_map = TopTools_IndexedMapOfShape()
+    TopExp.MapShapes_s(shape.wrapped, TopAbs_EDGE, edge_map)
+    keep = np.array(
+        [
+            not BRep_Tool.Degenerated_s(TopoDS.Edge(edge_map.FindKey(index)))
+            for index in range(1, edge_map.Extent() + 1)
+        ],
+        dtype=bool,
+    )
+    runs = instance["segments_per_edge"]
+    if keep.all() or len(runs) != len(keep):
+        return
+    keep_segment = np.repeat(keep, runs)
+    instance["edges"] = instance["edges"].reshape(-1, 6)[keep_segment].reshape(-1, 3)
+    instance["segments_per_edge"] = runs[keep]
 
 
 def export_mesh(shape, path: Path) -> dict:
