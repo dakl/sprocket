@@ -583,7 +583,7 @@
     // back a flat #6ba5ff with no gradation left in it. These three sum to
     // 1.15 at most, and each comes from a different direction, so
     // neighbouring faces of a box read as different tones. Measured on
-    // examples/box.json: face luminance now spans 0.24 to 0.48 with no
+    // examples/box.sprocket: face luminance now spans 0.24 to 0.48 with no
     // channel at 255. Before, it spanned 0.30 to 0.65 with the top faces
     // clipped. Fusion 360 spans 0.18 to 0.32 on the same shape, but it
     // separates faces with black edge lines rather than with light.
@@ -1122,7 +1122,7 @@
     ///
     /// `normal` is OCCT's own node normal, not a cross product of the hit
     /// triangle's edges. On a planar face the two agree, measured to 1e-6 on
-    /// examples/box.json, so the extrude axis is unchanged. On a curved face
+    /// examples/box.sprocket, so the extrude axis is unchanged. On a curved face
     /// the node normal is the surface's and the winding normal is one facet's.
     function facePatchAt(hit) {
       const geometry = mesh.geometry;
@@ -1155,7 +1155,7 @@
     /// OCCT's triangulation shares its nodes, so two triangles that meet reuse
     /// the same index. The old flood fill could not assume that, because a
     /// patch could span faces and the tessellation splits vertices between
-    /// them. Measured on examples/box.json: all 18 faces share their interior
+    /// them. Measured on examples/box.sprocket: all 18 faces share their interior
     /// edges by index, and every boundary vertex has exactly two boundary
     /// edges, so the loops below always close. Pinned by
     /// test_a_faces_triangulation_is_index_shared_and_its_boundary_closes.
@@ -1176,7 +1176,7 @@
 
     // Walk the boundary edges into ordered loops of vertex indices, so
     // consecutive entries are connected. A face with a hole has more than one
-    // loop: two of box.json's 18 do.
+    // loop: two of box.sprocket's 18 do.
     function orderLoops(edges) {
       const adj = new Map();
       for (const [a, b] of edges) {
@@ -1387,7 +1387,7 @@
     toolExtrudeEl.addEventListener("click", armCurrentSelection);
 
     // Clears the document to zero features. No confirmation, because Swift
-    // snapshots box.json into the same undo stack every other edit uses, so
+    // snapshots box.sprocket into the same undo stack every other edit uses, so
     // Cmd+Z brings the whole part back (see ContentView.performMutation).
     document.getElementById("tool-new").addEventListener("click", () => {
       if (sketchStage || extrudeArmed) return;

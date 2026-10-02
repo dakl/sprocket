@@ -24,7 +24,7 @@ EXTRUDE = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
 
 @pytest.fixture
 def server(tmp_path: Path):
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
@@ -140,7 +140,7 @@ def test_opening_another_document_at_the_same_revision_serves_its_mesh(server, t
     keep serving the box."""
     base, _ = server
     assert mesh_header(base)["counts"]["faces"] == 6
-    cylinder = tmp_path / "cylinder.json"
+    cylinder = tmp_path / "cylinder.sprocket"
     cylinder.write_text(
         json.dumps(
             {

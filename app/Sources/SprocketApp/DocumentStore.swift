@@ -18,6 +18,11 @@ final class DocumentStore: ObservableObject {
 
     private static let lastDocumentKey = "lastDocument"
 
+    /// A `.sprocket` file is JSON inside. The app is not bundled, so the type
+    /// has no Info.plist declaration. macOS makes one up from the extension,
+    /// which is all the open and save panels need.
+    private static let documentType = UTType(filenameExtension: "sprocket", conformingTo: .json) ?? .data
+
     private static var untitledDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Sprocket/Untitled", isDirectory: true)
@@ -77,7 +82,7 @@ final class DocumentStore: ObservableObject {
 
     func open() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = [Self.documentType]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let chosen = panel.url else { return }
         open(chosen)
@@ -94,8 +99,8 @@ final class DocumentStore: ObservableObject {
 
     func saveAs() {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = isUntitled ? "Untitled.json" : (url?.lastPathComponent ?? "Untitled.json")
+        panel.allowedContentTypes = [Self.documentType]
+        panel.nameFieldStringValue = isUntitled ? "Untitled.sprocket" : (url?.lastPathComponent ?? "Untitled.sprocket")
         if let url, !isUntitled { panel.directoryURL = url.deletingLastPathComponent() }
         guard panel.runModal() == .OK, let target = panel.url else { return }
         let previous = url
@@ -161,7 +166,7 @@ final class DocumentStore: ObservableObject {
         let stamp = DateFormatter()
         stamp.dateFormat = "yyyyMMdd-HHmmss"
         try? FileManager.default.createDirectory(at: untitledDirectory, withIntermediateDirectories: true)
-        return untitledDirectory.appendingPathComponent("Untitled-\(stamp.string(from: Date())).json")
+        return untitledDirectory.appendingPathComponent("Untitled-\(stamp.string(from: Date())).sprocket")
     }
 
     /// The daemon needs a file that exists, so the first document is written here.

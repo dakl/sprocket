@@ -21,7 +21,7 @@ import pytest
 from sprocket_engine.mesh import export_mesh
 from sprocket_engine.replay import replay
 
-# The fixture builds its own document rather than reading examples/box.json.
+# The fixture builds its own document rather than reading examples/box.sprocket.
 # That file is a scratchpad people edit while trying the app out, and the
 # pinned counts below then fail for a reason that has nothing to do with the
 # code. It happened: the counts were first written from an edited copy, so CI

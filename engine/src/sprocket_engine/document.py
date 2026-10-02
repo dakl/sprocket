@@ -249,7 +249,7 @@ class Document:
             raise DocumentError(f"cannot read document {path}: {exc.strerror}") from None
         except UnicodeDecodeError:
             # A ValueError, not an OSError, so the clause above does not catch
-            # it. Pointing at an .stl or .step instead of the .json lands here.
+            # it. Pointing at an .stl or .step instead of the .sprocket file lands here.
             raise DocumentError(f"{path} is not UTF-8 text, so it is not a document") from None
         try:
             data = json.loads(raw)

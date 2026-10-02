@@ -1,6 +1,6 @@
-"""sprocket build doc.json --step out.step --stl out.stl --mesh out.mesh
+"""sprocket build doc.sprocket --step out.step --stl out.stl --mesh out.mesh
 sprocket serve
-sprocket web doc.json
+sprocket web doc.sprocket
 
 `build` is the one-shot CLI: write a document as JSON, run this command,
 read the exported files back. `serve` is the same replay() call kept behind

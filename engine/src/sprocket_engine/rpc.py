@@ -414,7 +414,7 @@ def _get_document(daemon: Daemon, params: dict) -> dict:
 
 def _file_path(params: dict) -> Path:
     """The document path a file method was given. Absolute, because the daemon's
-    working directory is not something a caller can see, and `.json`, because
+    working directory is not something a caller can see, and `.sprocket`, because
     these methods write files and should not be a way to write any other kind."""
     raw = params.get("path")
     if not isinstance(raw, str) or not raw:
@@ -422,8 +422,8 @@ def _file_path(params: dict) -> Path:
     path = Path(raw).expanduser()
     if not path.is_absolute():
         raise DocumentError(f"{raw!r} is not an absolute path")
-    if path.suffix != ".json":
-        raise DocumentError(f"{path.name!r} is not a .json file")
+    if path.suffix != ".sprocket":
+        raise DocumentError(f"{path.name!r} is not a .sprocket file")
     return path
 
 

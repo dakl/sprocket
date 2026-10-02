@@ -58,7 +58,7 @@ def test_get_profiles_refuses_a_feature_that_is_not_a_sketch(tmp_path):
 
 
 def test_the_viewer_gets_regions_for_every_sketch(tmp_path):
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(DOCUMENT))
     entries = features_summary(Document.load(path), None)
     assert [len(entry["regions"]) for entry in entries] == [2, 1]
@@ -66,7 +66,7 @@ def test_the_viewer_gets_regions_for_every_sketch(tmp_path):
 
 def test_a_sketch_the_engine_cannot_read_still_lists_with_no_regions(tmp_path):
     broken = {"features": [{"id": "f1", "type": "sketch", "plane": "XY", "entities": [{"id": "e1", "kind": "arc", "c": [0, 0], "r": 1}]}]}
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(broken))
     (entry,) = features_summary(Document.load(path), None)
     assert entry["regions"] == []
