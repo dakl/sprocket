@@ -61,10 +61,26 @@ class Session:
 
     def __init__(self, document: Document, cache_dir: Path | None = None):
         self.document = document
-        self.cache_dir = Path(cache_dir) if cache_dir else self._default_cache_dir(document)
+        self._chosen_cache_dir = Path(cache_dir) if cache_dir else None
+        self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(document)
         self._shape = None
         self._failed_feature = None
         self._built_revision = None
+        # Counts the documents this session has held. A revision number is
+        # only unique within one document.
+        self.generation = 0
+
+    def use(self, document: Document) -> None:
+        """Switches to another document. A cache directory chosen at start-up
+        stays, and otherwise the cache follows the document's folder."""
+        self.document = document
+        self.generation += 1
+        self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(document)
+        self.invalidate()
+
+    def moved(self) -> None:
+        """The document was saved under a new path, so the default cache moves with it."""
+        self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(self.document)
 
     @staticmethod
     def _default_cache_dir(document: Document) -> Path:
@@ -162,14 +178,20 @@ class Daemon:
             # caused it. The viewer keeps the files from the last good build.
             print(f"viewer files not written: {type(exc).__name__}: {exc}", flush=True)
 
-    def announce_change(self) -> None:
+    def announce_change(self, opened: bool = False) -> None:
+        """`opened` says the document was replaced by another, not edited. A
+        viewer then drops its selection and refits the camera, and cannot
+        trust that an unchanged revision number means an unchanged part."""
         self.publish_viewer_files()
+        document = self.session.document
         self.broadcast(
             "document_changed",
             {
-                "revision": self.session.document.revision,
-                "timeline": self.session.document.timeline(),
-                "rollback_index": self.session.document.rollback_index,
+                "revision": document.revision,
+                "timeline": document.timeline(),
+                "rollback_index": document.rollback_index,
+                "path": str(document.path) if document.path else None,
+                "opened": opened,
             },
         )
 
@@ -340,6 +362,7 @@ def _error(request_id, code: int, message: str, data=None):
 def _document_state(daemon: Daemon) -> dict:
     document = daemon.session.document
     return {
+        "path": str(document.path) if document.path else None,
         "revision": document.revision,
         "features": document.features,
         "rollback_index": document.rollback_index,
@@ -347,7 +370,7 @@ def _document_state(daemon: Daemon) -> dict:
     }
 
 
-def _commit(daemon: Daemon, revision: int) -> dict:
+def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = False) -> dict:
     """What every mutating method returns, and the side effects that go with it.
 
     It rebuilds before replying, and says which feature failed if one did. An
@@ -362,9 +385,9 @@ def _commit(daemon: Daemon, revision: int) -> dict:
     """
     session = daemon.session
     session.invalidate()
-    if daemon.autosave and session.document.path:
+    if save and daemon.autosave and session.document.path:
         session.document.save()
-    daemon.announce_change()
+    daemon.announce_change(opened=opened)
 
     try:
         shape, failed = session.shape()
@@ -387,6 +410,56 @@ def _commit(daemon: Daemon, revision: int) -> dict:
 
 def _get_document(daemon: Daemon, params: dict) -> dict:
     return _document_state(daemon)
+
+
+def _file_path(params: dict) -> Path:
+    """The document path a file method was given. Absolute, because the daemon's
+    working directory is not something a caller can see, and `.json`, because
+    these methods write files and should not be a way to write any other kind."""
+    raw = params.get("path")
+    if not isinstance(raw, str) or not raw:
+        raise DocumentError("this needs a 'path'")
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise DocumentError(f"{raw!r} is not an absolute path")
+    if path.suffix != ".json":
+        raise DocumentError(f"{path.name!r} is not a .json file")
+    return path
+
+
+def _switch_to(daemon: Daemon, document: Document) -> dict:
+    """Makes `document` the open one. The undo history belonged to the old one,
+    so it goes, and nothing is written: opening a file must not touch it."""
+    daemon.session.use(document)
+    daemon.undo_stack.clear()
+    daemon.redo_stack.clear()
+    return {"path": str(document.path), **_commit(daemon, document.revision, save=False, opened=True)}
+
+
+def _open_document(daemon: Daemon, params: dict) -> dict:
+    """Replaces the open document with the one at `path`. A file that will not
+    load is refused and the open document is left as it was."""
+    return _switch_to(daemon, Document.load(_file_path(params)))
+
+
+def _new_document(daemon: Daemon, params: dict) -> dict:
+    """An empty document saved at `path`. An existing file is refused rather
+    than overwritten, because the caller picked a name, not a replacement."""
+    path = _file_path(params)
+    if path.exists():
+        raise DocumentError(f"{path} already exists")
+    document = Document(path=path)
+    document.save()
+    return _switch_to(daemon, document)
+
+
+def _save_as(daemon: Daemon, params: dict) -> dict:
+    """Writes the open document to `path`. Edits are saved there from now on."""
+    document = daemon.session.document
+    path = document.save(_file_path(params))
+    daemon.session.moved()
+    daemon.announce_change()
+    return {"path": str(path), "revision": document.revision}
 
 
 def _get_timeline(daemon: Daemon, params: dict) -> dict:
@@ -583,6 +656,9 @@ def _ping(daemon: Daemon, params: dict) -> dict:
 
 METHODS = {
     "get_document": _get_document,
+    "open_document": _open_document,
+    "new_document": _new_document,
+    "save_as": _save_as,
     "get_timeline": _get_timeline,
     "apply_edit": _apply_edit,
     "set_rollback": _set_rollback,

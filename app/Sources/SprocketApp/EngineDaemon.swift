@@ -22,7 +22,8 @@ final class EngineDaemon {
     static let shared = EngineDaemon()
 
     /// Called on the main queue with the new revision after any client's edit.
-    var onDocumentChanged: ((Int) -> Void)?
+    /// `opened` is true when the engine swapped in another document.
+    var onDocumentChanged: ((Int, Bool) -> Void)?
     /// Called on the main queue if the connection drops, which means the engine died.
     var onExit: (() -> Void)?
 
@@ -164,7 +165,8 @@ final class EngineDaemon {
         if message["method"] as? String == "document_changed",
            let params = message["params"] as? [String: Any],
            let revision = params["revision"] as? Int {
-            DispatchQueue.main.async { self.onDocumentChanged?(revision) }
+            let opened = params["opened"] as? Bool ?? false
+            DispatchQueue.main.async { self.onDocumentChanged?(revision, opened) }
         }
     }
 

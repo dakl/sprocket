@@ -133,3 +133,24 @@ def test_a_page_on_another_origin_cannot_edit_the_document(server):
     port = base.rsplit(":", 1)[1]
     allowed = post(base, "/rpc", body, headers={"Origin": f"http://127.0.0.1:{port}"})
     assert "result" in allowed
+
+
+def test_opening_another_document_at_the_same_revision_serves_its_mesh(server, tmp_path):
+    """Both documents are at revision 0. A mesh cached by revision alone would
+    keep serving the box."""
+    base, _ = server
+    assert mesh_header(base)["counts"]["faces"] == 6
+    cylinder = tmp_path / "cylinder.json"
+    cylinder.write_text(
+        json.dumps(
+            {
+                "features": [
+                    {"id": "s1", "type": "sketch", "plane": "XY", "circle": {"radius": 5}},
+                    {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10},
+                ]
+            }
+        )
+    )
+    post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": "open_document", "params": {"path": str(cylinder)}})
+    assert mesh_header(base)["counts"]["faces"] == 3
+    assert feature_ids(base) == ["s1", "e1"]

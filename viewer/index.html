@@ -860,11 +860,24 @@
     // Called from Swift (see WebView.swift) after every op edit, instead of
     // reloading the page: refetches part.mesh/features.json in place so the
     // camera position and zoom the user set survive a rebuild.
-    window.reloadPart = function (token) {
+    //
+    // `opened` means the engine swapped in another document. Its revision can
+    // equal the old one's, so its files are fetched under a fresh URL, and the
+    // selection, a sketch in progress and hidden sketches belonged to the old one.
+    window.reloadPart = function (token, opened) {
       loadedRevision = token;
-      loadPart(token, { refit: false });
-      loadFeatures(token);
+      if (opened) resetForNewDocument();
+      const fetchToken = opened ? token + "-" + Date.now() : token;
+      loadPart(fetchToken, { refit: Boolean(opened) });
+      loadFeatures(fetchToken);
     };
+
+    function resetForNewDocument() {
+      if (extrudeArmed) cancelExtrude();
+      if (sketchStage) exitSketchMode();
+      hiddenSketchIDs.clear();
+      clearSelection();
+    }
 
     loadPart(params.get("t"), { refit: true });
     loadFeatures(params.get("t"));
@@ -1085,8 +1098,8 @@
     // its POST and once as this event, so a revision already loaded is skipped.
     if (/^https?:$/.test(window.location.protocol)) {
       new EventSource("/events").addEventListener("document_changed", (event) => {
-        const revision = JSON.parse(event.data).params.revision;
-        if (revision !== loadedRevision) window.reloadPart(revision);
+        const { revision, opened } = JSON.parse(event.data).params;
+        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened);
       });
     }
 
