@@ -73,6 +73,15 @@ struct WebView: NSViewRepresentable {
                         if let error { print("[viewer] reloadPart failed: \(error)") }
                     }
                 }
+                // What an agent points at. Encoded as JSON, so nothing in it runs as code.
+                EngineDaemon.shared.onHighlight = { [weak self] handles, sketches in
+                    guard let data = try? JSONSerialization.data(withJSONObject: ["handles": handles, "sketches": sketches]),
+                          let json = String(data: data, encoding: .utf8)
+                    else { return }
+                    self?.webView?.evaluateJavaScript("window.__highlight && window.__highlight(JSON.parse(\(Self.literal(json))));") { _, error in
+                        if let error { print("[viewer] highlight failed: \(error)") }
+                    }
+                }
             }
         }
 

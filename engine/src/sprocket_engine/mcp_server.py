@@ -126,6 +126,22 @@ def document_tools() -> list[types.Tool]:
             {},
         ),
         _tool(
+            "get_selection",
+            "What the person has selected in the viewer right now: face and edge handles with a sentence "
+            "each, and sketch ids. Read it when they say 'this' or 'these'. If stale is true the part was "
+            "rebuilt since they picked, so ask them to pick again.",
+            {},
+        ),
+        _tool(
+            "highlight",
+            "Shows faces, edges or sketches in the person's viewer so they can see what you mean. "
+            "An empty list clears it. It does not change their selection.",
+            {
+                "handles": HANDLES,
+                "sketches": {"type": "array", "items": {"type": "string"}, "description": "sketch feature ids"},
+            },
+        ),
+        _tool(
             "measure",
             "Volume, area and bounding box of the whole part, or of the handles you name. "
             "Two handles give the distance between their centres.",
@@ -314,7 +330,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "measure", "preview_feature", "export"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "highlight", "measure", "preview_feature", "export"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

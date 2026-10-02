@@ -214,3 +214,27 @@ test("dragging the playhead rolls the part back and forward", async ({ page }) =
   await page.waitForFunction(() => window.__tcad.mesh !== null);
   expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, true]);
 });
+
+// --- M4.5: selection as conversation -----------------------------------------
+
+test("a face picked in the viewer is the selection an agent reads, with a sentence for it", async ({ page, request }) => {
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual(["f" + top]);
+  const selection = await rpc(request, "get_selection");
+  expect(selection.stale).toBe(false);
+  expect(selection.descriptions[0].description).toContain("normal +Z");
+  // Escape clears it, and the agent sees that too.
+  await page.keyboard.press("Escape");
+  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual([]);
+});
+
+test("a highlight from an agent shows in the viewer and does not touch the selection", async ({ page, request }) => {
+  await rpc(request, "highlight", { handles: ["f0", "e0"] });
+  await expect.poll(() => page.evaluate(() => window.__tcad.highlighted)).toEqual({ handles: ["f0", "e0"], sketches: [] });
+  expect(await page.evaluate(() => window.__tcad.selection)).toMatchObject({ face: null, edge: null });
+  await rpc(request, "highlight", { handles: [] });
+  await expect.poll(() => page.evaluate(() => window.__tcad.highlighted.handles)).toEqual([]);
+});
