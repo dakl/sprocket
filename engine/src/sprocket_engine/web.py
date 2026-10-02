@@ -21,7 +21,7 @@ Routes:
     GET  /part.mesh       the built part, in the viewer's mesh format; 404 if empty
     GET  /features.json   the timeline, each entry carrying its full feature
     GET  /schemas.json    every op's JSON Schema, which the parameter form is built from
-    GET  /events          server-sent events: document_changed
+    GET  /events          server-sent events: document_changed, selection_changed, highlight
     POST /rpc             one JSON-RPC request, the same methods the socket takes
     GET  anything else    a static file from the viewer directory
 """
@@ -76,7 +76,9 @@ class _EventStream:
         self.lock = threading.Lock()
 
     def send_line(self, message: str) -> None:
-        self.write(f"event: document_changed\ndata: {message}\n\n")
+        # The daemon's own notification, named so the page can listen to each kind.
+        method = json.loads(message)["method"]
+        self.write(f"event: {method}\ndata: {message}\n\n")
 
     def write(self, text: str) -> None:
         with self.lock:

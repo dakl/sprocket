@@ -24,6 +24,9 @@ final class EngineDaemon {
     /// Called on the main queue with the new revision after any client's edit.
     /// `opened` is true when the engine swapped in another document.
     var onDocumentChanged: ((Int, Bool, String?) -> Void)?
+    /// Called on the main queue when an agent highlights faces, edges or sketches.
+    /// An empty pair clears the highlight.
+    var onHighlight: (([String], [String]) -> Void)?
     /// Called on the main queue if the connection drops, which means the engine died.
     var onExit: (() -> Void)?
 
@@ -168,6 +171,11 @@ final class EngineDaemon {
             let opened = params["opened"] as? Bool ?? false
             let viewerError = params["viewer_error"] as? String
             DispatchQueue.main.async { self.onDocumentChanged?(revision, opened, viewerError) }
+        }
+        if message["method"] as? String == "highlight", let params = message["params"] as? [String: Any] {
+            let handles = params["handles"] as? [String] ?? []
+            let sketches = params["sketches"] as? [String] ?? []
+            DispatchQueue.main.async { self.onHighlight?(handles, sketches) }
         }
     }
 

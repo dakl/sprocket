@@ -934,6 +934,8 @@
       showMeshError(viewerError);
       if (opened) resetForNewDocument();
       const fetchToken = opened ? token + "-" + Date.now() : token;
+      // A rebuild renumbers faces and edges, so what an agent pointed at is gone.
+      showAgentHighlight({});
       loadPart(fetchToken, { refit: Boolean(opened) });
       loadFeatures(fetchToken);
       // The app and the browser both come through here. A sketch being edited
@@ -1259,7 +1261,9 @@
     // arrives here. The viewer's own edits arrive twice, once as the reply to
     // its POST and once as this event, so a revision already loaded is skipped.
     if (/^https?:$/.test(window.location.protocol)) {
-      new EventSource("/events").addEventListener("document_changed", (event) => {
+      const events = new EventSource("/events");
+      events.addEventListener("highlight", (event) => showAgentHighlight(JSON.parse(event.data).params));
+      events.addEventListener("document_changed", (event) => {
         const { revision, opened, viewer_error } = JSON.parse(event.data).params;
         sawRevision(revision);
         if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error);
@@ -1410,7 +1414,9 @@
     highlightMesh.visible = false;
     scene.add(highlightMesh);
 
-    function setHighlight(patch, color) {
+    /// A face's triangles as positions, nudged off the surface so a highlight
+    /// does not z-fight the body.
+    function patchPositions(patch) {
       const geometry = mesh.geometry;
       const pos = geometry.attributes.position;
       const normals = geometry.attributes.normal;
@@ -1429,6 +1435,11 @@
           pos.getZ(i) + normals.getZ(i) * 0.05
         );
       }
+      return positions;
+    }
+
+    function setHighlight(patch, color) {
+      const positions = patchPositions(patch);
       highlightMesh.geometry.dispose();
       highlightMesh.geometry = new THREE.BufferGeometry();
       highlightMesh.geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -1439,6 +1450,51 @@
     function clearHighlight() {
       highlightMesh.visible = false;
     }
+
+    // --- What an agent points at -----------------------------------------
+    // `highlight` from an agent paints faces and edges green, apart from the
+    // person's own orange selection, which it never touches.
+    const agentFaces = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial({ color: srgb(0x5be0a0), transparent: true, opacity: 0.45, side: THREE.DoubleSide })
+    );
+    const agentEdges = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: srgb(0x5be0a0), depthTest: false }));
+    agentEdges.renderOrder = 2;
+    agentFaces.visible = false;
+    agentEdges.visible = false;
+    scene.add(agentFaces, agentEdges);
+    let agentPointedAt = { handles: [], sketches: [] };
+
+    function appendAll(target, source) {
+      for (const value of source) target.push(value);
+    }
+
+    /// `pointed` is {handles, sketches}: `f2` and `e7` as describe_geometry names them.
+    function showAgentHighlight(pointed) {
+      agentPointedAt = { handles: pointed.handles || [], sketches: pointed.sketches || [] };
+      const facePositions = [];
+      const edgePositions = [];
+      for (const handle of agentPointedAt.handles) {
+        const index = Number(handle.slice(1));
+        if (handle[0] === "f" && mesh) {
+          const group = mesh.geometry.groups[index];
+          if (group) appendAll(facePositions, patchPositions({ firstTriangle: group.start / 3, triangleCount: group.count / 3 }));
+        } else if (handle[0] === "e" && edgeLines) {
+          const { edgeStart } = edgeLines.userData;
+          if (edgeStart && edgeStart[index + 1] !== undefined) {
+            appendAll(edgePositions, edgeLines.geometry.attributes.position.array.slice(edgeStart[index] * 6, edgeStart[index + 1] * 6));
+          }
+        }
+      }
+      for (const [object, positions] of [[agentFaces, facePositions], [agentEdges, edgePositions]]) {
+        object.geometry.dispose();
+        object.geometry = new THREE.BufferGeometry();
+        object.geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        object.visible = positions.length > 0;
+      }
+    }
+    // The app's Swift side calls this when the daemon sends a highlight.
+    window.__highlight = showAgentHighlight;
 
     /// A pointer event as normalised device coordinates, which is what
     /// Raycaster.setFromCamera takes.
@@ -1774,6 +1830,23 @@
     function selectionChanged() {
       updateToolbarState();
       renderBrowser();
+      reportSelection();
+    }
+
+    // The daemon holds the selection so an agent can read it ("fillet these").
+    // Handles are the ones describe_geometry gives: f<i> and e<i>, taken at the
+    // revision this page has loaded, because a rebuild renumbers them.
+    let reportedSelection = "";
+    function reportSelection() {
+      if (!hasSwiftBridge() && !/^https?:$/.test(window.location.protocol)) return;
+      const handles = [selectedPatch && "f" + selectedPatch.faceIndex, selectedEdge && "e" + selectedEdge.edgeIndex].filter(Boolean);
+      const sketches = selectedSketch ? [selectedSketch.id] : [];
+      const params = { handles, sketches };
+      if (Number.isInteger(loadedRevision)) params.revision = loadedRevision;
+      const key = JSON.stringify(params);
+      if (key === reportedSelection) return;
+      reportedSelection = key;
+      rpcCall("set_selection", params).catch(() => {});
     }
 
     /// Arms whichever of the two selections is live. The E key and the
@@ -3060,6 +3133,10 @@
       /// False while a mesh, a timeline or a command is still in flight.
       get idle() {
         return pendingCount === 0;
+      },
+      /// What an agent last pointed at: {handles, sketches}.
+      get highlighted() {
+        return { handles: [...agentPointedAt.handles], sketches: [...agentPointedAt.sketches] };
       },
       get revision() {
         return loadedRevision;
