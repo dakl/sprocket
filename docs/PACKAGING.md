@@ -1,6 +1,6 @@
 # Packaging plan
 
-Status: phase 1 is built (this PR). Phases 2 to 4 are not.
+Status: phases 1 and 2 are built (this PR). Phases 3 and 4 are not.
 This plan replaces the "Packaging: deferred" row in `SPEC.md` once it is accepted.
 
 ## Goal
@@ -29,7 +29,7 @@ Ship Sprocket as one signed, notarised `.app` that runs on a Mac with no
 | 3 | Launch the bundled Python, not `uv run` | `AppPaths.engineLaunch` | Low. Done |
 | 4 | Move `pytest`, `hypothesis` and IPython to a dev group | `engine/pyproject.toml` | Low. Done for `pytest` and `hypothesis`. IPython comes in through build123d, so it stays |
 | 5 | Build a release bundle, not a debug one | `app/package.sh --bundle` | Low. Done |
-| 6 | Strip tests, caches and unused OCP data from the bundle | `app/bundle_engine.sh` | Medium. Started: it removes Python's own test and GUI folders only |
+| 6 | Strip tests, caches and unused OCP data from the bundle | `app/bundle_engine.sh` | Medium. Done once: see phase 2 for what it removes and what remains |
 | 7 | Sign, notarise and staple | new `app/release.sh` | Medium |
 | 8 | Run the golden suite against the bundled interpreter | CI | Medium |
 
@@ -40,7 +40,18 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 1. **Relocatable (items 1 to 3). Built.** The app runs from a copied folder with no `uv` and no repo.
    Checked so far: `app/package.sh --bundle` builds an app whose engine starts from the bundled Python with `env -i` (no `uv`, no `PATH` beyond `/usr/bin`), writes its viewer files to Caches and answers a JSON-RPC call. Not yet checked: a clean user account, and a full edit in the window.
    Exit check: copy the built `.app` to a clean user account, open `examples/box.sprocket`, edit a feature.
-2. **Lean (items 4 to 6).** Measured 2026-10-02: the bundle is 618 MB installed. OCP is 223 MB, scipy 72 MB and numpy 22 MB. The DMG size is not measured.
+2. **Lean (items 4 to 6). Built once, more is possible.** Measured 2026-10-02:
+
+   | Step | Installed | DMG (UDZO) |
+   | --- | --- | --- |
+   | Before | 618 MB | not measured |
+   | After `bundle_engine.sh` prune | 435 MB | 211 MB |
+
+   The prune removes sympy, mpmath, jedi, parso and pip (unused), the 90 MB of `threejs_materials` PNG textures (glTF export only), test folders, build-time sources and local symbols (`strip -x`).
+   `strip` breaks each library's signature and an arm64 Mac then kills it, so the script re-signs ad hoc.
+   The engine suite passes on the pruned bundled Python: 228 passed.
+   What is left: OCP 221 MB, scipy 58 MB, sklearn 28 MB, numpy 15 MB, PIL 12 MB, ezdxf 10 MB, Python itself 40 MB.
+   The engine uses none of scipy and sklearn directly. build123d imports them at load time (`brep_from_stl.py`, `objects_part.py` and others), so removing them means patching build123d. OCP's libraries are linked into one extension, so they cannot be dropped one by one.
 3. **Signed (item 7).** Sign every Mach-O file (native binary), inner files first, the app last.
    Turn on the hardened runtime, then notarise with `notarytool`.
    Exit check: `spctl --assess` passes on a machine that never built the app.
@@ -54,7 +65,7 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
   CPython needs no JIT entitlement. This is untested.
 - **First-launch time.** Importing build123d takes 2 to 3 seconds. Gatekeeper scanning may add to it on first run.
 - **Licences.** OCCT is LGPL with an exception. Check the notice and relinking terms before a public release.
-- **Size.** 618 MB installed is too large for a download. Phase 2 must cut it. Look at scipy first, and at unused OCP modules.
+- **Size.** 435 MB installed and a 211 MB DMG. Large for a CAD tool download but not blocking. The next cut is a patched build123d without scipy and sklearn (about 85 MB). It is not planned.
 - **Orphan engine.** `kill` on the app (SIGTERM) leaves the engine running, because `shutdown()` only runs on a normal quit. This predates packaging.
 
 ## Out of scope
@@ -66,6 +77,5 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 
 ## Open questions
 
-- Which package needs scipy, and can the engine do without it? (`ocp-tessellate` is needed: `mesh.py` imports it.)
-- Which OCP data files can be removed without breaking a fillet or a boolean?
+- Is a 211 MB download acceptable, or is the patched build123d worth maintaining? (`ocp-tessellate` is needed: `mesh.py` imports it. scipy and sklearn come from build123d.)
 - Is a paid Developer Program membership available for the release?
