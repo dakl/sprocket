@@ -12,16 +12,16 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp .build/debug/SprocketApp "$APP/Contents/MacOS/SprocketApp"
 
-# Finder and the Dock read the bundle's .icns. Build it from the viewer's
-# 512 px icon, so the repo keeps one copy of the artwork.
+# Finder and the Dock read the bundle's .icns. Build it from AppIcon.png, which
+# already has the squircle and shadow (make_icon.py). macOS adds neither.
 ICONSET=".build/AppIcon.iconset"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET" "$APP/Contents/Resources"
 for size in 16 32 128 256 512; do
-    sips -z $size $size ../viewer/icon.png --out "$ICONSET/icon_${size}x${size}.png" > /dev/null
+    sips -z $size $size AppIcon.png --out "$ICONSET/icon_${size}x${size}.png" > /dev/null
 done
 for size in 16 32 128 256; do
-    sips -z $((size * 2)) $((size * 2)) ../viewer/icon.png --out "$ICONSET/icon_${size}x${size}@2x.png" > /dev/null
+    sips -z $((size * 2)) $((size * 2)) AppIcon.png --out "$ICONSET/icon_${size}x${size}@2x.png" > /dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
