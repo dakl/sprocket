@@ -55,6 +55,7 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 3. **Signed (item 7).** Sign every Mach-O file (native binary), inner files first, the app last.
    Turn on the hardened runtime, then notarise with `notarytool`.
    Exit check: `spctl --assess` passes on a machine that never built the app.
+   `release.yml` builds the DMG on a `macos-14` runner for each `v*` tag and adds it to the release. A manual run builds it with no release. It is unsigned, and the job has never run.
 4. **Verified (item 8).** See the golden-test risk below.
 
 ## Risks
