@@ -174,3 +174,43 @@ test("every op in the timeline has an icon, a boolean included", async ({ page, 
   const icons = await page.evaluate(() => Object.keys(FEATURE_ICONS));
   expect(icons).toEqual(expect.arrayContaining(ops));
 });
+
+test("the timeline shows icons only, with the id in the tooltip", async ({ page }) => {
+  await expect(chip(page, "f2")).toHaveText(/^\s*$/);
+  await expect(chip(page, "f2")).toHaveAttribute("title", "f2 (extrude)");
+});
+
+test("dragging the playhead rolls the part back and forward", async ({ page }) => {
+  const playhead = page.locator("#playhead");
+  const box = async (locator) => locator.boundingBox();
+
+  // It starts after the last chip: everything is built.
+  const last = await box(chip(page, "f2"));
+  const start = await box(playhead);
+  expect(start.x + start.width / 2).toBeGreaterThan(last.x + last.width - 1);
+
+  // Drag it into the gap between the sketch and the extrude. A sketch alone
+  // builds no solid, so the part disappears.
+  const first = await box(chip(page, "f1"));
+  const grab = { x: start.x + start.width / 2, y: start.y + start.height / 2 };
+  await page.mouse.move(grab.x, grab.y);
+  await page.mouse.down();
+  await page.mouse.move(first.x + first.width + 2, grab.y, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__tcad.mesh === null);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, false]);
+
+  // The playhead now sits between the two chips.
+  const moved = await box(playhead);
+  const centre = moved.x + moved.width / 2;
+  expect(centre).toBeGreaterThan(first.x + first.width);
+  expect(centre).toBeLessThan(last.x);
+
+  // And back to the end: the part is built again.
+  await page.mouse.move(centre, grab.y);
+  await page.mouse.down();
+  await page.mouse.move(last.x + last.width + 20, grab.y, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__tcad.mesh !== null);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, true]);
+});

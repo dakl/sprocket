@@ -128,8 +128,41 @@
       opacity: 1;
     }
 
-    .timeline-chip .timeline-icon { margin-right: 3px; }
-    .timeline-chip .timeline-icon svg { width: 12px; height: 12px; vertical-align: -2px; }
+    .timeline-chip .timeline-icon svg { width: 14px; height: 14px; vertical-align: -3px; }
+
+    /* The playhead sits in the gap between two chips: everything to its left
+       is built, everything to its right is rolled back. It is absolutely
+       positioned inside #timeline, so it scrolls with the chips. The wide,
+       transparent box is the grab area. */
+    #playhead {
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      width: 14px;
+      margin-left: -7px;
+      cursor: ew-resize;
+      touch-action: none;
+      z-index: 2;
+    }
+    #playhead::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #5be0a0;
+      border-radius: 1px;
+    }
+    #playhead::after {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: -1px;
+      border: 5px solid transparent;
+      border-top: 7px solid #5be0a0;
+      border-bottom: 0;
+    }
 
     /* --- Toolbar -------------------------------------------------------
        One row of grouped icon buttons. There is no workspace tab strip:
@@ -188,6 +221,7 @@
     .tool-button:disabled { color: #555; cursor: default; }
 
     .timeline-chip .timeline-edit { margin-left: 6px; color: #888; }
+    .timeline-chip .timeline-edit svg { width: 12px; height: 12px; vertical-align: -2px; }
     .timeline-chip .timeline-edit:hover { color: #5be0a0; }
 
     /* --- Properties form -----------------------------------------------
@@ -523,7 +557,7 @@
   </div>
   <div id="sketch-labels"></div>
   <input id="sketch-dimension" type="text" autocomplete="off" spellcheck="false" />
-  <div id="timeline"></div>
+  <div id="timeline"><div id="playhead" title="Drag to roll the model back and forward"></div></div>
   <aside id="properties" hidden></aside>
   <div id="view-cube">
     <button id="view-cube-home" title="Reset to the default view">
@@ -918,19 +952,21 @@
 
     function renderTimeline(features) {
       const timeline = document.getElementById("timeline");
-      timeline.innerHTML = "";
+      timeline.querySelectorAll(".timeline-chip").forEach((chip) => chip.remove());
       features.forEach((feature, index) => {
         const chip = document.createElement("span");
         chip.className =
           "timeline-chip" + (feature.active ? "" : " timeline-chip-inactive") + (feature.failed ? " timeline-chip-failed" : "");
-        chip.title = feature.failed ? feature.type + " - no longer applies" : feature.type;
+        // Icons only. The id and type are in the tooltip.
+        chip.title = feature.id + " (" + feature.type + ")" + (feature.failed ? " - no longer applies" : "");
         const icon = FEATURE_ICONS[feature.type] || "?";
-        chip.innerHTML = '<span class="timeline-icon">' + icon + "</span>" + feature.id;
+        chip.innerHTML = '<span class="timeline-icon">' + icon + "</span>";
         chip.dataset.featureId = feature.id;
         const edit = document.createElement("span");
         edit.className = "timeline-edit";
         edit.title = "Edit parameters";
-        edit.textContent = "✎";
+        edit.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg>';
         edit.addEventListener("click", (event) => {
           event.stopPropagation();
           openProperties(feature.id);
@@ -952,7 +988,79 @@
         });
         timeline.appendChild(chip);
       });
+      if (!draggingPlayhead) placePlayhead(features.filter((feature) => feature.active).length);
     }
+
+    // --- Playhead -----------------------------------------------------------
+    // Drag it along the timeline and the part is rebuilt up to that point, so
+    // the model can be watched being made. Its position is a rollback index:
+    // the number of chips on its left.
+    const timelineEl = document.getElementById("timeline");
+    const playheadEl = document.getElementById("playhead");
+    let draggingPlayhead = false;
+    let scrubTarget = null;
+    let scrubbing = false;
+
+    function timelineChips() {
+      return Array.from(timelineEl.querySelectorAll(".timeline-chip"));
+    }
+
+    /// Puts the playhead in the gap after `index` chips. offsetLeft is measured
+    /// from #timeline's padding edge in scroll coordinates, the same as the
+    /// playhead's own `left`.
+    function placePlayhead(index) {
+      const chips = timelineChips();
+      if (chips.length === 0) {
+        playheadEl.style.display = "none";
+        return;
+      }
+      const after = (chip) => chip.offsetLeft + chip.offsetWidth;
+      const x = index === 0 ? chips[0].offsetLeft - 3 : index >= chips.length ? after(chips[chips.length - 1]) + 3 : (after(chips[index - 1]) + chips[index].offsetLeft) / 2;
+      playheadEl.style.display = "block";
+      playheadEl.style.left = x + "px";
+    }
+
+    /// How many chips lie left of the pointer: the rollback index it points at.
+    function indexAtPointer(clientX) {
+      const x = clientX - timelineEl.getBoundingClientRect().left + timelineEl.scrollLeft;
+      return timelineChips().filter((chip) => chip.offsetLeft + chip.offsetWidth / 2 < x).length;
+    }
+
+    /// Asks for `index`, one request at a time. A drag moves faster than the
+    /// engine rebuilds, so while one is running only the newest target is kept.
+    function scrubTo(index) {
+      scrubTarget = index;
+      if (scrubbing) return;
+      scrubbing = true;
+      const next = () => {
+        const target = scrubTarget;
+        return setRollback(target).finally(() => {
+          if (scrubTarget !== target) return next();
+          scrubbing = false;
+        });
+      };
+      next();
+    }
+
+    playheadEl.addEventListener("pointerdown", (event) => {
+      draggingPlayhead = true;
+      playheadEl.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    playheadEl.addEventListener("pointermove", (event) => {
+      if (!draggingPlayhead) return;
+      const index = indexAtPointer(event.clientX);
+      placePlayhead(index);
+      scrubTo(index);
+    });
+    const endPlayheadDrag = () => {
+      if (!draggingPlayhead) return;
+      draggingPlayhead = false;
+      placePlayhead(browserFeatures.filter((feature) => feature.active).length);
+    };
+    playheadEl.addEventListener("pointerup", endPlayheadDrag);
+    playheadEl.addEventListener("pointercancel", endPlayheadDrag);
+    window.addEventListener("resize", () => placePlayhead(browserFeatures.filter((feature) => feature.active).length));
 
     /// Names the op the engine could not apply, if any. Editing a sketch can
     /// leave a later op unbuildable - a face selector matching nothing, a cut
@@ -1128,7 +1236,7 @@
     }
 
     function setRollback(index) {
-      sendCommand({ type: "set_rollback", index: index });
+      return sendCommand({ type: "set_rollback", index: index });
     }
 
     // --- Push/pull picking (M3) ---------------------------------------
