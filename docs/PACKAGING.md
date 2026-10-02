@@ -28,7 +28,7 @@ Ship Sprocket as one signed, notarised `.app` that runs on a Mac with no
 | 2 | Resolve paths from `Bundle.main.resourceURL`, not `#filePath` | `AppPaths.swift` (was `RepoPaths.swift`) | Low. Done |
 | 3 | Launch the bundled Python, not `uv run` | `AppPaths.engineLaunch` | Low. Done |
 | 4 | Move `pytest`, `hypothesis` and IPython to a dev group | `engine/pyproject.toml` | Low. Done for `pytest` and `hypothesis`. IPython comes in through build123d, so it stays |
-| 5 | Build a release bundle, not a debug one | `app/package.sh --bundle` | Low. Done |
+| 5 | Build a release bundle, not a debug one | `app/package.sh --bundle`. `app/make_dmg.sh` packs `Sprocket.app` and an Applications shortcut into `.build/Sprocket.dmg` | Low. Done |
 | 6 | Strip tests, caches and unused OCP data from the bundle | `app/bundle_engine.sh` | Medium. Done once: see phase 2 for what it removes and what remains |
 | 7 | Sign, notarise and staple | new `app/release.sh` | Medium |
 | 8 | Run the golden suite against the bundled interpreter | CI | Medium |

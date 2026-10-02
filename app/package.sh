@@ -16,10 +16,10 @@ else
 fi
 swift build -c "$CONFIG"
 
-APP=".build/SprocketApp.app"
+APP=".build/Sprocket.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
-cp ".build/$CONFIG/SprocketApp" "$APP/Contents/MacOS/SprocketApp"
+cp ".build/$CONFIG/SprocketApp" "$APP/Contents/MacOS/Sprocket"
 
 # Finder and the Dock read the bundle's .icns. Build it from AppIcon.png, which
 # already has the squircle and shadow (make_icon.py). macOS adds neither.
@@ -40,7 +40,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>SprocketApp</string>
+    <string>Sprocket</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
