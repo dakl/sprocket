@@ -25,7 +25,7 @@ Settled before handoff; change them here, not only in chat with an agent.
 | Viewer stack | Plain three.js for the viewport; React only for panels and dialogs; no react-three-fiber |
 | Units | Each document declares its units, as in Fusion 360. Defaults: mm for length, g for mass. Values can be typed in any unit and are converted |
 | Python tooling | `uv` with build123d and OCP pinned in the lockfile. Verify OCP installs cleanly on macOS arm64 first |
-| Packaging | Not bundled for now. The app launches the engine via `uv run` from the repo's engine directory, configured by path. Bundling is deferred until there is a reason to distribute |
+| Packaging | Not bundled for now. The app launches the engine via `uv run` from the repo's engine directory, configured by path. Bundling is deferred until there is a reason to distribute. The proposed plan is in `docs/PACKAGING.md` |
 | License | Private for now; possibly public later. Not sold. No code copied from Chili3D or similar projects; they are design inspiration only. Dependencies must be compatible with a future open-source release |
 | Golden approval | Every new golden needs an independent correctness check (see Testing strategy), not just a capture of current output. Existing goldens are off limits: agents never modify, regenerate or delete them without Daniel's explicit approval, including after dependency upgrades |
 | Agent workflow | One milestone per session; plan first, then implement. This spec lives at `docs/SPEC.md` and is the source of truth |
