@@ -191,8 +191,8 @@ test("a line drawn from the origin to a circle is joined to both: coincident at 
   await expect.poll(async () => (await sketchState(page)).entities.length).toBe(2);
 
   const { constraints, entities } = await sketchState(page);
-  expect(constraints).toContainEqual({ kind: "coincident", a: "origin", b: "e2.p0" });
-  expect(constraints).toContainEqual({ kind: "point_on", a: "e2.p1", b: "e1" });
+  expect(constraints).toContainEqual(expect.objectContaining({ kind: "coincident", a: "origin", b: "e2.p0" }));
+  expect(constraints).toContainEqual(expect.objectContaining({ kind: "point_on", a: "e2.p1", b: "e1" }));
   expect(Math.hypot(entities[1].p1[0] - 30, entities[1].p1[1])).toBeCloseTo(10, 4);
 });
 
@@ -218,8 +218,8 @@ test("the axes are hidden until the browser shows them, and only a shown axis is
   await click(page, [0.2, 25]);
   await expect.poll(async () => (await sketchState(page)).entities.length).toBe(1);
   const { constraints, entities } = await sketchState(page);
-  expect(constraints).toContainEqual({ kind: "point_on", a: "e1.p0", b: "axis_u" });
-  expect(constraints).toContainEqual({ kind: "point_on", a: "e1.p1", b: "axis_v" });
+  expect(constraints).toContainEqual(expect.objectContaining({ kind: "point_on", a: "e1.p0", b: "axis_u" }));
+  expect(constraints).toContainEqual(expect.objectContaining({ kind: "point_on", a: "e1.p1", b: "axis_v" }));
   expect(entities[0].p0[1]).toBeCloseTo(0, 6);
   expect(entities[0].p1[0]).toBeCloseTo(0, 6);
 });
@@ -259,7 +259,9 @@ test("a dimension that contradicts the others is refused and the sketch is left 
   await expect(page.locator("#sketch-dimension")).toBeVisible();
   await page.keyboard.type("55");
   await page.keyboard.press("Enter");
-  await expect(page.locator("#sketch-status")).toContainText("conflicts");
+  // The refusal names what it ran into, not just that it ran into something.
+  await expect(page.locator("#sketch-status")).toContainText("conflicts with distance");
+  expect((await sketchState(page)).conflicting.length).toBeGreaterThan(0);
   expect((await sketchState(page)).constraints.filter((item) => item.kind === "distance")).toHaveLength(1);
 });
 
@@ -350,7 +352,7 @@ test("lines chained with the line tool snap level, join at their corners, and cl
   expect(drawn.constraints.some((item) => item.kind === "horizontal" && item.e === "e1")).toBe(true);
   // Four corners joined, and the first one sits on the origin.
   expect(drawn.constraints.filter((item) => item.kind === "coincident" && item.a !== "origin")).toHaveLength(4);
-  expect(drawn.constraints).toContainEqual({ kind: "coincident", a: "origin", b: "e1.p0" });
+  expect(drawn.constraints).toContainEqual(expect.objectContaining({ kind: "coincident", a: "origin", b: "e1.p0" }));
   expect(Math.abs(drawn.entities[0].p0[1] - drawn.entities[0].p1[1])).toBeLessThan(1e-6);
 
   await finishSketch(page);
@@ -427,4 +429,146 @@ test("the constraint buttons act on the selection: horizontal levels a line, tan
   ({ entities } = await sketchState(page));
   const [line, touching] = entities;
   expect(Math.abs(touching.c[1] - line.p0[1])).toBeCloseTo(touching.r, 6);
+});
+
+// --- M3.7: the constraint list, and M3.8: a sketch that an agent edits too -------
+
+const glyph = (page, id) => page.locator(`.sketch-glyph[data-constraint-id="${id}"]`);
+
+test("glyphs sit beside constrained geometry, and the toggle hides them", async ({ page }) => {
+  await startSketch(page);
+  await drawRectangle(page, [-20, -10], [20, 10]);
+  // Four horizontal or vertical constraints. The four corner joins are shown too.
+  await expect.poll(async () => (await sketchState(page)).glyphs).toBe(8);
+  await page.locator("#sketch-constraints-toggle").click();
+  await expect.poll(async () => (await sketchState(page)).glyphs).toBe(0);
+  await page.locator("#sketch-constraints-toggle").click();
+  await expect.poll(async () => (await sketchState(page)).glyphs).toBe(8);
+});
+
+test("selecting a glyph selects its constraint, and Delete removes just that one", async ({ page }) => {
+  await startSketch(page);
+  await drawRectangle(page, [-20, -10], [20, 10]);
+  const before = await sketchState(page);
+  const target = before.constraints.find((item) => item.kind === "horizontal");
+  await glyph(page, target.id).click();
+  expect((await sketchState(page)).selectedConstraint).toBe(target.id);
+  await page.keyboard.press("Delete");
+  const after = await sketchState(page);
+  expect(after.constraintIds).toEqual(before.constraintIds.filter((id) => id !== target.id));
+  expect(after.entities).toHaveLength(4);
+  expect(after.dof).toBe(before.dof + 1);
+});
+
+test("a dimension is selected with a click, edited with a double-click, and removed with Delete", async ({ page }) => {
+  await startSketch(page);
+  await drawRectangle(page, [-20, -10], [20, 10]);
+  await tool(page, "dimension").click();
+  await click(page, [0, -10]);
+  await dimension(page, 40);
+  await tool(page, "select").click();
+  const label = page.locator(".sketch-dimension-label");
+  await label.dblclick();
+  await expect(page.locator("#sketch-dimension")).toBeVisible();
+  await page.keyboard.type("30");
+  await page.keyboard.press("Enter");
+  await expect(label).toHaveText("30.00");
+  await label.click();
+  await page.keyboard.press("Delete");
+  await expect(label).toHaveCount(0);
+  expect((await sketchState(page)).constraints.filter((item) => item.kind === "distance")).toHaveLength(0);
+});
+
+test("undo and redo step back through the sketch's own changes", async ({ page }) => {
+  await startSketch(page);
+  await drawRectangle(page, [-20, -10], [20, 10]);
+  await tool(page, "dimension").click();
+  await click(page, [0, -10]);
+  await dimension(page, 40);
+  const withDimension = (await sketchState(page)).constraintIds.length;
+  await page.keyboard.press("Control+z");
+  expect((await sketchState(page)).constraintIds).toHaveLength(withDimension - 1);
+  await page.keyboard.press("Control+Shift+z");
+  expect((await sketchState(page)).constraintIds).toHaveLength(withDimension);
+  // And all the way back: the rectangle is one step, so undoing it empties the sketch.
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  expect((await sketchState(page)).entities).toHaveLength(0);
+  expect((await sketchState(page)).redoDepth).toBe(2);
+});
+
+const RECTANGLE = {
+  entities: [
+    { id: "e1", kind: "line", p0: [0, 0], p1: [40, 0] },
+    { id: "e2", kind: "line", p0: [40, 0], p1: [40, 20] },
+    { id: "e3", kind: "line", p0: [40, 20], p1: [0, 20] },
+    { id: "e4", kind: "line", p0: [0, 20], p1: [0, 0] },
+  ],
+  constraints: [
+    { kind: "coincident", a: "e1.p1", b: "e2.p0" },
+    { kind: "coincident", a: "e2.p1", b: "e3.p0" },
+    { kind: "coincident", a: "e3.p1", b: "e4.p0" },
+    { kind: "coincident", a: "e4.p1", b: "e1.p0" },
+    { kind: "horizontal", e: "e1" },
+    { kind: "horizontal", e: "e3" },
+    { kind: "vertical", e: "e2" },
+    { kind: "vertical", e: "e4" },
+    { kind: "fix", e: "e1.p0" },
+  ],
+};
+
+async function openSavedSketch(page, request) {
+  await resetDocument(request, { features: [{ id: "f1", type: "sketch", plane: "XY", ...RECTANGLE }], rollback_index: 1 });
+  await page.goto("/index.html");
+  await page.waitForFunction(() => window.__tcad.features.length === 1);
+  await settled(page);
+  await page.locator('.timeline-chip[data-feature-id="f1"]').dblclick();
+  await page.waitForFunction(() => window.__tcad.sketch.active && window.__tcad.sketch.editing === "f1");
+  await cameraStill(page);
+}
+
+test("a change made in an open sketch reaches the document before Finish, and Cancel puts it back", async ({ page, request }) => {
+  await openSavedSketch(page, request);
+  await tool(page, "dimension").click();
+  await click(page, [20, 0]);
+  await dimension(page, 50);
+  await expect.poll(async () => (await sketchState(page)).synced).toBe(true);
+  const saved = (await rpc(request, "get_document")).features[0];
+  expect(saved.constraints.filter((item) => item.kind === "distance")).toHaveLength(1);
+  expect(saved.entities[0].p1[0]).toBeCloseTo(50, 6);
+
+  await page.locator("#sketch-cancel").click();
+  await page.waitForFunction(() => !window.__tcad.sketch.active);
+  await settled(page);
+  const restored = (await rpc(request, "get_document")).features[0];
+  expect(restored.constraints.filter((item) => item.kind === "distance")).toHaveLength(0);
+  expect(restored.entities[0].p1[0]).toBeCloseTo(40, 6);
+});
+
+test("a dimension an agent adds to a sketch the viewer has open moves it live", async ({ page, request }) => {
+  await openSavedSketch(page, request);
+  const before = (await sketchState(page)).constraintIds;
+  const added = await rpc(request, "add_constraint", {
+    feature: "f1",
+    constraint: { kind: "distance", a: "e1.p0", b: "e1.p1", value: 55 },
+    author: "agent:test",
+  });
+  await expect.poll(async () => (await sketchState(page)).constraintIds).toContain(added.constraint_id);
+  const after = await sketchState(page);
+  expect(after.constraintIds).toHaveLength(before.length + 1);
+  expect(after.entities[0].p1[0]).toBeCloseTo(55, 6);
+  await expect(page.locator(`.sketch-dimension-label[data-constraint-id="${added.constraint_id}"]`)).toHaveText("55.00");
+  expect(after.synced).toBe(true);
+});
+
+test("an agent's edit and the viewer's next edit both survive", async ({ page, request }) => {
+  await openSavedSketch(page, request);
+  const added = await rpc(request, "add_constraint", { feature: "f1", constraint: { kind: "distance", a: "e1.p0", b: "e1.p1", value: 55 } });
+  await expect.poll(async () => (await sketchState(page)).constraintIds).toContain(added.constraint_id);
+  await tool(page, "dimension").click();
+  await click(page, [55, 10]);
+  await dimension(page, 25);
+  await expect.poll(async () => (await sketchState(page)).synced).toBe(true);
+  const saved = (await rpc(request, "get_document")).features[0].constraints.filter((item) => item.kind === "distance");
+  expect(saved.map((item) => item.value).sort()).toEqual([25, 55]);
 });

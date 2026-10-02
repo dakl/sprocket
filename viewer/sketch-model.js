@@ -29,6 +29,20 @@
     return "e" + (Math.max(0, ...used) + 1);
   }
 
+  /// `c<n>`, one past the highest in use. Same rule as entities: a constraint's
+  /// id is its address for an agent, so a deleted one's id never comes back.
+  function nextConstraintId(sketch) {
+    const used = sketch.constraints.map((constraint) => Number((constraint.id || "").slice(1))).filter(Number.isFinite);
+    return "c" + (Math.max(0, ...used) + 1);
+  }
+
+  /// A sketch whose constraints all have ids. Documents from before M3.8 have none.
+  function withConstraintIds(sketch) {
+    const next = copy(sketch);
+    for (const constraint of next.constraints) if (!constraint.id) constraint.id = nextConstraintId(next);
+    return next;
+  }
+
   const ORIGIN = "origin";
   const isPointReference = (reference) => reference === ORIGIN || reference.includes(".");
   const entityIdOf = (reference) => reference.split(".")[0];
@@ -46,7 +60,7 @@
       ["a", "b", "e"].every((key) => other[key] === constraint[key]) &&
       // Two dimensions on one thing are a conflict for the solver to report, not a duplicate to drop.
       other.value === constraint.value;
-    if (!next.constraints.some(same)) next.constraints.push(constraint);
+    if (!next.constraints.some(same)) next.constraints.push({ ...constraint, id: constraint.id || nextConstraintId(next) });
     return next;
   }
 
@@ -138,9 +152,12 @@
     };
   }
 
+  const indexOfConstraint = (sketch, id) => sketch.constraints.findIndex((constraint) => constraint.id === id);
+
+  /// The constraint at `index` replaced, keeping its id.
   function replaceConstraint(sketch, index, constraint) {
     const next = copy(sketch);
-    next.constraints[index] = constraint;
+    next.constraints[index] = { ...constraint, id: constraint.id || next.constraints[index].id };
     return next;
   }
 
@@ -148,6 +165,26 @@
     const next = copy(sketch);
     next.constraints.splice(index, 1);
     return next;
+  }
+
+  function removeConstraintById(sketch, id) {
+    const index = indexOfConstraint(sketch, id);
+    return index < 0 ? sketch : removeConstraint(sketch, index);
+  }
+
+  const referencesOf = (constraint) => ["a", "b", "e"].map((key) => constraint[key]).filter(Boolean);
+
+  /// The entities a constraint acts on, for highlighting them. The origin and
+  /// the sketch axes are not entities.
+  function constraintEntities(sketch, constraint) {
+    const known = new Set(sketch.entities.map((entity) => entity.id));
+    return [...new Set(referencesOf(constraint).map(entityIdOf))].filter((id) => known.has(id));
+  }
+
+  /// "horizontal c3", or "distance 40.00 c9" for a dimension. Names a constraint in a message.
+  function describeConstraint(constraint) {
+    const value = typeof constraint.value === "number" ? " " + constraint.value.toFixed(2) : "";
+    return constraint.kind + value + (constraint.id ? " " + constraint.id : "");
   }
 
   // --- Hit testing, in the sketch's own [u, v] ---------------------------
@@ -347,6 +384,39 @@
     return suggestion.anchor;
   }
 
+  /// A point on `reference` to hang a glyph on: a point is itself, a line is its
+  /// middle, a circle or arc is a spot on its curve.
+  function referenceAnchor(sketch, reference) {
+    if (reference === ORIGIN || !reference.includes(".") && !sketch.entities.some((entity) => entity.id === reference)) return [0, 0];
+    if (isPointReference(reference)) return pointOf(sketch, reference);
+    const entity = sketch.entities.find((item) => item.id === reference);
+    if (entity.kind === "line") return [(entity.p0[0] + entity.p1[0]) / 2, (entity.p0[1] + entity.p1[1]) / 2];
+    const angle = entity.kind === "arc" ? (entity.a0 + (entity.a1 > entity.a0 ? entity.a1 : entity.a1 + TWO_PI)) / 2 : Math.PI / 4;
+    return [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)];
+  }
+
+  /// Where the glyphs of a constraint that has no value sit, in [u, v]: one
+  /// beside each shape it ties together, or one for a constraint on a single
+  /// thing. Dimensions have a label instead (see `dimensionAnchor`).
+  function glyphAnchors(sketch, constraint) {
+    const anchor = (reference) => referenceAnchor(sketch, reference);
+    switch (constraint.kind) {
+      case "coincident":
+      case "point_on":
+        return [anchor(constraint.a)];
+      case "horizontal":
+      case "vertical":
+        if (constraint.e) return [anchor(constraint.e)];
+        return [[(anchor(constraint.a)[0] + anchor(constraint.b)[0]) / 2, (anchor(constraint.a)[1] + anchor(constraint.b)[1]) / 2]];
+      case "fix":
+        return [anchor(constraint.e)];
+      default:
+        return referencesOf(constraint).map(anchor);
+    }
+  }
+
+  const sameSketch = (a, b) => JSON.stringify([a.entities, a.constraints]) === JSON.stringify([b.entities, b.constraints]);
+
   /// A feature the document accepts: `plane` as the viewer holds it (a name or
   /// {origin, normal, x_dir}) plus the sketch.
   function toFeature(plane, sketch) {
@@ -365,9 +435,17 @@
     connect,
     join,
     snap,
+    nextConstraintId,
+    withConstraintIds,
     withConstraint,
     replaceConstraint,
     removeConstraint,
+    removeConstraintById,
+    indexOfConstraint,
+    constraintEntities,
+    describeConstraint,
+    glyphAnchors,
+    sameSketch,
     deleteEntities,
     snapTarget,
     hit,
