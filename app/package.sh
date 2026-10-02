@@ -16,6 +16,9 @@ else
 fi
 swift build -c "$CONFIG"
 
+# The engine's version is the release version (release.yml checks the tag against it).
+VERSION=$(grep -m1 '^version' ../engine/pyproject.toml | cut -d'"' -f2)
+
 APP=".build/Sprocket.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
@@ -50,7 +53,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1</string>
+    <string>$VERSION</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
 </dict>
