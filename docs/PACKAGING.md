@@ -40,12 +40,12 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 1. **Relocatable (items 1 to 3). Built.** The app runs from a copied folder with no `uv` and no repo.
    Checked so far: `app/package.sh --bundle` builds an app whose engine starts from the bundled Python with `env -i` (no `uv`, no `PATH` beyond `/usr/bin`), writes its viewer files to Caches and answers a JSON-RPC call. Not yet checked: a clean user account, and a full edit in the window.
    Exit check: copy the built `.app` to a clean user account, open `examples/box.sprocket`, edit a feature.
-2. **Lean (items 4 to 6). Built once, more is possible.** Measured 2026-10-02:
+2. **Lean (items 4 to 6). Built, off by default.** The prune runs only with `app/package.sh --bundle --prune`. The default bundle stays unpruned for now. Measured 2026-10-02:
 
    | Step | Installed | DMG (UDZO) |
    | --- | --- | --- |
-   | Before | 618 MB | not measured |
-   | After `bundle_engine.sh` prune | 435 MB | 211 MB |
+   | Unpruned (default) | 607 MB | 356 MB |
+   | Pruned (`--prune`) | 435 MB | 211 MB |
 
    The prune removes sympy, mpmath, jedi, parso and pip (unused), the 90 MB of `threejs_materials` PNG textures (glTF export only), test folders, build-time sources and local symbols (`strip -x`).
    `strip` breaks each library's signature and an arm64 Mac then kills it, so the script re-signs ad hoc.
@@ -65,7 +65,7 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
   CPython needs no JIT entitlement. This is untested.
 - **First-launch time.** Importing build123d takes 2 to 3 seconds. Gatekeeper scanning may add to it on first run.
 - **Licences.** OCCT is LGPL with an exception. Check the notice and relinking terms before a public release.
-- **Size.** 435 MB installed and a 211 MB DMG. Large for a CAD tool download but not blocking. The next cut is a patched build123d without scipy and sklearn (about 85 MB). It is not planned.
+- **Size.** Unpruned: 607 MB installed and a 356 MB DMG. Pruned: 435 MB and 211 MB. Large for a CAD tool download but not blocking. The next cut is a patched build123d without scipy and sklearn (about 85 MB). It is not planned.
 - **Orphan engine.** `kill` on the app (SIGTERM) leaves the engine running, because `shutdown()` only runs on a normal quit. This predates packaging.
 
 ## Out of scope

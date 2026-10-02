@@ -5,6 +5,7 @@
 #
 # With --bundle it also builds in release mode and copies the viewer and a
 # self-contained Python engine inside, so the .app runs with no source tree.
+# Add --prune after it to cut the bundle's size (see docs/PACKAGING.md).
 set -e
 
 cd "$(dirname "$0")"
@@ -57,6 +58,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 EOF
 
 if [ "$1" = "--bundle" ]; then
+    if [ "$2" = "--prune" ]; then export SPROCKET_PRUNE=1; fi
     ./bundle_engine.sh "$APP/Contents/Resources"
 fi
 
