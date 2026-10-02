@@ -93,7 +93,9 @@ Two logs define a document: the feature list (what the model is) and the edit lo
 - Cache value = the BREP of the model after that feature, stored as a `.brep` file, plus tessellation for the viewport.
 - An edit invalidates that feature and everything downstream. Scrubbing the rollback bar is a cache lookup.
 
-**Document folder** (git-friendly)
+**Document file.** A document is one `.sprocket` file, which is the JSON above. The open and save panels offer only that extension, and the daemon's file methods refuse any other. Until M7, the edit log and BREP cache are not part of the file: the cache sits beside it in `cache/`.
+
+**Document folder** (git-friendly, planned for M7 as `.tcad`)
 
 ```
 mypart.tcad/
@@ -397,8 +399,12 @@ The first proof of concept is the sketch → profile → extrude loop working en
 | M4 | Selector synthesis | Pick → shortest selector, `new_since`, broken-reference UX | Fillet picked edges survive upstream dimension changes | Days | Medium: judging which references feel right |
 | M5 | Tier 1 complete | Sketch-on-face, projection, remaining tier 1 ops and sketch tools, construction geometry, 3MF export | Design a printed bracket faster here than in Fusion | Weeks, mostly parallelizable per op | High: real-part dogfooding surfaces the gaps |
 | M6 | Tier 2 | Sweep, loft, split, draft, threads, measure, section | As needed | Per op | As needed |
+| M7 | Document package | `.tcad` folder with `document.json`, `editlog.jsonl`, `cache/` and `exports/`. The app declares the type as a package, so Finder shows one file. Bundles the app, which the Packaging decision defers. `.sprocket` keeps opening | Open and save a `.tcad` from the File menu, and a double-click in Finder opens it | Days | Medium: signing and bundling friction |
+| M8 | Quick Look | Space on a `.sprocket` or `.tcad` in Finder shows the part. A Quick Look preview extension in the bundle builds the document through the engine and shows the mesh. Needs M7's bundle | Select a document in Finder, press space, and see the part | Days | Medium: extension sandboxing, and whether it can reach the engine |
 
 **M3.5, files.** The engine writes every edit of a named document to its file as it happens, so nothing is ever unsaved and a titled document has no Save. A new document has no name yet, so it lives in Application Support until Save As names it, and the next launch reopens whatever was open last. `open_document`, `new_document` and `save_as` are daemon methods that the app's menus call. They are not MCP tools: an agent edits the open document and does not swap it. Opening replaces the document and clears the undo history, writes nothing, and announces `document_changed` with `opened: true`, so a viewer drops its selection and sketch, refits the camera and refetches under a fresh URL. A revision number is only unique within one document, so nothing may cache by revision alone. Known gaps: an agent's `base_revision` carries no document identity, so a stale edit from before an open can land on the new document if the numbers match. Tabs and several windows are not built. They need one daemon per document, or a daemon that holds several, and that choice is open.
+
+**File type, added after M3.5.** Documents are `.sprocket`, not `.json`, so the Open dialog and a directory listing say what the file is. The `.sprocket` suffix is checked in `rpc.py`'s `_file_path`. Finder association and a Quick Look preview both need an app bundle, so they wait for M7 and M8. The type has no Info.plist declaration until then: `DocumentStore.swift` builds it from the extension.
 
 Agent effort is a rough guess, not a plan. Code gets written fast; the real clock is set by OCCT edge cases the agent must discover by testing, and by human review and hands-on UX judgment. From M3 on, your time in the app is the constraint, not the agent's.
 
@@ -411,7 +417,7 @@ engine/        # Python: ops/, selectors/, replay.py, cache.py, rpc.py, api.py, 
   tests/       # golden documents + replay tests
 viewer/        # TypeScript: three.js viewport, sketcher, planegcs, timeline UI
 app/           # Swift: shell, process supervisor, WKWebView bridge
-examples/      # sample .tcad documents
+examples/      # sample .sprocket documents
 ```
 
 First Claude Code task: scaffold `engine/` with the op registry, JSON Schemas for `sketch`, `extrude` and `fillet`, a replay loop with BREP caching, the golden test harness (fingerprint, symmetric-difference check, normalized STEP/STL hashes), three golden cases, and a CLI that replays a document and exports STEP, STL and a PNG render.

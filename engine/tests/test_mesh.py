@@ -21,7 +21,7 @@ import pytest
 from sprocket_engine.mesh import export_mesh
 from sprocket_engine.replay import replay
 
-# The fixture builds its own document rather than reading examples/box.json.
+# The fixture builds its own document rather than reading examples/box.sprocket.
 # That file is a scratchpad people edit while trying the app out, and the
 # pinned counts below then fail for a reason that has nothing to do with the
 # code. It happened: the counts were first written from an edited copy, so CI
@@ -211,3 +211,32 @@ def test_node_normals_agree_with_the_triangle_winding(box_mesh):
 
     signed_volume = np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6.0
     assert signed_volume > 0, "the winding faces into the solid, so the normals do too"
+
+
+@pytest.mark.parametrize("name", ["sphere", "cone"])
+def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
+    """A sphere's pole and a cone's apex are zero-length edges. build123d hides
+    them from `shape.edges()` and ocp-tessellate does not, so the runs came out
+    longer than the edge list and the export refused the part. The filleted
+    logo failed the same way, which left the app showing the previous document.
+
+    Each run must also belong to its own edge: the polyline's two ends are the
+    edge's two ends. A run shifted by one fails that, where counting would not."""
+    from build123d import Solid
+
+    shape = Solid.make_sphere(10) if name == "sphere" else Solid.make_cone(5, 0, 10)
+    path = tmp_path / "part.mesh"
+    export_mesh(shape, path)
+    _header, buffers = read_mesh(path)
+
+    points = buffers["edges"].reshape(-1, 2, 3)
+    runs = buffers["segments_per_edge"]
+    assert len(runs) == len(shape.edges())
+    start = 0
+    for edge, run in zip(shape.edges(), runs):
+        first, last = points[start][0], points[start + run - 1][1]
+        ends = np.array([tuple(edge.start_point()), tuple(edge.end_point())])
+        forward = np.allclose([first, last], ends, atol=1e-3)
+        backward = np.allclose([last, first], ends, atol=1e-3)
+        assert forward or backward, "this run drew a different edge"
+        start += run

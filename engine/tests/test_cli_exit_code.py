@@ -69,7 +69,7 @@ def test_a_successful_build_exits_zero(tmp_path: Path, monkeypatch):
 
 
 def test_a_missing_document_is_a_readable_error_not_a_traceback(tmp_path: Path, capsys, monkeypatch):
-    code = _run(monkeypatch, ["build", str(tmp_path / "does-not-exist.json"), "--stl", str(tmp_path / "part.stl")])
+    code = _run(monkeypatch, ["build", str(tmp_path / "does-not-exist.sprocket"), "--stl", str(tmp_path / "part.stl")])
 
     assert code == 1
     stderr = capsys.readouterr().err

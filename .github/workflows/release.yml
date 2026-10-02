@@ -47,4 +47,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            engine/dist/*.whl engine/dist/*.tar.gz examples/*.json
+            engine/dist/*.whl engine/dist/*.tar.gz examples/*.sprocket

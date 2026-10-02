@@ -98,13 +98,30 @@ def _clean(cell: Face) -> Face:
 
 
 def _points(wire: Wire) -> list[tuple[float, float]]:
-    """A wire as a polyline, one vertex per tessellation step, in wire order."""
+    """A wire as a polyline, one vertex per tessellation step, in wire order.
+
+    An edge may be stored in either direction, so each one is laid down from
+    whichever of its ends is nearer to where the polyline stopped. The ends of
+    neighbouring edges rarely coincide exactly: a sketch whose coordinates were
+    rounded to 6 decimals leaves gaps of about 1e-7. Testing for an exact match
+    reversed nearly every edge of such a wire and drew a self-crossing outline.
+    The first edge has nothing before it, so it is judged against the second.
+    """
+    edges = wire.edges()
     points: list[tuple[float, float]] = []
-    for edge in wire.edges():
+    for index, edge in enumerate(edges):
         steps = 1 if edge.geom_type.name == "LINE" else 24
         along = [edge.position_at(step / steps) for step in range(steps + 1)]
-        if points and (Vector(*points[-1], 0) - along[0]).length > 1e-9:
-            along.reverse()
+        if points:
+            here = Vector(*points[-1], 0)
+            if (here - along[-1]).length < (here - along[0]).length:
+                along.reverse()
+        elif len(edges) > 1:
+            following = [edges[1].position_at(0), edges[1].position_at(1)]
+            end_gap = min((along[-1] - point).length for point in following)
+            start_gap = min((along[0] - point).length for point in following)
+            if start_gap < end_gap:
+                along.reverse()
         points.extend((point.X, point.Y) for point in along[1 if points else 0:])
     return points
 

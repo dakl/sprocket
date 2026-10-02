@@ -125,14 +125,14 @@ def test_timeline_reports_the_author_and_which_features_build():
 
 
 def test_an_m0_document_loads_as_revision_zero(tmp_path: Path):
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
     document = Document.load(path)
     assert (document.revision, document.parameters, document.log) == (0, {}, [])
 
 
 def test_a_truncated_document_reports_a_sentence_not_a_traceback(tmp_path: Path):
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text('{"features": [')
     with pytest.raises(DocumentError, match="not valid JSON"):
         Document.load(path)
@@ -140,7 +140,7 @@ def test_a_truncated_document_reports_a_sentence_not_a_traceback(tmp_path: Path)
 
 def test_save_round_trips_the_revision_and_log(tmp_path: Path):
     document = build()
-    document.save(tmp_path / "part.json")
-    reloaded = Document.load(tmp_path / "part.json")
+    document.save(tmp_path / "part.sprocket")
+    reloaded = Document.load(tmp_path / "part.sprocket")
     assert reloaded.revision == 2
     assert [entry["action"] for entry in reloaded.log] == ["insert", "insert"]

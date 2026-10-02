@@ -1,5 +1,5 @@
-"""Writes sprocket.json in the current directory: a 30 mm, 13-tooth ANSI 25 roller-chain sprocket.
-Run: python gen.py [fillet_radius_mm]. The committed examples/sprocket.json is its output at 0.3."""
+"""Writes logo.sprocket in the current directory: a 30 mm, 13-tooth ANSI 25 roller-chain sprocket.
+Run: python gen.py [fillet_radius_mm]. The committed examples/logo.sprocket is its output at 0.3."""
 import json, math
 N, PITCH, ROLLER, TIP_R, THICK = 13, 6.35, 3.3, 15.0, 3.0
 HUB_R, HUB_H, BORE_R = 4.8, 5.5, 2.5
@@ -58,5 +58,5 @@ features += [
     {"id": "cut_final", "type": "boolean", "operation": "subtract", "base": previous, "tool": "bore"},
     {"id": "sprocket", "type": "fillet", "base": "cut_final", "edges": {"from": "part", "select": [{"op": "edges"}]}, "radius": FILLET},
 ]
-json.dump({"schema_version": 1, "units": {"length": "mm"}, "features": features}, open("sprocket.json", "w"), indent=1)
+json.dump({"schema_version": 1, "units": {"length": "mm"}, "features": features}, open("logo.sprocket", "w"), indent=1)
 print(len(entities), "entities,", len(features), "features")

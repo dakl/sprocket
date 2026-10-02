@@ -77,7 +77,7 @@ def test_every_op_type_survives_its_own_cache(case, tmp_path: Path):
     build123d class from a hand-written op-type map, which named three of the
     seven registered ops, so a second replay of a fillet, chamfer, boolean or
     revolve died with a bare KeyError on the op's own name. Nothing caught it:
-    the golden suite passes no cache_dir, and examples/box.json happens to use
+    the golden suite passes no cache_dir, and examples/box.sprocket happens to use
     only the three types the map covered.
 
     Parametrising over the golden cases is the point rather than an accident.

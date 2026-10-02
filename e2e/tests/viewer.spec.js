@@ -142,3 +142,35 @@ test("undo puts back the value before the last form edit", async ({ page }) => {
   await page.keyboard.press("Meta+z");
   await page.waitForFunction(() => window.__tcad.features[1].distance === 10);
 });
+
+test("a mesh the engine could not write is shown, and clears with the next good build", async ({ page }) => {
+  const banner = page.locator("#mesh-error");
+  await expect(banner).toBeHidden();
+
+  await page.evaluate(() => window.reloadPart(window.__tcad.revision || 0, false, "ValueError: tessellation disagrees"));
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveText("Could not draw the part: ValueError: tessellation disagrees");
+
+  await page.evaluate(() => window.reloadPart(window.__tcad.revision || 0, false, null));
+  await expect(banner).toBeHidden();
+});
+
+test("every op in the timeline has an icon, a boolean included", async ({ page, request }) => {
+  const circle = { id: "f3", type: "sketch", plane: "XY", circle: { radius: 3, center: [0, 0] } };
+  const tool = { id: "f4", type: "extrude", profile: "f3", distance: 10 };
+  const union = { id: "f5", type: "boolean", operation: "union", base: "f2", tool: "f4" };
+  await rpc(request, "apply_edit", {
+    edits: [circle, tool, union].map((feature) => ({ op: "insert", feature })),
+  });
+  await page.waitForFunction(() => window.__tcad.timeline.length === 5);
+  await expect(chip(page, "f5").locator(".timeline-icon svg")).toHaveCount(1);
+  for (const id of ["f1", "f2", "f3", "f4", "f5"]) {
+    await expect(chip(page, id).locator(".timeline-icon")).not.toHaveText("?");
+  }
+
+  // A boolean and a fillet both showed "?". An op registered tomorrow fails here
+  // until its icon is added, which is cheaper than finding out from a screenshot.
+  const ops = Object.keys(await (await request.get("/schemas.json")).json());
+  const icons = await page.evaluate(() => Object.keys(FEATURE_ICONS));
+  expect(icons).toEqual(expect.arrayContaining(ops));
+});

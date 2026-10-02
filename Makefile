@@ -13,7 +13,7 @@ help:
 	@echo "make golden-update CASE=<name>               capture a new golden case's expected.step and expected.stl"
 	@echo "make golden-update CASE=<name> APPROVED=1    replace an existing case's, which needs Daniel's decision"
 	@echo "make app                                     run the Swift app"
-	@echo "make web DOC=<document.json>                 serve a document to the viewer at http://127.0.0.1:8765/"
+	@echo "make web DOC=<document.sprocket>                 serve a document to the viewer at http://127.0.0.1:8765/"
 
 test: test-engine test-viewer test-ui
 
@@ -39,5 +39,5 @@ app:
 	cd app && swift run SprocketApp
 
 web:
-	@test -n "$(DOC)" || { echo "usage: make web DOC=<document.json>"; exit 2; }
+	@test -n "$(DOC)" || { echo "usage: make web DOC=<document.sprocket>"; exit 2; }
 	cd $(ENGINE) && uv run sprocket web $(abspath $(DOC)) --socket $$(mktemp -d)/d.sock

@@ -24,7 +24,7 @@
 
     /* Top-centre, not next to #status: a dropped op has to stay readable
        while the extrude and selection panels sit at the bottom. */
-    #warning {
+    #warning, #mesh-error {
       position: fixed;
       left: 50%;
       top: 70px;
@@ -39,6 +39,10 @@
       pointer-events: none;
       max-width: 70%;
     }
+
+    /* Under #warning, so a dropped op and a mesh that would not write can both
+       be on screen. */
+    #mesh-error { top: 110px; }
 
     #extrude-panel {
       position: fixed;
@@ -420,6 +424,7 @@
   <div id="hint"></div>
   <div id="status"></div>
   <div id="warning"></div>
+  <div id="mesh-error"></div>
   <div id="extrude-panel">
     <input id="extrude-distance" type="text" autocomplete="off" spellcheck="false" />
     <button id="extrude-ok">OK</button>
@@ -583,7 +588,7 @@
     // back a flat #6ba5ff with no gradation left in it. These three sum to
     // 1.15 at most, and each comes from a different direction, so
     // neighbouring faces of a box read as different tones. Measured on
-    // examples/box.json: face luminance now spans 0.24 to 0.48 with no
+    // examples/box.sprocket: face luminance now spans 0.24 to 0.48 with no
     // channel at 255. Before, it spanned 0.30 to 0.65 with the top faces
     // clipped. Fusion 360 spans 0.18 to 0.32 on the same shape, but it
     // separates faces with black edge lines rather than with light.
@@ -864,13 +869,22 @@
     // `opened` means the engine swapped in another document. Its revision can
     // equal the old one's, so its files are fetched under a fresh URL, and the
     // selection, a sketch in progress and hidden sketches belonged to the old one.
-    window.reloadPart = function (token, opened) {
+    window.reloadPart = function (token, opened, viewerError) {
       loadedRevision = token;
+      showMeshError(viewerError);
       if (opened) resetForNewDocument();
       const fetchToken = opened ? token + "-" + Date.now() : token;
       loadPart(fetchToken, { refit: Boolean(opened) });
       loadFeatures(fetchToken);
     };
+
+    /// The engine could not write the part as a mesh, so it deleted the mesh
+    /// and sent the reason. Without this the screen shows nothing and says
+    /// nothing, which looks like the file did not open.
+    function showMeshError(text) {
+      meshErrorEl.textContent = text ? "Could not draw the part: " + text : "";
+      meshErrorEl.style.display = text ? "block" : "none";
+    }
 
     function resetForNewDocument() {
       if (extrudeArmed) cancelExtrude();
@@ -891,6 +905,15 @@
       extrude:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 9-6-6-6 6" /><path d="M12 3v14" /><path d="M5 21h14" /></svg>',
       extrude_face: "↕",
+      // The same drawings as the toolbar buttons for these ops.
+      boolean:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg>',
+      revolve:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="5" ry="9" /><path d="M3 12h18" /></svg>',
+      fillet:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg>',
+      chamfer:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg>',
     };
 
     function renderTimeline(features) {
@@ -1098,8 +1121,9 @@
     // its POST and once as this event, so a revision already loaded is skipped.
     if (/^https?:$/.test(window.location.protocol)) {
       new EventSource("/events").addEventListener("document_changed", (event) => {
-        const { revision, opened } = JSON.parse(event.data).params;
-        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened);
+        const { revision, opened, viewer_error } = JSON.parse(event.data).params;
+        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error);
+        else showMeshError(viewer_error);
       });
     }
 
@@ -1122,7 +1146,7 @@
     ///
     /// `normal` is OCCT's own node normal, not a cross product of the hit
     /// triangle's edges. On a planar face the two agree, measured to 1e-6 on
-    /// examples/box.json, so the extrude axis is unchanged. On a curved face
+    /// examples/box.sprocket, so the extrude axis is unchanged. On a curved face
     /// the node normal is the surface's and the winding normal is one facet's.
     function facePatchAt(hit) {
       const geometry = mesh.geometry;
@@ -1155,7 +1179,7 @@
     /// OCCT's triangulation shares its nodes, so two triangles that meet reuse
     /// the same index. The old flood fill could not assume that, because a
     /// patch could span faces and the tessellation splits vertices between
-    /// them. Measured on examples/box.json: all 18 faces share their interior
+    /// them. Measured on examples/box.sprocket: all 18 faces share their interior
     /// edges by index, and every boundary vertex has exactly two boundary
     /// edges, so the loops below always close. Pinned by
     /// test_a_faces_triangulation_is_index_shared_and_its_boundary_closes.
@@ -1176,7 +1200,7 @@
 
     // Walk the boundary edges into ordered loops of vertex indices, so
     // consecutive entries are connected. A face with a hole has more than one
-    // loop: two of box.json's 18 do.
+    // loop: two of box.sprocket's 18 do.
     function orderLoops(edges) {
       const adj = new Map();
       for (const [a, b] of edges) {
@@ -1364,6 +1388,7 @@
     const distanceEl = document.getElementById("extrude-distance");
     const statusEl = document.getElementById("status");
     const warningEl = document.getElementById("warning");
+    const meshErrorEl = document.getElementById("mesh-error");
 
     // --- Toolbar --------------------------------------------------------
     // Only three commands exist so far. Every other toolbar button is a
@@ -1387,7 +1412,7 @@
     toolExtrudeEl.addEventListener("click", armCurrentSelection);
 
     // Clears the document to zero features. No confirmation, because Swift
-    // snapshots box.json into the same undo stack every other edit uses, so
+    // snapshots box.sprocket into the same undo stack every other edit uses, so
     // Cmd+Z brings the whole part back (see ContentView.performMutation).
     document.getElementById("tool-new").addEventListener("click", () => {
       if (sketchStage || extrudeArmed) return;

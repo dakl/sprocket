@@ -70,6 +70,44 @@ def test_corners_that_miss_by_a_solver_tolerance_still_close():
     assert region.area == pytest.approx(800, rel=1e-6)
 
 
+def toothed_wheel(teeth, tip=15.0):
+    """Arcs and lines the way examples/sprocket-icon/gen.py writes them: arc
+    centres and line ends rounded to 6 decimals, arc ends left as angles, so
+    each corner misses by about 1e-7."""
+    pitch_radius = 6.35 / (2 * math.sin(math.pi / teeth))
+    step = math.tau / teeth
+
+    def at(centre, angle, radius):
+        return [round(centre[0] + radius * math.cos(angle), 6), round(centre[1] + radius * math.sin(angle), 6)]
+
+    arcs = []
+    for k in range(teeth):
+        angle = k * step
+        seat = [round(pitch_radius * math.cos(angle), 6), round(pitch_radius * math.sin(angle), 6)]
+        middle = angle + step / 2
+        cap = [round((tip - 0.55) * math.cos(middle), 6), round((tip - 0.55) * math.sin(middle), 6)]
+        arcs.append({"id": f"seat{k}", "kind": "arc", "c": seat, "r": 1.7, "a0": angle + math.pi / 2 + 0.0873, "a1": angle + 1.5 * math.pi - 0.0873})
+        arcs.append({"id": f"cap{k}", "kind": "arc", "c": cap, "r": 0.55, "a0": middle - math.pi / 2, "a1": middle + math.pi / 2})
+    lines = []
+    for k in range(teeth):
+        seat, cap, next_seat = arcs[2 * k], arcs[2 * k + 1], arcs[2 * ((k + 1) % teeth)]
+        lines.append({"id": f"up{k}", "kind": "line", "p0": at(seat["c"], seat["a0"], 1.7), "p1": at(cap["c"], cap["a0"], 0.55)})
+        lines.append({"id": f"dn{k}", "kind": "line", "p0": at(cap["c"], cap["a1"], 0.55), "p1": at(next_seat["c"], next_seat["a1"], 1.7)})
+    return arcs + lines
+
+
+def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
+    """The viewer fills a region from its outline. The outline used to reverse
+    an edge whenever its end missed the last point by more than 1e-9, so a
+    sketch with rounded coordinates came out as a self-crossing polygon: the
+    face was right and the fill on screen was a tangle of triangles. A simple
+    polygon has the face's own area, give or take the chords that stand in for
+    the arcs."""
+    (region,) = find_regions(toothed_wheel(8))
+    shoelace = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(region.outline, region.outline[1:] + region.outline[:1])) / 2
+    assert shoelace == pytest.approx(region.area, rel=1e-3)
+
+
 def test_construction_geometry_bounds_no_region():
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4, construction=True)])
     assert len(regions) == 1

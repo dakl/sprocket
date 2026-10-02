@@ -24,7 +24,7 @@ def running(document: dict, tmp_path: Path):
     `sun_path` is 104 bytes on macOS and pytest's own tmp_path is most of that
     on its own, so the socket cannot live beside the document here.
     """
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(document))
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock")

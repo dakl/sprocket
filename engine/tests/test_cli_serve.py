@@ -70,14 +70,14 @@ def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):
     requests = (
         json.dumps(
             {
-                "document": str(EXAMPLES_DIR / "box.json"),
+                "document": str(EXAMPLES_DIR / "box.sprocket"),
                 "stl": str(stl_out),
                 "mesh": str(mesh_out),
                 "cache_dir": str(tmp_path / "cache"),
             }
         )
         + "\n"
-        + json.dumps({"document": str(tmp_path / "does-not-exist.json")})
+        + json.dumps({"document": str(tmp_path / "does-not-exist.sprocket")})
         + "\n"
     )
     monkeypatch.setattr("sys.stdin", io.StringIO(requests))

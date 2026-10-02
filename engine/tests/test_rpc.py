@@ -157,7 +157,7 @@ def test_shutdown_removes_the_socket_file(daemon):
 
 def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(tmp_path: Path):
     """Bind's own message is "AF_UNIX path too long", with no path in it."""
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps({"features": [], "rollback_index": 0}))
     long_socket = tmp_path / ("d" * 120 + ".sock")
     daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket)
@@ -208,7 +208,7 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
     daemon rewrites the mesh and the timeline beside it, before it says so."""
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
-    path = tmp_path / "part.json"
+    path = tmp_path / "part.sprocket"
     path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(
@@ -231,6 +231,40 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
         shutil.rmtree(socket_dir, ignore_errors=True)
 
 
+def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path, monkeypatch):
+    """The part builds, but the export refuses it. The daemon used to log that
+    to stderr and leave the previous document's mesh on screen, so opening the
+    file looked like nothing happened. Now the mesh is deleted and the
+    notification carries the reason."""
+    import sprocket_engine.viewer_files as viewer_files
+
+    def refuse(shape):
+        raise ValueError("tessellation disagrees with the B-rep")
+
+    viewer_dir = tmp_path / "viewer"
+    viewer_dir.mkdir()
+    (viewer_dir / "part.mesh").write_bytes(b"the previous document")
+    path = tmp_path / "part.sprocket"
+    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    socket_dir = Path(tempfile.mkdtemp())
+    daemon = Daemon(
+        Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock", viewer_dir=viewer_dir
+    )
+    monkeypatch.setattr(viewer_files, "mesh_bytes", refuse)
+    daemon.start_in_background()
+    heard = []
+    try:
+        with Client(daemon.socket_path, on_notification=lambda method, params: heard.append(params)) as client:
+            client.call("set_rollback", index=1)
+            client.call("ping")  # reading a reply is what delivers the queued notification
+        assert heard[-1]["viewer_error"] == "ValueError: tessellation disagrees with the B-rep"
+        assert not (viewer_dir / "part.mesh").exists(), "the old mesh would show the wrong part"
+        assert len(json.loads((viewer_dir / "features.json").read_text())) == 2, "the timeline is still written"
+    finally:
+        daemon.shutdown()
+        shutil.rmtree(socket_dir, ignore_errors=True)
+
+
 # ---- opening, creating and saving documents ----------------------------------
 
 
@@ -240,7 +274,7 @@ def write_document(path: Path, features: list[dict]) -> Path:
 
 
 def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(client, tmp_path):
-    other = write_document(tmp_path / "other.json", [SKETCH])
+    other = write_document(tmp_path / "other.sprocket", [SKETCH])
     before = other.read_text()
     client.call("set_parameter", name="width", value=40)  # an undoable edit on the first document
 
@@ -254,15 +288,15 @@ def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(c
 
 
 def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_path):
-    broken = tmp_path / "broken.json"
+    broken = tmp_path / "broken.sprocket"
     broken.write_text("{ not json")
     with pytest.raises(RpcError, match="not valid JSON"):
         client.call("open_document", path=str(broken))
     assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1", "e1"]
 
 
-@pytest.mark.parametrize("path", ["part.json", "/tmp/part.txt", ""])
-def test_file_methods_want_an_absolute_json_path(client, path):
+@pytest.mark.parametrize("path", ["part.sprocket", "/tmp/part.txt", ""])
+def test_file_methods_want_an_absolute_sprocket_path(client, path):
     with pytest.raises(RpcError):
         client.call("open_document", path=path)
     with pytest.raises(RpcError):
@@ -270,7 +304,7 @@ def test_file_methods_want_an_absolute_json_path(client, path):
 
 
 def test_opening_announces_a_replacement_not_an_edit(daemon, tmp_path):
-    other = write_document(tmp_path / "other.json", [SKETCH])
+    other = write_document(tmp_path / "other.sprocket", [SKETCH])
     heard = []
     with Client(daemon.socket_path, on_notification=lambda method, params: heard.append(params)) as watcher:
         watcher.call("ping")
@@ -282,7 +316,7 @@ def test_opening_announces_a_replacement_not_an_edit(daemon, tmp_path):
 
 
 def test_a_new_document_is_empty_saved_and_never_overwrites(client, tmp_path):
-    fresh = tmp_path / "fresh.json"
+    fresh = tmp_path / "fresh.sprocket"
     made = client.call("new_document", path=str(fresh))
     assert made["path"] == str(fresh)
     assert fresh.exists()
@@ -293,8 +327,8 @@ def test_a_new_document_is_empty_saved_and_never_overwrites(client, tmp_path):
 
 
 def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
-    original = tmp_path / "part.json"
-    copy = tmp_path / "copy.json"
+    original = tmp_path / "part.sprocket"
+    copy = tmp_path / "copy.sprocket"
     client.call("save_as", path=str(copy))
     assert Document.load(copy).features == Document.load(original).features
 

@@ -40,7 +40,7 @@ const writeDocument = (name, document) => {
 };
 
 test("opening a document replaces the part and the timeline, even at the same revision", async ({ page, request }) => {
-  const file = writeDocument("cylinder.json", CYLINDER);
+  const file = writeDocument("cylinder.sprocket", CYLINDER);
   await rpc(request, "open_document", { path: file });
   await page.waitForFunction(() => window.__tcad.timeline.some((entry) => entry.id === "e1"));
   await settled(page);
@@ -55,25 +55,25 @@ test("opening a document drops a sketch in progress, which belonged to the old o
   await page.waitForFunction(() => window.__tcad.sketch.active);
   await cameraStill(page);
 
-  await rpc(request, "open_document", { path: writeDocument("cylinder.json", CYLINDER) });
+  await rpc(request, "open_document", { path: writeDocument("cylinder.sprocket", CYLINDER) });
   await page.waitForFunction(() => !window.__tcad.sketch.active);
   await settled(page);
 });
 
 test("opening a file leaves it as it was, and a bad file changes nothing", async ({ page, request }) => {
-  const file = writeDocument("cylinder.json", CYLINDER);
+  const file = writeDocument("cylinder.sprocket", CYLINDER);
   const before = fs.readFileSync(file, "utf8");
   await rpc(request, "open_document", { path: file });
   expect(fs.readFileSync(file, "utf8")).toBe(before);
 
-  const broken = path.join(folder, "broken.json");
+  const broken = path.join(folder, "broken.sprocket");
   fs.writeFileSync(broken, "{ not json");
   await expect(rpc(request, "open_document", { path: broken })).rejects.toThrow(/not valid JSON/);
   expect((await rpc(request, "get_document")).path).toBe(file);
 });
 
 test("save as writes a copy, and later edits go to the copy and not the first file", async ({ request }) => {
-  const copy = path.join(folder, "copy.json");
+  const copy = path.join(folder, "copy.sprocket");
   await rpc(request, "save_as", { path: copy });
   expect(JSON.parse(fs.readFileSync(copy, "utf8")).features).toHaveLength(2);
 
@@ -85,7 +85,7 @@ test("save as writes a copy, and later edits go to the copy and not the first fi
 });
 
 test("a new document is empty, and the viewer shows nothing", async ({ page, request }) => {
-  await rpc(request, "new_document", { path: path.join(folder, "fresh.json") });
+  await rpc(request, "new_document", { path: path.join(folder, "fresh.sprocket") });
   await page.waitForFunction(() => window.__tcad.timeline.length === 0);
   await settled(page);
   expect(await page.evaluate(() => window.__tcad.mesh)).toBeNull();
