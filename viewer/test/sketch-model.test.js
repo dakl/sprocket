@@ -174,9 +174,9 @@ test("joining a click to what it snapped to adds coincident for a point and poin
   let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
   sketch = model.addCircle(sketch, [20, 20], 5).sketch;
   const joined = model.join(sketch, { reference: "origin", curve: null }, "e2.c");
-  assert.deepEqual(joined.constraints, [{ kind: "coincident", a: "origin", b: "e2.c" }]);
+  assert.deepEqual(joined.constraints, [{ kind: "coincident", a: "origin", b: "e2.c", id: "c1" }]);
   const onCurve = model.join(sketch, { reference: null, curve: "e1" }, "e2.c");
-  assert.deepEqual(onCurve.constraints, [{ kind: "point_on", a: "e2.c", b: "e1" }]);
+  assert.deepEqual(onCurve.constraints, [{ kind: "point_on", a: "e2.c", b: "e1", id: "c1" }]);
   assert.deepEqual(model.join(sketch, { reference: null, curve: null }, "e2.c").constraints, []);
 });
 
@@ -212,5 +212,39 @@ test("snap reaches a shown axis, only when told it is shown, and a curve wins wh
   assert.equal(model.snap(sketch, [20, 5.1], 0.5, axes).curve, "e1");
   const crowded = model.snap(sketch, [20, 4.9], 5, [{ ref: "axis_u", name: "X axis" }]);
   assert.equal(crowded.curve, "e1", "the line is 0.1 away and the axis 4.9");
-  assert.deepEqual(model.join(sketch, onX, "e1.p1").constraints, [{ kind: "point_on", a: "e1.p1", b: "axis_u" }]);
+  assert.deepEqual(model.join(sketch, onX, "e1.p1").constraints, [{ kind: "point_on", a: "e1.p1", b: "axis_u", id: "c1" }]);
+});
+
+test("constraints get ids, and a deleted constraint's id does not come back on another", () => {
+  let { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [10, 5]);
+  assert.deepEqual(sketch.constraints.map((constraint) => constraint.id), ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]);
+  sketch = model.removeConstraintById(sketch, "c8");
+  sketch = model.withConstraint(sketch, { kind: "fix", e: "e1.p0" });
+  assert.equal(sketch.constraints.at(-1).id, "c8");
+  sketch = model.removeConstraintById(sketch, "c3");
+  sketch = model.withConstraint(sketch, { kind: "fix", e: "e2.p0" });
+  assert.equal(sketch.constraints.at(-1).id, "c9");
+});
+
+test("a document from before ids gets them without changing the order", () => {
+  const old = { entities: [], constraints: [{ kind: "fix", e: "e1.p0" }, { kind: "fix", e: "e2.p0" }] };
+  assert.deepEqual(model.withConstraintIds(old).constraints.map((constraint) => constraint.id), ["c1", "c2"]);
+});
+
+test("replacing a dimension keeps its id", () => {
+  let sketch = model.withConstraint({ entities: [], constraints: [] }, { kind: "radius", e: "e1", value: 5 });
+  sketch = model.replaceConstraint(sketch, 0, { kind: "radius", e: "e1", value: 7 });
+  assert.deepEqual(sketch.constraints, [{ kind: "radius", e: "e1", value: 7, id: "c1" }]);
+});
+
+test("a constraint names the entities it acts on, and not the origin", () => {
+  const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [10, 5]);
+  assert.deepEqual(model.constraintEntities(sketch, { kind: "coincident", a: "e1.p1", b: "e2.p0" }), ["e1", "e2"]);
+  assert.deepEqual(model.constraintEntities(sketch, { kind: "coincident", a: "e1.p0", b: "origin" }), ["e1"]);
+});
+
+test("a constraint between two shapes has a glyph beside each", () => {
+  const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [10, 5]);
+  assert.deepEqual(model.glyphAnchors(sketch, { kind: "parallel", a: "e1", b: "e3" }), [[5, 0], [5, 5]]);
+  assert.deepEqual(model.glyphAnchors(sketch, { kind: "horizontal", e: "e1" }), [[5, 0]]);
 });

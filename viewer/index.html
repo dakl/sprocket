@@ -391,6 +391,23 @@
       cursor: pointer;
       user-select: none;
     }
+    .sketch-glyph {
+      position: fixed;
+      pointer-events: auto;
+      min-width: 14px;
+      box-sizing: border-box;
+      text-align: center;
+      background: rgba(30, 30, 30, 0.85);
+      color: #9ad1ff;
+      font: 12px -apple-system, sans-serif;
+      line-height: 14px;
+      padding: 1px 3px;
+      border-radius: 3px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .sketch-glyph.selected, .sketch-dimension-label.selected { background: #ffaa00; color: #222; }
+    .sketch-glyph.conflict, .sketch-dimension-label.conflict { background: #d9534f; color: #fff; }
     .sketch-snap { position: fixed; pointer-events: none; }
     .sketch-snap .glyph {
       position: absolute;
@@ -550,6 +567,9 @@
       <button data-constraint="equal" title="Equal length or radius">Equal</button>
       <button data-constraint="fix" title="Lock a point or shape in place">Fix</button>
     </div>
+    <div class="sketch-panel-group">
+      <button id="sketch-constraints-toggle" title="Show or hide the constraint glyphs">Constraints</button>
+    </div>
     <span id="sketch-status"></span>
     <span id="sketch-state"></span>
     <button id="sketch-finish">Finish sketch</button>
@@ -694,6 +714,11 @@
     // because loadPart() runs at startup, before the transport block below.
     let pendingCount = 0;
     let loadedRevision = null;
+    // The newest revision this page has heard of, from a reply or an event, which is what an edit is based on.
+    let daemonRevision = 0;
+    const sawRevision = (revision) => {
+      if (Number.isInteger(revision) && revision > daemonRevision) daemonRevision = revision;
+    };
 
     function urlWithCacheBust(base, token) {
       if (!token) return base;
@@ -905,11 +930,15 @@
     // selection, a sketch in progress and hidden sketches belonged to the old one.
     window.reloadPart = function (token, opened, viewerError) {
       loadedRevision = token;
+      sawRevision(token);
       showMeshError(viewerError);
       if (opened) resetForNewDocument();
       const fetchToken = opened ? token + "-" + Date.now() : token;
       loadPart(fetchToken, { refit: Boolean(opened) });
       loadFeatures(fetchToken);
+      // The app and the browser both come through here. A sketch being edited
+      // may be the thing that changed, and the sketcher checks.
+      if (!opened && sketchStage === "draw") sketcher.remoteChanged();
     };
 
     /// The engine could not write the part as a mesh, so it deleted the mesh
@@ -1208,12 +1237,14 @@
         } catch (error) {
           return Promise.reject(error);
         }
-        call = () => rpcCall("apply_edit", { edits, author: "viewer" });
+        const based = message.base_revision === undefined ? {} : { base_revision: message.base_revision };
+        call = () => rpcCall("apply_edit", { edits, author: "viewer", ...based });
       }
       showStatus("Rebuilding…");
       return trackPending(
         call()
           .then((result) => {
+            sawRevision(result.revision);
             if (result.changed !== false && result.revision !== loadedRevision) window.reloadPart(result.revision);
             else hideStatus();
           })
@@ -1230,6 +1261,7 @@
     if (/^https?:$/.test(window.location.protocol)) {
       new EventSource("/events").addEventListener("document_changed", (event) => {
         const { revision, opened, viewer_error } = JSON.parse(event.data).params;
+        sawRevision(revision);
         if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error);
         else showMeshError(viewer_error);
       });
@@ -2340,6 +2372,21 @@
         exitSketchMode();
         sendCommand(message);
       },
+      /// Leaves a sketch whose changes are already in the document.
+      close() {
+        exitSketchMode();
+      },
+      updateSketch(id, shape) {
+        return sendCommand({ type: "update_sketch_entities", id, ...shape, base_revision: daemonRevision });
+      },
+      /// The sketch feature as the document holds it now, or null if it is gone.
+      fetchSketch(id) {
+        return rpcCall("get_document", {}).then((document) => {
+          sawRevision(document.revision);
+          const feature = document.features.find((item) => item.id === id && item.type === "sketch" && item.entities);
+          return feature ? { entities: feature.entities, constraints: feature.constraints || [] } : null;
+        });
+      },
       planePayload: (plane) =>
         plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
       ui: {
@@ -2348,6 +2395,7 @@
         status: document.getElementById("sketch-status"),
         state: document.getElementById("sketch-state"),
         finish: document.getElementById("sketch-finish"),
+        toggle: document.getElementById("sketch-constraints-toggle"),
         cancel: document.getElementById("sketch-cancel"),
         labels: document.getElementById("sketch-labels"),
         dimension: document.getElementById("sketch-dimension"),

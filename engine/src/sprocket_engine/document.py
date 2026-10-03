@@ -27,6 +27,7 @@ from pathlib import Path
 import jsonschema
 
 from .ops import REGISTRY
+from .sketch_edit import assign_constraint_ids, edit_sketch
 
 FORMAT_VERSION = 2
 
@@ -285,6 +286,8 @@ class Document:
         if not isinstance(log, list):
             raise DocumentError(f"{path}: 'log' must be a list")
 
+        for feature in features:
+            assign_constraint_ids(feature)
         document = cls(features, rollback_index, parameters, revision, log, path)
         resolve_parameters(document.parameters)  # fail at open, not at first build
         return document
@@ -417,15 +420,17 @@ class Document:
             "move": self._move,
             "set_rollback": self._set_rollback,
             "set_parameter": self._set_parameter,
+            "edit_sketch": self._edit_sketch,
         }.get(kind)
         if handler is None:
-            raise DocumentError(f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter)")
+            raise DocumentError(f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch)")
         detail = handler(edit)
         return {"author": author, "action": kind, "at": _now(), **detail}
 
     def _insert(self, edit: dict) -> dict:
         feature = edit.get("feature")
         validate_feature(feature, self.resolved_parameters())
+        assign_constraint_ids(feature)
         feature_id = feature["id"]
         if any(existing.get("id") == feature_id for existing in self.features):
             raise DocumentError(f"a feature with id {feature_id!r} already exists")
@@ -447,6 +452,7 @@ class Document:
     def _update(self, edit: dict) -> dict:
         feature = edit.get("feature")
         validate_feature(feature, self.resolved_parameters())
+        assign_constraint_ids(feature)
         feature_id = edit.get("id", feature.get("id"))
         index = self.index_of(feature_id)
         if feature["id"] != feature_id:
@@ -517,6 +523,21 @@ class Document:
         for feature in self.features:
             validate_feature(feature, resolved)
         return {"name": name, "value": value}
+
+    def _edit_sketch(self, edit: dict) -> dict:
+        feature_id = edit.get("id")
+        index = self.index_of(feature_id)
+        feature = copy.deepcopy(self.features[index])
+        if feature.get("type") != "sketch" or "entities" not in feature:
+            raise DocumentError(f"{feature_id!r} is not a sketch of lines, arcs and circles")
+        parameters = self.resolved_parameters()
+        try:
+            detail = edit_sketch(feature, edit, lambda draft: resolve_value(draft, parameters))
+        except ValueError as exc:
+            raise DocumentError(str(exc)) from None
+        validate_feature(feature, parameters)
+        self.features[index] = feature
+        return {"feature_id": feature_id, "index": index, **detail}
 
     def _check_references(self, feature: dict, available: list[dict]) -> None:
         """A feature may only reference features that come before it.

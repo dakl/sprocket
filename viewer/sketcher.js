@@ -7,8 +7,10 @@
 // into calls to those two, and draws the result. It reaches the rest of the
 // viewer only through the `host` object it is created with.
 //
-// Nothing here writes to the document until Finish. The sketch lives in
-// memory while it is drawn, and one edit goes to the engine at the end.
+// A new sketch lives in memory until Finish, and one edit goes to the engine at
+// the end. A sketch that is already in the document is synced as you work: each
+// change goes to the engine as one update, and a change made somewhere else, by
+// an agent, is adopted here. Undo and redo are local to the sketcher either way.
 (function (root) {
   const TWO_PI = 2 * Math.PI;
   const SNAP_PIXELS = 10;
@@ -30,6 +32,10 @@
     circle: ["Click a point on the circle"],
     arc: ["Click the arc's end", "Click a point the arc passes through"],
   };
+  const GLYPHS = { coincident: "•", point_on: "∘", horizontal: "—", vertical: "|", parallel: "∥", perpendicular: "⟂", tangent: "◠", equal: "=", fix: "▣" };
+  const UNDO_LIMIT = 100;
+  const STALE = /based on revision/;
+  const copy = (value) => JSON.parse(JSON.stringify(value));
   const CONSTRAINTS = ["coincident", "point_on", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "fix"];
 
   function createSketcher(host) {
@@ -59,6 +65,17 @@
     let message = "";
     let active = false;
     let dirty = false;
+    let selectedConstraint = null; // id of the glyph or dimension label that is selected
+    let conflicting = []; // ids of the constraints the last refused change ran into
+    let showConstraints = true;
+    let undoStack = [];
+    let redoStack = [];
+    // Only for a sketch already in the document: what the document holds as of
+    // the last sync, what the sketch was when it opened, and the queue of syncs.
+    let liveSync = false;
+    let synced = null;
+    let original = null;
+    let queue = Promise.resolve();
 
     // --- Plane geometry ----------------------------------------------------
 
@@ -102,8 +119,13 @@
       return object;
     }
 
+    const chosen = () => {
+      const constraint = selectedConstraint && sketch.constraints.find((item) => item.id === selectedConstraint);
+      return constraint ? model.constraintEntities(sketch, constraint) : [];
+    };
+
     function colourOf(id) {
-      if (selection.includes(id)) return COLOURS.selected;
+      if (selection.includes(id) || chosen().includes(id)) return COLOURS.selected;
       if (hover && hover.hit && hover.hit.kind === "entity" && hover.hit.reference === id && tool !== "line") return COLOURS.hover;
       return states[id] === "fixed" ? COLOURS.fixed : COLOURS.free;
     }
@@ -186,25 +208,76 @@
       angle: (value) => value.toFixed(1) + "°",
     };
 
-    function renderLabels() {
-      labels.forEach((label) => label.element.remove());
-      labels = [];
-      sketch.constraints.forEach((constraint, index) => {
-        if (!VALUE_KINDS.includes(constraint.kind)) return;
-        const anchor = model.dimensionAnchor(sketch, constraint);
-        if (!anchor) return;
-        const element = document.createElement("div");
-        element.className = "sketch-dimension-label";
-        element.textContent = FORMAT[constraint.kind](constraint.value);
-        element.title = "Double-click to change";
-        element.dataset.constraint = String(index);
-        element.addEventListener("dblclick", (event) => {
+    // Labels are kept between renders and matched by constraint id and position.
+    // Rebuilding them on every render would replace the element under the mouse
+    // between the two clicks of a double-click, and the second click would miss.
+    const elements = new Map();
+
+    function labelFor(key, text, className, constraint, index) {
+      let element = elements.get(key);
+      if (!element) {
+        element = document.createElement("div");
+        element.addEventListener("click", (event) => {
           event.stopPropagation();
-          openDimension({ constraint, anchor, index });
+          selectConstraint(element.dataset.constraintId);
         });
         ui.labels.appendChild(element);
-        labels.push({ element, anchor, index });
+        elements.set(key, element);
+      }
+      element.className = className + (constraint.id === selectedConstraint ? " selected" : "") + (conflicting.includes(constraint.id) ? " conflict" : "");
+      element.textContent = text;
+      element.dataset.constraint = String(index);
+      element.dataset.constraintId = constraint.id;
+      return element;
+    }
+
+    function renderLabels() {
+      const wanted = new Set();
+      labels = [];
+      const stacked = new Map();
+      sketch.constraints.forEach((constraint, index) => {
+        if (VALUE_KINDS.includes(constraint.kind)) {
+          const anchor = model.dimensionAnchor(sketch, constraint);
+          if (!anchor) return;
+          const key = constraint.id + ":dimension";
+          wanted.add(key);
+          const element = labelFor(key, FORMAT[constraint.kind](constraint.value), "sketch-dimension-label", constraint, index);
+          element.title = describe(constraint) + ". Double-click to change, Delete removes it";
+          element.ondblclick = (event) => {
+            event.stopPropagation();
+            openDimension({ constraint, anchor, index });
+          };
+          labels.push({ element, anchor, index, dx: 6, dy: -22 });
+          return;
+        }
+        if (!showConstraints) return;
+        model.glyphAnchors(sketch, constraint).forEach((anchor, position) => {
+          // Glyphs that land on one spot sit side by side, not on top of each other.
+          const spot = anchor.map((value) => value.toFixed(2)).join(",");
+          const beside = stacked.get(spot) || 0;
+          stacked.set(spot, beside + 1);
+          const key = constraint.id + ":" + position;
+          wanted.add(key);
+          const element = labelFor(key, GLYPHS[constraint.kind], "sketch-glyph", constraint, index);
+          element.title = describe(constraint) + ". Click to select, Delete removes it";
+          labels.push({ element, anchor, index, dx: 4 + beside * 18, dy: 4 });
+        });
       });
+      for (const [key, element] of elements) {
+        if (wanted.has(key)) continue;
+        element.remove();
+        elements.delete(key);
+      }
+    }
+
+    const describe = (constraint) => model.describeConstraint(constraint);
+
+    function selectConstraint(id) {
+      selectedConstraint = id;
+      selection = [];
+      conflicting = [];
+      setMessage(describe(sketch.constraints.find((constraint) => constraint.id === id)) + " is selected. Delete removes it.");
+      render();
     }
 
     /// Puts each label, and the open box, where its anchor is on screen. Runs
@@ -217,7 +290,7 @@
         element.style.left = rect.left + ((projected.x + 1) / 2) * rect.width + dx + "px";
         element.style.top = rect.top + ((1 - projected.y) / 2) * rect.height + dy + "px";
       };
-      labels.forEach((label) => place(label.element, label.anchor, 6, -22));
+      labels.forEach((label) => place(label.element, label.anchor, label.dx, label.dy));
       if (dimension) place(ui.dimension, dimension.anchor, 6, 6);
       if (hover && hover.snap) place(snapMarker, hover.snap.uv, 0, 0);
     }
@@ -267,15 +340,125 @@
       if (!gcs) return false;
       const solved = solver.solve(gcs, next, options);
       if (!solved.ok) {
-        setMessage("That conflicts with the constraints already there");
+        // The solver reports every constraint in the clashing group, which can
+        // be most of a rectangle. The dimensions are what a person set on
+        // purpose, so name those, and fall back to the group when there are none.
+        const named = solved.conflicting.map((index) => next.constraints[index]).filter(Boolean);
+        const dimensions = named.filter((constraint) => VALUE_KINDS.includes(constraint.kind));
+        const shown = (dimensions.length ? dimensions : named).slice(0, 3);
+        conflicting = shown.map((constraint) => constraint.id);
+        setMessage(shown.length ? "That conflicts with " + shown.map(describe).join(" and ") : "That conflicts with the constraints already there");
+        render();
         return false;
       }
+      // A drag is one step in the history, taken when it starts.
+      if (!(options && options.drag)) remember();
       sketch = solved.sketch;
       dirty = true;
+      conflicting = [];
       refreshStates(options && options.drag);
       message = "";
       render();
+      if (!(options && options.drag)) sync();
       return true;
+    }
+
+    // --- Undo and redo ---------------------------------------------------------
+    // Local to the sketcher, so Cmd+Z in a sketch steps back through this
+    // sketch's own changes and never through the document's.
+
+    function remember() {
+      undoStack.push(copy(sketch));
+      undoStack.splice(0, undoStack.length - UNDO_LIMIT);
+      redoStack = [];
+    }
+
+    function step(from, to, word) {
+      if (!from.length) {
+        setMessage("Nothing to " + word);
+        return;
+      }
+      to.push(copy(sketch));
+      sketch = from.pop();
+      selection = [];
+      selectedConstraint = null;
+      conflicting = [];
+      dirty = true;
+      if (gcs) refreshStates(false);
+      setMessage(word === "undo" ? "Undone" : "Redone");
+      render();
+      sync();
+    }
+
+    const undo = () => step(undoStack, redoStack, "undo");
+    const redo = () => step(redoStack, undoStack, "redo");
+
+    // --- Keeping a sketch in the document in step -------------------------------
+
+    /// Sends what changed since the last sync. One at a time, in order, so a
+    /// slow reply cannot be overtaken by the change after it.
+    function sync() {
+      if (!liveSync) return queue;
+      queue = queue.then(pushChanges);
+      return queue;
+    }
+
+    async function pushChanges() {
+      while (active && liveSync && !model.sameSketch(sketch, synced)) {
+        const sent = copy(sketch);
+        try {
+          await host.updateSketch(editing.id, sent);
+          synced = sent;
+        } catch (error) {
+          if (!(await recover(error))) return;
+        }
+      }
+    }
+
+    /// The engine refused an update. A stale revision means something else
+    /// edited the document: if that left this sketch alone, send again, and if
+    /// not, take theirs and drop the change that lost.
+    async function recover(error) {
+      if (!STALE.test(error.message)) {
+        setMessage("Could not save: " + error.message);
+        return false;
+      }
+      const remote = await host.fetchSketch(editing.id);
+      if (!remote) {
+        setMessage("This sketch was removed from the document");
+        liveSync = false;
+        return false;
+      }
+      if (model.sameSketch(model.withConstraintIds(remote), model.withConstraintIds(synced))) return true;
+      adopt(remote);
+      setMessage("It was changed elsewhere, so your last change was dropped");
+      return true;
+    }
+
+    /// Replaces the sketch with the document's, when someone else changed it.
+    function adopt(remote) {
+      sketch = model.withConstraintIds(remote);
+      synced = copy(remote);
+      original = copy(sketch);
+      undoStack = [];
+      redoStack = [];
+      selection = [];
+      selectedConstraint = null;
+      conflicting = [];
+      if (gcs) refreshStates(false);
+      render();
+    }
+
+    /// The viewer calls this when the document changes. A change that is not
+    /// this sketcher's own is adopted. One it made itself matches `synced`.
+    async function remoteChanged() {
+      if (!active || !liveSync) return;
+      await queue;
+      const remote = await host.fetchSketch(editing.id);
+      if (!active || !remote || !model.sameSketch(sketch, synced)) return;
+      if (model.sameSketch(model.withConstraintIds(remote), model.withConstraintIds(synced))) return;
+      adopt(remote);
+      setMessage("Updated from outside");
     }
 
     /// Which entities are fully constrained, for the colouring. Skipped while
@@ -437,6 +620,12 @@
     }
 
     function deleteSelection() {
+      if (selectedConstraint) {
+        const id = selectedConstraint;
+        selectedConstraint = null;
+        change(model.removeConstraintById(sketch, id));
+        return;
+      }
       const known = new Set(sketch.entities.map((entity) => entity.id));
       const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))].filter((id) => known.has(id));
       if (!ids.length) return;
@@ -451,6 +640,7 @@
       if (!uv) return;
       if (press && !press.dragging && Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_PIXELS && press.hit && press.hit.reference !== model.ORIGIN) {
         press.dragging = true;
+        remember();
         host.setCameraEnabled(false);
       }
       if (press && press.dragging) {
@@ -494,9 +684,13 @@
       if (finished.dragging) {
         host.setCameraEnabled(true);
         refreshStates(false);
+        // A drag the solver refused throughout is not a step to undo.
+        if (undoStack.length && model.sameSketch(undoStack[undoStack.length - 1], sketch)) undoStack.pop();
         render();
+        sync();
         return;
       }
+      selectedConstraint = null;
       if (finished.hit) toggleSelected(finished.hit.reference, finished.additive);
       else if (!finished.additive) selection = [];
       render();
@@ -515,15 +709,22 @@
         event.preventDefault();
         return true;
       }
-      if (event.metaKey || event.ctrlKey) return false;
       const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
+        if (key === "y" || event.shiftKey) redo();
+        else undo();
+        event.preventDefault();
+        return true;
+      }
+      if (event.metaKey || event.ctrlKey) return false;
       if (event.key === "Escape") {
         if (pending.length) endChain();
-        else if (selection.length) {
+        else if (selection.length || selectedConstraint) {
           selection = [];
+          selectedConstraint = null;
           render();
         } else if (tool !== "select") setTool("select");
-        else if (!sketch.entities.length) host.cancel();
+        else if (!sketch.entities.length) cancel();
         return true;
       }
       if (event.key === "Enter") {
@@ -556,6 +757,7 @@
         }
         button.disabled = !usable;
       });
+      if (ui.toggle) ui.toggle.classList.toggle("active", showConstraints);
       const constrained = dof === 0 && sketch.entities.length ? "Fully constrained" : dof === null ? "" : dof + " freedom left";
       ui.status.textContent = message || (pending.length ? "" : HINTS[tool]);
       ui.state.textContent = constrained;
@@ -568,7 +770,16 @@
     function begin(newPlane, feature) {
       plane = newPlane;
       editing = feature || null;
-      sketch = feature ? { entities: JSON.parse(JSON.stringify(feature.entities)), constraints: JSON.parse(JSON.stringify(feature.constraints || [])) } : model.emptySketch();
+      const stored = feature ? { entities: copy(feature.entities), constraints: copy(feature.constraints || []) } : null;
+      sketch = stored ? model.withConstraintIds(stored) : model.emptySketch();
+      liveSync = Boolean(stored);
+      synced = stored;
+      original = copy(sketch);
+      queue = Promise.resolve();
+      undoStack = [];
+      redoStack = [];
+      selectedConstraint = null;
+      conflicting = [];
       states = {};
       dof = null;
       tool = "select";
@@ -592,6 +803,7 @@
 
     function end() {
       active = false;
+      liveSync = false;
       plane = null;
       editing = null;
       pending = [];
@@ -599,20 +811,40 @@
       dimension = null;
       press = null;
       ui.dimension.style.display = "none";
-      labels.forEach((label) => label.element.remove());
+      elements.forEach((element) => element.remove());
+      elements.clear();
       labels = [];
       hover = null;
       snapMarker.style.display = "none";
       while (group.children.length) dispose(group.children.pop());
     }
 
-    function finish() {
+    async function finish() {
       if (!sketch.entities.length) {
-        host.cancel();
+        cancel();
         return;
       }
-      const shape = { entities: sketch.entities, constraints: sketch.constraints };
-      host.commit(editing ? { type: "update_sketch_entities", id: editing.id, ...shape } : { type: "add_sketch", plane: host.planePayload(plane), ...shape });
+      if (!liveSync) {
+        host.commit({ type: "add_sketch", plane: host.planePayload(plane), entities: sketch.entities, constraints: sketch.constraints });
+        return;
+      }
+      await sync();
+      // A sync that failed leaves the document behind the sketch. Send the whole sketch instead.
+      if (!model.sameSketch(sketch, synced)) {
+        host.commit({ type: "update_sketch_entities", id: editing.id, entities: sketch.entities, constraints: sketch.constraints });
+        return;
+      }
+      host.close();
+    }
+
+    /// Throws the sketch away. One that is in the document has been saved as
+    /// it was drawn, so this puts back what it was when the sketcher opened.
+    async function cancel() {
+      if (liveSync && original && !model.sameSketch(sketch, original)) {
+        sketch = copy(original);
+        await sync();
+      }
+      host.cancel();
     }
 
     function snapshot() {
@@ -628,6 +860,14 @@
         message,
         dirty,
         editing: editing ? editing.id : null,
+        constraintIds: sketch.constraints.map((constraint) => constraint.id),
+        selectedConstraint,
+        conflicting: [...conflicting],
+        showConstraints,
+        glyphs: labels.filter((label) => label.element.classList.contains("sketch-glyph")).length,
+        undoDepth: undoStack.length,
+        redoDepth: redoStack.length,
+        synced: liveSync ? model.sameSketch(sketch, synced) : null,
       };
     }
 
@@ -642,7 +882,13 @@
     ui.tools.forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
     ui.constraints.forEach((button) => button.addEventListener("click", () => applyConstraint(button.dataset.constraint)));
     ui.finish.addEventListener("click", finish);
-    ui.cancel.addEventListener("click", () => host.cancel());
+    ui.cancel.addEventListener("click", cancel);
+    if (ui.toggle) {
+      ui.toggle.addEventListener("click", () => {
+        showConstraints = !showConstraints;
+        render();
+      });
+    }
 
     return {
       begin,
@@ -653,6 +899,9 @@
       pointerUp,
       doubleClick,
       keyDown,
+      remoteChanged,
+      cancel,
+      sync,
       snapshot,
       screenPointOfUV,
       get active() {

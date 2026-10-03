@@ -6,5 +6,6 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
 cp "$here/fixtures/box.json" "$work/box.sprocket"
-exec uv run --directory "$here/../engine" sprocket web "$work/box.sprocket" \
+# The solver extra is for the tests where an agent edits a sketch the viewer has open.
+exec uv run --extra solver --directory "$here/../engine" sprocket web "$work/box.sprocket" \
   --port "${PORT:-8765}" --socket "$work/d.sock" --viewer-dir "$here/../viewer"

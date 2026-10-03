@@ -23,10 +23,10 @@ PLANE_SCHEMA = {
     ]
 }
 
-# A sketch drawn in the GUI: entities plus the constraints that placed them. The
-# engine does not solve constraints. The viewer's solver already placed every
-# entity, so replay trusts the geometry and keeps the constraints so the sketch
-# can be reopened and solved again.
+# A sketch drawn in the GUI: entities plus the constraints that placed them.
+# Replay does not solve constraints: whoever last edited the sketch, the viewer's
+# solver or sketch_edit.py's, already placed every entity, so replay trusts the
+# geometry and keeps the constraints so the sketch can be solved again.
 ENTITY_SCHEMA = {
     "type": "object",
     "required": ["id", "kind"],
@@ -72,6 +72,7 @@ CONSTRAINT_SCHEMA = {
     "type": "object",
     "required": ["kind"],
     "properties": {
+        "id": {"type": "string", "description": "c<n>. Stable for the life of the sketch. Filled in when missing."},
         "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
         "e": {"type": "string", "description": "the one entity or point a constraint acts on"},
         "a": {"type": "string", "description": "first entity or point. For point_on, the point"},
@@ -189,7 +190,13 @@ def check_entities(feature: dict) -> None:
         if point and point not in _POINTS[kinds[entity_id]]:
             raise ValueError(f"constraint {constraint['kind']!r} refers to {reference!r}, but a {kinds[entity_id]} has no point {point!r}")
 
+    constraint_ids = set()
     for constraint in feature.get("constraints", []):
+        constraint_id = constraint.get("id")
+        if constraint_id is not None:
+            if constraint_id in constraint_ids:
+                raise ValueError(f"sketch {feature['id']!r} has two constraints with id {constraint_id!r}")
+            constraint_ids.add(constraint_id)
         wanted = CONSTRAINT_FIELDS[constraint["kind"]]
         missing = [name for name in wanted if name not in constraint]
         if missing:

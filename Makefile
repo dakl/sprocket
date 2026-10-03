@@ -37,7 +37,7 @@ test-viewer:
 
 # Uses the installed Chrome (see e2e/playwright.config.js), so no browser is downloaded.
 test-ui:
-	cd e2e && npm ci --silent && npx playwright test
+	cd e2e && $(SOLVER_ENV) npm ci --silent && $(SOLVER_ENV) npx playwright test
 
 # Only APPROVED=1 adds --approved. Leaving it out is what makes the refusal the
 # default: see engine/tools/golden_update.py for why an existing case is locked.
