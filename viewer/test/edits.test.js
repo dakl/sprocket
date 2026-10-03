@@ -101,3 +101,13 @@ test("update_sketch_entities redraws a sketch and drops its old single shape", (
   assert.equal(update.feature.plane, "XY");
   assert.throws(() => editsFor(box, { type: "update_sketch_entities", id: "e1", entities: drawn }), /no sketch/);
 });
+
+test("extrude_face uses the selector the engine made from the pick, when there is one", () => {
+  const face = { from: "part", select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }], expected_count: 1 };
+  const edits = editsFor(box, { type: "extrude_face", face, distance: 5 });
+  assert.deepEqual(edits.at(-1).feature.face, face);
+});
+
+test("extrude_face without a selector still needs the point and normal", () => {
+  assert.throws(() => editsFor(box, { type: "extrude_face", distance: 5 }), /point/);
+});

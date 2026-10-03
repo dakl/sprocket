@@ -6,7 +6,7 @@ anything upstream changes. A selector is a query that re-resolves on every
 replay instead of a stored position.
 """
 
-from build123d import Axis, Edge
+from build123d import Axis, Edge, Face, ShapeList
 
 AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 
@@ -24,8 +24,17 @@ SELECTOR_DESCRIPTION = (
     '{"op": "slice", "start": 0, "stop": 4} takes a range, '
     '{"op": "first"} and {"op": "last"} take one end, and '
     '{"op": "nearest_to", "point": [x, y, z]} takes the one closest to a point, with an '
-    'optional "normal" to break a tie across a thin wall. '
-    'Every edge is {"select": [{"op": "edges"}]}.'
+    'optional "normal" to break a tie across a thin wall, '
+    '{"op": "at_end", "axis": "Z", "end": "max"} keeps everything level with the highest item along that '
+    'axis ("min" for the lowest), which is how to say "the top edges" so a part that gains an edge there '
+    'is noticed, '
+    '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which is the most '
+    'robust way to say "the edges of that extrude", and '
+    '{"op": "nearest_each", "points": [[x, y, z], ...]} takes the item nearest each point. '
+    'Add "expected_count": n beside "select" and a rebuild that finds a different number fails '
+    'the feature instead of rounding the wrong edges. '
+    'Every edge is {"select": [{"op": "edges"}]}. '
+    'resolve_selection turns picked handles into a selector.'
 )
 
 
@@ -52,13 +61,75 @@ def _nearest(candidates, point, normal=None):
     return min(candidates, key=score)
 
 
-def resolve_selector(shape, selector):
-    """selector: {"from": "part", "select": [{"op": ..., ...}, ...]}"""
+# How close two shapes' centres and sizes must be to count as the same one.
+SAME_GEOMETRY = 1e-5
+# How level two items must be along an axis for `at_end` to keep both.
+LEVEL = 1e-6
+
+
+def _size(item) -> float:
+    if isinstance(item, Face):
+        return item.area
+    return getattr(item, "length", 0.0)
+
+
+def _unchanged(item, olds) -> bool:
+    """Whether `olds` holds the same face or edge as `item`.
+
+    By geometry, not identity. Each feature's result is cached on its own, so a
+    shape that came from the cache shares no OCCT identity with one built in
+    the same run, and an identity test would call everything new.
+    """
+    centre = item.center()
+    for old in olds:
+        if getattr(old, "geom_type", None) != getattr(item, "geom_type", None):
+            continue
+        if (old.center() - centre).length > SAME_GEOMETRY or abs(_size(old) - _size(item)) > SAME_GEOMETRY:
+            continue
+        return True
+    return False
+
+
+def _at_end(current, axis: str, end: str):
+    """Everything level with the highest ("max") or lowest ("min") item along `axis`, by centre."""
+    if end not in ("max", "min"):
+        raise SelectorError(f"at_end 'end' must be 'max' or 'min', not {end!r}")
+    if not current:
+        return ShapeList(current)
+    values = [getattr(item.center(), axis) for item in current]
+    edge = max(values) if end == "max" else min(values)
+    return ShapeList([item for item, value in zip(current, values) if abs(value - edge) <= LEVEL])
+
+
+def _new_since(current, starter: str, feature_id: str, ctx):
+    """What feature `feature_id` made or changed: items of `current` that were
+    not in the shape it was applied to. A feature with no base starts from
+    nothing, so all of it is new."""
+    feature = ctx.features.get(feature_id) if ctx is not None else None
+    if feature is None:
+        raise SelectorError(f"new_since names {feature_id!r}, which is not a feature before this one")
+    base_id = feature.get("base")
+    if not base_id:
+        return ShapeList(current)
+    before = ctx.results.get(base_id)
+    if before is None:
+        raise SelectorError(f"new_since {feature_id!r}: its base {base_id!r} has no result")
+    olds = getattr(before, starter)()
+    # A ShapeList, so the steps after this one can still sort and filter.
+    return ShapeList([item for item in current if not _unchanged(item, olds)])
+
+
+def resolve_selector(shape, selector, ctx=None):
+    """selector: {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}
+
+    `ctx` is the replay context, which `new_since` needs to see earlier features.
+    """
     steps = selector["select"]
     if not steps or steps[0]["op"] not in STARTERS:
         raise SelectorError(f"selector must start with one of {STARTERS}")
 
-    current = getattr(shape, steps[0]["op"])()
+    starter = steps[0]["op"]
+    current = getattr(shape, starter)()
     for step in steps[1:]:
         op = step["op"]
         if op == "filter_by":
@@ -73,13 +144,27 @@ def resolve_selector(shape, selector):
             current = [current[-1]]
         elif op == "nearest_to":
             current = [_nearest(current, step["point"], step.get("normal"))]
+        elif op == "at_end":
+            current = _at_end(current, step["axis"], step["end"])
+        elif op == "new_since":
+            current = _new_since(current, starter, step["feature"], ctx)
+        elif op == "nearest_each":
+            picked = []
+            for point in step["points"]:
+                found = _nearest(current, point)
+                if not any(found.is_same(other) for other in picked):
+                    picked.append(found)
+            current = ShapeList(picked)
         else:
             raise SelectorError(f"unknown selector op: {op}")
 
+    expected = selector.get("expected_count")
+    if expected is not None and len(current) != expected:
+        raise SelectorError(f"selector matched {len(current)}, expected {expected}: the geometry it named has changed")
     return list(current)
 
 
-def resolve_edges(shape, selector):
+def resolve_edges(shape, selector, ctx=None):
     """Resolve a selector that has to land on edges, for fillet and chamfer.
 
     A selector that matches nothing is the topological-naming failure SPEC.md
@@ -87,7 +172,7 @@ def resolve_edges(shape, selector):
     like the edit was never made rather than like it broke. Fail here so the
     timeline can show the feature as failed.
     """
-    matched = resolve_selector(shape, selector)
+    matched = resolve_selector(shape, selector, ctx)
     if not matched:
         raise SelectorError("edge selector matched no edges")
     other_kinds = {type(item).__name__ for item in matched if not isinstance(item, Edge)}

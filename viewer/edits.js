@@ -65,14 +65,17 @@
     },
 
     extrude_face(state, message) {
-      require_(message, "point", "normal", "distance");
+      // `face` is a selector the engine made from the pick (resolve_selection).
+      // Without one, the face is named by where it was clicked.
+      require_(message, "distance");
+      if (!message.face) require_(message, "point", "normal");
       const { deletes, kept } = dropRolledBackTail(state);
       if (!kept.length) fail("there is no part to push or pull yet");
       const feature = {
         id: newId(kept),
         type: "extrude_face",
         base: kept[kept.length - 1].id,
-        face: {
+        face: message.face || {
           from: "part",
           select: [{ op: "faces" }, { op: "nearest_to", point: message.point, normal: message.normal }],
         },

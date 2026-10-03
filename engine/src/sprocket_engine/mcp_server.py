@@ -133,6 +133,14 @@ def document_tools() -> list[types.Tool]:
             {},
         ),
         _tool(
+            "resolve_selection",
+            "Turns face or edge handles into a selector that survives edits, for a fillet's edges or an "
+            "extrude_face's face. With no handles it uses the person's current selection. The reply's "
+            "strategy says how robust it is: new_since and structure follow the geometry, position only "
+            "follows where it is.",
+            {"handles": HANDLES},
+        ),
+        _tool(
             "highlight",
             "Shows faces, edges or sketches in the person's viewer so they can see what you mean. "
             "An empty list clears it. It does not change their selection.",
@@ -330,7 +338,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "highlight", "measure", "preview_feature", "export"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

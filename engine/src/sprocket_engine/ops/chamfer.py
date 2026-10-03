@@ -23,4 +23,4 @@ SCHEMA = {
 @register("chamfer", SCHEMA)
 def apply(feature: dict, ctx):
     base = ctx.results[feature["base"]]
-    return b3d_chamfer(resolve_edges(base, feature["edges"]), length=feature["length"])
+    return b3d_chamfer(resolve_edges(base, feature["edges"], ctx), length=feature["length"])

@@ -238,3 +238,31 @@ test("a highlight from an agent shows in the viewer and does not touch the selec
   await rpc(request, "highlight", { handles: [] });
   await expect.poll(() => page.evaluate(() => window.__tcad.highlighted.handles)).toEqual([]);
 });
+
+// --- M4: a picked face becomes a selector, not a position ----------------------
+
+test("push/pull saves the picked face as a selector, and the feature survives a change of dimension", async ({ page, request }) => {
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator("#tool-extrude")).toBeEnabled();
+  await page.locator("#tool-extrude").click();
+  await expect(page.locator("#extrude-panel")).toBeVisible();
+  await page.keyboard.type("5");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => !window.__tcad.extruding);
+  await settled(page);
+
+  const features = (await rpc(request, "get_document")).features;
+  const pushed = features[features.length - 1];
+  expect(pushed.type).toBe("extrude_face");
+  expect(pushed.face.expected_count).toBe(1);
+  expect(JSON.stringify(pushed.face.select)).toContain("new_since");
+
+  // Widen the sketch. A selector made from a click position could land on another face.
+  const polygon = [[-30, -15], [30, -15], [30, 15], [-30, 15]];
+  const wider = await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f1", feature: { id: "f1", type: "sketch", plane: "XY", polygon } }] });
+  expect(wider.built.ok).toBe(true);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(60 * 30 * 15, 3);
+});
