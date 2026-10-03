@@ -13,6 +13,9 @@ from sprocket_engine.rpc import Client, RpcError
 def listener(daemon):
     seen = []
     with Client(daemon.socket_path, on_notification=lambda method, params: seen.append((method, params))) as connected:
+        # The daemon registers a connection on its own thread, after connect()
+        # returns. A reply proves it has, so nothing sent next is missed.
+        connected.call("ping")
         connected.seen = seen
         yield connected
 
