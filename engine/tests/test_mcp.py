@@ -158,3 +158,17 @@ def test_the_document_is_untouched_by_a_preview(daemon, client):
     result = drive(daemon, work)
     assert json.loads(text_of(result))["would_build"] is False
     assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1", "e1"]
+
+
+def test_an_agent_can_read_the_selection_and_highlight_it(daemon):
+    async def work(session):
+        picked = await session.call_tool("get_selection", {})
+        shown = await session.call_tool("highlight", {"handles": ["f0"]})
+        return picked, shown
+
+    with Client(daemon.socket_path) as viewer:
+        viewer.call("set_selection", handles=["f0"], revision=0)
+        picked, shown = drive(daemon, work)
+    assert json.loads(text_of(picked))["handles"] == ["f0"]
+    assert shown.is_error is not True
+    assert json.loads(text_of(shown))["handles"] == ["f0"]

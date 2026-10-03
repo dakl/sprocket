@@ -24,6 +24,7 @@ freeze the user's app.
 
 import json
 import os
+import re
 import socket
 import socketserver
 import threading
@@ -31,7 +32,7 @@ import traceback
 from pathlib import Path
 
 from .document import Document, DocumentError, StaleRevision, validate_feature
-from .geometry import describe, measure
+from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 from .render import render_png
@@ -118,6 +119,10 @@ class Session:
         return shape
 
 
+def empty_selection() -> dict:
+    return {"handles": [], "sketches": [], "revision": None}
+
+
 class Daemon:
     """Owns the socket, the session lock and the connected clients."""
 
@@ -135,6 +140,8 @@ class Daemon:
         # every client, so an undo undoes the newest edit whoever made it.
         self.undo_stack: list[dict] = []
         self.redo_stack: list[dict] = []
+        # What the person has picked in the viewer. See `_set_selection`.
+        self.selection: dict = empty_selection()
         self._clients: set = set()
         self._clients_lock = threading.Lock()
         self._server = None
@@ -439,6 +446,10 @@ def _switch_to(daemon: Daemon, document: Document) -> dict:
     daemon.session.use(document)
     daemon.undo_stack.clear()
     daemon.redo_stack.clear()
+    # A selection names faces and sketches of the old document. It is cleared
+    # first so `document_changed`, which clients act on, stays the last word.
+    daemon.selection = empty_selection()
+    daemon.broadcast("selection_changed", _selection_view(daemon))
     return {"path": str(document.path), **_commit(daemon, document.revision, save=False, opened=True)}
 
 
@@ -625,7 +636,81 @@ def _get_profiles(daemon: Daemon, params: dict) -> dict:
 
 
 def _describe_geometry(daemon: Daemon, params: dict) -> dict:
-    return describe(daemon.session.require_shape())
+    return {**describe(daemon.session.require_shape()), "selection": _selection_view(daemon)}
+
+
+# ---- selection -------------------------------------------------------------
+#
+# The person's selection lives here, not in the viewer, so an agent can read it:
+# "fillet these" has nothing to act on otherwise. The viewer sends it on every
+# pick. It holds handles from describe_geometry (`f2`, `e7`) and sketch ids, and
+# the revision the handles were taken at, because a rebuild renumbers faces and
+# edges.
+
+_HANDLE = re.compile(r"[fe]\d+")
+
+
+def _handles(params: dict) -> list[str]:
+    handles = params.get("handles", [])
+    if not isinstance(handles, list) or not all(isinstance(item, str) and _HANDLE.fullmatch(item) for item in handles):
+        raise DocumentError("'handles' must be a list like ['f2', 'e7']")
+    return handles
+
+
+def _sketch_ids(daemon: Daemon, params: dict) -> list[str]:
+    ids = params.get("sketches", [])
+    if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
+        raise DocumentError("'sketches' must be a list of sketch feature ids")
+    sketches = {feature["id"] for feature in daemon.session.document.features if feature.get("type") == "sketch"}
+    return [item for item in ids if item in sketches]
+
+
+def _selection_view(daemon: Daemon) -> dict:
+    """The selection with `describe_geometry`'s entry for each handle: the sentence,
+    and the centre, length or area an agent builds a selector from.
+
+    `stale` is true when the part was rebuilt since the handles were taken.
+    The sentences are left out then, because `f2` may be a different face now.
+    """
+    document = daemon.session.document
+    selection = daemon.selection
+    view = {**selection, "stale": bool(selection["handles"]) and selection["revision"] != document.revision}
+    if selection["handles"] and not view["stale"]:
+        shape, _ = daemon.session.shape()
+        if shape is not None:
+            described = describe(shape)
+            items = {item["handle"]: item for item in described["faces"] + described["edges"]}
+            view["descriptions"] = [items.get(handle, {"handle": handle, "description": None}) for handle in selection["handles"]]
+    return view
+
+
+def _set_selection(daemon: Daemon, params: dict) -> dict:
+    """What the viewer calls on every pick. `revision` is the revision the
+    handles were picked at, and defaults to the current one."""
+    revision = params.get("revision", daemon.session.document.revision)
+    if isinstance(revision, bool) or not isinstance(revision, int):
+        raise DocumentError("'revision' must be an integer")
+    daemon.selection = {"handles": _handles(params), "sketches": _sketch_ids(daemon, params), "revision": revision}
+    view = _selection_view(daemon)
+    daemon.broadcast("selection_changed", view)
+    return view
+
+
+def _get_selection(daemon: Daemon, params: dict) -> dict:
+    return _selection_view(daemon)
+
+
+def _highlight(daemon: Daemon, params: dict) -> dict:
+    """Shows handles in the viewer, in a colour that is not the selection's.
+    An empty list clears it. It does not change what is selected."""
+    handles = _handles(params)
+    if handles:
+        shape = daemon.session.require_shape()
+        for handle in handles:
+            _resolve_handle(shape, handle)
+    sketches = _sketch_ids(daemon, params)
+    daemon.broadcast("highlight", {"handles": handles, "sketches": sketches})
+    return {"handles": handles, "sketches": sketches}
 
 
 def _measure(daemon: Daemon, params: dict) -> dict:
@@ -705,6 +790,9 @@ METHODS = {
     "preview_feature": _preview_feature,
     "get_profiles": _get_profiles,
     "describe_geometry": _describe_geometry,
+    "set_selection": _set_selection,
+    "get_selection": _get_selection,
+    "highlight": _highlight,
     "measure": _measure,
     "render_view": _render_view,
     "export": _export,
