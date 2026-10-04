@@ -1,0 +1,6885 @@
+{
+ "format_version": 2,
+ "features": [
+  {
+   "id": "pcbs",
+   "type": "sketch",
+   "plane": "XY",
+   "rect": {
+    "width": "=pcb_l",
+    "height": "=pcb_w",
+    "center": [
+     "=pcb_l/2",
+     "=pcb_w/2"
+    ]
+   }
+  },
+  {
+   "id": "pcb",
+   "type": "extrude",
+   "profile": "pcbs",
+   "distance": "=pcb_t"
+  },
+  {
+   "id": "holes",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "h0",
+     "kind": "circle",
+     "c": [
+      "=hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "h1",
+     "kind": "circle",
+     "c": [
+      "=pcb_l-hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "h2",
+     "kind": "circle",
+     "c": [
+      "=hole_inset",
+      "=pcb_w-hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "h3",
+     "kind": "circle",
+     "c": [
+      "=pcb_l-hole_inset",
+      "=pcb_w-hole_inset"
+     ],
+     "r": "=hole_d/2"
+    }
+   ]
+  },
+  {
+   "id": "pcbh",
+   "type": "extrude",
+   "base": "pcb",
+   "distance": "=-pcb_t",
+   "profiles": [
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h0"
+     ]
+    },
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h1"
+     ]
+    },
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h2"
+     ]
+    },
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cellss",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "p0_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2-1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27+cell_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-cell_w/2",
+      "=header_w/2+1.27-cell_w/2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cells",
+   "type": "extrude",
+   "base": "pcbh",
+   "distance": "=header_h",
+   "profiles": [
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p0_0_0",
+      "p0_0_1",
+      "p0_0_2",
+      "p0_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p0_1_0",
+      "p0_1_1",
+      "p0_1_2",
+      "p0_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p1_0_0",
+      "p1_0_1",
+      "p1_0_2",
+      "p1_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p1_1_0",
+      "p1_1_1",
+      "p1_1_2",
+      "p1_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p2_0_0",
+      "p2_0_1",
+      "p2_0_2",
+      "p2_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p2_1_0",
+      "p2_1_1",
+      "p2_1_2",
+      "p2_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p3_0_0",
+      "p3_0_1",
+      "p3_0_2",
+      "p3_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p3_1_0",
+      "p3_1_1",
+      "p3_1_2",
+      "p3_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p4_0_0",
+      "p4_0_1",
+      "p4_0_2",
+      "p4_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p4_1_0",
+      "p4_1_1",
+      "p4_1_2",
+      "p4_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p5_0_0",
+      "p5_0_1",
+      "p5_0_2",
+      "p5_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p5_1_0",
+      "p5_1_1",
+      "p5_1_2",
+      "p5_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p6_0_0",
+      "p6_0_1",
+      "p6_0_2",
+      "p6_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p6_1_0",
+      "p6_1_1",
+      "p6_1_2",
+      "p6_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p7_0_0",
+      "p7_0_1",
+      "p7_0_2",
+      "p7_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p7_1_0",
+      "p7_1_1",
+      "p7_1_2",
+      "p7_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p8_0_0",
+      "p8_0_1",
+      "p8_0_2",
+      "p8_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p8_1_0",
+      "p8_1_1",
+      "p8_1_2",
+      "p8_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p9_0_0",
+      "p9_0_1",
+      "p9_0_2",
+      "p9_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p9_1_0",
+      "p9_1_1",
+      "p9_1_2",
+      "p9_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p10_0_0",
+      "p10_0_1",
+      "p10_0_2",
+      "p10_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p10_1_0",
+      "p10_1_1",
+      "p10_1_2",
+      "p10_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p11_0_0",
+      "p11_0_1",
+      "p11_0_2",
+      "p11_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p11_1_0",
+      "p11_1_1",
+      "p11_1_2",
+      "p11_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p12_0_0",
+      "p12_0_1",
+      "p12_0_2",
+      "p12_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p12_1_0",
+      "p12_1_1",
+      "p12_1_2",
+      "p12_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p13_0_0",
+      "p13_0_1",
+      "p13_0_2",
+      "p13_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p13_1_0",
+      "p13_1_1",
+      "p13_1_2",
+      "p13_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p14_0_0",
+      "p14_0_1",
+      "p14_0_2",
+      "p14_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p14_1_0",
+      "p14_1_1",
+      "p14_1_2",
+      "p14_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p15_0_0",
+      "p15_0_1",
+      "p15_0_2",
+      "p15_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p15_1_0",
+      "p15_1_1",
+      "p15_1_2",
+      "p15_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p16_0_0",
+      "p16_0_1",
+      "p16_0_2",
+      "p16_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p16_1_0",
+      "p16_1_1",
+      "p16_1_2",
+      "p16_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p17_0_0",
+      "p17_0_1",
+      "p17_0_2",
+      "p17_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p17_1_0",
+      "p17_1_1",
+      "p17_1_2",
+      "p17_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p18_0_0",
+      "p18_0_1",
+      "p18_0_2",
+      "p18_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p18_1_0",
+      "p18_1_1",
+      "p18_1_2",
+      "p18_1_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p19_0_0",
+      "p19_0_1",
+      "p19_0_2",
+      "p19_0_3"
+     ]
+    },
+    {
+     "sketch": "cellss",
+     "bounded_by": [
+      "p19_1_0",
+      "p19_1_1",
+      "p19_1_2",
+      "p19_1_3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pinss",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+header_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "p0_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p0_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(0-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p1_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(1-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p2_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(2-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p3_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(3-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p4_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(4-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p5_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(5-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p6_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(6-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p7_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(7-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p8_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(8-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p9_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(9-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p10_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(10-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p11_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(11-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p12_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(12-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p13_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(13-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p14_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(14-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p15_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(15-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p16_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(16-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p17_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(17-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p18_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(18-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_0_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2-1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_0",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54+pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ]
+    },
+    {
+     "id": "p19_1_3",
+     "kind": "line",
+     "p0": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27+pin_w/2"
+     ],
+     "p1": [
+      "=pcb_l/2+(19-9.5)*2.54-pin_w/2",
+      "=header_w/2+1.27-pin_w/2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pins",
+   "type": "extrude",
+   "base": "cells",
+   "distance": "=pin_up",
+   "profiles": [
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p0_0_0",
+      "p0_0_1",
+      "p0_0_2",
+      "p0_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p0_1_0",
+      "p0_1_1",
+      "p0_1_2",
+      "p0_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p1_0_0",
+      "p1_0_1",
+      "p1_0_2",
+      "p1_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p1_1_0",
+      "p1_1_1",
+      "p1_1_2",
+      "p1_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p2_0_0",
+      "p2_0_1",
+      "p2_0_2",
+      "p2_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p2_1_0",
+      "p2_1_1",
+      "p2_1_2",
+      "p2_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p3_0_0",
+      "p3_0_1",
+      "p3_0_2",
+      "p3_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p3_1_0",
+      "p3_1_1",
+      "p3_1_2",
+      "p3_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p4_0_0",
+      "p4_0_1",
+      "p4_0_2",
+      "p4_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p4_1_0",
+      "p4_1_1",
+      "p4_1_2",
+      "p4_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p5_0_0",
+      "p5_0_1",
+      "p5_0_2",
+      "p5_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p5_1_0",
+      "p5_1_1",
+      "p5_1_2",
+      "p5_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p6_0_0",
+      "p6_0_1",
+      "p6_0_2",
+      "p6_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p6_1_0",
+      "p6_1_1",
+      "p6_1_2",
+      "p6_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p7_0_0",
+      "p7_0_1",
+      "p7_0_2",
+      "p7_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p7_1_0",
+      "p7_1_1",
+      "p7_1_2",
+      "p7_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p8_0_0",
+      "p8_0_1",
+      "p8_0_2",
+      "p8_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p8_1_0",
+      "p8_1_1",
+      "p8_1_2",
+      "p8_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p9_0_0",
+      "p9_0_1",
+      "p9_0_2",
+      "p9_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p9_1_0",
+      "p9_1_1",
+      "p9_1_2",
+      "p9_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p10_0_0",
+      "p10_0_1",
+      "p10_0_2",
+      "p10_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p10_1_0",
+      "p10_1_1",
+      "p10_1_2",
+      "p10_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p11_0_0",
+      "p11_0_1",
+      "p11_0_2",
+      "p11_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p11_1_0",
+      "p11_1_1",
+      "p11_1_2",
+      "p11_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p12_0_0",
+      "p12_0_1",
+      "p12_0_2",
+      "p12_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p12_1_0",
+      "p12_1_1",
+      "p12_1_2",
+      "p12_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p13_0_0",
+      "p13_0_1",
+      "p13_0_2",
+      "p13_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p13_1_0",
+      "p13_1_1",
+      "p13_1_2",
+      "p13_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p14_0_0",
+      "p14_0_1",
+      "p14_0_2",
+      "p14_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p14_1_0",
+      "p14_1_1",
+      "p14_1_2",
+      "p14_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p15_0_0",
+      "p15_0_1",
+      "p15_0_2",
+      "p15_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p15_1_0",
+      "p15_1_1",
+      "p15_1_2",
+      "p15_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p16_0_0",
+      "p16_0_1",
+      "p16_0_2",
+      "p16_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p16_1_0",
+      "p16_1_1",
+      "p16_1_2",
+      "p16_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p17_0_0",
+      "p17_0_1",
+      "p17_0_2",
+      "p17_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p17_1_0",
+      "p17_1_1",
+      "p17_1_2",
+      "p17_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p18_0_0",
+      "p18_0_1",
+      "p18_0_2",
+      "p18_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p18_1_0",
+      "p18_1_1",
+      "p18_1_2",
+      "p18_1_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p19_0_0",
+      "p19_0_1",
+      "p19_0_2",
+      "p19_0_3"
+     ]
+    },
+    {
+     "sketch": "pinss",
+     "bounded_by": [
+      "p19_1_0",
+      "p19_1_1",
+      "p19_1_2",
+      "p19_1_3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "usbc1s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=usb_w",
+    "height": "=usb_d",
+    "center": [
+     11.5,
+     "=pcb_w-usb_d/2+0.5"
+    ]
+   }
+  },
+  {
+   "id": "usbc1",
+   "type": "extrude",
+   "profile": "usbc1s",
+   "base": "pins",
+   "distance": "=usb_h"
+  },
+  {
+   "id": "usbc2s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=usb_w",
+    "height": "=usb_d",
+    "center": [
+     23.2,
+     "=pcb_w-usb_d/2+0.5"
+    ]
+   }
+  },
+  {
+   "id": "usbc2",
+   "type": "extrude",
+   "profile": "usbc2s",
+   "base": "usbc1",
+   "distance": "=usb_h"
+  },
+  {
+   "id": "hdmis",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=hdmi_w",
+    "height": "=hdmi_d",
+    "center": [
+     52.7,
+     "=pcb_w-hdmi_d/2+0.5"
+    ]
+   }
+  },
+  {
+   "id": "hdmi",
+   "type": "extrude",
+   "profile": "hdmis",
+   "base": "usbc2",
+   "distance": "=hdmi_h"
+  },
+  {
+   "id": "socs",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=soc_l",
+    "height": "=soc_l",
+    "center": [
+     38,
+     18
+    ]
+   }
+  },
+  {
+   "id": "soc",
+   "type": "extrude",
+   "profile": "socs",
+   "base": "hdmi",
+   "distance": "=soc_h"
+  },
+  {
+   "id": "pads",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+soc_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=soc_l",
+    "height": "=soc_l",
+    "center": [
+     38,
+     18
+    ]
+   }
+  },
+  {
+   "id": "pad",
+   "type": "extrude",
+   "profile": "pads",
+   "base": "soc",
+   "distance": "=usb_h-soc_h"
+  },
+  {
+   "id": "sinks",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+usb_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=pcb_l",
+    "height": "=sink_y1-sink_y0",
+    "center": [
+     "=pcb_l/2",
+     "=(sink_y0+sink_y1)/2"
+    ]
+   }
+  },
+  {
+   "id": "sink",
+   "type": "extrude",
+   "profile": "sinks",
+   "base": "pad",
+   "distance": "=sink_top-pcb_t-usb_h"
+  },
+  {
+   "id": "earls",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=ear_w",
+    "height": "=sink_y0",
+    "center": [
+     "=ear_w/2",
+     "=sink_y0/2"
+    ]
+   }
+  },
+  {
+   "id": "earl",
+   "type": "extrude",
+   "profile": "earls",
+   "base": "sink",
+   "distance": "=usb_h"
+  },
+  {
+   "id": "earrs",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=ear_w",
+    "height": "=sink_y0",
+    "center": [
+     "=pcb_l-ear_w/2",
+     "=sink_y0/2"
+    ]
+   }
+  },
+  {
+   "id": "earr",
+   "type": "extrude",
+   "profile": "earrs",
+   "base": "earl",
+   "distance": "=usb_h"
+  },
+  {
+   "id": "fans",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+usb_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=fan_l",
+    "height": "=sink_y1+0.5-fan_y0",
+    "center": [
+     "=fan_l/2",
+     "=(fan_y0+sink_y1+0.5)/2"
+    ]
+   }
+  },
+  {
+   "id": "fan",
+   "type": "extrude",
+   "profile": "fans",
+   "base": "earr",
+   "distance": "=fan_top-pcb_t-usb_h"
+  },
+  {
+   "id": "groovess",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=sink_top"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "g0_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+0*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+0*2.7"
+     ]
+    },
+    {
+     "id": "g0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+0*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g0_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+0*2.7"
+     ]
+    },
+    {
+     "id": "g1_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+1*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+1*2.7"
+     ]
+    },
+    {
+     "id": "g1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+1*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g1_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+1*2.7"
+     ]
+    },
+    {
+     "id": "g2_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+2*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+2*2.7"
+     ]
+    },
+    {
+     "id": "g2_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+2*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g2_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g2_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+2*2.7"
+     ]
+    },
+    {
+     "id": "g3_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+3*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+3*2.7"
+     ]
+    },
+    {
+     "id": "g3_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+3*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g3_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g3_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+3*2.7"
+     ]
+    },
+    {
+     "id": "g4_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+4*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+4*2.7"
+     ]
+    },
+    {
+     "id": "g4_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+4*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g4_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g4_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+4*2.7"
+     ]
+    },
+    {
+     "id": "g5_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+5*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+5*2.7"
+     ]
+    },
+    {
+     "id": "g5_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+5*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g5_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g5_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+5*2.7"
+     ]
+    },
+    {
+     "id": "g6_0",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+6*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+6*2.7"
+     ]
+    },
+    {
+     "id": "g6_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+6*2.7"
+     ],
+     "p1": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g6_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l+0.1",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g6_3",
+     "kind": "line",
+     "p0": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ],
+     "p1": [
+      "=fan_l+0.5",
+      "=fan_y0+1.1+6*2.7"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "grooved",
+   "type": "extrude",
+   "base": "fan",
+   "distance": "=-groove_depth",
+   "profiles": [
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g0_0",
+      "g0_1",
+      "g0_2",
+      "g0_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g1_0",
+      "g1_1",
+      "g1_2",
+      "g1_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g2_0",
+      "g2_1",
+      "g2_2",
+      "g2_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g3_0",
+      "g3_1",
+      "g3_2",
+      "g3_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g4_0",
+      "g4_1",
+      "g4_2",
+      "g4_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g5_0",
+      "g5_1",
+      "g5_2",
+      "g5_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g6_0",
+      "g6_1",
+      "g6_2",
+      "g6_3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "screwss",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+usb_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "s0",
+     "kind": "circle",
+     "c": [
+      "=hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "s1",
+     "kind": "circle",
+     "c": [
+      "=pcb_l-hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=hole_d/2"
+    }
+   ]
+  },
+  {
+   "id": "screws",
+   "type": "extrude",
+   "base": "grooved",
+   "distance": "=-(pcb_t+usb_h)",
+   "profiles": [
+    {
+     "sketch": "screwss",
+     "bounded_by": [
+      "s0"
+     ]
+    },
+    {
+     "sketch": "screwss",
+     "bounded_by": [
+      "s1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sdcards",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 12,
+    "height": 15,
+    "center": [
+     5.5,
+     -18.5
+    ]
+   }
+  },
+  {
+   "id": "sdcard",
+   "type": "extrude",
+   "profile": "sdcards",
+   "base": "screws",
+   "distance": "=under_h"
+  },
+  {
+   "id": "mipis",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 17,
+    "height": 3,
+    "center": [
+     27,
+     -29.5
+    ]
+   }
+  },
+  {
+   "id": "mipi",
+   "type": "extrude",
+   "profile": "mipis",
+   "base": "sdcard",
+   "distance": "=under_h"
+  },
+  {
+   "id": "cam1s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 15.5,
+    "height": 4,
+    "center": [
+     18,
+     -2.5
+    ]
+   }
+  },
+  {
+   "id": "cam1",
+   "type": "extrude",
+   "profile": "cam1s",
+   "base": "mipi",
+   "distance": "=under_h"
+  },
+  {
+   "id": "cam2s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 15.5,
+    "height": 4,
+    "center": [
+     34.5,
+     -2.5
+    ]
+   }
+  },
+  {
+   "id": "cam2",
+   "type": "extrude",
+   "profile": "cam2s",
+   "base": "cam1",
+   "distance": "=under_h"
+  },
+  {
+   "id": "fans",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 6,
+    "height": 4,
+    "center": [
+     7,
+     -2.5
+    ]
+   }
+  },
+  {
+   "id": "fan",
+   "type": "extrude",
+   "profile": "fans",
+   "base": "cam2",
+   "distance": "=under_h"
+  },
+  {
+   "id": "pcies",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 3,
+    "height": 11,
+    "center": [
+     59.5,
+     -21
+    ]
+   }
+  },
+  {
+   "id": "pcie",
+   "type": "extrude",
+   "profile": "pcies",
+   "base": "fan",
+   "distance": "=under_h"
+  }
+ ],
+ "rollback_index": 42,
+ "parameters": {
+  "pcb_l": 65,
+  "pcb_w": 32,
+  "pcb_t": 1.2,
+  "hole_inset": 3.5,
+  "hole_d": 2.75,
+  "header_l": 50.8,
+  "header_w": 5.08,
+  "header_h": 2.5,
+  "usb_w": 9.0,
+  "usb_d": 7.3,
+  "usb_h": 3.3,
+  "hdmi_w": 11.6,
+  "hdmi_d": 7.0,
+  "hdmi_h": 3.3,
+  "soc_l": 14,
+  "soc_h": 1.0,
+  "sink_y0": 8.7,
+  "sink_y1": 32.0,
+  "sink_top": 10,
+  "ear_w": 5.7,
+  "fan_l": 20.4,
+  "fan_y0": 11.8,
+  "fan_top": 10.4,
+  "groove_w": 1.2,
+  "groove_depth": 2.5,
+  "pin_w": 0.64,
+  "cell_w": 2.24,
+  "pin_up": 6,
+  "under_h": 1.5
+ },
+ "appearances": [
+  {
+   "color": "#2d68b0",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2a2c2f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       -0.1,
+       -0.1,
+       2.0,
+       65.1,
+       32.1,
+       10.2
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#b8bcc2",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       -0.1,
+       11.7,
+       4.5,
+       20.5,
+       32.6,
+       10.5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#8a8f96",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       30.9,
+       10.9,
+       2.3,
+       45.1,
+       26.1,
+       4.5
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#e8c52e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       7.170000000000001,
+       2.6100000000000003,
+       1.1,
+       9.57,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d83a2e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       7.170000000000001,
+       0.07000000000000006,
+       1.1,
+       9.57,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       9.71,
+       2.6100000000000003,
+       1.1,
+       12.11,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d83a2e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       9.71,
+       0.07000000000000006,
+       1.1,
+       12.11,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       12.25,
+       2.6100000000000003,
+       1.1,
+       14.649999999999999,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       12.25,
+       0.07000000000000006,
+       1.1,
+       14.649999999999999,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       14.79,
+       2.6100000000000003,
+       1.1,
+       17.189999999999998,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       14.79,
+       0.07000000000000006,
+       1.1,
+       17.189999999999998,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       17.330000000000002,
+       2.6100000000000003,
+       1.1,
+       19.73,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       17.330000000000002,
+       0.07000000000000006,
+       1.1,
+       19.73,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       19.87,
+       2.6100000000000003,
+       1.1,
+       22.27,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       19.87,
+       0.07000000000000006,
+       1.1,
+       22.27,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       22.41,
+       2.6100000000000003,
+       1.1,
+       24.81,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       22.41,
+       0.07000000000000006,
+       1.1,
+       24.81,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       24.95,
+       2.6100000000000003,
+       1.1,
+       27.349999999999998,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       24.95,
+       0.07000000000000006,
+       1.1,
+       27.349999999999998,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#e8c52e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       27.490000000000002,
+       2.6100000000000003,
+       1.1,
+       29.89,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       27.490000000000002,
+       0.07000000000000006,
+       1.1,
+       29.89,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       30.03,
+       2.6100000000000003,
+       1.1,
+       32.43,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       30.03,
+       0.07000000000000006,
+       1.1,
+       32.43,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       32.57,
+       2.6100000000000003,
+       1.1,
+       34.970000000000006,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       32.57,
+       0.07000000000000006,
+       1.1,
+       34.970000000000006,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       35.11,
+       2.6100000000000003,
+       1.1,
+       37.510000000000005,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       35.11,
+       0.07000000000000006,
+       1.1,
+       37.510000000000005,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       37.65,
+       2.6100000000000003,
+       1.1,
+       40.050000000000004,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       37.65,
+       0.07000000000000006,
+       1.1,
+       40.050000000000004,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2f9e44",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       40.19,
+       2.6100000000000003,
+       1.1,
+       42.59,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       40.19,
+       0.07000000000000006,
+       1.1,
+       42.59,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       42.73,
+       2.6100000000000003,
+       1.1,
+       45.13,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       42.73,
+       0.07000000000000006,
+       1.1,
+       45.13,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       45.269999999999996,
+       2.6100000000000003,
+       1.1,
+       47.67,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       45.269999999999996,
+       0.07000000000000006,
+       1.1,
+       47.67,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       47.81,
+       2.6100000000000003,
+       1.1,
+       50.21000000000001,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       47.81,
+       0.07000000000000006,
+       1.1,
+       50.21000000000001,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       50.349999999999994,
+       2.6100000000000003,
+       1.1,
+       52.75,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       50.349999999999994,
+       0.07000000000000006,
+       1.1,
+       52.75,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       52.89,
+       2.6100000000000003,
+       1.1,
+       55.290000000000006,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       52.89,
+       0.07000000000000006,
+       1.1,
+       55.290000000000006,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       55.42999999999999,
+       2.6100000000000003,
+       1.1,
+       57.83,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2aa1d8",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       55.42999999999999,
+       0.07000000000000006,
+       1.1,
+       57.83,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d4af37",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       6,
+       -0.1,
+       3.75,
+       59,
+       6,
+       9.8
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#b8bcc2",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       7,
+       25,
+       1.2,
+       28,
+       32.6,
+       4.6
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#b8bcc2",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       46.5,
+       25,
+       1.2,
+       59,
+       32.6,
+       4.6
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1b1c1e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       30.9,
+       10.9,
+       1.2,
+       45.1,
+       26.1,
+       2.3
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#b8bcc2",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       -1,
+       10,
+       -1.6,
+       13,
+       27,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d9c9a3",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       18,
+       27.9,
+       -1.6,
+       36,
+       31.1,
+       0.1
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d9c9a3",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       3,
+       -0.1,
+       -1.6,
+       43,
+       4.1,
+       0.1
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d9c9a3",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       57.5,
+       15.4,
+       -1.6,
+       61,
+       26.6,
+       0.1
+      ]
+     }
+    ]
+   }
+  }
+ ],
+ "revision": 0,
+ "log": []
+}
