@@ -64,35 +64,33 @@ features.append({
     "id": "pcbh", "type": "extrude", "base": "pcb", "distance": "=-pcb_t",
     "profiles": [{"sketch": "holes", "bounded_by": [f"h{i}"]} for i in range(4)],
 })
-previous = "pcbh"
 
 
-def add(fid, side, z, cx, cy, width, depth, height):
-    """A box on the top (z = surface, grows up) or under the board (z = 0, grows down)."""
-    global previous
+def add(fid, side, z, cx, cy, width, depth, height, base=None):
+    """A box on the top (z = surface, grows up) or under the board (z = 0, grows
+    down). With no base it is a body of its own."""
     v = cy if side == "up" else f"=-({cy})" if isinstance(cy, str) else -cy
-    if isinstance(cy, str) and side == "up":
-        v = cy
+    extrude = {"id": fid, "type": "extrude", "profile": f"{fid}s", "distance": height}
+    if base:
+        extrude["base"] = base
     features.extend([
         {"id": f"{fid}s", "type": "sketch", "plane": plane(z, side), "rect": {"width": width, "height": depth, "center": [cx, v]}},
-        {"id": fid, "type": "extrude", "profile": f"{fid}s", "base": previous, "distance": height},
+        extrude,
     ])
-    previous = fid
 
 
 def add_posts(fid, z, length, size):
-    """One square post per header position, 2 x 20 at 2.54 pitch: one post,
-    then a pattern. The header is surface mount, so nothing passes through the board."""
-    global previous
+    """One square post per header position, 2 x 20 at 2.54 pitch: one post, then
+    a pattern, which is a body of its own. The header is surface mount, so
+    nothing passes through the board."""
     features.extend([
         {"id": f"{fid}0s", "type": "sketch", "plane": plane(z, "up"),
          "rect": {"width": size, "height": size, "center": ["=pcb_l/2-9.5*2.54", "=header_w/2-1.27"]}},
         {"id": f"{fid}0", "type": "extrude", "profile": f"{fid}0s", "distance": length},
-        {"id": fid, "type": "pattern", "tool": f"{fid}0", "base": previous,
+        {"id": fid, "type": "pattern", "tool": f"{fid}0",
          "linear": {"direction": [1, 0, 0], "count": 20, "spacing": 2.54},
          "linear2": {"direction": [0, 1, 0], "count": 2, "spacing": 2.54}},
     ])
-    previous = fid
 
 
 # Top side. x positions of the ports are pixel estimates, UNMEASURED.
@@ -104,10 +102,13 @@ add("hdmi", "up", "=pcb_t", 52.7, "=pcb_w-hdmi_d/2+0.5", "=hdmi_w", "=hdmi_d", "
 add("soc", "up", "=pcb_t", 38, 18, "=soc_l", "=soc_l", "=soc_h")
 SINK_Z = "=pcb_t+usb_h"  # the heatsink body rests on the tallest connector
 add("pad", "up", "=pcb_t+soc_h", 38, 18, "=soc_l", "=soc_l", "=usb_h-soc_h")  # thermal pad up to the sink
+# The heatsink is one body: the plate, two screw ears, fin grooves and screw holes.
 add("sink", "up", SINK_Z, "=pcb_l/2", "=(sink_y0+sink_y1)/2", "=pcb_l", "=sink_y1-sink_y0", "=sink_top-pcb_t-usb_h")
-add("earl", "up", "=pcb_t", "=ear_w/2", "=sink_y0/2", "=ear_w", "=sink_y0", "=usb_h")
-add("earr", "up", "=pcb_t", "=pcb_l-ear_w/2", "=sink_y0/2", "=ear_w", "=sink_y0", "=usb_h")
+add("earl", "up", "=pcb_t", "=ear_w/2", "=sink_y0/2", "=ear_w", "=sink_y0", "=usb_h", base="sink")
+add("earr", "up", "=pcb_t", "=pcb_l-ear_w/2", "=sink_y0/2", "=ear_w", "=sink_y0", "=usb_h", base="earl")
 add("fan", "up", SINK_Z, "=fan_l/2", "=(fan_y0+sink_y1+0.5)/2", "=fan_l", "=sink_y1+0.5-fan_y0", "=fan_top-pcb_t-usb_h")
+# The fan bracket is a body of its own, so the heatsink gives up the space it sits in.
+features.append({"id": "fancut", "type": "extrude", "profile": "fans", "base": "earr", "mode": "cut", "distance": "=fan_top-pcb_t-usb_h"})
 
 # Fin grooves along X, cut from the sink top.
 grooves = []
@@ -121,20 +122,15 @@ for k in range(7):
         grooves.append({"id": ids[j], "kind": "line", "p0": list(corners[j]), "p1": list(corners[(j + 1) % 4])})
 features.extend([
     {"id": "groovess", "type": "sketch", "plane": plane("=sink_top", "up"), "entities": grooves},
-    {"id": "grooved", "type": "extrude", "base": previous, "distance": "=-groove_depth",
+    {"id": "grooved", "type": "extrude", "base": "fancut", "distance": "=-groove_depth",
      "profiles": [{"sketch": "groovess", "bounded_by": [f"g{k}_{j}" for j in range(4)]} for k in range(7)]},
 ])
-previous = "grooved"
 
-# Screw holes through the ears and the board.
-screws = [("=hole_inset", "=hole_inset"), ("=pcb_l-hole_inset", "=hole_inset")]
-features.extend([
-    {"id": "screwss", "type": "sketch", "plane": plane("=pcb_t+usb_h", "up"),
-     "entities": [{"id": f"s{i}", "kind": "circle", "c": list(c), "r": "=hole_d/2"} for i, c in enumerate(screws)]},
-    {"id": "screws", "type": "extrude", "base": previous, "distance": "=-(pcb_t+usb_h)",
-     "profiles": [{"sketch": "screwss", "bounded_by": [f"s{i}"] } for i in range(2)]},
-])
-previous = "screws"
+# Screw holes through the ears. The board has its own at the same places.
+features.append({
+    "id": "screws", "type": "hole", "base": "grooved", "diameter": "=hole_d", "through": True,
+    "points": [["=hole_inset", "=hole_inset", "=pcb_t+usb_h"], ["=pcb_l-hole_inset", "=hole_inset", "=pcb_t+usb_h"]],
+})
 
 # Backside, from the vendor bottom-view picture. All UNMEASURED.
 add("sdcard", "down", 0, 5.5, 18.5, 12, 15, "=under_h")
@@ -146,6 +142,27 @@ add("pcie", "down", 0, 59.5, 21, 3, 11, "=under_h")
 
 SILVER = "#b8bcc2"
 BLACK = "#1b1c1e"
+BEIGE = "#d9c9a3"
+GPIO_BLUE = "#2aa1d8"
+
+bodies = {
+    "pcb": {"name": "PCB", "color": "#2d68b0"},
+    "cells": {"name": "Header plastic", "color": GPIO_BLUE},
+    "pins": {"name": "Header pins", "color": "#d4af37"},
+    "usbc1": {"name": "USB-C 1", "color": SILVER},
+    "usbc2": {"name": "USB-C 2", "color": SILVER},
+    "hdmi": {"name": "Mini HDMI", "color": SILVER},
+    "soc": {"name": "SoC", "color": BLACK},
+    "pad": {"name": "Thermal pad", "color": "#8a8f96"},
+    "sink": {"name": "Heatsink", "color": "#2a2c2f"},
+    "fan": {"name": "Fan bracket", "color": SILVER},
+    "sdcard": {"name": "microSD socket", "color": SILVER},
+    "mipi": {"name": "MIPI LCD connector", "color": BEIGE},
+    "cam1": {"name": "Camera connector 1", "color": BEIGE},
+    "cam2": {"name": "Camera connector 2", "color": BEIGE},
+    "fanc": {"name": "Fan connector", "color": BEIGE},
+    "pcie": {"name": "PCIe connector", "color": BEIGE},
+}
 
 
 def paint(colour, x0, y0, z0, x1, y1, z1):
@@ -155,40 +172,26 @@ def paint(colour, x0, y0, z0, x1, y1, z1):
 
 PIN_COLOURS = {1: "#e8c52e", 17: "#e8c52e", 2: "#d83a2e", 4: "#d83a2e", 27: "#2f9e44"}
 PIN_COLOURS.update({n: "#1d1d1f" for n in (6, 9, 14, 20, 25, 30, 34, 39)})  # ground
-GPIO_BLUE = "#2aa1d8"
 
 
 def header_cells():
     """Header plastic coloured by pin function, as on the vendor photo: 3.3 V yellow,
-    5 V red, ground black, ID_SD green, everything else blue. Pin 1 is at the low-X
-    end on the inner row; pin 2 is beside it on the board-edge row."""
+    5 V red, ground black, ID_SD green. Everything else keeps the body's GPIO blue.
+    Pin 1 is at the low-X end on the inner row; pin 2 is beside it on the board-edge
+    row. Face colours, because one body holds all 40 cells."""
     entries = []
-    for number in range(1, 41):
+    for number, colour in sorted(PIN_COLOURS.items()):
         x = 65 / 2 + ((number - 1) // 2 - 9.5) * 2.54
         y = 1.27 if number % 2 == 0 else 3.81
-        entries.append(paint(PIN_COLOURS.get(number, GPIO_BLUE), x - 1.2, y - 1.2, 1.1, x + 1.2, y + 1.2, 3.75))
+        entries.append(paint(colour, x - 1.2, y - 1.2, 1.1, x + 1.2, y + 1.2, 3.75))
     return entries
 
 
-appearances = [
-    {"color": "#2d68b0", "select": {"select": [{"op": "faces"}]}},  # PCB
-    paint("#2a2c2f", -0.1, -0.1, 2.0, 65.1, 32.1, 10.2),  # heatsink and ears, black anodised
-    paint(SILVER, -0.1, 11.7, 4.5, 20.5, 32.6, 10.5),  # fan bracket
-    paint("#8a8f96", 30.9, 10.9, 2.3, 45.1, 26.1, 4.5),  # thermal pad
-    *header_cells(),
-    paint("#d4af37", 6, -0.1, 3.75, 59, 6, 9.8),  # header pins
-    paint(SILVER, 7, 25, 1.2, 28, 32.6, 4.6),  # USB-C x2
-    paint(SILVER, 46.5, 25, 1.2, 59, 32.6, 4.6),  # mini HDMI
-    paint(BLACK, 30.9, 10.9, 1.2, 45.1, 26.1, 2.3),  # SoC
-    paint(SILVER, -1, 10, -1.6, 13, 27, 0),  # microSD socket
-    paint("#d9c9a3", 18, 27.9, -1.6, 36, 31.1, 0.1),  # MIPI LCD connector
-    paint("#d9c9a3", 3, -0.1, -1.6, 43, 4.1, 0.1),  # camera and fan connectors
-    paint("#d9c9a3", 57.5, 15.4, -1.6, 61, 26.6, 0.1),  # PCIe connector
-]
+appearances = header_cells()
 
 document = {
     "format_version": 2, "features": features, "rollback_index": len(features),
-    "parameters": parameters, "appearances": appearances, "revision": 0, "log": [],
+    "parameters": parameters, "appearances": appearances, "bodies": bodies, "revision": 0, "log": [],
 }
 out = sys.argv[1] if len(sys.argv) > 1 else "examples/orangepi-zero-3w.sprocket"
 json.dump(document, open(out, "w"), indent=1)

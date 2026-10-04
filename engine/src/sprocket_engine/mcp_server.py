@@ -197,6 +197,24 @@ def document_tools() -> list[types.Tool]:
             ["index"],
         ),
         _tool(
+            "get_bodies",
+            "The bodies the document builds, in order: id, name, colour, visibility, volume and face count. "
+            "A feature with no base starts a body, and the body's id is that feature's id.",
+            {},
+        ),
+        _tool(
+            "set_body",
+            "Names, colours or hides one body. Hidden bodies still export. A null field goes back to its default.",
+            {
+                "id": {"type": "string", "description": "the body id from get_bodies"},
+                "name": {"type": ["string", "null"]},
+                "color": {"type": ["string", "null"], "description": "#rrggbb"},
+                "visible": {"type": ["boolean", "null"]},
+                "base_revision": EDIT_PROPERTIES["base_revision"],
+            },
+            ["id"],
+        ),
+        _tool(
             "set_parameter",
             "Sets a named parameter. Features refer to it as '=name', and an expression "
             "like '=width / 2' may reference other parameters. A null value removes it.",
@@ -222,10 +240,12 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "export",
-            "Writes the built part to STEP, STL, or the viewer's mesh format.",
+            "Writes the built part to STEP, STL, 3MF, or the viewer's mesh format. STEP and 3MF carry body names and colours.",
             {
                 "step": {"type": "string", "description": "path to write STEP to"},
-                "stl": {"type": "string", "description": "path to write STL to"},
+                "stl": {"type": "string", "description": "path to write STL to, every body in one file"},
+                "stl_dir": {"type": "string", "description": "existing directory to write one STL per body into"},
+                "3mf": {"type": "string", "description": "path to write a 3MF with one object per body"},
                 "mesh": {"type": "string", "description": "path to write the viewer mesh to"},
             },
         ),
@@ -342,10 +362,10 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name == "render_view":
         return _render(client, arguments)
 
-    if name in ("apply_edit", "set_rollback", "set_parameter"):
+    if name in ("apply_edit", "set_rollback", "set_parameter", "set_body"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

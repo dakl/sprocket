@@ -35,7 +35,10 @@ def test_cut_mode_drills_the_copies_out():
 
 
 def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies():
-    part = build({"id": "pp", "type": "pattern", "tool": "pin", "circular": {"axis": "Z", "count": 4}})
+    _, ctx = replay({"features": BOARD + [{"id": "pp", "type": "pattern", "tool": "pin", "circular": {"axis": "Z", "count": 4}}]}, return_context=True)
+    # The pin body ends in the pattern, which is a body of its own beside the board.
+    assert [body["id"] for body in ctx.bodies] == ["board", "pp"]
+    part = ctx.results["pp"]
     assert part.volume == pytest.approx(4 * 2)
     assert len(part.solids()) == 4
     centre = part.center()

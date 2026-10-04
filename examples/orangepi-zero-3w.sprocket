@@ -150,7 +150,6 @@
    "id": "cells",
    "type": "pattern",
    "tool": "cells0",
-   "base": "pcbh",
    "linear": {
     "direction": [
      1,
@@ -209,7 +208,6 @@
    "id": "pins",
    "type": "pattern",
    "tool": "pins0",
-   "base": "cells",
    "linear": {
     "direction": [
      1,
@@ -262,7 +260,6 @@
    "id": "usbc1",
    "type": "extrude",
    "profile": "usbc1s",
-   "base": "pins",
    "distance": "=usb_h"
   },
   {
@@ -298,7 +295,6 @@
    "id": "usbc2",
    "type": "extrude",
    "profile": "usbc2s",
-   "base": "usbc1",
    "distance": "=usb_h"
   },
   {
@@ -334,7 +330,6 @@
    "id": "hdmi",
    "type": "extrude",
    "profile": "hdmis",
-   "base": "usbc2",
    "distance": "=hdmi_h"
   },
   {
@@ -370,7 +365,6 @@
    "id": "soc",
    "type": "extrude",
    "profile": "socs",
-   "base": "hdmi",
    "distance": "=soc_h"
   },
   {
@@ -406,7 +400,6 @@
    "id": "pad",
    "type": "extrude",
    "profile": "pads",
-   "base": "soc",
    "distance": "=usb_h-soc_h"
   },
   {
@@ -442,7 +435,6 @@
    "id": "sink",
    "type": "extrude",
    "profile": "sinks",
-   "base": "pad",
    "distance": "=sink_top-pcb_t-usb_h"
   },
   {
@@ -478,8 +470,8 @@
    "id": "earl",
    "type": "extrude",
    "profile": "earls",
-   "base": "sink",
-   "distance": "=usb_h"
+   "distance": "=usb_h",
+   "base": "sink"
   },
   {
    "id": "earrs",
@@ -514,8 +506,8 @@
    "id": "earr",
    "type": "extrude",
    "profile": "earrs",
-   "base": "earl",
-   "distance": "=usb_h"
+   "distance": "=usb_h",
+   "base": "earl"
   },
   {
    "id": "fans",
@@ -550,7 +542,14 @@
    "id": "fan",
    "type": "extrude",
    "profile": "fans",
+   "distance": "=fan_top-pcb_t-usb_h"
+  },
+  {
+   "id": "fancut",
+   "type": "extrude",
+   "profile": "fans",
    "base": "earr",
+   "mode": "cut",
    "distance": "=fan_top-pcb_t-usb_h"
   },
   {
@@ -915,7 +914,7 @@
   {
    "id": "grooved",
    "type": "extrude",
-   "base": "fan",
+   "base": "fancut",
    "distance": "=-groove_depth",
    "profiles": [
     {
@@ -984,64 +983,22 @@
    ]
   },
   {
-   "id": "screwss",
-   "type": "sketch",
-   "plane": {
-    "origin": [
-     0,
-     0,
+   "id": "screws",
+   "type": "hole",
+   "base": "grooved",
+   "diameter": "=hole_d",
+   "through": true,
+   "points": [
+    [
+     "=hole_inset",
+     "=hole_inset",
      "=pcb_t+usb_h"
     ],
-    "normal": [
-     0,
-     0,
-     1
-    ],
-    "x_dir": [
-     1,
-     0,
-     0
+    [
+     "=pcb_l-hole_inset",
+     "=hole_inset",
+     "=pcb_t+usb_h"
     ]
-   },
-   "entities": [
-    {
-     "id": "s0",
-     "kind": "circle",
-     "c": [
-      "=hole_inset",
-      "=hole_inset"
-     ],
-     "r": "=hole_d/2"
-    },
-    {
-     "id": "s1",
-     "kind": "circle",
-     "c": [
-      "=pcb_l-hole_inset",
-      "=hole_inset"
-     ],
-     "r": "=hole_d/2"
-    }
-   ]
-  },
-  {
-   "id": "screws",
-   "type": "extrude",
-   "base": "grooved",
-   "distance": "=-(pcb_t+usb_h)",
-   "profiles": [
-    {
-     "sketch": "screwss",
-     "bounded_by": [
-      "s0"
-     ]
-    },
-    {
-     "sketch": "screwss",
-     "bounded_by": [
-      "s1"
-     ]
-    }
    ]
   },
   {
@@ -1077,7 +1034,6 @@
    "id": "sdcard",
    "type": "extrude",
    "profile": "sdcards",
-   "base": "screws",
    "distance": "=under_h"
   },
   {
@@ -1113,7 +1069,6 @@
    "id": "mipi",
    "type": "extrude",
    "profile": "mipis",
-   "base": "sdcard",
    "distance": "=under_h"
   },
   {
@@ -1149,7 +1104,6 @@
    "id": "cam1",
    "type": "extrude",
    "profile": "cam1s",
-   "base": "mipi",
    "distance": "=under_h"
   },
   {
@@ -1185,7 +1139,6 @@
    "id": "cam2",
    "type": "extrude",
    "profile": "cam2s",
-   "base": "cam1",
    "distance": "=under_h"
   },
   {
@@ -1221,7 +1174,6 @@
    "id": "fanc",
    "type": "extrude",
    "profile": "fancs",
-   "base": "cam2",
    "distance": "=under_h"
   },
   {
@@ -1257,7 +1209,6 @@
    "id": "pcie",
    "type": "extrude",
    "profile": "pcies",
-   "base": "fanc",
    "distance": "=under_h"
   }
  ],
@@ -1295,79 +1246,6 @@
  },
  "appearances": [
   {
-   "color": "#2d68b0",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2a2c2f",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       -0.1,
-       -0.1,
-       2.0,
-       65.1,
-       32.1,
-       10.2
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#b8bcc2",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       -0.1,
-       11.7,
-       4.5,
-       20.5,
-       32.6,
-       10.5
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#8a8f96",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       30.9,
-       10.9,
-       2.3,
-       45.1,
-       26.1,
-       4.5
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#e8c52e",
    "select": {
     "select": [
@@ -1410,27 +1288,6 @@
    }
   },
   {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       9.71,
-       2.6100000000000003,
-       1.1,
-       12.11,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#d83a2e",
    "select": {
     "select": [
@@ -1452,27 +1309,6 @@
    }
   },
   {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       12.25,
-       2.6100000000000003,
-       1.1,
-       14.649999999999999,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#1d1d1f",
    "select": {
     "select": [
@@ -1486,48 +1322,6 @@
        0.07000000000000006,
        1.1,
        14.649999999999999,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       14.79,
-       2.6100000000000003,
-       1.1,
-       17.189999999999998,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       14.79,
-       0.07000000000000006,
-       1.1,
-       17.189999999999998,
        2.4699999999999998,
        3.75
       ]
@@ -1557,90 +1351,6 @@
    }
   },
   {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       17.330000000000002,
-       0.07000000000000006,
-       1.1,
-       19.73,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       19.87,
-       2.6100000000000003,
-       1.1,
-       22.27,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       19.87,
-       0.07000000000000006,
-       1.1,
-       22.27,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       22.41,
-       2.6100000000000003,
-       1.1,
-       24.81,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#1d1d1f",
    "select": {
     "select": [
@@ -1654,48 +1364,6 @@
        0.07000000000000006,
        1.1,
        24.81,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       24.95,
-       2.6100000000000003,
-       1.1,
-       27.349999999999998,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       24.95,
-       0.07000000000000006,
-       1.1,
-       27.349999999999998,
        2.4699999999999998,
        3.75
       ]
@@ -1725,48 +1393,6 @@
    }
   },
   {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       27.490000000000002,
-       0.07000000000000006,
-       1.1,
-       29.89,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       30.03,
-       2.6100000000000003,
-       1.1,
-       32.43,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#1d1d1f",
    "select": {
     "select": [
@@ -1780,90 +1406,6 @@
        0.07000000000000006,
        1.1,
        32.43,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       32.57,
-       2.6100000000000003,
-       1.1,
-       34.970000000000006,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       32.57,
-       0.07000000000000006,
-       1.1,
-       34.970000000000006,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       35.11,
-       2.6100000000000003,
-       1.1,
-       37.510000000000005,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       35.11,
-       0.07000000000000006,
-       1.1,
-       37.510000000000005,
        2.4699999999999998,
        3.75
       ]
@@ -1886,27 +1428,6 @@
        1.1,
        40.050000000000004,
        5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       37.65,
-       0.07000000000000006,
-       1.1,
-       40.050000000000004,
-       2.4699999999999998,
        3.75
       ]
      }
@@ -1935,48 +1456,6 @@
    }
   },
   {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       40.19,
-       0.07000000000000006,
-       1.1,
-       42.59,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       42.73,
-       2.6100000000000003,
-       1.1,
-       45.13,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#1d1d1f",
    "select": {
     "select": [
@@ -1991,69 +1470,6 @@
        1.1,
        45.13,
        2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       45.269999999999996,
-       2.6100000000000003,
-       1.1,
-       47.67,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       45.269999999999996,
-       0.07000000000000006,
-       1.1,
-       47.67,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       47.81,
-       2.6100000000000003,
-       1.1,
-       50.21000000000001,
-       5.01,
        3.75
       ]
      }
@@ -2082,90 +1498,6 @@
    }
   },
   {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       50.349999999999994,
-       2.6100000000000003,
-       1.1,
-       52.75,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       50.349999999999994,
-       0.07000000000000006,
-       1.1,
-       52.75,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       52.89,
-       2.6100000000000003,
-       1.1,
-       55.290000000000006,
-       5.01,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       52.89,
-       0.07000000000000006,
-       1.1,
-       55.290000000000006,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
    "color": "#1d1d1f",
    "select": {
     "select": [
@@ -2181,201 +1513,78 @@
        57.83,
        5.01,
        3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#2aa1d8",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       55.42999999999999,
-       0.07000000000000006,
-       1.1,
-       57.83,
-       2.4699999999999998,
-       3.75
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#d4af37",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       6,
-       -0.1,
-       3.75,
-       59,
-       6,
-       9.8
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#b8bcc2",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       7,
-       25,
-       1.2,
-       28,
-       32.6,
-       4.6
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#b8bcc2",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       46.5,
-       25,
-       1.2,
-       59,
-       32.6,
-       4.6
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#1b1c1e",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       30.9,
-       10.9,
-       1.2,
-       45.1,
-       26.1,
-       2.3
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#b8bcc2",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       -1,
-       10,
-       -1.6,
-       13,
-       27,
-       0
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#d9c9a3",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       18,
-       27.9,
-       -1.6,
-       36,
-       31.1,
-       0.1
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#d9c9a3",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       3,
-       -0.1,
-       -1.6,
-       43,
-       4.1,
-       0.1
-      ]
-     }
-    ]
-   }
-  },
-  {
-   "color": "#d9c9a3",
-   "select": {
-    "select": [
-     {
-      "op": "faces"
-     },
-     {
-      "op": "within",
-      "box": [
-       57.5,
-       15.4,
-       -1.6,
-       61,
-       26.6,
-       0.1
       ]
      }
     ]
    }
   }
  ],
+ "bodies": {
+  "pcb": {
+   "name": "PCB",
+   "color": "#2d68b0"
+  },
+  "cells": {
+   "name": "Header plastic",
+   "color": "#2aa1d8"
+  },
+  "pins": {
+   "name": "Header pins",
+   "color": "#d4af37"
+  },
+  "usbc1": {
+   "name": "USB-C 1",
+   "color": "#b8bcc2"
+  },
+  "usbc2": {
+   "name": "USB-C 2",
+   "color": "#b8bcc2"
+  },
+  "hdmi": {
+   "name": "Mini HDMI",
+   "color": "#b8bcc2"
+  },
+  "soc": {
+   "name": "SoC",
+   "color": "#1b1c1e"
+  },
+  "pad": {
+   "name": "Thermal pad",
+   "color": "#8a8f96"
+  },
+  "sink": {
+   "name": "Heatsink",
+   "color": "#2a2c2f"
+  },
+  "fan": {
+   "name": "Fan bracket",
+   "color": "#b8bcc2"
+  },
+  "sdcard": {
+   "name": "microSD socket",
+   "color": "#b8bcc2"
+  },
+  "mipi": {
+   "name": "MIPI LCD connector",
+   "color": "#d9c9a3"
+  },
+  "cam1": {
+   "name": "Camera connector 1",
+   "color": "#d9c9a3"
+  },
+  "cam2": {
+   "name": "Camera connector 2",
+   "color": "#d9c9a3"
+  },
+  "fanc": {
+   "name": "Fan connector",
+   "color": "#d9c9a3"
+  },
+  "pcie": {
+   "name": "PCIe connector",
+   "color": "#d9c9a3"
+  }
+ },
  "revision": 0,
  "log": []
 }

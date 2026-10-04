@@ -223,12 +223,15 @@ class Document:
         log: list[dict] | None = None,
         path: Path | None = None,
         appearances: list[dict] | None = None,
+        bodies: dict | None = None,
     ):
         self.features = list(features or [])
         self.rollback_index = len(self.features) if rollback_index is None else rollback_index
         self.parameters = dict(parameters or {})
         # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
         self.appearances = list(appearances or [])
+        # Settings per body, keyed by body id: {"name", "color", "visible"}.
+        self.bodies = dict(bodies or {})
         self.revision = revision
         self.log = list(log or [])
         self.path = Path(path) if path else None
@@ -299,9 +302,18 @@ class Document:
         ):
             raise DocumentError(f"{path}: 'appearances' must be a list of {{\"color\": \"#rrggbb\", \"select\": <selector>}}")
 
+        bodies = data.get("bodies", {})
+        if not isinstance(bodies, dict):
+            raise DocumentError(f"{path}: 'bodies' must be a JSON object keyed by body id")
+        for body_id, settings in bodies.items():
+            try:
+                _check_body_settings(settings)
+            except DocumentError as exc:
+                raise DocumentError(f"{path}: body {body_id!r}: {exc}") from None
+
         for feature in features:
             assign_constraint_ids(feature)
-        document = cls(features, rollback_index, parameters, revision, log, path, appearances)
+        document = cls(features, rollback_index, parameters, revision, log, path, appearances, bodies)
         resolve_parameters(document.parameters)  # fail at open, not at first build
         return document
 
@@ -312,6 +324,7 @@ class Document:
             "rollback_index": self.rollback_index,
             "parameters": self.parameters,
             "appearances": self.appearances,
+            "bodies": self.bodies,
             "revision": self.revision,
             "log": self.log,
         }
@@ -395,12 +408,17 @@ class Document:
         if not isinstance(edits, list) or not edits:
             raise DocumentError("apply_edits needs a non-empty list of edits")
 
-        trial = Document(self.features, self.rollback_index, self.parameters, self.revision, [])
+        trial = Document(
+            self.features, self.rollback_index, self.parameters, self.revision, [],
+            appearances=copy.deepcopy(self.appearances), bodies=copy.deepcopy(self.bodies),
+        )
         entries = [trial._apply_one(edit, author) for edit in edits]
 
         self.features = trial.features
         self.rollback_index = trial.rollback_index
         self.parameters = trial.parameters
+        self.appearances = trial.appearances
+        self.bodies = trial.bodies
         self.revision += 1
         for entry in entries:
             entry["revision"] = self.revision
@@ -416,6 +434,7 @@ class Document:
                 "rollback_index": self.rollback_index,
                 "parameters": self.parameters,
                 "appearances": self.appearances,
+                "bodies": self.bodies,
             }
         )
 
@@ -425,6 +444,7 @@ class Document:
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
         self.appearances = copy.deepcopy(snapshot.get("appearances", []))
+        self.bodies = copy.deepcopy(snapshot.get("bodies", {}))
         self.revision += 1
         self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
         return self.revision
@@ -441,9 +461,12 @@ class Document:
             "set_rollback": self._set_rollback,
             "set_parameter": self._set_parameter,
             "edit_sketch": self._edit_sketch,
+            "set_body": self._set_body,
         }.get(kind)
         if handler is None:
-            raise DocumentError(f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch)")
+            raise DocumentError(
+                f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch, set_body)"
+            )
         detail = handler(edit)
         return {"author": author, "action": kind, "at": _now(), **detail}
 
@@ -559,6 +582,27 @@ class Document:
         self.features[index] = feature
         return {"feature_id": feature_id, "index": index, **detail}
 
+    def _set_body(self, edit: dict) -> dict:
+        """Changes one body's name, colour or visibility. A field set to None
+        goes back to its default. The body id is the id of the feature that
+        started the body, which need not be built yet."""
+        body_id = edit.get("id")
+        self.index_of(body_id)
+        settings = dict(self.bodies.get(body_id, {}))
+        for name in ("name", "color", "visible"):
+            if name not in edit:
+                continue
+            if edit[name] is None:
+                settings.pop(name, None)
+            else:
+                settings[name] = edit[name]
+        _check_body_settings(settings)
+        if settings:
+            self.bodies[body_id] = settings
+        else:
+            self.bodies.pop(body_id, None)
+        return {"body": body_id, **{name: edit[name] for name in ("name", "color", "visible") if name in edit}}
+
     def _check_references(self, feature: dict, available: list[dict]) -> None:
         """A feature may only reference features that come before it.
 
@@ -593,6 +637,20 @@ class Document:
 # coverage check in test_document.py reads the schemas rather than trusting
 # this line. Add a field here when an op grows a new reference.
 REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
+
+
+def _check_body_settings(settings) -> None:
+    if not isinstance(settings, dict):
+        raise DocumentError("body settings must be a JSON object")
+    unknown = set(settings) - {"name", "color", "visible"}
+    if unknown:
+        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible)")
+    if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
+        raise DocumentError("a body name must be a non-empty string")
+    if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):
+        raise DocumentError(f"a body color must be #rrggbb, not {settings['color']!r}")
+    if "visible" in settings and not isinstance(settings["visible"], bool):
+        raise DocumentError("a body's visible must be true or false")
 
 
 def _referenced_ids(feature: dict) -> list[str]:

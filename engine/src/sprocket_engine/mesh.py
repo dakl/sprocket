@@ -64,13 +64,15 @@ def _pad_to_4(length: int) -> int:
 
 
 def tessellate(shape) -> dict:
-    """Returns ocp-tessellate's buffer set for one shape, as flat numpy arrays.
+    """Returns ocp-tessellate's buffer set for one body, as flat numpy arrays.
 
     ocp-tessellate nests the mesh behind a scene graph: tessellate_group
     returns (instances, shapes, states), and each node under `shapes` holds a
-    `{"ref": i}` into `instances`. Sprocket documents replay to exactly one
-    solid, so there is exactly one instance and this reaches straight for it
-    rather than walking the tree.
+    `{"ref": i}` into `instances`. A body's solids sit in one compound, which
+    gives one instance, and this reaches straight for it rather than walking
+    the tree. A compound of compounds gives one instance per child, and the
+    order of those against `shape.faces()` is not known, so export_mesh
+    tessellates each body on its own instead.
     """
     instances, _shapes, _states = tessellate_convert.tessellate_group(
         *tessellate_convert.to_ocpgroup(shape)
@@ -80,6 +82,21 @@ def tessellate(shape) -> dict:
     instance = instances[0]
     _drop_degenerate_edges(shape, instance)
     return instance
+
+
+def _concatenate(instances: list[dict]) -> dict:
+    """Buffers of several bodies end to end, face and edge order kept."""
+    if len(instances) == 1:
+        return instances[0]
+    joined = {}
+    for key in ("vertices", "normals", "edges", "triangles_per_face", "segments_per_edge"):
+        joined[key] = np.concatenate([instance[key] for instance in instances])
+    triangles, offset = [], 0
+    for instance in instances:
+        triangles.append(instance["triangles"].astype(np.int64) + offset)
+        offset += len(instance["vertices"].reshape(-1)) // 3
+    joined["triangles"] = np.concatenate(triangles)
+    return joined
 
 
 def _drop_degenerate_edges(shape, instance: dict) -> None:
@@ -134,16 +151,58 @@ def face_colours(shape, appearances) -> np.ndarray:
     return colours
 
 
-def export_mesh(shape, path: Path, appearances=None) -> dict:
+def body_colours(bodies, face_counts, shape, appearances) -> np.ndarray:
+    """Body colours first, then appearances over the part's faces, which win."""
+    colours = np.full(sum(face_counts), NO_COLOUR, dtype="<u4")
+    start = 0
+    for body, count in zip(bodies, face_counts):
+        if body.get("color"):
+            colours[start:start + count] = int(body["color"].lstrip("#"), 16)
+        start += count
+    if appearances and shape is not None:
+        painted = face_colours(shape, appearances)
+        named = painted != NO_COLOUR
+        colours[: len(painted)][named] = painted[named]
+    return colours
+
+
+def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
     """Writes the mesh file for `shape` and returns the header it wrote.
+
+    `bodies` is the build's body list (see replay.find_bodies) with each body's
+    settings. With it, each body is tessellated on its own, parts first and
+    reference bodies after them, and the header lists them in face order so the
+    viewer can colour, hide and skip them when picking.
 
     The returned header is what a test or a caller should assert against: it
     carries the counts, so a change in face order or triangle count is visible
     without parsing the binary.
     """
-    instance = tessellate(shape)
-    if appearances:
-        instance["face_colors"] = face_colours(shape, appearances)
+    body_entries = []
+    if bodies:
+        ordered = [body for body in bodies if not body["reference"]] + [body for body in bodies if body["reference"]]
+        instances = [tessellate(body["shape"]) for body in ordered]
+        instance = _concatenate(instances)
+        face_counts = [len(item["triangles_per_face"]) for item in instances]
+        for body, item, count in zip(ordered, instances, face_counts):
+            body_entries.append({
+                "id": body["id"],
+                "name": body.get("name", body["id"]),
+                "color": body.get("color"),
+                "visible": body.get("visible", True),
+                "reference": body["reference"],
+                "faces": count,
+                "edges": len(item["segments_per_edge"]),
+            })
+        if appearances or any(body.get("color") for body in ordered):
+            instance["face_colors"] = body_colours(ordered, face_counts, shape, appearances)
+        expected_faces = sum(len(body["shape"].faces()) for body in ordered)
+        expected_edges = sum(len(body["shape"].edges()) for body in ordered)
+    else:
+        instance = tessellate(shape)
+        if appearances:
+            instance["face_colors"] = face_colours(shape, appearances)
+        expected_faces, expected_edges = len(shape.faces()), len(shape.edges())
 
     vertex_count = len(instance["vertices"]) // 3
     triangle_count = len(instance["triangles"]) // 3
@@ -160,7 +219,7 @@ def export_mesh(shape, path: Path, appearances=None) -> dict:
         raise ValueError("edges is not two points per segment")
     if len(instance["normals"]) != len(instance["vertices"]):
         raise ValueError("one normal per vertex expected")
-    if face_count != len(shape.faces()) or edge_count != len(shape.edges()):
+    if face_count != expected_faces or edge_count != expected_edges:
         raise ValueError("tessellation disagrees with the B-rep's face or edge count")
 
     # An offset needs every earlier buffer's padded size, so lay the payload
@@ -191,6 +250,8 @@ def export_mesh(shape, path: Path, appearances=None) -> dict:
         },
         "buffers": entries,
     }
+    if body_entries:
+        header["bodies"] = body_entries
 
     header_bytes = json.dumps(header).encode()
     # The recorded header length includes the padding, so the payload starts at

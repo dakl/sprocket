@@ -30,6 +30,14 @@ def build(features, height=10):
     return replay(document.for_replay())
 
 
+def pad(features):
+    """The pad alone: without a base it is a body of its own beside the box."""
+    document = Document(BOX + features, parameters={"height": 10})
+    part, ctx = replay(document.for_replay(), return_context=True)
+    assert [body["id"] for body in ctx.bodies] == ["b", "e"]
+    return ctx.results["e"]
+
+
 def test_a_sketch_on_the_top_face_follows_the_face_when_the_box_grows():
     features = pad_on({"feature": "b", "face": face("Z", "max")}, base="b", mode="join")
     for height in (10, 14):
@@ -39,19 +47,19 @@ def test_a_sketch_on_the_top_face_follows_the_face_when_the_box_grows():
 
 
 def test_an_offset_origin_plane():
-    part = build(pad_on({"name": "XY", "offset": 30}))
+    part = pad(pad_on({"name": "XY", "offset": 30}))
     box = part.bounding_box()
     assert (box.min.Z, box.max.Z) == pytest.approx((30, 35))
 
 
 def test_on_a_side_face_v_is_world_up_and_coordinates_stay_world_aligned():
-    part = build(pad_on({"feature": "b", "face": face("X", "max")}, center=(2, 3)))
+    part = pad(pad_on({"feature": "b", "face": face("X", "max")}, center=(2, 3)))
     centre = part.center()
     assert (centre.X, centre.Y, centre.Z) == pytest.approx((12.5, 2, 3))
 
 
 def test_on_the_bottom_face_u_is_x_and_v_is_minus_y():
-    part = build(pad_on({"feature": "b", "face": face("Z", "min")}, center=(2, 3)))
+    part = pad(pad_on({"feature": "b", "face": face("Z", "min")}, center=(2, 3)))
     centre = part.center()
     assert (centre.X, centre.Y, centre.Z) == pytest.approx((2, -3, -2.5))
 

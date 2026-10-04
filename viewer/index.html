@@ -608,6 +608,7 @@
     const srgb = (hex) => new THREE.Color(hex).convertSRGBToLinear();
     // What a face with no colour from the document is drawn in.
     const PART_COLOUR = 0x5b8dee;
+    const REFERENCE_COLOUR = 0xb0b4ba;
 
     const scene = new THREE.Scene();
     // Not srgb(): r128 clears the framebuffer with this colour directly and
@@ -782,6 +783,21 @@
         triangleStart += triangleCount;
       }
       geometry.userData.faceOfTriangle = faceOfTriangle;
+      // Bodies, in face order (see mesh.py). A hidden body draws with an
+      // invisible material and a reference body translucent, and neither is
+      // pickable. Material 0 is the part, 1 hidden, 2 reference.
+      const faceCount = mesh.buffers.triangles_per_face.length;
+      geometry.userData.unpickableFace = new Uint8Array(faceCount);
+      geometry.userData.bodies = mesh.header.bodies || [];
+      let bodyFaceStart = 0;
+      for (const body of geometry.userData.bodies) {
+        const materialIndex = body.reference ? 2 : body.visible === false ? 1 : 0;
+        for (let face = bodyFaceStart; face < bodyFaceStart + body.faces; face++) {
+          geometry.groups[face].materialIndex = materialIndex;
+          if (materialIndex) geometry.userData.unpickableFace[face] = 1;
+        }
+        bodyFaceStart += body.faces;
+      }
       const faceColours = mesh.buffers.face_colors;
       if (faceColours) {
         // One colour per vertex, because ocp-tessellate gives every face its
@@ -809,13 +825,13 @@
       if (mesh) {
         scene.remove(mesh);
         mesh.geometry.dispose();
-        mesh.material.dispose();
+        [].concat(mesh.material).forEach((material) => material.dispose());
         mesh = null;
       }
       if (edgeLines) {
         scene.remove(edgeLines);
         edgeLines.geometry.dispose();
-        edgeLines.material.dispose();
+        [].concat(edgeLines.material).forEach((material) => material.dispose());
         edgeLines = null;
       }
     }
@@ -857,7 +873,19 @@
             polygonOffsetFactor: 1,
             polygonOffsetUnits: 1,
           });
-          mesh = new THREE.Mesh(buildPartGeometry(parsed), material);
+          const partGeometry = buildPartGeometry(parsed);
+          const bodies = partGeometry.userData.bodies;
+          const layered = bodies.some((body) => body.reference || body.visible === false);
+          const hiddenMaterial = new THREE.MeshBasicMaterial({ visible: false });
+          const referenceMaterial = new THREE.MeshStandardMaterial({
+            color: srgb(REFERENCE_COLOUR),
+            transparent: true,
+            opacity: 0.28,
+            depthWrite: false,
+            metalness: 0,
+            roughness: 0.8,
+          });
+          mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial] : material);
           mesh.userData.counts = counts;
           scene.add(mesh);
 
@@ -868,15 +896,34 @@
           // tones span only about 0.14 of luma.
           const edgeGeometry = new THREE.BufferGeometry();
           edgeGeometry.setAttribute("position", new THREE.BufferAttribute(parsed.buffers.edges, 3));
+          // srgb() like every other main-scene colour. Being unlit buys no
+          // exemption: outputEncoding encodes the final fragment whether a
+          // material samples lights or not. Measured, a raw hex here comes
+          // out #2a2c2f rather than #14181f, light enough to read as a grey
+          // seam instead of an edge.
+          const edgeMaterial = new THREE.LineBasicMaterial({ color: srgb(0x14181f) });
+          // Edges follow their body: one group per body, material as for faces.
+          const unpickableEdge = new Uint8Array(parsed.buffers.segments_per_edge.length);
+          if (layered) {
+            let edge = 0;
+            let segment = 0;
+            for (const body of bodies) {
+              const materialIndex = body.reference ? 2 : body.visible === false ? 1 : 0;
+              let segments = 0;
+              for (let k = edge; k < edge + body.edges; k++) segments += parsed.buffers.segments_per_edge[k];
+              edgeGeometry.addGroup(segment * 2, segments * 2, materialIndex);
+              if (materialIndex) unpickableEdge.fill(1, edge, edge + body.edges);
+              edge += body.edges;
+              segment += segments;
+            }
+          }
           edgeLines = new THREE.LineSegments(
             edgeGeometry,
-            // srgb() like every other main-scene colour. Being unlit buys no
-            // exemption: outputEncoding encodes the final fragment whether a
-            // material samples lights or not. Measured, a raw hex here comes
-            // out #2a2c2f rather than #14181f, light enough to read as a grey
-            // seam instead of an edge.
-            new THREE.LineBasicMaterial({ color: srgb(0x14181f) })
+            layered
+              ? [edgeMaterial, new THREE.LineBasicMaterial({ visible: false }), new THREE.LineBasicMaterial({ color: srgb(REFERENCE_COLOUR), transparent: true, opacity: 0.35 })]
+              : edgeMaterial
           );
+          edgeLines.userData.unpickableEdge = unpickableEdge;
           scene.add(edgeLines);
 
           // The same ID map faces have, for edges: segment k belongs to B-rep
@@ -1527,10 +1574,18 @@
       );
     }
 
+    /// Raycast hits on the part, leaving out hidden and reference bodies.
+    function partHits() {
+      const geometry = mesh.geometry;
+      return raycaster
+        .intersectObject(mesh)
+        .filter((hit) => !geometry.userData.unpickableFace[geometry.userData.faceOfTriangle[hit.faceIndex]]);
+    }
+
     function raycastFace(event) {
       if (!mesh || !mesh.visible) return null;
       raycaster.setFromCamera(pointerNDC(event), camera);
-      const hits = raycaster.intersectObject(mesh);
+      const hits = partHits();
       return hits.length ? hits[0] : null;
     }
 
@@ -1556,7 +1611,10 @@
       raycaster.setFromCamera(pointerNDC(event), camera);
       const previous = raycaster.params.Line.threshold;
       raycaster.params.Line.threshold = worldRadius(EDGE_PICK_PIXELS, controls.target);
-      const hits = raycaster.intersectObject(edgeLines);
+      const unpickable = edgeLines.userData.unpickableEdge;
+      const hits = raycaster
+        .intersectObject(edgeLines)
+        .filter((hit) => !unpickable[edgeLines.userData.edgeOfSegment[Math.floor(hit.index / 2)]]);
       raycaster.params.Line.threshold = previous;
       if (!hits.length) return null;
       const faceHit = raycastFace(event);
@@ -1801,18 +1859,22 @@
           renderBrowser();
         },
       });
-      // One STL means one body. Split this when the engine exports more.
+      // One row per body, from the mesh header. The eye is the body's
+      // `visible` setting in the document, so it is saved and undoable.
       if (mesh && !collapsedGroups.has("bodies")) {
-        addRow({
-          depth: 2,
-          label: "Body1",
-          visible: bodyVisible,
-          onToggle: () => {
-            bodyVisible = !bodyVisible;
-            applyVisibility();
-            renderBrowser();
-          },
-        });
+        const bodies = mesh.geometry.userData.bodies;
+        if (!bodies.length) {
+          addRow({ depth: 2, label: "Body1", visible: bodyVisible, onToggle: () => { bodyVisible = !bodyVisible; applyVisibility(); renderBrowser(); } });
+        }
+        for (const body of bodies) {
+          addRow({
+            depth: 2,
+            label: body.name + (body.reference ? " (reference)" : ""),
+            visible: body.visible !== false,
+            dim: body.reference,
+            onToggle: () => sendCommand({ type: "set_body", id: body.id, visible: body.visible === false }),
+          });
+        }
       }
 
       addRow({
@@ -2758,9 +2820,9 @@
       controls.enableRotate = false;
 
       if (mesh) {
-        dimmedMeshState = { transparent: mesh.material.transparent, opacity: mesh.material.opacity };
-        mesh.material.transparent = true;
-        mesh.material.opacity = 0.25;
+        dimmedMeshState = { transparent: [].concat(mesh.material)[0].transparent, opacity: [].concat(mesh.material)[0].opacity };
+        [].concat(mesh.material)[0].transparent = true;
+        [].concat(mesh.material)[0].opacity = 0.25;
       }
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
@@ -2830,8 +2892,8 @@
         sketchPlaneHelper = null;
       }
       if (mesh && dimmedMeshState) {
-        mesh.material.transparent = dimmedMeshState.transparent;
-        mesh.material.opacity = dimmedMeshState.opacity;
+        [].concat(mesh.material)[0].transparent = dimmedMeshState.transparent;
+        [].concat(mesh.material)[0].opacity = dimmedMeshState.opacity;
       }
       dimmedMeshState = null;
     }
@@ -3151,7 +3213,7 @@
       const ndc = point.clone().project(camera);
       const rect = renderer.domElement.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
-      const hits = raycaster.intersectObject(mesh);
+      const hits = partHits();
       const visible =
         hits.length === 0 || hits[0].distance >= camera.position.distanceTo(point) - 2 * worldRadius(EDGE_PICK_PIXELS, point);
       return {
@@ -3271,7 +3333,7 @@
         const x = rect.left + ((ndc.x + 1) / 2) * rect.width;
         const y = rect.top + ((1 - ndc.y) / 2) * rect.height;
         raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
-        const hits = raycaster.intersectObject(mesh);
+        const hits = partHits();
         const visible = hits.length > 0 && geometry.userData.faceOfTriangle[hits[0].faceIndex] === face;
         return { x, y, visible };
       },

@@ -36,7 +36,7 @@ from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 from .render import render_png
-from .replay import build_shape, last_solid_index, replay
+from .replay import build_shape, last_solid_index, replay, with_settings
 from .selectors import SelectorError
 from .synthesis import synthesize
 from .viewer_files import write_viewer_files
@@ -108,6 +108,11 @@ class Session:
         """The replay context of the current build: every feature's result."""
         self.shape()
         return self._context
+
+    def bodies(self) -> list[dict]:
+        """The built bodies with the document's settings for each."""
+        context = self.context()
+        return with_settings(context.bodies, self.document.bodies) if context else []
 
     def require_shape(self):
         """The built shape, or a readable reason there isn't one.
@@ -536,6 +541,31 @@ def _set_parameter(daemon: Daemon, params: dict) -> dict:
     )
 
 
+def _set_body(daemon: Daemon, params: dict) -> dict:
+    edit = {"op": "set_body", "id": params.get("id")}
+    edit.update({name: params[name] for name in ("name", "color", "visible") if name in params})
+    return _edit(daemon, [edit], params)
+
+
+def _get_bodies(daemon: Daemon, params: dict) -> dict:
+    """The built bodies in order, with their settings, volume and face count."""
+    return {
+        "bodies": [
+            {
+                "id": body["id"],
+                "name": body["name"],
+                "color": body["color"],
+                "visible": body["visible"],
+                "reference": body["reference"],
+                "tip": body["tip"],
+                "volume": round(body["shape"].volume, 6),
+                "faces": len(body["shape"].faces()),
+            }
+            for body in daemon.session.bodies()
+        ]
+    }
+
+
 SKETCH_EDIT_FIELDS = {
     "add_constraint": ("constraint",),
     "update_constraint": ("constraint_id", "changes"),
@@ -783,27 +813,35 @@ def _render_view(daemon: Daemon, params: dict) -> dict:
 
 def _export(daemon: Daemon, params: dict) -> dict:
     """STEP, STL and the viewer's mesh, whichever paths are given."""
-    from .export import ExportError, write_step, write_stl
+    from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
     from .mesh import export_mesh
 
     shape = daemon.session.require_shape()
+    bodies = daemon.session.bodies()
     written = {}
     try:
         if params.get("step"):
-            write_step(shape, params["step"])
+            write_step(shape, params["step"], bodies)
             written["step"] = params["step"]
         if params.get("stl"):
             write_stl(shape, params["stl"])
             written["stl"] = params["stl"]
+        if params.get("stl_dir"):
+            written["stl_dir"] = [str(path) for path in write_stl_dir(bodies, params["stl_dir"])]
+        if params.get("3mf"):
+            write_3mf(bodies, params["3mf"])
+            written["3mf"] = params["3mf"]
         if params.get("mesh"):
             written["mesh"] = params["mesh"]
-            written["mesh_counts"] = export_mesh(shape, Path(params["mesh"]), daemon.session.document.appearances)["counts"]
+            written["mesh_counts"] = export_mesh(
+                shape, Path(params["mesh"]), daemon.session.document.appearances, daemon.session.bodies()
+            )["counts"]
     except ExportError as exc:
         raise DocumentError(str(exc)) from None
     except OSError as exc:
         raise DocumentError(f"cannot write {exc.filename}: {exc.strerror}") from None
     if not written:
-        raise DocumentError("export needs at least one of 'step', 'stl' or 'mesh'")
+        raise DocumentError("export needs at least one of 'step', 'stl', 'stl_dir', '3mf' or 'mesh'")
     return written
 
 
@@ -845,6 +883,8 @@ METHODS = {
     "get_profiles": _get_profiles,
     "describe_geometry": _describe_geometry,
     "resolve_plane": _resolve_plane,
+    "get_bodies": _get_bodies,
+    "set_body": _set_body,
     "set_selection": _set_selection,
     "get_selection": _get_selection,
     "resolve_selection": _resolve_selection,

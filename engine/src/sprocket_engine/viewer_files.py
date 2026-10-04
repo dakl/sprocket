@@ -76,13 +76,13 @@ def _drawable_plane(plane, ctx):
         return None
 
 
-def mesh_bytes(shape, appearances=None) -> bytes | None:
+def mesh_bytes(shape, appearances=None, bodies=None) -> bytes | None:
     """The viewer's mesh file for `shape`, or None for an empty document."""
-    if shape is None:
+    if shape is None and not bodies:
         return None
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "part.mesh"
-        export_mesh(shape, path, appearances)
+        export_mesh(shape, path, appearances, bodies)
         return path.read_bytes()
 
 
@@ -106,7 +106,7 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
     shape, failed = session.shape()
     mesh_error = None
     try:
-        data = mesh_bytes(shape, session.document.appearances)
+        data = mesh_bytes(shape, session.document.appearances, session.bodies())
     except Exception as exc:
         data = None
         mesh_error = f"{type(exc).__name__}: {exc}"

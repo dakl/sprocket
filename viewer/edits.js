@@ -15,6 +15,7 @@
     "update_sketch",
     "update_sketch_entities",
     "update_feature",
+    "set_body",
     "new_document",
   ];
 
@@ -58,6 +59,15 @@
   }
 
   const RULES = {
+    /// Shows, hides, names or colours one body. Only the fields given change.
+    set_body(state, message) {
+      require_(message, "id");
+      const edit = { op: "set_body", id: message.id };
+      for (const name of ["name", "color", "visible"]) if (name in message) edit[name] = message[name];
+      if (Object.keys(edit).length === 2) fail("set_body needs name, color or visible");
+      return [edit];
+    },
+
     set_rollback(state, message) {
       require_(message, "index");
       if (!Number.isInteger(message.index)) fail("'index' must be an integer");
