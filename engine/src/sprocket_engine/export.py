@@ -95,7 +95,14 @@ def write_3mf(bodies, path) -> None:
     _check_writable(path, "3MF")
     mesher = Mesher()
     for body in _made(bodies):
-        mesher.add_shape(_labelled(body))
+        # One mesh per solid. A body of several solids meshed as one compound
+        # fails lib3mf's validity check (the Orange Pi heatsink, whose ears
+        # touch the plate only along an edge, did).
+        for solid in body["shape"].solids():
+            try:
+                mesher.add_shape(_labelled({**body, "shape": solid}))
+            except Exception as exc:
+                raise ExportError(f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}") from None
     try:
         mesher.write(str(path))
     except Exception as exc:

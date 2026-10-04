@@ -320,6 +320,15 @@
 
     .browser-caret.clickable { cursor: pointer; }
 
+    .browser-swatch {
+      width: 16px;
+      height: 14px;
+      margin-left: auto;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
     .browser-eye {
       flex: 0 0 auto;
       display: flex;
@@ -1791,6 +1800,17 @@
         if (options.onClick) label.addEventListener("click", options.onClick);
         row.appendChild(label);
 
+        if (options.onColor) {
+          // The browser's own colour picker. A change sends one set_body edit.
+          const swatch = document.createElement("input");
+          swatch.type = "color";
+          swatch.className = "browser-swatch";
+          swatch.title = "Body colour";
+          swatch.value = options.color || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+          swatch.addEventListener("change", () => options.onColor(swatch.value));
+          row.appendChild(swatch);
+        }
+
         tree.appendChild(row);
       }
 
@@ -1873,6 +1893,8 @@
             visible: body.visible !== false,
             dim: body.reference,
             onToggle: () => sendCommand({ type: "set_body", id: body.id, visible: body.visible === false }),
+            color: body.color,
+            onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
           });
         }
       }

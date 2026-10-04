@@ -203,6 +203,19 @@ def document_tools() -> list[types.Tool]:
             {},
         ),
         _tool(
+            "set_appearances",
+            "Replaces the face colours. Each entry paints the faces its selector matches, in order, over the "
+            "body colours, and a later entry wins. Use set_body for a whole body's colour; this is for faces.",
+            {
+                "appearances": {
+                    "type": "array",
+                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}}},
+                },
+                "base_revision": EDIT_PROPERTIES["base_revision"],
+            },
+            ["appearances"],
+        ),
+        _tool(
             "check_clearance",
             "For each part body and each reference body: the smallest distance between them and the volume "
             "they share. Overlap above 0 means the part collides with the reference.",
@@ -368,7 +381,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name == "render_view":
         return _render(client, arguments)
 
-    if name in ("apply_edit", "set_rollback", "set_parameter", "set_body"):
+    if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
     if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance"):

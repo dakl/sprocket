@@ -295,13 +295,10 @@ class Document:
             raise DocumentError(f"{path}: 'log' must be a list")
 
         appearances = data.get("appearances", [])
-        if not isinstance(appearances, list) or not all(
-            isinstance(item, dict)
-            and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
-            and isinstance(item.get("select"), dict)
-            for item in appearances
-        ):
-            raise DocumentError(f"{path}: 'appearances' must be a list of {{\"color\": \"#rrggbb\", \"select\": <selector>}}")
+        try:
+            _check_appearances(appearances)
+        except DocumentError as exc:
+            raise DocumentError(f"{path}: {exc}") from None
 
         bodies = data.get("bodies", {})
         if not isinstance(bodies, dict):
@@ -471,10 +468,11 @@ class Document:
             "set_parameter": self._set_parameter,
             "edit_sketch": self._edit_sketch,
             "set_body": self._set_body,
+            "set_appearances": self._set_appearances,
         }.get(kind)
         if handler is None:
             raise DocumentError(
-                f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch, set_body)"
+                f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch, set_body, set_appearances)"
             )
         detail = handler(edit)
         return {"author": author, "action": kind, "at": _now(), **detail}
@@ -612,6 +610,14 @@ class Document:
             self.bodies.pop(body_id, None)
         return {"body": body_id, **{name: edit[name] for name in ("name", "color", "visible") if name in edit}}
 
+    def _set_appearances(self, edit: dict) -> dict:
+        """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
+        applied in order over the body colours, later ones winning."""
+        appearances = edit.get("appearances")
+        _check_appearances(appearances)
+        self.appearances = copy.deepcopy(appearances)
+        return {"count": len(appearances)}
+
     def _check_references(self, feature: dict, available: list[dict]) -> None:
         """A feature may only reference features that come before it.
 
@@ -646,6 +652,16 @@ class Document:
 # coverage check in test_document.py reads the schemas rather than trusting
 # this line. Add a field here when an op grows a new reference.
 REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
+
+
+def _check_appearances(appearances) -> None:
+    if not isinstance(appearances, list) or not all(
+        isinstance(item, dict)
+        and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
+        and isinstance(item.get("select"), dict)
+        for item in appearances
+    ):
+        raise DocumentError("'appearances' must be a list of {\"color\": \"#rrggbb\", \"select\": <selector>}")
 
 
 def _check_body_settings(settings) -> None:

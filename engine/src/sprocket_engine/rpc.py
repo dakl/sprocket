@@ -393,6 +393,8 @@ def _document_state(daemon: Daemon) -> dict:
         "features": document.features,
         "rollback_index": document.rollback_index,
         "parameters": document.parameters,
+        "appearances": document.appearances,
+        "bodies": document.bodies,
     }
 
 
@@ -545,6 +547,10 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
     edit = {"op": "set_body", "id": params.get("id")}
     edit.update({name: params[name] for name in ("name", "color", "visible") if name in params})
     return _edit(daemon, [edit], params)
+
+
+def _set_appearances(daemon: Daemon, params: dict) -> dict:
+    return _edit(daemon, [{"op": "set_appearances", "appearances": params.get("appearances")}], params)
 
 
 def _get_bodies(daemon: Daemon, params: dict) -> dict:
@@ -912,6 +918,7 @@ METHODS = {
     "get_bodies": _get_bodies,
     "check_clearance": _check_clearance,
     "set_body": _set_body,
+    "set_appearances": _set_appearances,
     "set_selection": _set_selection,
     "get_selection": _get_selection,
     "resolve_selection": _resolve_selection,

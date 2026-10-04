@@ -160,3 +160,14 @@ def test_an_agent_reads_and_sets_bodies_and_resolves_a_plane_through_mcp(tmp_pat
     assert not named.is_error, named.content
     assert [body["name"] for body in json.loads(listed.content[0].text)["bodies"]] == ["case", "Lid"]
     assert json.loads(plane.content[0].text)["plane"]["origin"] == [0, 0, 10]
+
+
+def test_set_appearances_replaces_face_colours_and_undo_brings_them_back(tmp_path):
+    top = {"color": "#00ff00", "select": {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}]}}
+    with running({"features": CASE[:2]}, tmp_path) as daemon, Client(daemon.socket_path) as client:
+        client.call("set_appearances", appearances=[top])
+        assert client.call("get_document")["appearances"] == [top]
+        with pytest.raises(Exception, match="appearances"):
+            client.call("set_appearances", appearances=[{"color": "green", "select": {}}])
+        client.call("undo")
+        assert client.call("get_document")["appearances"] == []
