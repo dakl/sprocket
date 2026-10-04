@@ -142,3 +142,21 @@ def test_daemon_get_bodies_and_set_body(tmp_path):
         assert [(body["id"], body["faces"]) for body in listed] == [("case", 6), ("lid", 3)]
         client.call("set_body", id="lid", color="#123456")
         assert client.call("get_bodies")["bodies"][1]["color"] == "#123456"
+
+
+def test_an_agent_reads_and_sets_bodies_and_resolves_a_plane_through_mcp(tmp_path):
+    from test_mcp import drive
+
+    top = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
+
+    async def work(session):
+        named = await session.call_tool("set_body", {"id": "lid", "name": "Lid", "color": "#00ff00"})
+        listed = await session.call_tool("get_bodies", {})
+        plane = await session.call_tool("resolve_plane", {"plane": {"feature": "case", "face": top}})
+        return named, listed, plane
+
+    with running({"features": CASE}, tmp_path) as daemon:
+        named, listed, plane = drive(daemon, work)
+    assert not named.is_error, named.content
+    assert [body["name"] for body in json.loads(listed.content[0].text)["bodies"]] == ["case", "Lid"]
+    assert json.loads(plane.content[0].text)["plane"]["origin"] == [0, 0, 10]
