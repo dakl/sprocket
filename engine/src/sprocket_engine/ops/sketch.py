@@ -18,6 +18,11 @@ PLANE_SCHEMA = {
         {
             "type": "object",
             "required": ["origin", "normal", "x_dir"],
+            "description": (
+                "An explicit plane. The sketch's v axis is normal x x_dir (right-handed), so u runs right and v up "
+                "when you look at the sketch from the side its normal points to. A plane facing -Z with x_dir +X "
+                "therefore has v along world -Y: it is the part seen from below."
+            ),
             "properties": {"origin": VECTOR3, "normal": VECTOR3, "x_dir": VECTOR3},
         },
     ]
