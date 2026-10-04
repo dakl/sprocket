@@ -65,6 +65,9 @@ def _profile_faces(feature: dict, ctx):
             raise ProfileError(f"sketch {feature['profile']!r} has no closed region to extrude")
         return whole
     picked = []
+    # Region detection splits the whole sketch, so it runs once per sketch, not
+    # once per picked region: 40 regions of one 160-line sketch took 23 s.
+    regions_of = {}
     for reference in feature["profiles"]:
         sketch = ctx.features.get(reference["sketch"])
         if sketch is None or sketch["type"] != "sketch":
@@ -73,7 +76,9 @@ def _profile_faces(feature: dict, ctx):
             # A sketch of one shape has no regions to choose between.
             picked.extend(ctx.results[reference["sketch"]].faces())
             continue
-        region = pick_region(find_regions(sketch["entities"]), reference)
+        if reference["sketch"] not in regions_of:
+            regions_of[reference["sketch"]] = find_regions(sketch["entities"])
+        region = pick_region(regions_of[reference["sketch"]], reference)
         picked.append(resolve_plane(sketch["plane"], ctx) * region.face)
     return Sketch(Compound(picked))
 
