@@ -64,6 +64,20 @@ def test_the_viewer_gets_regions_for_every_sketch(tmp_path):
     assert [len(entry["regions"]) for entry in entries] == [2, 1]
 
 
+def test_a_parametric_sketch_reaches_the_viewer_as_numbers_and_keeps_its_expressions(tmp_path):
+    entities = json.loads(json.dumps(RING_AND_DISC).replace("[40, 0]", '["=w", 0]').replace('"r": 4', '"r": "=w/10"'))
+    document = {"parameters": {"w": 40}, "features": [{"id": "f1", "type": "sketch", "plane": "XY", "entities": entities}]}
+    path = tmp_path / "part.sprocket"
+    path.write_text(json.dumps(document))
+    (entry,) = features_summary(Document.load(path), None)
+    # The form edits the raw feature, so the expression stays there.
+    assert entry["feature"]["entities"][4]["r"] == "=w/10"
+    # The viewer draws from `resolved`, which must hold only numbers.
+    assert entry["resolved"]["entities"][4]["r"] == 4
+    assert entry["resolved"]["entities"][0]["p1"] == [40, 0]
+    assert len(entry["regions"]) == 2
+
+
 def test_a_sketch_the_engine_cannot_read_still_lists_with_no_regions(tmp_path):
     broken = {"features": [{"id": "f1", "type": "sketch", "plane": "XY", "entities": [{"id": "e1", "kind": "arc", "c": [0, 0], "r": 1}]}]}
     path = tmp_path / "part.sprocket"

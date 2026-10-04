@@ -2566,7 +2566,7 @@
           const angle = start + ((end - start) * step) / steps;
           return worldOfPlane(plane, [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)]);
         });
-      for (const entity of feature.feature.entities) {
+      for (const entity of (feature.resolved || feature.feature).entities) {
         const run =
           entity.kind === "line"
             ? [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)]
@@ -2786,7 +2786,9 @@
     let editedSketchId = null;
     function editSketch(entry) {
       if (sketchStage || extrudeArmed) return;
-      const feature = entry.feature;
+      // The sketcher works in numbers, so finishing a redraw of a parametric
+      // sketch stores the values in place of its "=param" expressions.
+      const feature = entry.resolved || entry.feature;
       const stored = resolveStoredPlane(entry.plane);
       const normal = new THREE.Vector3().crossVectors(stored.xDir, stored.yDir).normalize();
       sketchPlane = makeSketchPlane(stored.origin, normal, stored.xDir);

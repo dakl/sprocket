@@ -10,27 +10,42 @@ import json
 import tempfile
 from pathlib import Path
 
+from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 
 
 def features_summary(document, failed_feature: str | None) -> list[dict]:
-    """The timeline as the viewer reads it: each entry carries its full feature."""
+    """The timeline as the viewer reads it.
+
+    Each entry carries its full feature twice. `feature` is the raw form, with
+    `"=param"` strings, which the parameter form edits. `resolved` holds only
+    numbers, which is what the viewer draws from: a string coordinate is NaN in
+    three.js, and the region finder cannot read one either.
+    """
+    try:
+        parameters = document.resolved_parameters()
+    except Exception:
+        parameters = {}
     entries = []
-    for index, feature in enumerate(document.features):
+    for index, raw in enumerate(document.features):
+        try:
+            feature = resolve_value(raw, parameters)
+        except Exception:
+            feature = raw
         entry = {
-            "id": feature.get("id"),
-            "type": feature.get("type"),
+            "id": raw.get("id"),
+            "type": raw.get("type"),
             "active": index < document.rollback_index,
-            "feature": feature,
+            "feature": raw,
+            "resolved": feature,
         }
         if feature.get("type") == "sketch":
             entry["plane"] = feature["plane"]
             # Only a polygon has corners the viewer can drag.
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]
-        if feature.get("type") == "sketch":
             try:
                 entry["regions"] = sketch_profiles(feature)
             except Exception:
