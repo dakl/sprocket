@@ -566,6 +566,32 @@ def _get_bodies(daemon: Daemon, params: dict) -> dict:
     }
 
 
+def _check_clearance(daemon: Daemon, params: dict) -> dict:
+    """The gap between each part body and each reference body: the smallest
+    distance, and the volume they share. A distance of 0 with no shared volume
+    means they touch."""
+    from build123d import ShapeList
+
+    bodies = daemon.session.bodies()
+    parts = [body for body in bodies if not body["reference"]]
+    references = [body for body in bodies if body["reference"]]
+    if not references:
+        raise DocumentError("the document has no reference body to check against")
+    pairs = []
+    for part in parts:
+        for reference in references:
+            shared = part["shape"].intersect(reference["shape"])
+            pieces = list(shared) if isinstance(shared, ShapeList) else [shared] if shared is not None else []
+            overlap = sum(piece.volume for piece in pieces)
+            pairs.append({
+                "body": part["id"],
+                "reference": reference["id"],
+                "distance": round(part["shape"].distance_to(reference["shape"]), 6),
+                "overlap_volume": round(overlap, 6),
+            })
+    return {"pairs": pairs}
+
+
 SKETCH_EDIT_FIELDS = {
     "add_constraint": ("constraint",),
     "update_constraint": ("constraint_id", "changes"),
@@ -884,6 +910,7 @@ METHODS = {
     "describe_geometry": _describe_geometry,
     "resolve_plane": _resolve_plane,
     "get_bodies": _get_bodies,
+    "check_clearance": _check_clearance,
     "set_body": _set_body,
     "set_selection": _set_selection,
     "get_selection": _get_selection,

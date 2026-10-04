@@ -50,7 +50,8 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
     A solid feature with no base starts a body, whose id is that feature's id.
     A feature with a base continues the base's body, and the body's shape is
     the result of its latest feature. A boolean or pattern ends its tool's
-    body. See SPEC.md, "M5, bodies".
+    body. A body started by a `reference` op is a reference body. See SPEC.md,
+    "M5, bodies".
     """
     root_of, tip_of, order, consumed = {}, {}, [], set()
     for feature in features:
@@ -66,10 +67,12 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
         tool = feature.get("tool")
         if feature.get("type") in CONSUMES_TOOL and tool in root_of and root_of[tool] != root:
             consumed.add(root_of[tool])
+    # A reference body is never consumed: cutting with it keeps it on screen.
+    reference = {root for root in order if ctx.features[root].get("type") == "reference"}
     return [
-        {"id": root, "tip": tip_of[root], "shape": ctx.results[tip_of[root]], "reference": bool(getattr(ctx.results[tip_of[root]], "reference", False))}
+        {"id": root, "tip": tip_of[root], "shape": ctx.results[tip_of[root]], "reference": root in reference}
         for root in order
-        if root not in consumed
+        if root not in consumed or root in reference
     ]
 
 

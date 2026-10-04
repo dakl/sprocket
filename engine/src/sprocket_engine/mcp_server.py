@@ -203,6 +203,12 @@ def document_tools() -> list[types.Tool]:
             {},
         ),
         _tool(
+            "check_clearance",
+            "For each part body and each reference body: the smallest distance between them and the volume "
+            "they share. Overlap above 0 means the part collides with the reference.",
+            {},
+        ),
+        _tool(
             "set_body",
             "Names, colours or hides one body. Hidden bodies still export. A null field goes back to its default.",
             {
@@ -365,7 +371,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter", "set_body"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

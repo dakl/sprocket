@@ -19,6 +19,7 @@ op schema still only ever see numbers.
 
 import ast
 import copy
+import hashlib
 import json
 import operator
 import re
@@ -352,12 +353,20 @@ class Document:
         return resolve_parameters(self.parameters)
 
     def for_replay(self) -> dict:
-        """The plain document `replay()` takes: numbers only, no log."""
+        """The plain document `replay()` takes: numbers only, no log.
+
+        A reference's `file` becomes absolute, against this document's folder,
+        and gains the file's hash. The hash is part of the feature, so the
+        BREP cache key changes when the referenced file does."""
         parameters = self.resolved_parameters()
-        return {
-            "features": [resolve_value(feature, parameters) for feature in self.features],
-            "rollback_index": self.rollback_index,
-        }
+        features = [resolve_value(feature, parameters) for feature in self.features]
+        folder = self.path.parent if self.path else Path.cwd()
+        for index, feature in enumerate(features):
+            if feature.get("type") == "reference" and isinstance(feature.get("file"), str):
+                path = (folder / feature["file"]).resolve()
+                digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+                features[index] = {**feature, "file": str(path), "source_sha256": digest}
+        return {"features": features, "rollback_index": self.rollback_index}
 
     def index_of(self, feature_id: str) -> int:
         for index, feature in enumerate(self.features):
