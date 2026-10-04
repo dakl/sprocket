@@ -776,7 +776,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
         written["stl"] = params["stl"]
     if params.get("mesh"):
         written["mesh"] = params["mesh"]
-        written["mesh_counts"] = export_mesh(shape, Path(params["mesh"]))["counts"]
+        written["mesh_counts"] = export_mesh(shape, Path(params["mesh"]), daemon.session.document.appearances)["counts"]
     if not written:
         raise DocumentError("export needs at least one of 'step', 'stl' or 'mesh'")
     return written

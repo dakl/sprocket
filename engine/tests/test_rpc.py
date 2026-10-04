@@ -238,7 +238,7 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path
     notification carries the reason."""
     import sprocket_engine.viewer_files as viewer_files
 
-    def refuse(shape):
+    def refuse(shape, appearances=None):
         raise ValueError("tessellation disagrees with the B-rep")
 
     viewer_dir = tmp_path / "viewer"

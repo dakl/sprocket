@@ -43,13 +43,13 @@ def features_summary(document, failed_feature: str | None) -> list[dict]:
     return entries
 
 
-def mesh_bytes(shape) -> bytes | None:
+def mesh_bytes(shape, appearances=None) -> bytes | None:
     """The viewer's mesh file for `shape`, or None for an empty document."""
     if shape is None:
         return None
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "part.mesh"
-        export_mesh(shape, path)
+        export_mesh(shape, path, appearances)
         return path.read_bytes()
 
 
@@ -73,7 +73,7 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
     shape, failed = session.shape()
     mesh_error = None
     try:
-        data = mesh_bytes(shape)
+        data = mesh_bytes(shape, session.document.appearances)
     except Exception as exc:
         data = None
         mesh_error = f"{type(exc).__name__}: {exc}"

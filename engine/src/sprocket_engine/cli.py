@@ -153,7 +153,7 @@ def _build_document(
         export_stl(result, Path(stl))
         messages.append(f"wrote {stl}")
     if mesh:
-        header = export_mesh(result, Path(mesh))
+        header = export_mesh(result, Path(mesh), document.appearances)
         counts = header["counts"]
         messages.append(
             f"wrote {mesh} ({counts['faces']} faces, {counts['triangles']} triangles, {counts['edges']} edges)"

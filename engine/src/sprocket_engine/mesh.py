@@ -40,6 +40,8 @@ from OCP.TopExp import TopExp
 from OCP.TopoDS import TopoDS
 from ocp_tessellate.ocp_utils import TopTools_IndexedMapOfShape
 
+from .selectors import resolve_selector
+
 FORMAT = "sprocket-mesh"
 VERSION = 1
 
@@ -51,6 +53,9 @@ _BUFFERS = (
     ("edges", "edges", "<f4", "float32"),
     ("triangles_per_face", "triangles_per_face", "<u4", "uint32"),
     ("segments_per_edge", "segments_per_edge", "<u4", "uint32"),
+    # Optional: one 0xRRGGBB per face, 0xFFFFFFFF for "no colour". Absent when
+    # the document has no appearances, so a viewer must not require it.
+    ("face_colors", "face_colors", "<u4", "uint32"),
 )
 
 
@@ -107,7 +112,29 @@ def _drop_degenerate_edges(shape, instance: dict) -> None:
     instance["segments_per_edge"] = runs[keep]
 
 
-def export_mesh(shape, path: Path) -> dict:
+NO_COLOUR = 0xFFFFFFFF
+
+
+def face_colours(shape, appearances) -> np.ndarray:
+    """One 0xRRGGBB per face of `shape`, in `shape.faces()` order.
+
+    `appearances` is the document's list of {"color": "#rrggbb", "select": <selector>}.
+    They apply in order and a later one wins, so a whole-part colour comes
+    first and the exceptions follow. A face no appearance names stays NO_COLOUR
+    and the viewer draws it in its default.
+    """
+    faces = shape.faces()
+    colours = np.full(len(faces), NO_COLOUR, dtype="<u4")
+    for appearance in appearances or []:
+        value = int(appearance["color"].lstrip("#"), 16)
+        for picked in resolve_selector(shape, appearance["select"]):
+            for index, face in enumerate(faces):
+                if face.is_same(picked):
+                    colours[index] = value
+    return colours
+
+
+def export_mesh(shape, path: Path, appearances=None) -> dict:
     """Writes the mesh file for `shape` and returns the header it wrote.
 
     The returned header is what a test or a caller should assert against: it
@@ -115,6 +142,8 @@ def export_mesh(shape, path: Path) -> dict:
     without parsing the binary.
     """
     instance = tessellate(shape)
+    if appearances:
+        instance["face_colors"] = face_colours(shape, appearances)
 
     vertex_count = len(instance["vertices"]) // 3
     triangle_count = len(instance["triangles"]) // 3
@@ -139,6 +168,8 @@ def export_mesh(shape, path: Path) -> dict:
     payload = bytearray()
     entries = {}
     for name, key, dtype, type_tag in _BUFFERS:
+        if key not in instance:
+            continue
         array = instance[key].reshape(-1).astype(dtype, copy=False)
         entries[name] = {
             "offset": len(payload),

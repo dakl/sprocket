@@ -21,6 +21,7 @@ import ast
 import copy
 import json
 import operator
+import re
 import time
 from pathlib import Path
 
@@ -221,10 +222,13 @@ class Document:
         revision: int = 0,
         log: list[dict] | None = None,
         path: Path | None = None,
+        appearances: list[dict] | None = None,
     ):
         self.features = list(features or [])
         self.rollback_index = len(self.features) if rollback_index is None else rollback_index
         self.parameters = dict(parameters or {})
+        # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
+        self.appearances = list(appearances or [])
         self.revision = revision
         self.log = list(log or [])
         self.path = Path(path) if path else None
@@ -286,9 +290,18 @@ class Document:
         if not isinstance(log, list):
             raise DocumentError(f"{path}: 'log' must be a list")
 
+        appearances = data.get("appearances", [])
+        if not isinstance(appearances, list) or not all(
+            isinstance(item, dict)
+            and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
+            and isinstance(item.get("select"), dict)
+            for item in appearances
+        ):
+            raise DocumentError(f"{path}: 'appearances' must be a list of {{\"color\": \"#rrggbb\", \"select\": <selector>}}")
+
         for feature in features:
             assign_constraint_ids(feature)
-        document = cls(features, rollback_index, parameters, revision, log, path)
+        document = cls(features, rollback_index, parameters, revision, log, path, appearances)
         resolve_parameters(document.parameters)  # fail at open, not at first build
         return document
 
@@ -298,6 +311,7 @@ class Document:
             "features": self.features,
             "rollback_index": self.rollback_index,
             "parameters": self.parameters,
+            "appearances": self.appearances,
             "revision": self.revision,
             "log": self.log,
         }
@@ -397,7 +411,12 @@ class Document:
         """The editable state, deep-copied, for undo. The log is not part of it:
         undoing an edit is itself an entry in the log, not an erasure."""
         return copy.deepcopy(
-            {"features": self.features, "rollback_index": self.rollback_index, "parameters": self.parameters}
+            {
+                "features": self.features,
+                "rollback_index": self.rollback_index,
+                "parameters": self.parameters,
+                "appearances": self.appearances,
+            }
         )
 
     def restore(self, snapshot: dict, author: str) -> int:
@@ -405,6 +424,7 @@ class Document:
         self.features = copy.deepcopy(snapshot["features"])
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
+        self.appearances = copy.deepcopy(snapshot.get("appearances", []))
         self.revision += 1
         self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
         return self.revision

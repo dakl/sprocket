@@ -30,7 +30,8 @@ SELECTOR_DESCRIPTION = (
     'is noticed, '
     '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which is the most '
     'robust way to say "the edges of that extrude", and '
-    '{"op": "nearest_each", "points": [[x, y, z], ...]} takes the item nearest each point. '
+    '{"op": "nearest_each", "points": [[x, y, z], ...]} takes the item nearest each point, and '
+    '{"op": "within", "box": [x0, y0, z0, x1, y1, z1]} keeps the items whose centre lies inside the box. '
     'Add "expected_count": n beside "select" and a rebuild that finds a different number fails '
     'the feature instead of rounding the wrong edges. '
     'Every edge is {"select": [{"op": "edges"}]}. '
@@ -101,6 +102,23 @@ def _at_end(current, axis: str, end: str):
     return ShapeList([item for item, value in zip(current, values) if abs(value - edge) <= LEVEL])
 
 
+def _within(current, box):
+    """Items whose centre lies in the axis-aligned box [x0, y0, z0, x1, y1, z1].
+
+    The edges are padded by LEVEL, so a face centred exactly on a box wall
+    counts as inside. A face on the boundary between two boxes can match both.
+    """
+    if len(box) != 6:
+        raise SelectorError("within needs a box of six numbers: x0, y0, z0, x1, y1, z1")
+    low, high = box[:3], box[3:]
+
+    def inside(item):
+        centre = item.center()
+        return all(low[i] - LEVEL <= value <= high[i] + LEVEL for i, value in enumerate((centre.X, centre.Y, centre.Z)))
+
+    return ShapeList([item for item in current if inside(item)])
+
+
 def _new_since(current, starter: str, feature_id: str, ctx):
     """What feature `feature_id` made or changed: items of `current` that were
     not in the shape it was applied to. A feature with no base starts from
@@ -148,6 +166,8 @@ def resolve_selector(shape, selector, ctx=None):
             current = _at_end(current, step["axis"], step["end"])
         elif op == "new_since":
             current = _new_since(current, starter, step["feature"], ctx)
+        elif op == "within":
+            current = _within(current, step["box"])
         elif op == "nearest_each":
             picked = []
             for point in step["points"]:

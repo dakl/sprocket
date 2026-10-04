@@ -606,6 +606,8 @@
     // and what you see the same. The view cube renders through cubeRenderer,
     // which has no output encoding, so its colours stay raw hexes.
     const srgb = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+    // What a face with no colour from the document is drawn in.
+    const PART_COLOUR = 0x5b8dee;
 
     const scene = new THREE.Scene();
     // Not srgb(): r128 clears the framebuffer with this colour directly and
@@ -780,6 +782,24 @@
         triangleStart += triangleCount;
       }
       geometry.userData.faceOfTriangle = faceOfTriangle;
+      const faceColours = mesh.buffers.face_colors;
+      if (faceColours) {
+        // One colour per vertex, because ocp-tessellate gives every face its
+        // own vertices. 0xFFFFFFFF means the document named no colour.
+        const colours = new Float32Array(mesh.buffers.vertices.length);
+        const indices = mesh.buffers.indices;
+        for (let triangle = 0; triangle < faceOfTriangle.length; triangle++) {
+          const hex = faceColours[faceOfTriangle[triangle]];
+          const colour = srgb(hex === 0xffffffff ? PART_COLOUR : hex);
+          for (let corner = 0; corner < 3; corner++) {
+            const vertex = indices[triangle * 3 + corner] * 3;
+            colours[vertex] = colour.r;
+            colours[vertex + 1] = colour.g;
+            colours[vertex + 2] = colour.b;
+          }
+        }
+        geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+      }
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
       return geometry;
@@ -829,7 +849,8 @@
           // the edge lines below, which sit exactly on the body's boundary,
           // win the depth test instead of flickering against it.
           const material = new THREE.MeshStandardMaterial({
-            color: srgb(0x5b8dee),
+            color: parsed.buffers.face_colors ? 0xffffff : srgb(PART_COLOUR),
+            vertexColors: Boolean(parsed.buffers.face_colors),
             metalness: 0,
             roughness: 0.55,
             polygonOffset: true,
