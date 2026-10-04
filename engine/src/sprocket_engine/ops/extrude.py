@@ -74,7 +74,7 @@ def _profile_faces(feature: dict, ctx):
             picked.extend(ctx.results[reference["sketch"]].faces())
             continue
         region = pick_region(find_regions(sketch["entities"]), reference)
-        picked.append(resolve_plane(sketch["plane"]) * region.face)
+        picked.append(resolve_plane(sketch["plane"], ctx) * region.face)
     return Sketch(Compound(picked))
 
 

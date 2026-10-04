@@ -53,7 +53,7 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
     sketch = ctx.features.get(feature["sketch"])
     if sketch is None or sketch.get("type") != "sketch":
         raise ValueError(f"hole sketch {feature['sketch']!r} is not a sketch earlier in the document")
-    plane = resolve_plane(sketch["plane"])
+    plane = resolve_plane(sketch["plane"], ctx)
     if "entities" in sketch:
         wanted = feature.get("entities")
         uvs = [

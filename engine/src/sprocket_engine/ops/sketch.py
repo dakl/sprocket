@@ -1,16 +1,19 @@
 import math
 
-from build123d import Circle, Compound, Plane, Polygon, Pos, Rectangle, Sketch
+from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector
 from OCP.BRep import BRep_Builder
 from OCP.TopoDS import TopoDS_Compound
 
 from ..regions import find_regions
+from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
 from .registry import register
 
 ORIGIN_PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
 
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 POINT2 = {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+
+OFFSET = {"type": "number", "description": "mm along the plane normal, default 0"}
 
 PLANE_SCHEMA = {
     "oneOf": [
@@ -24,6 +27,27 @@ PLANE_SCHEMA = {
                 "therefore has v along world -Y: it is the part seen from below."
             ),
             "properties": {"origin": VECTOR3, "normal": VECTOR3, "x_dir": VECTOR3},
+        },
+        {
+            "type": "object",
+            "required": ["name"],
+            "description": "An origin plane moved along its normal, as {\"name\": \"XY\", \"offset\": 5}.",
+            "properties": {"name": {"enum": ["XY", "XZ", "YZ"]}, "offset": OFFSET},
+        },
+        {
+            "type": "object",
+            "required": ["feature", "face"],
+            "description": (
+                "On a planar face of an earlier feature, found again on every rebuild, so the sketch moves with "
+                "the face. The normal points out of the part. Sketch coordinates stay world-aligned: the origin is "
+                "the world origin projected onto the face. On a horizontal face u is world +X. On a vertical face "
+                "v is world +Z (up)."
+            ),
+            "properties": {
+                "feature": {"type": "string", "description": "the feature whose result holds the face"},
+                "face": {"type": "object", "description": SELECTOR_DESCRIPTION},
+                "offset": OFFSET,
+            },
         },
     ]
 }
@@ -143,10 +167,48 @@ SCHEMA = {
 }
 
 
-def resolve_plane(plane_ref):
+def resolve_plane(plane_ref, ctx=None):
+    """The build123d Plane a sketch sits on. A face plane needs `ctx`, the
+    replay context, to find the face in an earlier feature's result."""
     if isinstance(plane_ref, str):
         return ORIGIN_PLANES[plane_ref]
-    return Plane(origin=tuple(plane_ref["origin"]), z_dir=tuple(plane_ref["normal"]), x_dir=tuple(plane_ref["x_dir"]))
+    if "name" in plane_ref:
+        plane = ORIGIN_PLANES[plane_ref["name"]]
+    elif "feature" in plane_ref:
+        plane = _face_plane(plane_ref, ctx)
+    else:
+        return Plane(origin=tuple(plane_ref["origin"]), z_dir=tuple(plane_ref["normal"]), x_dir=tuple(plane_ref["x_dir"]))
+    return plane.offset(plane_ref.get("offset", 0))
+
+
+def _face_plane(plane_ref, ctx) -> Plane:
+    feature_id = plane_ref["feature"]
+    shape = ctx.results.get(feature_id) if ctx is not None else None
+    if shape is None:
+        raise ValueError(f"sketch plane names {feature_id!r}, which is not built before this sketch")
+    faces = resolve_selector(shape, plane_ref["face"], ctx)
+    if len(faces) != 1:
+        raise SelectorError(f"sketch plane face selector matched {len(faces)} faces, expected exactly 1")
+    face = faces[0]
+    if face.geom_type != GeomType.PLANE:
+        raise ValueError(f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face")
+    normal = face.normal_at(face.center()).normalized()
+    origin = normal * normal.dot(face.center())
+    if abs(normal.Z) > 0.999:
+        x_dir = Vector(1, 0, 0)
+    else:
+        # A vertical or slanted face: v (= normal x x_dir) points as close to world up as it can.
+        x_dir = Vector(0, 0, 1).cross(normal).normalized()
+    return Plane(origin=origin, z_dir=normal, x_dir=x_dir)
+
+
+def plane_json(plane: Plane) -> dict:
+    """A Plane as the explicit {origin, normal, x_dir} form, which is what the viewer draws on."""
+    return {
+        "origin": [round(value, 9) for value in plane.origin],
+        "normal": [round(value, 9) for value in plane.z_dir],
+        "x_dir": [round(value, 9) for value in plane.x_dir],
+    }
 
 
 def _polygon_area(points) -> float:
@@ -266,7 +328,7 @@ def _empty_sketch() -> Sketch:
 
 @register("sketch", SCHEMA)
 def apply(feature: dict, ctx):
-    plane = resolve_plane(feature["plane"])
+    plane = resolve_plane(feature["plane"], ctx)
     if "entities" in feature:
         check_entities(feature)
         regions = find_regions(feature["entities"])

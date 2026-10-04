@@ -130,7 +130,7 @@ def _build_document(
     rollback_index = replayable["rollback_index"]
 
     try:
-        result, failed_id = build_shape(features, rollback_index, resolved_cache_dir)
+        result, failed_id, _ = build_shape(features, rollback_index, resolved_cache_dir)
     except Exception as exc:
         return False, f"error: {exc}", getattr(exc, "feature_id", None)
 

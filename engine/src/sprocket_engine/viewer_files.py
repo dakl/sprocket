@@ -13,10 +13,10 @@ from pathlib import Path
 from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
-from .ops.sketch import sketch_profiles
+from .ops.sketch import plane_json, resolve_plane, sketch_profiles
 
 
-def features_summary(document, failed_feature: str | None) -> list[dict]:
+def features_summary(document, failed_feature: str | None, ctx=None) -> list[dict]:
     """The timeline as the viewer reads it.
 
     Each entry carries its full feature twice. `feature` is the raw form, with
@@ -42,7 +42,7 @@ def features_summary(document, failed_feature: str | None) -> list[dict]:
             "resolved": feature,
         }
         if feature.get("type") == "sketch":
-            entry["plane"] = feature["plane"]
+            entry["plane"] = _drawable_plane(feature["plane"], ctx)
             # Only a polygon has corners the viewer can drag.
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]
@@ -56,6 +56,18 @@ def features_summary(document, failed_feature: str | None) -> list[dict]:
             entry["failed"] = True
         entries.append(entry)
     return entries
+
+
+def _drawable_plane(plane, ctx):
+    """A name or an explicit plane as stored. An offset or face plane becomes
+    explicit, because only the engine can find a face. None when it does not
+    resolve, such as a sketch after the feature that broke the build."""
+    if isinstance(plane, str) or "origin" in plane:
+        return plane
+    try:
+        return plane_json(resolve_plane(plane, ctx))
+    except Exception:
+        return None
 
 
 def mesh_bytes(shape, appearances=None) -> bytes | None:
@@ -98,7 +110,7 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
     else:
         _write_atomically(mesh_path, data)
     _write_atomically(
-        viewer_dir / "features.json", json.dumps(features_summary(session.document, failed)).encode()
+        viewer_dir / "features.json", json.dumps(features_summary(session.document, failed, session.context())).encode()
     )
     _write_atomically(viewer_dir / "schemas.json", json.dumps(schemas()).encode())
     return mesh_error

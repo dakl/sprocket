@@ -121,6 +121,13 @@ def document_tools() -> list[types.Tool]:
             ["feature"],
         ),
         _tool(
+            "resolve_plane",
+            "Where a sketch plane lands on the current part, as origin, normal and x_dir. Takes any form a "
+            "sketch's `plane` takes, such as {'feature': 'f2', 'face': <selector>, 'offset': 0}.",
+            {"plane": {"description": "a sketch plane reference"}},
+            ["plane"],
+        ),
+        _tool(
             "describe_geometry",
             "Every face and edge of the built part, with a handle and a sentence describing it.",
             {},

@@ -350,3 +350,12 @@ def test_a_daemon_export_to_a_missing_directory_says_why(client, tmp_path):
     target = tmp_path / "nowhere" / "part.step"
     with pytest.raises(RpcError, match="does not exist"):
         client.call("export", step=str(target))
+
+
+def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
+    top = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
+    plane = client.call("resolve_plane", plane={"feature": "e1", "face": top, "offset": 1})["plane"]
+    assert plane["normal"] == [0, 0, 1]
+    assert plane["origin"] == [0, 0, 11]
+    with pytest.raises(RpcError, match="does not resolve"):
+        client.call("resolve_plane", plane={"feature": "nope", "face": top})

@@ -596,11 +596,16 @@ REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
 
 
 def _referenced_ids(feature: dict) -> list[str]:
-    return [
+    referenced = [
         feature[field]
         for field in REFERENCE_FIELDS
         if isinstance(feature.get(field), str)
     ]
+    # A sketch on a face names the feature that holds the face.
+    plane = feature.get("plane")
+    if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
+        referenced.append(plane["feature"])
+    return referenced
 
 
 def _now() -> str:

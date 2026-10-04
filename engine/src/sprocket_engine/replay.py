@@ -101,10 +101,11 @@ def last_solid_index(features: list[dict], rollback_index: int) -> int:
 
 def build_shape(
     features: list[dict], rollback_index: int, cache_dir: Path | None
-) -> tuple[object, str | None]:
+) -> tuple[object, str | None, Context]:
     """Replays as much of the document as still builds.
 
-    Returns (shape, failed_feature_id). A feature that no longer builds is not
+    Returns (shape, failed_feature_id, context). The context holds every
+    feature's result, which a sketch on a face needs to find its plane. A feature that no longer builds is not
     a failed build: editing a sketch can break a later op, and the caller still
     needs the part up to that point. So this falls back to the prefix before
     the broken feature and names it, rather than raising.
@@ -115,11 +116,13 @@ def build_shape(
     """
     export_index = last_solid_index(features, rollback_index)
     try:
-        return replay({"features": features, "rollback_index": export_index}, cache_dir=cache_dir), None
+        shape, ctx = replay({"features": features, "rollback_index": export_index}, cache_dir=cache_dir, return_context=True)
+        return shape, None, ctx
     except Exception as exc:
         failed_index = getattr(exc, "feature_index", None)
         failed_id = getattr(exc, "feature_id", None)
         if failed_index is None:
             raise
         good_index = last_solid_index(features, failed_index)
-        return replay({"features": features, "rollback_index": good_index}, cache_dir=cache_dir), failed_id
+        shape, ctx = replay({"features": features, "rollback_index": good_index}, cache_dir=cache_dir, return_context=True)
+        return shape, failed_id, ctx

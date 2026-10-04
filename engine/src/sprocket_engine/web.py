@@ -54,7 +54,7 @@ class WebApp:
     def features_json(self) -> list[dict]:
         with self.daemon.lock:
             _, failed = self.daemon.session.shape()
-            return features_summary(self.document, failed)
+            return features_summary(self.document, failed, self.daemon.session.context())
 
     def mesh_bytes(self) -> bytes | None:
         """The mesh for the current revision, or None for an empty document."""

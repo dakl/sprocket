@@ -68,6 +68,7 @@ class Session:
         self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(document)
         self._shape = None
         self._failed_feature = None
+        self._context = None
         self._built_revision = None
         # Counts the documents this session has held. A revision number is
         # only unique within one document.
@@ -97,11 +98,16 @@ class Session:
         document, which is a valid state and not an error."""
         if self._built_revision != self.document.revision:
             replayable = self.document.for_replay()
-            self._shape, self._failed_feature = build_shape(
+            self._shape, self._failed_feature, self._context = build_shape(
                 replayable["features"], replayable["rollback_index"], self.cache_dir
             )
             self._built_revision = self.document.revision
         return self._shape, self._failed_feature
+
+    def context(self):
+        """The replay context of the current build: every feature's result."""
+        self.shape()
+        return self._context
 
     def require_shape(self):
         """The built shape, or a readable reason there isn't one.
@@ -637,6 +643,21 @@ def _get_profiles(daemon: Daemon, params: dict) -> dict:
     return {"feature": feature_id, "profiles": sketch_profiles(feature)}
 
 
+def _resolve_plane(daemon: Daemon, params: dict) -> dict:
+    """Where a sketch plane reference lands on the current build, as an explicit
+    origin, normal and x_dir. An agent checks a face plane with this before it
+    draws on it."""
+    from .ops.sketch import plane_json, resolve_plane
+
+    plane = params.get("plane")
+    if plane is None:
+        raise DocumentError("resolve_plane needs 'plane'")
+    try:
+        return {"plane": plane_json(resolve_plane(plane, daemon.session.context()))}
+    except (KeyError, ValueError, SelectorError) as exc:
+        raise DocumentError(f"plane does not resolve: {exc}") from None
+
+
 def _describe_geometry(daemon: Daemon, params: dict) -> dict:
     return {**describe(daemon.session.require_shape()), "selection": _selection_view(daemon)}
 
@@ -823,6 +844,7 @@ METHODS = {
     "preview_feature": _preview_feature,
     "get_profiles": _get_profiles,
     "describe_geometry": _describe_geometry,
+    "resolve_plane": _resolve_plane,
     "set_selection": _set_selection,
     "get_selection": _get_selection,
     "resolve_selection": _resolve_selection,
