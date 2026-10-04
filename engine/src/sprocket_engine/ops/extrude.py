@@ -3,7 +3,7 @@ from build123d import extrude as b3d_extrude
 
 from ..regions import ProfileError, find_regions, pick_region
 from .registry import register
-from .sketch import resolve_plane
+from .sketch import resolve_plane, sketch_entities
 
 SCHEMA = {
     "type": "object",
@@ -77,7 +77,7 @@ def _profile_faces(feature: dict, ctx):
             picked.extend(ctx.results[reference["sketch"]].faces())
             continue
         if reference["sketch"] not in regions_of:
-            regions_of[reference["sketch"]] = find_regions(sketch["entities"])
+            regions_of[reference["sketch"]] = find_regions(sketch_entities(sketch))
         region = pick_region(regions_of[reference["sketch"]], reference)
         picked.append(resolve_plane(sketch["plane"], ctx) * region.face)
     return Sketch(Compound(picked))

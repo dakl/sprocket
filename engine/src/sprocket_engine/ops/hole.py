@@ -3,7 +3,7 @@ import math
 from build123d import Align, Cone, Cylinder, Part, Plane, Vector
 
 from .registry import register
-from .sketch import resolve_plane
+from .sketch import resolve_plane, sketch_entities
 
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 DOWN = (Align.CENTER, Align.CENTER, Align.MAX)
@@ -58,7 +58,7 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
         wanted = feature.get("entities")
         uvs = [
             entity["c"]
-            for entity in sketch["entities"]
+            for entity in sketch_entities(sketch)
             if entity["kind"] == "circle"
             and (entity["id"] in wanted if wanted is not None else not entity.get("construction"))
         ]

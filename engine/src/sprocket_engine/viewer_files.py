@@ -13,7 +13,7 @@ from pathlib import Path
 from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
-from .ops.sketch import plane_json, resolve_plane, sketch_profiles
+from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
 
 
 def features_summary(document, failed_feature: str | None, ctx=None) -> list[dict]:
@@ -43,6 +43,12 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
         }
         if feature.get("type") == "sketch":
             entry["plane"] = _drawable_plane(feature["plane"], ctx)
+            if feature.get("patterns"):
+                # Pattern copies to draw. The sketcher edits only the originals.
+                try:
+                    entry["entities"] = sketch_entities(feature)
+                except Exception:
+                    pass
             # Only a polygon has corners the viewer can drag.
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]

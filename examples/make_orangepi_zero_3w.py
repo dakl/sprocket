@@ -81,29 +81,16 @@ def add(fid, side, z, cx, cy, width, depth, height):
 
 
 def add_posts(fid, z, length, size):
-    size = size.lstrip("=")
-    """One square post per header position, 2 x 20 at 2.54 pitch. The header is
-    surface mount, so nothing passes through the board."""
+    """One square post per header position, 2 x 20 at 2.54 pitch: one post,
+    then a pattern. The header is surface mount, so nothing passes through the board."""
     global previous
-    entities, profiles = [], []
-    for column in range(20):
-        for row, offset in enumerate(("-1.27", "+1.27")):
-            cx = f"pcb_l/2+({column}-9.5)*2.54"
-            cy = f"header_w/2{offset}"
-            corners = [("-", "-"), ("+", "-"), ("+", "+"), ("-", "+")]
-            ids = []
-            for k in range(4):
-                (sx0, sy0), (sx1, sy1) = corners[k], corners[(k + 1) % 4]
-                ids.append(f"p{column}_{row}_{k}")
-                entities.append({
-                    "id": ids[-1], "kind": "line",
-                    "p0": [f"={cx}{sx0}{size}/2", f"={cy}{sy0}{size}/2"],
-                    "p1": [f"={cx}{sx1}{size}/2", f"={cy}{sy1}{size}/2"],
-                })
-            profiles.append({"sketch": f"{fid}s", "bounded_by": ids})
     features.extend([
-        {"id": f"{fid}s", "type": "sketch", "plane": plane(z, "up"), "entities": entities},
-        {"id": fid, "type": "extrude", "base": previous, "distance": length, "profiles": profiles},
+        {"id": f"{fid}0s", "type": "sketch", "plane": plane(z, "up"),
+         "rect": {"width": size, "height": size, "center": ["=pcb_l/2-9.5*2.54", "=header_w/2-1.27"]}},
+        {"id": f"{fid}0", "type": "extrude", "profile": f"{fid}0s", "distance": length},
+        {"id": fid, "type": "pattern", "tool": f"{fid}0", "base": previous,
+         "linear": {"direction": [1, 0, 0], "count": 20, "spacing": 2.54},
+         "linear2": {"direction": [0, 1, 0], "count": 2, "spacing": 2.54}},
     ])
     previous = fid
 
@@ -154,7 +141,7 @@ add("sdcard", "down", 0, 5.5, 18.5, 12, 15, "=under_h")
 add("mipi", "down", 0, 27, 29.5, 17, 3, "=under_h")
 add("cam1", "down", 0, 18, 2.5, 15.5, 4, "=under_h")
 add("cam2", "down", 0, 34.5, 2.5, 15.5, 4, "=under_h")
-add("fan", "down", 0, 7, 2.5, 6, 4, "=under_h")
+add("fanc", "down", 0, 7, 2.5, 6, 4, "=under_h")  # fan connector
 add("pcie", "down", 0, 59.5, 21, 3, 11, "=under_h")
 
 SILVER = "#b8bcc2"

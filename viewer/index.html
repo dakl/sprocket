@@ -2566,7 +2566,7 @@
           const angle = start + ((end - start) * step) / steps;
           return worldOfPlane(plane, [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)]);
         });
-      for (const entity of (feature.resolved || feature.feature).entities) {
+      for (const entity of feature.entities || (feature.resolved || feature.feature).entities) {
         const run =
           entity.kind === "line"
             ? [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)]

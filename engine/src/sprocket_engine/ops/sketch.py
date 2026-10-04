@@ -110,6 +110,37 @@ CONSTRAINT_SCHEMA = {
     },
 }
 
+SKETCH_LINEAR = {
+    "type": "object",
+    "required": ["count", "step"],
+    "properties": {
+        "count": {"type": "integer", "minimum": 1, "description": "copies, the original included"},
+        "step": {**POINT2, "description": "[du, dv] between neighbouring copies"},
+    },
+}
+
+# Copies of entities, made before regions are found. A copy of `e1` is `e1#1`,
+# `e1#2` and so on, which is the id a profile's bounded_by names.
+SKETCH_PATTERN_SCHEMA = {
+    "type": "object",
+    "required": ["entities"],
+    "oneOf": [{"required": ["linear"]}, {"required": ["circular"]}],
+    "properties": {
+        "entities": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "ids of the entities to copy"},
+        "linear": SKETCH_LINEAR,
+        "linear2": {**SKETCH_LINEAR, "description": "a second direction, which makes a grid"},
+        "circular": {
+            "type": "object",
+            "required": ["center", "count"],
+            "properties": {
+                "center": POINT2,
+                "count": {"type": "integer", "minimum": 1, "description": "copies, the original included"},
+                "angle": {"type": "number", "description": "degrees spanned, default 360 (copies spread evenly)"},
+            },
+        },
+    },
+}
+
 SCHEMA = {
     "type": "object",
     "description": (
@@ -146,6 +177,7 @@ SCHEMA = {
         "polygon": {"type": "array", "items": POINT2, "minItems": 3},
         "entities": {"type": "array", "items": ENTITY_SCHEMA},
         "constraints": {"type": "array", "items": CONSTRAINT_SCHEMA},
+        "patterns": {"type": "array", "items": SKETCH_PATTERN_SCHEMA},
         # A dimensioned circle. Radius rather than diameter, because every
         # other length in a document is the distance the op actually uses,
         # and a UI that wants diameter can halve it once.
@@ -228,6 +260,49 @@ def _counter_clockwise(points):
     return points if signed_area >= 0 else points[::-1]
 
 
+def _moved(entity: dict, index: int, du: float, dv: float, turn: float, centre) -> dict:
+    """A copy of `entity` turned by `turn` radians about `centre`, then shifted by (du, dv)."""
+    cos, sin = math.cos(turn), math.sin(turn)
+
+    def point(uv):
+        u, v = uv[0] - centre[0], uv[1] - centre[1]
+        return [centre[0] + u * cos - v * sin + du, centre[1] + u * sin + v * cos + dv]
+
+    copy = {**entity, "id": f"{entity['id']}#{index}"}
+    for name in ("p0", "p1", "c"):
+        if name in entity:
+            copy[name] = point(entity[name])
+    for name in ("a0", "a1"):
+        if name in entity:
+            copy[name] = entity[name] + turn
+    return copy
+
+
+def sketch_entities(feature: dict) -> list[dict]:
+    """The sketch's entities with every pattern copy added after them."""
+    entities = list(feature.get("entities", []))
+    by_id = {entity["id"]: entity for entity in entities}
+    for pattern in feature.get("patterns", []):
+        missing = [entity_id for entity_id in pattern["entities"] if entity_id not in by_id]
+        if missing:
+            raise ValueError(f"sketch pattern names {', '.join(missing)}, which are not entities of this sketch")
+        if "linear" in pattern:
+            first, second = pattern["linear"], pattern.get("linear2", {"count": 1, "step": [0, 0]})
+            moves = [
+                (i * first["step"][0] + j * second["step"][0], i * first["step"][1] + j * second["step"][1], 0.0, (0, 0))
+                for i in range(first["count"])
+                for j in range(second["count"])
+            ]
+        else:
+            circular = pattern["circular"]
+            angle, count = circular.get("angle", 360), circular["count"]
+            step = angle / count if angle % 360 == 0 else angle / max(count - 1, 1)
+            moves = [(0.0, 0.0, math.radians(step * k), circular["center"]) for k in range(count)]
+        for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
+            entities.extend(_moved(by_id[entity_id], index, du, dv, turn, centre) for entity_id in pattern["entities"])
+    return entities
+
+
 _POINTS = {"line": {"p0", "p1"}, "arc": {"p0", "p1", "c"}, "circle": {"c"}}
 _ENTITY_FIELDS = {"line": ("p0", "p1"), "arc": ("c", "r", "a0", "a1"), "circle": ("c", "r")}
 
@@ -297,7 +372,7 @@ def sketch_profiles(feature: dict) -> list[dict]:
                 "holes": [_round(hole) for hole in region.holes],
                 "area": round(region.area, 6),
             }
-            for region in find_regions(feature["entities"])
+            for region in find_regions(sketch_entities(feature))
         ]
     if "polygon" in feature:
         outline = _counter_clockwise([tuple(point) for point in feature["polygon"]])
@@ -331,7 +406,7 @@ def apply(feature: dict, ctx):
     plane = resolve_plane(feature["plane"], ctx)
     if "entities" in feature:
         check_entities(feature)
-        regions = find_regions(feature["entities"])
+        regions = find_regions(sketch_entities(feature))
         # Every closed region, side by side: an extrude of the whole sketch
         # then gives the union of what was drawn, and a profile pick gives one.
         return Sketch(plane * Compound([region.face for region in regions])) if regions else _empty_sketch()
