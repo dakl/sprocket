@@ -592,7 +592,7 @@ class Document:
 # tuple with two entries and grep found a third, `tool` on boolean, so the
 # coverage check in test_document.py reads the schemas rather than trusting
 # this line. Add a field here when an op grows a new reference.
-REFERENCE_FIELDS = ("base", "profile", "tool")
+REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
 
 
 def _referenced_ids(feature: dict) -> list[str]:
