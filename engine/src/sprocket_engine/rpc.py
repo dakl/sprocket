@@ -762,21 +762,25 @@ def _render_view(daemon: Daemon, params: dict) -> dict:
 
 def _export(daemon: Daemon, params: dict) -> dict:
     """STEP, STL and the viewer's mesh, whichever paths are given."""
-    from build123d import export_step, export_stl
-
+    from .export import ExportError, write_step, write_stl
     from .mesh import export_mesh
 
     shape = daemon.session.require_shape()
     written = {}
-    if params.get("step"):
-        export_step(shape, Path(params["step"]))
-        written["step"] = params["step"]
-    if params.get("stl"):
-        export_stl(shape, Path(params["stl"]))
-        written["stl"] = params["stl"]
-    if params.get("mesh"):
-        written["mesh"] = params["mesh"]
-        written["mesh_counts"] = export_mesh(shape, Path(params["mesh"]), daemon.session.document.appearances)["counts"]
+    try:
+        if params.get("step"):
+            write_step(shape, params["step"])
+            written["step"] = params["step"]
+        if params.get("stl"):
+            write_stl(shape, params["stl"])
+            written["stl"] = params["stl"]
+        if params.get("mesh"):
+            written["mesh"] = params["mesh"]
+            written["mesh_counts"] = export_mesh(shape, Path(params["mesh"]), daemon.session.document.appearances)["counts"]
+    except ExportError as exc:
+        raise DocumentError(str(exc)) from None
+    except OSError as exc:
+        raise DocumentError(f"cannot write {exc.filename}: {exc.strerror}") from None
     if not written:
         raise DocumentError("export needs at least one of 'step', 'stl' or 'mesh'")
     return written

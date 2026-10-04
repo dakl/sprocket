@@ -46,12 +46,16 @@ final class DocumentStore: ObservableObject {
 
     // MARK: - Starting up
 
-    /// The file the engine starts on: SPROCKET_DOCUMENT if set, which lets a
-    /// throwaway part be edited without risking the one in examples/, else the
-    /// document last open, else a new one.
+    /// The file the engine starts on: a `.sprocket` path on the command line
+    /// (`swift run SprocketApp part.sprocket`), else SPROCKET_DOCUMENT, which
+    /// lets a throwaway part be edited without risking the one in examples/,
+    /// else the document last open, else a new one. Only a `.sprocket` argument
+    /// counts, because macOS adds flags such as `-NSDocumentRevisionsDebugMode`.
     func startupDocument() -> URL {
         let chosen: URL
-        if let path = ProcessInfo.processInfo.environment["SPROCKET_DOCUMENT"] {
+        if let path = CommandLine.arguments.dropFirst().first(where: { $0.hasSuffix(".sprocket") }) {
+            chosen = URL(fileURLWithPath: path)
+        } else if let path = ProcessInfo.processInfo.environment["SPROCKET_DOCUMENT"] {
             chosen = URL(fileURLWithPath: path)
         } else if let last = UserDefaults.standard.string(forKey: Self.lastDocumentKey),
                   FileManager.default.fileExists(atPath: last) {

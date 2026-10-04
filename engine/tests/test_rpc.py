@@ -344,3 +344,9 @@ def test_an_agent_cannot_swap_the_users_document():
 
     names = {tool.name for tool in document_tools() + op_tools()}
     assert not names & {"open_document", "new_document", "save_as"}
+
+
+def test_a_daemon_export_to_a_missing_directory_says_why(client, tmp_path):
+    target = tmp_path / "nowhere" / "part.step"
+    with pytest.raises(RpcError, match="does not exist"):
+        client.call("export", step=str(target))

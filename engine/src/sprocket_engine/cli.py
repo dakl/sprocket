@@ -15,9 +15,8 @@ import json
 import sys
 from pathlib import Path
 
-from build123d import export_step, export_stl
-
 from .document import Document, DocumentError
+from .export import ExportError, write_step, write_stl
 from .mesh import export_mesh
 from .replay import build_shape
 
@@ -146,14 +145,19 @@ def _build_document(
     messages = []
     if failed_id:
         messages.append(f"feature {failed_id!r} no longer builds, showing the part before it")
-    if step:
-        export_step(result, Path(step))
-        messages.append(f"wrote {step}")
-    if stl:
-        export_stl(result, Path(stl))
-        messages.append(f"wrote {stl}")
-    if mesh:
-        header = export_mesh(result, Path(mesh), document.appearances)
+    try:
+        if step:
+            write_step(result, step)
+            messages.append(f"wrote {step}")
+        if stl:
+            write_stl(result, stl)
+            messages.append(f"wrote {stl}")
+        header = export_mesh(result, Path(mesh), document.appearances) if mesh else None
+    except ExportError as exc:
+        return False, f"error: {exc}", failed_id
+    except OSError as exc:
+        return False, f"error: cannot write {exc.filename}: {exc.strerror}", failed_id
+    if header:
         counts = header["counts"]
         messages.append(
             f"wrote {mesh} ({counts['faces']} faces, {counts['triangles']} triangles, {counts['edges']} edges)"
