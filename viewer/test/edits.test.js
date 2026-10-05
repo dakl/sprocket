@@ -59,8 +59,10 @@ test("update_sketch refuses a feature that is not a sketch", () => {
 });
 
 test("set_body passes only the fields given", () => {
-  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", visible: false }), [{ op: "set_body", id: "f2", visible: false }]);
-  assert.throws(() => editsFor(box, { type: "set_body", id: "f2" }), /needs name, color or visible/);
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000" }), [{ op: "set_body", id: "f2", color: "#ff0000" }]);
+  // Visibility is view state, so it never becomes an edit.
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000", visible: false }), [{ op: "set_body", id: "f2", color: "#ff0000" }]);
+  assert.throws(() => editsFor(box, { type: "set_body", id: "f2" }), /needs name or color/);
 });
 
 test("set_rollback clamps to the feature count", () => {

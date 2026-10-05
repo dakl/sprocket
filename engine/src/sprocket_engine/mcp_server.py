@@ -223,12 +223,13 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "set_body",
-            "Names, colours or hides one body. Hidden bodies still export. A null field goes back to its default.",
+            "Names, colours, hides or shows one body. A hidden body still exports. Hiding is view state: it can be "
+            "undone, but it adds no log entry and no timeline row. A null name or colour goes back to its default.",
             {
                 "id": {"type": "string", "description": "the body id from get_bodies"},
                 "name": {"type": ["string", "null"]},
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
-                "visible": {"type": ["boolean", "null"]},
+                "visible": {"type": "boolean", "description": "false hides the body in the viewer; it still exports"},
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },
             ["id"],

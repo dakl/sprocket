@@ -481,15 +481,34 @@ class Document:
             }
         )
 
-    def restore(self, snapshot: dict, author: str) -> int:
-        """Puts back a state taken with `snapshot()` and returns the new revision."""
+    def restore(self, snapshot: dict, author: str, log: bool = True) -> int:
+        """Puts back a state taken with `snapshot()` and returns the new revision.
+        Undoing a view change (`log=False`) leaves no entry in the log."""
         self.features = copy.deepcopy(snapshot["features"])
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
         self.appearances = copy.deepcopy(snapshot.get("appearances", []))
         self.bodies = copy.deepcopy(snapshot.get("bodies", {}))
         self.revision += 1
-        self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
+        if log:
+            self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
+        return self.revision
+
+    def set_visibility(self, body_id: str, visible: bool) -> int:
+        """Shows or hides one body: view state, saved with the document but not
+        an edit, so it adds nothing to the log. The daemon still puts it on the
+        undo stack. A hidden body still exports."""
+        self.index_of(body_id)
+        if not isinstance(visible, bool):
+            raise DocumentError("'visible' must be true or false")
+        settings = {key: value for key, value in self.bodies.get(body_id, {}).items() if key != "visible"}
+        if not visible:
+            settings["visible"] = False
+        if settings:
+            self.bodies[body_id] = settings
+        else:
+            self.bodies.pop(body_id, None)
+        self.revision += 1
         return self.revision
 
     def _apply_one(self, edit: dict, author: str) -> dict:
@@ -635,13 +654,16 @@ class Document:
         return {"feature_id": feature_id, "index": index, **detail}
 
     def _set_body(self, edit: dict) -> dict:
-        """Changes one body's name, colour or visibility. A field set to None
-        goes back to its default. The body id is the id of the feature that
-        started the body, which need not be built yet."""
+        """Changes one body's name or colour. A field set to None goes back to
+        its default. The body id is the id of the feature that started the
+        body, which need not be built yet. Visibility is not an edit: see
+        `set_visibility`."""
         body_id = edit.get("id")
         self.index_of(body_id)
+        if "visible" in edit:
+            raise DocumentError("visibility is view state, not an edit: use set_visibility")
         settings = dict(self.bodies.get(body_id, {}))
-        for name in ("name", "color", "visible"):
+        for name in ("name", "color"):
             if name not in edit:
                 continue
             if edit[name] is None:
@@ -653,7 +675,7 @@ class Document:
             self.bodies[body_id] = settings
         else:
             self.bodies.pop(body_id, None)
-        return {"body": body_id, **{name: edit[name] for name in ("name", "color", "visible") if name in edit}}
+        return {"body": body_id, **{name: edit[name] for name in ("name", "color") if name in edit}}
 
     def _set_appearances(self, edit: dict) -> dict:
         """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],

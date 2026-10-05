@@ -548,10 +548,34 @@ def _set_parameter(daemon: Daemon, params: dict) -> dict:
     )
 
 
+def _set_visibility(daemon: Daemon, params: dict) -> dict:
+    """Shows or hides a body. Undoable, but not an edit: no log entry, no
+    timeline row. Hidden bodies still export."""
+    document = daemon.session.document
+    before = document.snapshot()
+    before["view_only"] = True
+    if params.get("base_revision") is not None and params["base_revision"] != document.revision:
+        raise StaleRevision(params["base_revision"], document.revision)
+    revision = document.set_visibility(params.get("id"), params.get("visible"))
+    daemon.undo_stack.append(before)
+    del daemon.undo_stack[:-UNDO_LIMIT]
+    daemon.redo_stack.clear()
+    return _commit(daemon, revision)
+
+
 def _set_body(daemon: Daemon, params: dict) -> dict:
-    edit = {"op": "set_body", "id": params.get("id")}
-    edit.update({name: params[name] for name in ("name", "color", "visible") if name in params})
-    return _edit(daemon, [edit], params)
+    """Name and colour are a logged edit. `visible`, when given, goes through
+    `set_visibility` first, so it stays view state."""
+    result = None
+    if "visible" in params:
+        result = _set_visibility(daemon, {"id": params.get("id"), "visible": params["visible"], "base_revision": params.get("base_revision")})
+    changes = {name: params[name] for name in ("name", "color") if name in params}
+    if changes:
+        based = {} if result is None else {"base_revision": None}
+        result = _edit(daemon, [{"op": "set_body", "id": params.get("id"), **changes}], {**params, **based})
+    if result is None:
+        raise DocumentError("set_body needs name, color or visible")
+    return result
 
 
 def _set_appearances(daemon: Daemon, params: dict) -> dict:
@@ -637,8 +661,14 @@ def _step_history(daemon: Daemon, take_from: list, put_on: list, params: dict) -
     document = daemon.session.document
     if not take_from:
         return {"revision": document.revision, "changed": False}
-    put_on.append(document.snapshot())
-    revision = document.restore(take_from.pop(), params.get("author", "agent:unknown"))
+    snapshot = take_from.pop()
+    # A view change (set_visibility) undoes and redoes without a log entry.
+    view_only = snapshot.get("view_only", False)
+    current = document.snapshot()
+    if view_only:
+        current["view_only"] = True
+    put_on.append(current)
+    revision = document.restore(snapshot, params.get("author", "agent:unknown"), log=not view_only)
     return {**_commit(daemon, revision), "changed": True}
 
 
@@ -923,6 +953,7 @@ METHODS = {
     "get_bodies": _get_bodies,
     "check_clearance": _check_clearance,
     "set_body": _set_body,
+    "set_visibility": _set_visibility,
     "set_appearances": _set_appearances,
     "set_selection": _set_selection,
     "get_selection": _get_selection,

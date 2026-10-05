@@ -122,9 +122,28 @@ def test_set_body_validates_and_undo_restores(tmp_path):
     document.restore(before, "test")
     assert document.bodies == {}
     path = tmp_path / "d.sprocket"
-    document.apply_edits([{"op": "set_body", "id": "case", "visible": False}], None, "test")
+    document.set_visibility("case", False)
     document.save(path)
     assert Document.load(path).bodies == {"case": {"visible": False}}
+    with pytest.raises(DocumentError, match="use set_visibility"):
+        document.apply_edits([{"op": "set_body", "id": "case", "visible": True}], None, "test")
+
+
+def test_hiding_a_body_is_undoable_view_state_with_no_log_entry(tmp_path):
+    with running({"features": CASE}, tmp_path) as daemon, Client(daemon.socket_path) as client:
+        log_length = len(daemon.session.document.log)
+        timeline = client.call("get_timeline")
+        client.call("set_visibility", id="lid", visible=False)
+        assert client.call("get_bodies")["bodies"][1]["visible"] is False
+        client.call("undo")
+        assert client.call("get_bodies")["bodies"][1]["visible"] is True
+        client.call("redo")
+        assert client.call("get_bodies")["bodies"][1]["visible"] is False
+        # set_body with visible goes the same way.
+        client.call("set_body", id="lid", visible=True)
+        assert client.call("get_bodies")["bodies"][1]["visible"] is True
+        assert len(daemon.session.document.log) == log_length
+        assert client.call("get_timeline")["timeline"] == timeline["timeline"]
 
 
 def test_cli_build_reports_bodies_and_writes_3mf(tmp_path):

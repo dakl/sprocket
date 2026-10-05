@@ -1317,6 +1317,9 @@
       let call;
       if (message.type === "undo" || message.type === "redo") {
         call = () => rpcCall(message.type, {});
+      } else if (message.type === "set_visibility") {
+        // View state, not an edit: undoable, but no log entry or timeline row.
+        call = () => rpcCall("set_visibility", { id: message.id, visible: message.visible });
       } else {
         let edits;
         try {
@@ -1893,8 +1896,8 @@
           renderBrowser();
         },
       });
-      // One row per body, from the mesh header. The eye is the body's
-      // `visible` setting in the document, so it is saved and undoable.
+      // One row per body, from the mesh header. The eye is the body's saved
+      // `visible` view state: undoable, but not an edit. Hidden bodies still export.
       if (mesh && !collapsedGroups.has("bodies")) {
         const bodies = mesh.geometry.userData.bodies;
         if (!bodies.length) {
@@ -1906,7 +1909,7 @@
             label: body.name + (body.reference ? " (reference)" : ""),
             visible: body.visible !== false,
             dim: body.reference,
-            onToggle: () => sendCommand({ type: "set_body", id: body.id, visible: body.visible === false }),
+            onToggle: () => sendCommand({ type: "set_visibility", id: body.id, visible: body.visible === false }),
             color: body.color,
             onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
           });
