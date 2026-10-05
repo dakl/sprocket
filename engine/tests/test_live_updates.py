@@ -152,3 +152,70 @@ def test_the_watcher_reloads_a_rewritten_file_within_a_second(tmp_path):
         client.call("set_rollback", index=1)
         time.sleep(0.3)
         assert client.call("get_document")["rollback_index"] == 1
+
+
+# --- a referenced file changing on disk -------------------------------------------
+
+BOARD = {"features": [
+    {"id": "s", "type": "sketch", "plane": "XY", "rect": {"width": 10, "height": 10}},
+    {"id": "b", "type": "extrude", "profile": "s", "distance": 2},
+]}
+
+
+def taller_board(height):
+    return {"features": [BOARD["features"][0], {**BOARD["features"][1], "distance": height}]}
+
+
+def case_document(board_path):
+    tray_s = {"id": "ts", "type": "sketch", "plane": {"name": "XY", "offset": -3}, "rect": {"width": 20, "height": 20}}
+    tray = {"id": "tray", "type": "extrude", "profile": "ts", "distance": 4}
+    return {"features": [{"id": "board", "type": "reference", "file": str(board_path)}, tray_s, tray]}
+
+
+def board_height(client):
+    bodies = client.call("get_bodies")["bodies"]
+    return next(body for body in bodies if body["reference"])["volume"] / 100
+
+
+def test_a_referenced_file_rewritten_on_disk_rebuilds_the_document_that_uses_it(tmp_path):
+    board = tmp_path / "board.sprocket"
+    board.write_text(json.dumps(BOARD))
+    seen = []
+    with running(case_document(board), tmp_path) as daemon, Client(daemon.socket_path, on_notification=lambda method, params: seen.append((method, params))) as client:
+        daemon.start_watching(interval=0.05)
+        assert board_height(client) == pytest.approx(2)
+        revision = client.call("get_document")["revision"]
+        saved = daemon.session.document.path.read_bytes()
+        write_atomically(board, taller_board(5))
+        deadline = time.monotonic() + 2
+        while board_height(client) != pytest.approx(5) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert board_height(client) == pytest.approx(5)
+        # The case's own file and revision are untouched: nothing in it changed.
+        assert client.call("get_document")["revision"] == revision
+        assert daemon.session.document.path.read_bytes() == saved
+        change = [params for method, params in seen if method == "document_changed"][-1]
+        assert change["refresh"] is True
+        assert change["changes"] == [{"action": "reference_changed", "feature_id": "board", "file": "board.sprocket"}]
+        assert daemon.check_references() is None  # already up to date
+
+
+def test_a_change_two_references_deep_reaches_the_top_document(tmp_path):
+    board = tmp_path / "board.sprocket"
+    board.write_text(json.dumps(BOARD))
+    middle = tmp_path / "middle.sprocket"
+    # A reference body is never part of what a document builds, so the middle
+    # one joins the board to a 1 mm cube of its own to pass it on.
+    middle.write_text(json.dumps({"features": [
+        {"id": "inner", "type": "reference", "file": "board.sprocket"},
+        {"id": "cs", "type": "sketch", "plane": "XY", "rect": {"width": 1, "height": 1, "center": [30, 0]}},
+        {"id": "cube", "type": "extrude", "profile": "cs", "distance": 1},
+        {"id": "joined", "type": "boolean", "operation": "union", "base": "cube", "tool": "inner"},
+    ]}))
+    with running(case_document(middle), tmp_path) as daemon, Client(daemon.socket_path) as client:
+        daemon.start_watching(interval=0.05)
+        assert board in daemon.watched_files()
+        assert board_height(client) == pytest.approx(2.01)
+        write_atomically(board, taller_board(7))
+        assert daemon.check_references() == "rebuilt"
+        assert board_height(client) == pytest.approx(7.01)

@@ -61,7 +61,7 @@ class WebApp:
         with self.daemon.lock:
             # Two documents can sit at the same revision, so the revision alone
             # would serve one document's mesh for the other.
-            key = (self.daemon.session.generation, self.document.revision)
+            key = (self.daemon.session.generation, self.document.revision, self.daemon.session.reference_rebuilds)
             if self._mesh is None or self._mesh[0] != key:
                 shape, _ = self.daemon.session.shape()
                 self._mesh = (key, mesh_bytes(shape, self.document.appearances, self.daemon.session.bodies()))

@@ -409,13 +409,34 @@ class Document:
         BREP cache key changes when the referenced file does."""
         parameters = self.resolved_parameters()
         features = [resolve_value(feature, parameters) for feature in self.features]
-        folder = self.path.parent if self.path else Path.cwd()
+        sources = dict(self.reference_sources())
         for index, feature in enumerate(features):
-            if feature.get("type") == "reference" and isinstance(feature.get("file"), str):
-                path = (folder / feature["file"]).resolve()
-                digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
-                features[index] = {**feature, "file": str(path), "source_sha256": digest}
+            if feature.get("id") in sources:
+                path = sources[feature["id"]]
+                features[index] = {**feature, "file": str(path), "source_sha256": reference_digest(path)}
         return {"features": features, "rollback_index": self.rollback_index}
+
+    def reference_sources(self) -> list[tuple[str, Path]]:
+        """(feature id, absolute path) for each `reference` feature with a file."""
+        folder = self.path.parent if self.path else Path.cwd()
+        return [
+            (feature.get("id"), (folder / feature["file"]).resolve())
+            for feature in self.features
+            if feature.get("type") == "reference" and isinstance(feature.get("file"), str)
+        ]
+
+    def referenced_files(self) -> list[Path]:
+        """Every file this document's build reads besides itself: its references,
+        and theirs, and so on. A cycle is cut where it closes."""
+        found: list[Path] = []
+        pending = [path for _, path in self.reference_sources()]
+        while pending:
+            path = pending.pop()
+            if path in found or path == self.path:
+                continue
+            found.append(path)
+            pending.extend(_nested_references(path))
+        return found
 
     def index_of(self, feature_id: str) -> int:
         for index, feature in enumerate(self.features):
@@ -735,6 +756,36 @@ class Document:
 # coverage check in test_document.py reads the schemas rather than trusting
 # this line. Add a field here when an op grows a new reference.
 REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
+
+
+def _nested_references(path: Path) -> list[Path]:
+    """The files a referenced .sprocket references itself. Read as plain JSON,
+    because a file that does not load is the reference op's error to report."""
+    if path.suffix != ".sprocket" or not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return []
+    features = data.get("features") if isinstance(data, dict) else None
+    return [
+        (path.parent / feature["file"]).resolve()
+        for feature in features or []
+        if isinstance(feature, dict) and feature.get("type") == "reference" and isinstance(feature.get("file"), str)
+    ]
+
+
+def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
+    """SHA-256 of a referenced file and, for a .sprocket, of everything it
+    references in turn. It goes in the BREP cache key, so an edit two
+    references deep rebuilds this document too."""
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256(path.read_bytes())
+    if path not in seen:
+        for nested in _nested_references(path):
+            digest.update((reference_digest(nested, seen | {path}) or "missing").encode())
+    return digest.hexdigest()
 
 
 def _check_appearances(appearances) -> None:

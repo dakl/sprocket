@@ -457,3 +457,31 @@ test("a finish picked for a face and for a body reaches the document, the mesh a
   await rpc(request, "set_appearances", { appearances: [] });
   await rpc(request, "set_body", { id: "f2", material: null });
 });
+
+test("a referenced file rewritten on disk rebuilds the open document live", async ({ page, request }) => {
+  const { path: file } = await rpc(request, "get_document");
+  const boardPath = path.join(path.dirname(file), "board.sprocket");
+  const board = (extra) => ({
+    features: [
+      { id: "s", type: "sketch", plane: { name: "XY", offset: 20 }, rect: { width: 10, height: 10 } },
+      { id: "b", type: "extrude", profile: "s", distance: 2 },
+      ...extra,
+    ],
+  });
+  fs.writeFileSync(boardPath, JSON.stringify(board([])));
+  await resetDocument(request, { features: [...fixture.features, { id: "ref", type: "reference", file: "board.sprocket" }], rollback_index: 3 });
+  await page.evaluate(() => { window.__sameLoad = true; });
+  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 6));
+  const revision = (await rpc(request, "get_document")).revision;
+
+  rewriteOnDisk(boardPath, (document) => {
+    document.features.push(
+      { id: "cs", type: "sketch", plane: { name: "XY", offset: 22 }, circle: { radius: 2 } },
+      { id: "c", type: "extrude", profile: "cs", base: "b", mode: "join", distance: 3 }
+    );
+  });
+  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 8), null, { timeout: 4000 });
+  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Rebuilt: board.sprocket changed");
+  expect((await rpc(request, "get_document")).revision).toBe(revision);
+  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+});

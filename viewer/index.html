@@ -1180,7 +1180,9 @@
       sawRevision(token);
       showMeshError(viewerError);
       if (opened) resetForNewDocument();
-      const fetchToken = opened ? token + "-" + Date.now() : token;
+      // A new document, or the same revision rebuilt because a referenced file
+      // changed: either way the old URL would serve what is already shown.
+      const fetchToken = opened || (info && info.refresh) ? token + "-" + Date.now() : token;
       // A rebuild renumbers faces and edges, so what an agent pointed at is gone.
       showAgentHighlight({});
       // The daemon has already carried the selection over to the new handles
@@ -1621,7 +1623,7 @@
         const params = JSON.parse(event.data).params;
         const { revision, opened, viewer_error } = params;
         sawRevision(revision);
-        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error, params);
+        if (opened || params.refresh || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error, params);
         else showMeshError(viewer_error);
         if (params.conflict) showConflict(params.conflict);
       });
