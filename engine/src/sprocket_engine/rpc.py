@@ -523,7 +523,12 @@ def _edit(daemon: Daemon, edits, params: dict) -> dict:
         daemon.undo_stack.append(before)
         del daemon.undo_stack[:-UNDO_LIMIT]
         daemon.redo_stack.clear()
-    return _commit(daemon, revision)
+    result = _commit(daemon, revision)
+    # Fields whose "=param" expression a new number replaced, for the viewer to say so.
+    unlinked = [item for entry in document.log[-len(edits):] for item in entry.get("unlinked", [])]
+    if unlinked:
+        result["unlinked"] = unlinked
+    return result
 
 
 def _apply_edit(daemon: Daemon, params: dict) -> dict:

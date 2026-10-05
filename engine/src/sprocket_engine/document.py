@@ -182,6 +182,43 @@ def resolve_value(value, parameters: dict[str, float]):
     return value
 
 
+def keep_expressions(old, new, parameters: dict[str, float], unlinked: list, path: str = ""):
+    """`new` with the `"=param"` strings of `old` put back wherever the value did not change.
+
+    The viewer and the engine's sketch solver work in numbers, so a sketch
+    comes back from either with every expression evaluated. Writing that over
+    the stored feature would cut every field loose from its parameter, when the
+    person moved one point. So a number that still equals its old expression's
+    value keeps the expression. A field whose value did change takes the number,
+    and its path goes into `unlinked` so the caller can say the link was replaced.
+    Entities and constraints are matched by id, so a reordered list is fine.
+    """
+    if isinstance(old, str) and old.startswith(EXPRESSION_PREFIX) and isinstance(new, (int, float)) and not isinstance(new, bool):
+        try:
+            value = evaluate(old[len(EXPRESSION_PREFIX):], parameters)
+        except DocumentError:
+            return new
+        if abs(value - new) <= 1e-6 * max(1.0, abs(value)):
+            return old
+        unlinked.append({"field": path, "was": old, "now": new})
+        return new
+    if isinstance(old, dict) and isinstance(new, dict):
+        return {
+            key: keep_expressions(old[key], value, parameters, unlinked, f"{path}.{key}" if path else key) if key in old else value
+            for key, value in new.items()
+        }
+    if isinstance(old, list) and isinstance(new, list):
+        if all(isinstance(item, dict) and "id" in item for item in old + new):
+            by_id = {item["id"]: item for item in old}
+            return [
+                keep_expressions(by_id[item["id"]], item, parameters, unlinked, f"{path}[{item['id']}]") if item["id"] in by_id else item
+                for item in new
+            ]
+        if len(old) == len(new):
+            return [keep_expressions(a, b, parameters, unlinked, f"{path}[{i}]") for i, (a, b) in enumerate(zip(old, new))]
+    return new
+
+
 def validate_feature(feature, parameters: dict[str, float]) -> dict:
     """Checks one feature against its op's JSON Schema and returns it resolved.
 
@@ -501,15 +538,20 @@ class Document:
 
     def _update(self, edit: dict) -> dict:
         feature = edit.get("feature")
-        validate_feature(feature, self.resolved_parameters())
+        parameters = self.resolved_parameters()
+        validate_feature(feature, parameters)
         assign_constraint_ids(feature)
         feature_id = edit.get("id", feature.get("id"))
         index = self.index_of(feature_id)
         if feature["id"] != feature_id:
             raise DocumentError("an update cannot change a feature's id")
         self._check_references(feature, available=self.features[:index])
-        self.features[index] = feature
-        return {"feature_id": feature_id, "index": index}
+        unlinked = []
+        self.features[index] = keep_expressions(self.features[index], feature, parameters, unlinked)
+        detail = {"feature_id": feature_id, "index": index}
+        if unlinked:
+            detail["unlinked"] = unlinked
+        return detail
 
     def _delete(self, edit: dict) -> dict:
         feature_id = edit.get("id")
@@ -586,7 +628,10 @@ class Document:
         except ValueError as exc:
             raise DocumentError(str(exc)) from None
         validate_feature(feature, parameters)
-        self.features[index] = feature
+        unlinked = []
+        self.features[index] = keep_expressions(self.features[index], feature, parameters, unlinked)
+        if unlinked:
+            detail["unlinked"] = unlinked
         return {"feature_id": feature_id, "index": index, **detail}
 
     def _set_body(self, edit: dict) -> dict:

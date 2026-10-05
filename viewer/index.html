@@ -1334,6 +1334,12 @@
             sawRevision(result.revision);
             if (result.changed !== false && result.revision !== loadedRevision) window.reloadPart(result.revision);
             else hideStatus();
+            // The engine keeps every "=param" field the edit left alone. A field
+            // the edit changed now holds a number, so say which links went.
+            if (result.unlinked && result.unlinked.length) {
+              const fields = result.unlinked.map((item) => item.field + " (" + item.was + ")").join(", ");
+              showNotice("Replaced parameter link: " + fields);
+            }
           })
           .catch((error) => {
             hideStatus();
@@ -1983,7 +1989,17 @@
     function showStatus(text) { statusEl.textContent = text; statusEl.style.display = "block"; }
     // The rebuild this was showing has landed: features.json is what arrives
     // last, so loadFeatures clears it.
-    function hideStatus() { statusEl.style.display = "none"; }
+    let noticeUntil = 0;
+    function hideStatus() {
+      if (Date.now() < noticeUntil) return;
+      statusEl.style.display = "none";
+    }
+    /// A status line that outlives the rebuild it came with, for six seconds.
+    function showNotice(text) {
+      showStatus(text);
+      noticeUntil = Date.now() + 6000;
+      setTimeout(hideStatus, 6100);
+    }
 
     let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
     let selectedEdge = null; // { edgeIndex }: a B-rep edge, in shape.edges() order
@@ -2878,8 +2894,8 @@
     let editedSketchId = null;
     function editSketch(entry) {
       if (sketchStage || extrudeArmed) return;
-      // The sketcher works in numbers, so finishing a redraw of a parametric
-      // sketch stores the values in place of its "=param" expressions.
+      // The sketcher works in numbers. The engine puts each "=param"
+      // expression back wherever the value did not change (keep_expressions).
       const feature = entry.resolved || entry.feature;
       const stored = resolveStoredPlane(entry.plane);
       const normal = new THREE.Vector3().crossVectors(stored.xDir, stored.yDir).normalize();
