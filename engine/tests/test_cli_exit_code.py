@@ -132,3 +132,29 @@ def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
     assert success is False
     assert "'features' must be a list of objects" in output
     assert failed_id is None
+
+
+@pytest.mark.parametrize("flag", ["--step", "--stl"])
+def test_an_export_to_a_missing_directory_names_the_directory(tmp_path: Path, capsys, monkeypatch, flag):
+    target = tmp_path / "nowhere" / "part.out"
+    code = _run(monkeypatch, ["build", str(GOLDEN_DOCUMENT), flag, str(target), "--cache-dir", str(tmp_path / "cache")])
+
+    assert code == 1
+    stderr = capsys.readouterr().err
+    assert f"the directory {target.parent} does not exist" in stderr
+    assert "Traceback" not in stderr
+
+
+@pytest.mark.parametrize("flag", ["--step", "--stl"])
+def test_an_export_to_a_read_only_directory_says_permission_denied(tmp_path: Path, capsys, monkeypatch, flag):
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o500)
+    try:
+        code = _run(monkeypatch, ["build", str(GOLDEN_DOCUMENT), flag, str(locked / "part.out"), "--cache-dir", str(tmp_path / "cache")])
+    finally:
+        locked.chmod(0o700)
+
+    assert code == 1
+    stderr = capsys.readouterr().err
+    assert f"{locked / 'part.out'}: permission denied" in stderr

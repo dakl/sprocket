@@ -121,6 +121,13 @@ def document_tools() -> list[types.Tool]:
             ["feature"],
         ),
         _tool(
+            "resolve_plane",
+            "Where a sketch plane lands on the current part, as origin, normal and x_dir. Takes any form a "
+            "sketch's `plane` takes, such as {'feature': 'f2', 'face': <selector>, 'offset': 0}.",
+            {"plane": {"description": "a sketch plane reference"}},
+            ["plane"],
+        ),
+        _tool(
             "describe_geometry",
             "Every face and edge of the built part, with a handle and a sentence describing it.",
             {},
@@ -190,6 +197,57 @@ def document_tools() -> list[types.Tool]:
             ["index"],
         ),
         _tool(
+            "get_bodies",
+            "The bodies the document builds, in order: id, name, colour, visibility, volume and face count. "
+            "A feature with no base starts a body, and the body's id is that feature's id.",
+            {},
+        ),
+        _tool(
+            "set_appearances",
+            "Replaces the face colours. Each entry paints the faces its selector matches, in order, over the "
+            "body colours, and a later entry wins. Use set_body for a whole body's colour; this is for faces.",
+            {
+                "appearances": {
+                    "type": "array",
+                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}}},
+                },
+                "base_revision": EDIT_PROPERTIES["base_revision"],
+            },
+            ["appearances"],
+        ),
+        _tool(
+            "get_face_appearance",
+            "Which appearance entries colour one face (with how many faces each colours), and a within-box "
+            "selector that matches that face alone. Append {color, select: selector} with set_appearances to colour it.",
+            {"handle": {"type": "string", "description": "a face handle from describe_geometry, like 'f3'"}},
+            ["handle"],
+        ),
+        _tool(
+            "get_file_status",
+            "Whether the document file changed on disk, whether the engine holds edits the file does not, "
+            "and any open conflict between the two.",
+            {},
+        ),
+        _tool(
+            "check_clearance",
+            "For each part body and each reference body: the smallest distance between them and the volume "
+            "they share. Overlap above 0 means the part collides with the reference.",
+            {},
+        ),
+        _tool(
+            "set_body",
+            "Names, colours, hides or shows one body. A hidden body still exports. Hiding is view state: it can be "
+            "undone, but it adds no log entry and no timeline row. A null name or colour goes back to its default.",
+            {
+                "id": {"type": "string", "description": "the body id from get_bodies"},
+                "name": {"type": ["string", "null"]},
+                "color": {"type": ["string", "null"], "description": "#rrggbb"},
+                "visible": {"type": "boolean", "description": "false hides the body in the viewer; it still exports"},
+                "base_revision": EDIT_PROPERTIES["base_revision"],
+            },
+            ["id"],
+        ),
+        _tool(
             "set_parameter",
             "Sets a named parameter. Features refer to it as '=name', and an expression "
             "like '=width / 2' may reference other parameters. A null value removes it.",
@@ -215,10 +273,12 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "export",
-            "Writes the built part to STEP, STL, or the viewer's mesh format.",
+            "Writes the built part to STEP, STL, 3MF, or the viewer's mesh format. STEP and 3MF carry body names and colours.",
             {
                 "step": {"type": "string", "description": "path to write STEP to"},
-                "stl": {"type": "string", "description": "path to write STL to"},
+                "stl": {"type": "string", "description": "path to write STL to, every body in one file"},
+                "stl_dir": {"type": "string", "description": "existing directory to write one STL per body into"},
+                "3mf": {"type": "string", "description": "path to write a 3MF with one object per body"},
                 "mesh": {"type": "string", "description": "path to write the viewer mesh to"},
             },
         ),
@@ -335,10 +395,10 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name == "render_view":
         return _render(client, arguments)
 
-    if name in ("apply_edit", "set_rollback", "set_parameter"):
+    if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

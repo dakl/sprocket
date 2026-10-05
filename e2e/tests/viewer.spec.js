@@ -266,3 +266,163 @@ test("push/pull saves the picked face as a selector, and the feature survives a 
   expect(wider.built.ok).toBe(true);
   expect((await rpc(request, "measure")).volume).toBeCloseTo(60 * 30 * 15, 3);
 });
+
+// --- Live updates: another client or the file on disk moves the open page ------
+
+const fs = require("fs");
+const path = require("path");
+
+const TOP = { select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }], expected_count: 1 };
+
+test("a second client's edits update the open page live, keeping camera and selection", async ({ page, request }) => {
+  await page.evaluate(() => { window.__sameLoad = true; });
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual(["f" + top]);
+  const camera = await page.evaluate(() => window.__tcad.camera);
+
+  // Face colour.
+  await rpc(request, "set_appearances", { appearances: [{ color: "#2f9e44", select: TOP }], author: "agent:test" });
+  await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
+  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Updated by agent:test");
+  // The top face did not move, so it is still selected, here and for an agent.
+  await settled(page);
+  expect((await page.evaluate(() => window.__tcad.selection)).face).toBe(top);
+  expect((await rpc(request, "get_selection")).stale).toBe(false);
+
+  // Geometry, and the changed row glows.
+  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 7 } }], author: "agent:test" });
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 7);
+  await expect(chip(page, "f2")).toHaveClass(/timeline-chip-changed/);
+
+  // Body colour and visibility, in the bodies list.
+  await rpc(request, "set_body", { id: "f2", color: "#123456", author: "agent:test" });
+  await page.waitForFunction(() => window.__tcad.bodies[0] && window.__tcad.bodies[0].color === "#123456");
+  await expect(page.locator(".browser-swatch").first()).toHaveValue("#123456");
+  await rpc(request, "set_visibility", { id: "f2", visible: false });
+  await page.waitForFunction(() => window.__tcad.bodies[0].visible === false);
+  await rpc(request, "set_visibility", { id: "f2", visible: true });
+  await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
+
+  // A parameter change.
+  await rpc(request, "set_parameter", { name: "h", value: 9, author: "agent:test" });
+  const { revision } = await rpc(request, "get_document");
+  await page.waitForFunction((expected) => window.__tcad.revision === expected, revision);
+
+  // All of it without a page load, and the camera never moved.
+  await settled(page);
+  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+  const after = await page.evaluate(() => window.__tcad.camera);
+  [...after.position, ...after.target].forEach((value, k) => expect(value).toBeCloseTo([...camera.position, ...camera.target][k], 6));
+  await rpc(request, "set_appearances", { appearances: [] });
+  await rpc(request, "set_body", { id: "f2", color: null });
+});
+
+/// What `sprocket build`, git or a generator script does to the open file.
+function rewriteOnDisk(file, change) {
+  const document = JSON.parse(fs.readFileSync(file, "utf8"));
+  change(document);
+  const temporary = path.join(path.dirname(file), "rewrite.tmp");
+  fs.writeFileSync(temporary, JSON.stringify(document));
+  fs.renameSync(temporary, file);
+}
+
+test("the document rewritten on disk reloads in the open page", async ({ page, request }) => {
+  await page.evaluate(() => { window.__sameLoad = true; });
+  const { path: file } = await rpc(request, "get_document");
+  rewriteOnDisk(file, (document) => { document.features[1].distance = 13; });
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 13, null, { timeout: 3000 });
+  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Reloaded from disk");
+  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+});
+
+test("an edit that races a rewrite on disk is a conflict the person settles", async ({ page, request }) => {
+  const { path: file } = await rpc(request, "get_document");
+  rewriteOnDisk(file, (document) => { document.features[1].distance = 21; });
+  // Before the watcher has looked: the engine must not save over the file.
+  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 4 } }], author: "viewer" });
+  await expect(page.locator("#conflict")).toBeVisible();
+  expect(JSON.parse(fs.readFileSync(file, "utf8")).features[1].distance).toBe(21);
+  await page.locator("#conflict-file").click();
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 21);
+  await expect(page.locator("#conflict")).toBeHidden();
+  expect((await rpc(request, "get_file_status")).conflict).toBe(null);
+});
+
+// --- Colour picker and right-click menu ----------------------------------------
+
+test("right-click a face, pick a colour: the face is coloured in the document and on screen", async ({ page, request }) => {
+  await rpc(request, "set_appearances", { appearances: [] });
+  await settled(page);
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+
+  // A right-drag pans and opens nothing.
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(point.x + 40, point.y + 30, { steps: 5 });
+  await page.mouse.up({ button: "right" });
+  expect(await page.evaluate(() => window.__tcad.contextMenu)).toBe(null);
+  await settled(page);
+
+  const again = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(again.x, again.y, { button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body"]);
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await expect(page.locator("#colour-popover")).toBeVisible();
+  await page.locator('#colour-popover .palette .swatch[data-hex="#2f9e44"]').click();
+
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#2f9e44"]);
+  await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
+  // Only that face: the box the engine gave picks it out alone.
+  const coloured = await page.evaluate((count) => Array.from({ length: count }, (_, k) => window.__tcad.faceColour(k)), faces.length);
+  expect(coloured.filter((hex) => hex === "#2f9e44")).toHaveLength(1);
+
+  // The hex box, and the recent list remembers the green.
+  const point2 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point2.x, point2.y, { button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toContain("Clear face colour");
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await expect(page.locator('#colour-popover .recent .swatch[data-hex="#2f9e44"]')).toHaveCount(1);
+  await page.locator("#colour-hex").fill("#d4af37");
+  await page.locator("#colour-hex").press("Enter");
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#d4af37"]);
+
+  // Undo puts the green back: it is an ordinary edit.
+  await page.mouse.click(640, 790);
+  await page.keyboard.press("Meta+z");
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#2f9e44"]);
+
+  // Clear.
+  await settled(page);
+  const point3 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point3.x, point3.y, { button: "right" });
+  await page.getByRole("menuitem", { name: "Clear face colour" }).click();
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances).toEqual([]);
+});
+
+test("a body row's right-click menu colours and hides the body; the swatch still works", async ({ page, request }) => {
+  const row = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first();
+  await row.click({ button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide"]);
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#d83a2e");
+
+  await page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Hide" }).click();
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].visible).toBe(false);
+  await rpc(request, "set_visibility", { id: "f2", visible: true });
+
+  // The swatch in the row still sends set_body by itself.
+  await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
+  await page.locator(".browser-swatch").first().evaluate((input) => {
+    input.value = "#1f6b3a";
+    input.dispatchEvent(new Event("change"));
+  });
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
+  await rpc(request, "set_body", { id: "f2", color: null });
+});

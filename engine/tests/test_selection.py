@@ -36,14 +36,48 @@ def test_what_the_viewer_picks_is_what_an_agent_reads(client):
     assert all(len(item["centre"]) == 3 for item in selection["descriptions"])
 
 
-def test_a_rebuild_makes_the_selection_stale_and_drops_the_sentences(client):
-    """f2 may be another face after an edit, so a sentence about it would mislead."""
-    client.call("set_selection", handles=["f2"], revision=0)
+def test_a_selection_taken_at_an_older_revision_is_stale_and_drops_the_sentences(client):
+    """f2 may be another face by now, so a sentence about it would mislead."""
     client.call("set_parameter", name="width", value=40)
+    client.call("set_selection", handles=["f2"], revision=0)
     selection = client.call("get_selection")
     assert selection["handles"] == ["f2"]
     assert selection["stale"] is True
     assert "descriptions" not in selection
+
+
+def taller(client):
+    """Moves the top face up; the bottom face stays where it was."""
+    client.call("apply_edit", edits=[{"op": "update", "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12}}])
+
+
+def _faces(client):
+    return {item["handle"]: (tuple(item["centre"]), item["area"]) for item in client.call("describe_geometry")["faces"]}
+
+
+def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(client):
+    """A live update must not take the person's pick away from them."""
+    before = _faces(client)
+    client.call("set_selection", handles=list(before), revision=0)
+    taller(client)
+    after = _faces(client)
+    unchanged = [handle for handle, key in before.items() if key in after.values()]
+    assert unchanged and len(unchanged) < len(before)  # the edit moved some faces and not others
+    selection = client.call("get_selection")
+    assert selection["stale"] is False
+    assert sorted(after[handle] for handle in selection["handles"]) == sorted(before[handle] for handle in unchanged)
+    assert len(selection["descriptions"]) == len(unchanged)
+
+
+def test_a_face_the_rebuild_moved_drops_out_of_the_selection(client):
+    before = _faces(client)
+    taller(client)
+    after = _faces(client)
+    client.call("undo")
+    moved = next(handle for handle, key in before.items() if key not in after.values())
+    client.call("set_selection", handles=[moved], revision=client.call("get_document")["revision"])
+    taller(client)
+    assert client.call("get_selection")["handles"] == []
 
 
 def test_describe_geometry_carries_the_selection(client):

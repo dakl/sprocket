@@ -1,10 +1,11 @@
 import math
 
-from build123d import Circle, Compound, Plane, Polygon, Pos, Rectangle, Sketch
+from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector
 from OCP.BRep import BRep_Builder
 from OCP.TopoDS import TopoDS_Compound
 
 from ..regions import find_regions
+from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
 from .registry import register
 
 ORIGIN_PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
@@ -12,13 +13,41 @@ ORIGIN_PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 POINT2 = {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
 
+OFFSET = {"type": "number", "description": "mm along the plane normal, default 0"}
+
 PLANE_SCHEMA = {
     "oneOf": [
         {"enum": ["XY", "XZ", "YZ"]},
         {
             "type": "object",
             "required": ["origin", "normal", "x_dir"],
+            "description": (
+                "An explicit plane. The sketch's v axis is normal x x_dir (right-handed), so u runs right and v up "
+                "when you look at the sketch from the side its normal points to. A plane facing -Z with x_dir +X "
+                "therefore has v along world -Y: it is the part seen from below."
+            ),
             "properties": {"origin": VECTOR3, "normal": VECTOR3, "x_dir": VECTOR3},
+        },
+        {
+            "type": "object",
+            "required": ["name"],
+            "description": "An origin plane moved along its normal, as {\"name\": \"XY\", \"offset\": 5}.",
+            "properties": {"name": {"enum": ["XY", "XZ", "YZ"]}, "offset": OFFSET},
+        },
+        {
+            "type": "object",
+            "required": ["feature", "face"],
+            "description": (
+                "On a planar face of an earlier feature, found again on every rebuild, so the sketch moves with "
+                "the face. The normal points out of the part. Sketch coordinates stay world-aligned: the origin is "
+                "the world origin projected onto the face. On a horizontal face u is world +X. On a vertical face "
+                "v is world +Z (up)."
+            ),
+            "properties": {
+                "feature": {"type": "string", "description": "the feature whose result holds the face"},
+                "face": {"type": "object", "description": SELECTOR_DESCRIPTION},
+                "offset": OFFSET,
+            },
         },
     ]
 }
@@ -81,6 +110,37 @@ CONSTRAINT_SCHEMA = {
     },
 }
 
+SKETCH_LINEAR = {
+    "type": "object",
+    "required": ["count", "step"],
+    "properties": {
+        "count": {"type": "integer", "minimum": 1, "description": "copies, the original included"},
+        "step": {**POINT2, "description": "[du, dv] between neighbouring copies"},
+    },
+}
+
+# Copies of entities, made before regions are found. A copy of `e1` is `e1#1`,
+# `e1#2` and so on, which is the id a profile's bounded_by names.
+SKETCH_PATTERN_SCHEMA = {
+    "type": "object",
+    "required": ["entities"],
+    "oneOf": [{"required": ["linear"]}, {"required": ["circular"]}],
+    "properties": {
+        "entities": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "ids of the entities to copy"},
+        "linear": SKETCH_LINEAR,
+        "linear2": {**SKETCH_LINEAR, "description": "a second direction, which makes a grid"},
+        "circular": {
+            "type": "object",
+            "required": ["center", "count"],
+            "properties": {
+                "center": POINT2,
+                "count": {"type": "integer", "minimum": 1, "description": "copies, the original included"},
+                "angle": {"type": "number", "description": "degrees spanned, default 360 (copies spread evenly)"},
+            },
+        },
+    },
+}
+
 SCHEMA = {
     "type": "object",
     "description": (
@@ -117,6 +177,7 @@ SCHEMA = {
         "polygon": {"type": "array", "items": POINT2, "minItems": 3},
         "entities": {"type": "array", "items": ENTITY_SCHEMA},
         "constraints": {"type": "array", "items": CONSTRAINT_SCHEMA},
+        "patterns": {"type": "array", "items": SKETCH_PATTERN_SCHEMA},
         # A dimensioned circle. Radius rather than diameter, because every
         # other length in a document is the distance the op actually uses,
         # and a UI that wants diameter can halve it once.
@@ -138,10 +199,48 @@ SCHEMA = {
 }
 
 
-def resolve_plane(plane_ref):
+def resolve_plane(plane_ref, ctx=None):
+    """The build123d Plane a sketch sits on. A face plane needs `ctx`, the
+    replay context, to find the face in an earlier feature's result."""
     if isinstance(plane_ref, str):
         return ORIGIN_PLANES[plane_ref]
-    return Plane(origin=tuple(plane_ref["origin"]), z_dir=tuple(plane_ref["normal"]), x_dir=tuple(plane_ref["x_dir"]))
+    if "name" in plane_ref:
+        plane = ORIGIN_PLANES[plane_ref["name"]]
+    elif "feature" in plane_ref:
+        plane = _face_plane(plane_ref, ctx)
+    else:
+        return Plane(origin=tuple(plane_ref["origin"]), z_dir=tuple(plane_ref["normal"]), x_dir=tuple(plane_ref["x_dir"]))
+    return plane.offset(plane_ref.get("offset", 0))
+
+
+def _face_plane(plane_ref, ctx) -> Plane:
+    feature_id = plane_ref["feature"]
+    shape = ctx.results.get(feature_id) if ctx is not None else None
+    if shape is None:
+        raise ValueError(f"sketch plane names {feature_id!r}, which is not built before this sketch")
+    faces = resolve_selector(shape, plane_ref["face"], ctx)
+    if len(faces) != 1:
+        raise SelectorError(f"sketch plane face selector matched {len(faces)} faces, expected exactly 1")
+    face = faces[0]
+    if face.geom_type != GeomType.PLANE:
+        raise ValueError(f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face")
+    normal = face.normal_at(face.center()).normalized()
+    origin = normal * normal.dot(face.center())
+    if abs(normal.Z) > 0.999:
+        x_dir = Vector(1, 0, 0)
+    else:
+        # A vertical or slanted face: v (= normal x x_dir) points as close to world up as it can.
+        x_dir = Vector(0, 0, 1).cross(normal).normalized()
+    return Plane(origin=origin, z_dir=normal, x_dir=x_dir)
+
+
+def plane_json(plane: Plane) -> dict:
+    """A Plane as the explicit {origin, normal, x_dir} form, which is what the viewer draws on."""
+    return {
+        "origin": [round(value, 9) for value in plane.origin],
+        "normal": [round(value, 9) for value in plane.z_dir],
+        "x_dir": [round(value, 9) for value in plane.x_dir],
+    }
 
 
 def _polygon_area(points) -> float:
@@ -159,6 +258,49 @@ def _counter_clockwise(points):
     """
     signed_area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1]))
     return points if signed_area >= 0 else points[::-1]
+
+
+def _moved(entity: dict, index: int, du: float, dv: float, turn: float, centre) -> dict:
+    """A copy of `entity` turned by `turn` radians about `centre`, then shifted by (du, dv)."""
+    cos, sin = math.cos(turn), math.sin(turn)
+
+    def point(uv):
+        u, v = uv[0] - centre[0], uv[1] - centre[1]
+        return [centre[0] + u * cos - v * sin + du, centre[1] + u * sin + v * cos + dv]
+
+    copy = {**entity, "id": f"{entity['id']}#{index}"}
+    for name in ("p0", "p1", "c"):
+        if name in entity:
+            copy[name] = point(entity[name])
+    for name in ("a0", "a1"):
+        if name in entity:
+            copy[name] = entity[name] + turn
+    return copy
+
+
+def sketch_entities(feature: dict) -> list[dict]:
+    """The sketch's entities with every pattern copy added after them."""
+    entities = list(feature.get("entities", []))
+    by_id = {entity["id"]: entity for entity in entities}
+    for pattern in feature.get("patterns", []):
+        missing = [entity_id for entity_id in pattern["entities"] if entity_id not in by_id]
+        if missing:
+            raise ValueError(f"sketch pattern names {', '.join(missing)}, which are not entities of this sketch")
+        if "linear" in pattern:
+            first, second = pattern["linear"], pattern.get("linear2", {"count": 1, "step": [0, 0]})
+            moves = [
+                (i * first["step"][0] + j * second["step"][0], i * first["step"][1] + j * second["step"][1], 0.0, (0, 0))
+                for i in range(first["count"])
+                for j in range(second["count"])
+            ]
+        else:
+            circular = pattern["circular"]
+            angle, count = circular.get("angle", 360), circular["count"]
+            step = angle / count if angle % 360 == 0 else angle / max(count - 1, 1)
+            moves = [(0.0, 0.0, math.radians(step * k), circular["center"]) for k in range(count)]
+        for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
+            entities.extend(_moved(by_id[entity_id], index, du, dv, turn, centre) for entity_id in pattern["entities"])
+    return entities
 
 
 _POINTS = {"line": {"p0", "p1"}, "arc": {"p0", "p1", "c"}, "circle": {"c"}}
@@ -230,7 +372,7 @@ def sketch_profiles(feature: dict) -> list[dict]:
                 "holes": [_round(hole) for hole in region.holes],
                 "area": round(region.area, 6),
             }
-            for region in find_regions(feature["entities"])
+            for region in find_regions(sketch_entities(feature))
         ]
     if "polygon" in feature:
         outline = _counter_clockwise([tuple(point) for point in feature["polygon"]])
@@ -261,10 +403,10 @@ def _empty_sketch() -> Sketch:
 
 @register("sketch", SCHEMA)
 def apply(feature: dict, ctx):
-    plane = resolve_plane(feature["plane"])
+    plane = resolve_plane(feature["plane"], ctx)
     if "entities" in feature:
         check_entities(feature)
-        regions = find_regions(feature["entities"])
+        regions = find_regions(sketch_entities(feature))
         # Every closed region, side by side: an extrude of the whole sketch
         # then gives the union of what was drawn, and a profile pick gives one.
         return Sketch(plane * Compound([region.face for region in regions])) if regions else _empty_sketch()

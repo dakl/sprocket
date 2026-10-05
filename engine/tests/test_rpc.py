@@ -238,7 +238,7 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path
     notification carries the reason."""
     import sprocket_engine.viewer_files as viewer_files
 
-    def refuse(shape):
+    def refuse(shape, appearances=None, bodies=None):
         raise ValueError("tessellation disagrees with the B-rep")
 
     viewer_dir = tmp_path / "viewer"
@@ -344,3 +344,18 @@ def test_an_agent_cannot_swap_the_users_document():
 
     names = {tool.name for tool in document_tools() + op_tools()}
     assert not names & {"open_document", "new_document", "save_as"}
+
+
+def test_a_daemon_export_to_a_missing_directory_says_why(client, tmp_path):
+    target = tmp_path / "nowhere" / "part.step"
+    with pytest.raises(RpcError, match="does not exist"):
+        client.call("export", step=str(target))
+
+
+def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
+    top = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
+    plane = client.call("resolve_plane", plane={"feature": "e1", "face": top, "offset": 1})["plane"]
+    assert plane["normal"] == [0, 0, 1]
+    assert plane["origin"] == [0, 0, 11]
+    with pytest.raises(RpcError, match="does not resolve"):
+        client.call("resolve_plane", plane={"feature": "nope", "face": top})

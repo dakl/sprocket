@@ -130,6 +130,82 @@
 
     .timeline-chip .timeline-icon svg { width: 14px; height: 14px; vertical-align: -3px; }
 
+    /* A row someone else just changed (an agent, or the file on disk): a
+       short glow that fades, so the eye finds it without a lasting badge. */
+    @keyframes changed-glow {
+      from { box-shadow: 0 0 0 2px #5bb8e0; border-color: #5bb8e0; }
+      to { box-shadow: 0 0 0 2px transparent; }
+    }
+    .timeline-chip.timeline-chip-changed { animation: changed-glow 1.8s ease-out; }
+
+    /* Right-click menu on a face or a body row, and the colour popover. */
+    #context-menu, #colour-popover {
+      position: fixed;
+      background: rgba(36, 36, 36, 0.97);
+      border: 1px solid #555;
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      color: #eee;
+      font: 13px -apple-system, sans-serif;
+      display: none;
+      z-index: 30;
+    }
+    #context-menu { padding: 4px 0; min-width: 170px; }
+    #context-menu .menu-title { padding: 4px 12px 6px; color: #999; font-size: 11px; border-bottom: 1px solid #444; margin-bottom: 4px; }
+    #context-menu button {
+      display: block; width: 100%; text-align: left; background: none; border: 0; color: inherit;
+      font: inherit; padding: 5px 12px; cursor: pointer;
+    }
+    #context-menu button:hover, #context-menu button:focus { background: #2f5d8a; outline: none; }
+    #colour-popover { padding: 10px; width: 196px; }
+    #colour-popover .popover-title { color: #bbb; font-size: 12px; margin-bottom: 8px; }
+    #colour-popover .palette, #colour-popover .recent { display: grid; grid-template-columns: repeat(6, 26px); gap: 6px; }
+    #colour-popover .swatch {
+      width: 26px; height: 26px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 0; cursor: pointer;
+    }
+    #colour-popover .swatch:hover, #colour-popover .swatch:focus { outline: 2px solid #5bb8e0; outline-offset: 1px; }
+    #colour-popover .popover-row { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+    #colour-popover input[type="text"] {
+      width: 78px; background: #1e1e1e; color: #eee; border: 1px solid #555; border-radius: 4px;
+      font: 12px ui-monospace, monospace; padding: 4px 6px;
+    }
+    #colour-popover input[type="text"].invalid { border-color: #d0453a; }
+    #colour-popover input[type="color"] { width: 30px; height: 26px; border: 0; padding: 0; background: none; cursor: pointer; }
+    #colour-popover button.apply {
+      font: 12px -apple-system, sans-serif; background: #3a3a3a; color: #eee; border: 1px solid #666;
+      border-radius: 4px; padding: 4px 8px; cursor: pointer;
+    }
+    #colour-popover .recent-label { color: #999; font-size: 11px; margin: 10px 0 6px; }
+
+    /* The file changed on disk while this window had edits it does not hold. */
+    #conflict {
+      position: fixed;
+      left: 50%;
+      top: 70px;
+      transform: translateX(-50%);
+      background: #2c2a1a;
+      border: 1px solid #c9a227;
+      color: #f0dc8a;
+      font: 13px -apple-system, sans-serif;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      max-width: 80%;
+      z-index: 20;
+    }
+    #conflict button {
+      font: 12px -apple-system, sans-serif;
+      background: #3a3a3a;
+      color: #eee;
+      border: 1px solid #666;
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+    }
+
     /* The playhead sits in the gap between two chips: everything to its left
        is built, everything to its right is rolled back. It is absolutely
        positioned inside #timeline, so it scrolls with the chips. The wide,
@@ -320,6 +396,15 @@
 
     .browser-caret.clickable { cursor: pointer; }
 
+    .browser-swatch {
+      width: 16px;
+      height: 14px;
+      margin-left: auto;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
     .browser-eye {
       flex: 0 0 auto;
       display: flex;
@@ -476,6 +561,19 @@
   <div id="status"></div>
   <div id="warning"></div>
   <div id="mesh-error"></div>
+  <div id="context-menu" role="menu"></div>
+  <div id="colour-popover" role="dialog" aria-label="Colour">
+    <div class="popover-title"></div>
+    <div class="palette"></div>
+    <div class="popover-row">
+      <input type="text" id="colour-hex" placeholder="#rrggbb" maxlength="7" aria-label="Hex colour" />
+      <input type="color" id="colour-native" title="More colours" aria-label="More colours" />
+      <button class="apply" id="colour-apply">Apply</button>
+    </div>
+    <div class="recent-label">Recent</div>
+    <div class="recent"></div>
+  </div>
+  <div id="conflict" role="alert"><span id="conflict-text"></span><button id="conflict-file">Use the file</button><button id="conflict-mine">Keep mine</button></div>
   <div id="extrude-panel">
     <input id="extrude-distance" type="text" autocomplete="off" spellcheck="false" />
     <button id="extrude-ok">OK</button>
@@ -591,6 +689,8 @@
   <script src="vendor/OrbitControls.js"></script>
   <script src="params-form.js"></script>
   <script src="edits.js"></script>
+  <script src="live.js"></script>
+  <script src="colours.js"></script>
   <script src="vendor/planegcs.js"></script>
   <script src="sketch-solver.js"></script>
   <script src="sketch-model.js"></script>
@@ -606,6 +706,9 @@
     // and what you see the same. The view cube renders through cubeRenderer,
     // which has no output encoding, so its colours stay raw hexes.
     const srgb = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+    // What a face with no colour from the document is drawn in.
+    const PART_COLOUR = 0x5b8dee;
+    const REFERENCE_COLOUR = 0xb0b4ba;
 
     const scene = new THREE.Scene();
     // Not srgb(): r128 clears the framebuffer with this colour directly and
@@ -780,6 +883,39 @@
         triangleStart += triangleCount;
       }
       geometry.userData.faceOfTriangle = faceOfTriangle;
+      // Bodies, in face order (see mesh.py). A hidden body draws with an
+      // invisible material and a reference body translucent, and neither is
+      // pickable. Material 0 is the part, 1 hidden, 2 reference.
+      const faceCount = mesh.buffers.triangles_per_face.length;
+      geometry.userData.unpickableFace = new Uint8Array(faceCount);
+      geometry.userData.bodies = mesh.header.bodies || [];
+      let bodyFaceStart = 0;
+      for (const body of geometry.userData.bodies) {
+        const materialIndex = body.reference ? 2 : body.visible === false ? 1 : 0;
+        for (let face = bodyFaceStart; face < bodyFaceStart + body.faces; face++) {
+          geometry.groups[face].materialIndex = materialIndex;
+          if (materialIndex) geometry.userData.unpickableFace[face] = 1;
+        }
+        bodyFaceStart += body.faces;
+      }
+      const faceColours = mesh.buffers.face_colors;
+      if (faceColours) {
+        // One colour per vertex, because ocp-tessellate gives every face its
+        // own vertices. 0xFFFFFFFF means the document named no colour.
+        const colours = new Float32Array(mesh.buffers.vertices.length);
+        const indices = mesh.buffers.indices;
+        for (let triangle = 0; triangle < faceOfTriangle.length; triangle++) {
+          const hex = faceColours[faceOfTriangle[triangle]];
+          const colour = srgb(hex === 0xffffffff ? PART_COLOUR : hex);
+          for (let corner = 0; corner < 3; corner++) {
+            const vertex = indices[triangle * 3 + corner] * 3;
+            colours[vertex] = colour.r;
+            colours[vertex + 1] = colour.g;
+            colours[vertex + 2] = colour.b;
+          }
+        }
+        geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+      }
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
       return geometry;
@@ -789,13 +925,13 @@
       if (mesh) {
         scene.remove(mesh);
         mesh.geometry.dispose();
-        mesh.material.dispose();
+        [].concat(mesh.material).forEach((material) => material.dispose());
         mesh = null;
       }
       if (edgeLines) {
         scene.remove(edgeLines);
         edgeLines.geometry.dispose();
-        edgeLines.material.dispose();
+        [].concat(edgeLines.material).forEach((material) => material.dispose());
         edgeLines = null;
       }
     }
@@ -803,7 +939,7 @@
     function loadPart(token, options) {
       const refit = Boolean(options && options.refit);
       const path = urlWithCacheBust(partBase, token);
-      trackPending(fetch(path)
+      return trackPending(fetch(path)
         // file:// fetches report status 0, not 200, so response.ok is always
         // false there.
         .then((response) => {
@@ -829,15 +965,29 @@
           // the edge lines below, which sit exactly on the body's boundary,
           // win the depth test instead of flickering against it.
           const material = new THREE.MeshStandardMaterial({
-            color: srgb(0x5b8dee),
+            color: parsed.buffers.face_colors ? 0xffffff : srgb(PART_COLOUR),
+            vertexColors: Boolean(parsed.buffers.face_colors),
             metalness: 0,
             roughness: 0.55,
             polygonOffset: true,
             polygonOffsetFactor: 1,
             polygonOffsetUnits: 1,
           });
-          mesh = new THREE.Mesh(buildPartGeometry(parsed), material);
+          const partGeometry = buildPartGeometry(parsed);
+          const bodies = partGeometry.userData.bodies;
+          const layered = bodies.some((body) => body.reference || body.visible === false);
+          const hiddenMaterial = new THREE.MeshBasicMaterial({ visible: false });
+          const referenceMaterial = new THREE.MeshStandardMaterial({
+            color: srgb(REFERENCE_COLOUR),
+            transparent: true,
+            opacity: 0.28,
+            depthWrite: false,
+            metalness: 0,
+            roughness: 0.8,
+          });
+          mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial] : material);
           mesh.userData.counts = counts;
+          mesh.userData.faceColours = parsed.buffers.face_colors || null;
           scene.add(mesh);
 
           // The B-rep edge curves, already tessellated into consecutive point
@@ -847,15 +997,34 @@
           // tones span only about 0.14 of luma.
           const edgeGeometry = new THREE.BufferGeometry();
           edgeGeometry.setAttribute("position", new THREE.BufferAttribute(parsed.buffers.edges, 3));
+          // srgb() like every other main-scene colour. Being unlit buys no
+          // exemption: outputEncoding encodes the final fragment whether a
+          // material samples lights or not. Measured, a raw hex here comes
+          // out #2a2c2f rather than #14181f, light enough to read as a grey
+          // seam instead of an edge.
+          const edgeMaterial = new THREE.LineBasicMaterial({ color: srgb(0x14181f) });
+          // Edges follow their body: one group per body, material as for faces.
+          const unpickableEdge = new Uint8Array(parsed.buffers.segments_per_edge.length);
+          if (layered) {
+            let edge = 0;
+            let segment = 0;
+            for (const body of bodies) {
+              const materialIndex = body.reference ? 2 : body.visible === false ? 1 : 0;
+              let segments = 0;
+              for (let k = edge; k < edge + body.edges; k++) segments += parsed.buffers.segments_per_edge[k];
+              edgeGeometry.addGroup(segment * 2, segments * 2, materialIndex);
+              if (materialIndex) unpickableEdge.fill(1, edge, edge + body.edges);
+              edge += body.edges;
+              segment += segments;
+            }
+          }
           edgeLines = new THREE.LineSegments(
             edgeGeometry,
-            // srgb() like every other main-scene colour. Being unlit buys no
-            // exemption: outputEncoding encodes the final fragment whether a
-            // material samples lights or not. Measured, a raw hex here comes
-            // out #2a2c2f rather than #14181f, light enough to read as a grey
-            // seam instead of an edge.
-            new THREE.LineBasicMaterial({ color: srgb(0x14181f) })
+            layered
+              ? [edgeMaterial, new THREE.LineBasicMaterial({ visible: false }), new THREE.LineBasicMaterial({ color: srgb(REFERENCE_COLOUR), transparent: true, opacity: 0.35 })]
+              : edgeMaterial
           );
+          edgeLines.userData.unpickableEdge = unpickableEdge;
           scene.add(edgeLines);
 
           // The same ID map faces have, for edges: segment k belongs to B-rep
@@ -891,7 +1060,7 @@
     // A sidecar JSON next to part.mesh, written by the Swift app on every
     // rebuild: a plain array of {id, type}, one per feature in the document.
     function loadFeatures(token) {
-      trackPending(fetch(urlWithCacheBust(featuresBase, token))
+      return trackPending(fetch(urlWithCacheBust(featuresBase, token))
         // file:// fetches report status 0, not 200, so response.ok is always
         // false in the app. Treat 0 as success or the timeline never loads
         // outside a local server.
@@ -928,7 +1097,11 @@
     // `opened` means the engine swapped in another document. Its revision can
     // equal the old one's, so its files are fetched under a fresh URL, and the
     // selection, a sketch in progress and hidden sketches belonged to the old one.
-    window.reloadPart = function (token, opened, viewerError) {
+    //
+    // `info` is the rest of the daemon's `document_changed` (author, changes),
+    // when the change came from somewhere else. Swift and the event stream
+    // both pass it; the viewer's own edits call this without it.
+    window.reloadPart = function (token, opened, viewerError, info) {
       loadedRevision = token;
       sawRevision(token);
       showMeshError(viewerError);
@@ -936,11 +1109,86 @@
       const fetchToken = opened ? token + "-" + Date.now() : token;
       // A rebuild renumbers faces and edges, so what an agent pointed at is gone.
       showAgentHighlight({});
-      loadPart(fetchToken, { refit: Boolean(opened) });
-      loadFeatures(fetchToken);
+      // The daemon has already carried the selection over to the new handles
+      // (rpc.py's _carry_selection). Ask for it before the reload clears the
+      // page's own copy, and keep that clearing from being reported back as
+      // "nothing selected".
+      const selection = opened || !canCallDaemon() ? Promise.resolve(null) : rpcCall("get_selection", {}).catch(() => null);
+      restoringSelection = true;
+      const loads = [loadPart(fetchToken, { refit: Boolean(opened) }), loadFeatures(fetchToken), selection];
+      trackPending(
+        Promise.all(loads)
+          .then(([, , view]) => {
+            if (token !== loadedRevision) return; // a newer reload owns the screen
+            applyDaemonSelection(view);
+            showChangeCue(ViewerLive.changeCue(info));
+          })
+          .finally(() => {
+            if (token !== loadedRevision) return;
+            restoringSelection = false;
+            reportSelection();
+          })
+      );
       // The app and the browser both come through here. A sketch being edited
       // may be the thing that changed, and the sketcher checks.
       if (!opened && sketchStage === "draw") sketcher.remoteChanged();
+    };
+
+    const canCallDaemon = () => hasSwiftBridge() || /^https?:$/.test(window.location.protocol);
+
+    /// Selects what the daemon says is selected, if it belongs to the part on
+    /// screen, without telling the daemon again.
+    function applyDaemonSelection(view) {
+      const picked = ViewerLive.selectionToApply(view, loadedRevision);
+      if (!picked || !mesh) return;
+      if (picked.face !== null && mesh.geometry.groups[picked.face] && !selectedSketch) {
+        selectedPatch = facePatch(picked.face);
+        setHighlight(selectedPatch, 0xffdd55);
+      }
+      if (picked.edge !== null && edgeLines && edgeLines.userData.edgeStart[picked.edge + 1] !== undefined) selectEdge(picked.edge);
+      updateToolbarState();
+      renderBrowser();
+    }
+
+    /// "Updated by agent:…" in the status line for a moment, and a short glow
+    /// on each timeline row the change touched.
+    function showChangeCue(cue) {
+      if (!cue) return;
+      showNotice(cue.text, 2500);
+      for (const id of cue.featureIds) {
+        const chip = timelineEl.querySelector('.timeline-chip[data-feature-id="' + CSS.escape(id) + '"]');
+        if (!chip) continue;
+        chip.classList.remove("timeline-chip-changed");
+        void chip.offsetWidth; // restart the animation when the same row changes twice
+        chip.classList.add("timeline-chip-changed");
+      }
+    }
+
+    // The file changed on disk while this window held edits it does not have.
+    // Neither side is dropped without the person choosing.
+    const conflictEl = document.getElementById("conflict");
+    function showConflict(params) {
+      if (!params || params.resolved || !params.message) {
+        conflictEl.style.display = "none";
+        return;
+      }
+      document.getElementById("conflict-text").textContent = params.message;
+      conflictEl.style.display = "flex";
+    }
+    for (const [button, keep] of [["conflict-file", "file"], ["conflict-mine", "mine"]]) {
+      document.getElementById(button).addEventListener("click", () => {
+        conflictEl.style.display = "none";
+        trackPending(rpcCall("resolve_conflict", { keep }).then((result) => {
+          sawRevision(result.revision);
+          if (result.revision !== loadedRevision) window.reloadPart(result.revision);
+        }));
+      });
+    }
+
+    // Swift forwards the daemon's other notifications here; the browser gets
+    // them from the event stream below.
+    window.__daemonNotification = function (method, params) {
+      if (method === "document_conflict") showConflict(params);
     };
 
     /// The engine could not write the part as a mesh, so it deleted the mesh
@@ -970,6 +1218,14 @@
       extrude:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 9-6-6-6 6" /><path d="M12 3v14" /><path d="M5 21h14" /></svg>',
       extrude_face: "↕",
+      shell:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="1" /><path d="M7 5v11h10V5" /></svg>',
+      hole:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1" /><circle cx="12" cy="12" r="3" /></svg>',
+      pattern:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" /><rect x="15" y="3" width="6" height="6" /><rect x="3" y="15" width="6" height="6" /><rect x="15" y="15" width="6" height="6" /></svg>',
+      reference:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1" stroke-dasharray="3 3" /></svg>',
       // The same drawings as the toolbar buttons for these ops.
       boolean:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg>',
@@ -1232,6 +1488,12 @@
       let call;
       if (message.type === "undo" || message.type === "redo") {
         call = () => rpcCall(message.type, {});
+      } else if (message.type === "set_appearances") {
+        // Face colours: the same call an agent makes, so it is undoable and logged.
+        call = () => rpcCall("set_appearances", { appearances: message.appearances, author: "viewer", base_revision: message.base_revision });
+      } else if (message.type === "set_visibility") {
+        // View state, not an edit: undoable, but no log entry or timeline row.
+        call = () => rpcCall("set_visibility", { id: message.id, visible: message.visible });
       } else {
         let edits;
         try {
@@ -1249,6 +1511,12 @@
             sawRevision(result.revision);
             if (result.changed !== false && result.revision !== loadedRevision) window.reloadPart(result.revision);
             else hideStatus();
+            // The engine keeps every "=param" field the edit left alone. A field
+            // the edit changed now holds a number, so say which links went.
+            if (result.unlinked && result.unlinked.length) {
+              const fields = result.unlinked.map((item) => item.field + " (" + item.was + ")").join(", ");
+              showNotice("Replaced parameter link: " + fields);
+            }
           })
           .catch((error) => {
             hideStatus();
@@ -1264,11 +1532,14 @@
       const events = new EventSource("/events");
       events.addEventListener("highlight", (event) => showAgentHighlight(JSON.parse(event.data).params));
       events.addEventListener("document_changed", (event) => {
-        const { revision, opened, viewer_error } = JSON.parse(event.data).params;
+        const params = JSON.parse(event.data).params;
+        const { revision, opened, viewer_error } = params;
         sawRevision(revision);
-        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error);
+        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error, params);
         else showMeshError(viewer_error);
+        if (params.conflict) showConflict(params.conflict);
       });
+      events.addEventListener("document_conflict", (event) => showConflict(JSON.parse(event.data).params));
     }
 
     function setRollback(index) {
@@ -1293,12 +1564,21 @@
     /// examples/box.sprocket, so the extrude axis is unchanged. On a curved face
     /// the node normal is the surface's and the winding normal is one facet's.
     function facePatchAt(hit) {
+      const patch = facePatch(mesh.geometry.userData.faceOfTriangle[hit.faceIndex], hit.faceIndex);
+      patch.anchorPoint = hit.point.clone();
+      return patch;
+    }
+
+    /// Face `faceIndex` as a patch. Its normal is read at `triangle`, or at
+    /// its first triangle; its anchor is that triangle's first corner.
+    function facePatch(faceIndex, triangle) {
       const geometry = mesh.geometry;
       const normals = geometry.attributes.normal;
-      const faceIndex = geometry.userData.faceOfTriangle[hit.faceIndex];
       const group = geometry.groups[faceIndex];
-      const corner = geometry.index.getX(hit.faceIndex * 3);
+      const corner = geometry.index.getX((triangle === undefined ? group.start / 3 : triangle) * 3);
+      const position = geometry.attributes.position;
       return {
+        anchorPoint: new THREE.Vector3(position.getX(corner), position.getY(corner), position.getZ(corner)),
         faceIndex: faceIndex,
         firstTriangle: group.start / 3,
         triangleCount: group.count / 3,
@@ -1506,10 +1786,18 @@
       );
     }
 
+    /// Raycast hits on the part, leaving out hidden and reference bodies.
+    function partHits() {
+      const geometry = mesh.geometry;
+      return raycaster
+        .intersectObject(mesh)
+        .filter((hit) => !geometry.userData.unpickableFace[geometry.userData.faceOfTriangle[hit.faceIndex]]);
+    }
+
     function raycastFace(event) {
       if (!mesh || !mesh.visible) return null;
       raycaster.setFromCamera(pointerNDC(event), camera);
-      const hits = raycaster.intersectObject(mesh);
+      const hits = partHits();
       return hits.length ? hits[0] : null;
     }
 
@@ -1535,7 +1823,10 @@
       raycaster.setFromCamera(pointerNDC(event), camera);
       const previous = raycaster.params.Line.threshold;
       raycaster.params.Line.threshold = worldRadius(EDGE_PICK_PIXELS, controls.target);
-      const hits = raycaster.intersectObject(edgeLines);
+      const unpickable = edgeLines.userData.unpickableEdge;
+      const hits = raycaster
+        .intersectObject(edgeLines)
+        .filter((hit) => !unpickable[edgeLines.userData.edgeOfSegment[Math.floor(hit.index / 2)]]);
       raycaster.params.Line.threshold = previous;
       if (!hits.length) return null;
       const faceHit = raycastFace(event);
@@ -1712,6 +2003,24 @@
         if (options.onClick) label.addEventListener("click", options.onClick);
         row.appendChild(label);
 
+        if (options.onColor) {
+          // The browser's own colour picker. A change sends one set_body edit.
+          const swatch = document.createElement("input");
+          swatch.type = "color";
+          swatch.className = "browser-swatch";
+          swatch.title = "Body colour";
+          swatch.value = options.color || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+          swatch.addEventListener("change", () => options.onColor(swatch.value));
+          row.appendChild(swatch);
+        }
+
+        if (options.onContextMenu) {
+          row.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            options.onContextMenu(event);
+          });
+        }
+
         tree.appendChild(row);
       }
 
@@ -1780,18 +2089,25 @@
           renderBrowser();
         },
       });
-      // One STL means one body. Split this when the engine exports more.
+      // One row per body, from the mesh header. The eye is the body's saved
+      // `visible` view state: undoable, but not an edit. Hidden bodies still export.
       if (mesh && !collapsedGroups.has("bodies")) {
-        addRow({
-          depth: 2,
-          label: "Body1",
-          visible: bodyVisible,
-          onToggle: () => {
-            bodyVisible = !bodyVisible;
-            applyVisibility();
-            renderBrowser();
-          },
-        });
+        const bodies = mesh.geometry.userData.bodies;
+        if (!bodies.length) {
+          addRow({ depth: 2, label: "Body1", visible: bodyVisible, onToggle: () => { bodyVisible = !bodyVisible; applyVisibility(); renderBrowser(); } });
+        }
+        for (const body of bodies) {
+          addRow({
+            depth: 2,
+            label: body.name + (body.reference ? " (reference)" : ""),
+            visible: body.visible !== false,
+            dim: body.reference,
+            onToggle: () => sendCommand({ type: "set_visibility", id: body.id, visible: body.visible === false }),
+            color: body.color,
+            onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
+            onContextMenu: (event) => openBodyMenu(event.clientX, event.clientY, body),
+          });
+        }
       }
 
       addRow({
@@ -1837,7 +2153,9 @@
     // Handles are the ones describe_geometry gives: f<i> and e<i>, taken at the
     // revision this page has loaded, because a rebuild renumbers them.
     let reportedSelection = "";
+    let restoringSelection = false; // a reload is putting the daemon's selection back
     function reportSelection() {
+      if (restoringSelection) return;
       if (!hasSwiftBridge() && !/^https?:$/.test(window.location.protocol)) return;
       const handles = [selectedPatch && "f" + selectedPatch.faceIndex, selectedEdge && "e" + selectedEdge.edgeIndex].filter(Boolean);
       const sketches = selectedSketch ? [selectedSketch.id] : [];
@@ -1870,7 +2188,18 @@
     function showStatus(text) { statusEl.textContent = text; statusEl.style.display = "block"; }
     // The rebuild this was showing has landed: features.json is what arrives
     // last, so loadFeatures clears it.
-    function hideStatus() { statusEl.style.display = "none"; }
+    let noticeUntil = 0;
+    function hideStatus() {
+      if (Date.now() < noticeUntil) return;
+      statusEl.style.display = "none";
+    }
+    /// A status line that outlives the rebuild it came with, for six seconds.
+    function showNotice(text, milliseconds) {
+      const shown = milliseconds || 6000;
+      showStatus(text);
+      noticeUntil = Date.now() + shown;
+      setTimeout(hideStatus, shown + 100);
+    }
 
     let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
     let selectedEdge = null; // { edgeIndex }: a B-rep edge, in shape.edges() order
@@ -1938,6 +2267,9 @@
     renderer.domElement.addEventListener("wheel", cancelCameraMove, { passive: true });
 
     renderer.domElement.addEventListener("pointerdown", (event) => {
+      // The right button pans the camera, and a right click without a drag
+      // opens the context menu (below). Neither picks.
+      if (event.button === 2) return;
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
         if (!hit) return;
@@ -2004,6 +2336,207 @@
       renderSketchSelection();
       hideHint();
       selectionChanged();
+    });
+
+    // --- Right-click menu and colour picker ---------------------------------
+    // A right click on a face (a press and release without a drag, so a
+    // right-drag still pans) opens a menu for that face and its body. Colours
+    // go through the daemon's own calls: set_appearances for a face,
+    // set_body for a body. So they are undoable, logged, and an agent sees them.
+    const contextMenuEl = document.getElementById("context-menu");
+    const colourPopoverEl = document.getElementById("colour-popover");
+    const colourHexEl = document.getElementById("colour-hex");
+    const colourNativeEl = document.getElementById("colour-native");
+    const RIGHT_CLICK_SLOP = 4; // pixels the pointer may move and still count as a click
+    let rightPress = null;
+    let colourTarget = null; // what the popover's colour goes to: a function of "#rrggbb"
+
+    function menuOpen() {
+      return contextMenuEl.style.display === "block" || colourPopoverEl.style.display === "block";
+    }
+    function closeMenus() {
+      contextMenuEl.style.display = "none";
+      colourPopoverEl.style.display = "none";
+      colourTarget = null;
+    }
+
+    /// Shows `element` at (x, y), kept inside the window.
+    function placeAt(element, x, y) {
+      element.style.display = "block";
+      const width = element.offsetWidth;
+      const height = element.offsetHeight;
+      element.style.left = Math.max(4, Math.min(x, window.innerWidth - width - 4)) + "px";
+      element.style.top = Math.max(4, Math.min(y, window.innerHeight - height - 4)) + "px";
+    }
+
+    /// `items` is [{label, action}]; a null entry is left out.
+    function openMenu(x, y, title, items) {
+      closeMenus();
+      contextMenuEl.innerHTML = "";
+      const heading = document.createElement("div");
+      heading.className = "menu-title";
+      heading.textContent = title;
+      contextMenuEl.appendChild(heading);
+      for (const item of items.filter(Boolean)) {
+        const button = document.createElement("button");
+        button.setAttribute("role", "menuitem");
+        button.textContent = item.label;
+        button.addEventListener("click", () => {
+          contextMenuEl.style.display = "none";
+          item.action();
+        });
+        contextMenuEl.appendChild(button);
+      }
+      placeAt(contextMenuEl, x, y);
+    }
+
+    function loadRecentColours() {
+      try {
+        const stored = JSON.parse(localStorage.getItem("sprocket.recentColours") || "[]");
+        return Array.isArray(stored) ? stored.filter((item) => ViewerColours.normaliseHex(item)) : [];
+      } catch (error) {
+        return [];
+      }
+    }
+    function saveRecentColours(list) {
+      try {
+        localStorage.setItem("sprocket.recentColours", JSON.stringify(list));
+      } catch (error) {
+        // Private mode or blocked storage: the list just does not persist.
+      }
+    }
+
+    function swatchButton(hex, name) {
+      const button = document.createElement("button");
+      button.className = "swatch";
+      button.style.background = hex;
+      button.title = name ? name + " " + hex : hex;
+      button.setAttribute("aria-label", button.title);
+      button.dataset.hex = hex;
+      button.addEventListener("click", () => pickColour(hex));
+      return button;
+    }
+
+    /// The popover: palette, hex box, the system picker, and recent colours.
+    function openColourPicker(x, y, title, current, onPick) {
+      closeMenus();
+      colourTarget = onPick;
+      colourPopoverEl.querySelector(".popover-title").textContent = title;
+      const palette = colourPopoverEl.querySelector(".palette");
+      palette.innerHTML = "";
+      for (const item of ViewerColours.PALETTE) palette.appendChild(swatchButton(item.hex, item.name));
+      const recent = loadRecentColours();
+      const recentEl = colourPopoverEl.querySelector(".recent");
+      recentEl.innerHTML = "";
+      for (const hex of recent) recentEl.appendChild(swatchButton(hex));
+      colourPopoverEl.querySelector(".recent-label").style.display = recent.length ? "block" : "none";
+      const start = ViewerColours.normaliseHex(current) || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+      colourHexEl.value = start;
+      colourHexEl.classList.remove("invalid");
+      colourNativeEl.value = start;
+      placeAt(colourPopoverEl, x, y);
+      colourHexEl.focus();
+      colourHexEl.select();
+    }
+
+    function pickColour(colour) {
+      const hex = ViewerColours.normaliseHex(colour);
+      if (!hex || !colourTarget) return;
+      const target = colourTarget;
+      saveRecentColours(ViewerColours.pushRecent(loadRecentColours(), hex));
+      closeMenus();
+      target(hex);
+    }
+
+    function applyHexBox() {
+      const hex = ViewerColours.normaliseHex(colourHexEl.value);
+      colourHexEl.classList.toggle("invalid", !hex);
+      if (hex) pickColour(hex);
+    }
+    document.getElementById("colour-apply").addEventListener("click", applyHexBox);
+    colourHexEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") applyHexBox();
+    });
+    colourHexEl.addEventListener("input", () => {
+      const hex = ViewerColours.normaliseHex(colourHexEl.value);
+      colourHexEl.classList.toggle("invalid", !hex && colourHexEl.value.length >= 4);
+      if (hex) colourNativeEl.value = hex;
+    });
+    colourNativeEl.addEventListener("change", () => pickColour(colourNativeEl.value));
+
+    // A press anywhere else closes them; one inside does not.
+    window.addEventListener("pointerdown", (event) => {
+      if (!menuOpen()) return;
+      if (contextMenuEl.contains(event.target) || colourPopoverEl.contains(event.target)) return;
+      closeMenus();
+    }, true);
+
+    /// The body that owns face `faceIndex`, from the mesh header's face counts.
+    function bodyOfFace(faceIndex) {
+      let start = 0;
+      for (const body of mesh.geometry.userData.bodies) {
+        if (faceIndex < start + body.faces) return body;
+        start += body.faces;
+      }
+      return null;
+    }
+
+    /// Colours face `faceIndex`, or clears its own colour when `colour` is null.
+    /// The daemon names the entries on the face and a box that picks it out alone.
+    async function setFaceColour(faceIndex, colour) {
+      const info = await rpcCall("get_face_appearance", { handle: "f" + faceIndex });
+      const current = await rpcCall("get_document", {});
+      const appearances = colour
+        ? ViewerColours.withFaceColour(current.appearances, info, colour)
+        : ViewerColours.withoutFaceColour(current.appearances, info);
+      return sendCommand({ type: "set_appearances", appearances, base_revision: current.revision });
+    }
+
+    function openBodyMenu(x, y, body) {
+      const hidden = body.visible === false;
+      openMenu(x, y, body.name, [
+        body.reference ? null : {
+          label: "Colour…",
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+        },
+        { label: hidden ? "Show" : "Hide", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: hidden }) },
+      ]);
+    }
+
+    async function openFaceMenu(event) {
+      if (sketchStage || extrudeArmed || !mesh) return;
+      const hit = raycastFace(event);
+      if (!hit) return;
+      const x = event.clientX;
+      const y = event.clientY;
+      const faceIndex = mesh.geometry.userData.faceOfTriangle[hit.faceIndex];
+      const body = bodyOfFace(faceIndex);
+      // The handle is only good for the part the daemon has now.
+      const info = loadedRevision === daemonRevision
+        ? await trackPending(rpcCall("get_face_appearance", { handle: "f" + faceIndex })).catch(() => null)
+        : null;
+      const clear = ViewerColours.clearLabel(info);
+      const faceColour = window.__tcad.faceColour(faceIndex) || (body && body.color);
+      openMenu(x, y, (body ? body.name + " · " : "") + "face f" + faceIndex, [
+        { label: "Colour…", action: () => openColourPicker(x, y, "Face colour", faceColour, (hex) => setFaceColour(faceIndex, hex)) },
+        body && !body.reference ? {
+          label: "Body colour…",
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+        } : null,
+        body ? { label: "Hide body", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: false }) } : null,
+        clear ? { label: clear, action: () => setFaceColour(faceIndex, null) } : null,
+      ]);
+    }
+
+    renderer.domElement.addEventListener("contextmenu", (event) => event.preventDefault());
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      rightPress = event.button === 2 ? { x: event.clientX, y: event.clientY } : null;
+    });
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      if (event.button !== 2 || !rightPress) return;
+      const moved = Math.hypot(event.clientX - rightPress.x, event.clientY - rightPress.y);
+      rightPress = null;
+      if (moved <= RIGHT_CLICK_SLOP) openFaceMenu(event);
     });
 
     // Ends a corner or edge drag and sends the new profile to Swift, which
@@ -2378,6 +2911,10 @@
 
 
     window.addEventListener("keydown", (event) => {
+      if (menuOpen()) {
+        if (event.key === "Escape") closeMenus();
+        return; // the hex box takes letters; nothing else should act meanwhile
+      }
       // The parameter form is a text field: "e" and "s" are letters there, and
       // Cmd+Z undoes the typing rather than the document.
       if (propertiesEl.contains(document.activeElement)) return;
@@ -2545,7 +3082,7 @@
           const angle = start + ((end - start) * step) / steps;
           return worldOfPlane(plane, [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)]);
         });
-      for (const entity of feature.feature.entities) {
+      for (const entity of feature.entities || (feature.resolved || feature.feature).entities) {
         const run =
           entity.kind === "line"
             ? [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)]
@@ -2737,9 +3274,9 @@
       controls.enableRotate = false;
 
       if (mesh) {
-        dimmedMeshState = { transparent: mesh.material.transparent, opacity: mesh.material.opacity };
-        mesh.material.transparent = true;
-        mesh.material.opacity = 0.25;
+        dimmedMeshState = { transparent: [].concat(mesh.material)[0].transparent, opacity: [].concat(mesh.material)[0].opacity };
+        [].concat(mesh.material)[0].transparent = true;
+        [].concat(mesh.material)[0].opacity = 0.25;
       }
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
@@ -2765,7 +3302,9 @@
     let editedSketchId = null;
     function editSketch(entry) {
       if (sketchStage || extrudeArmed) return;
-      const feature = entry.feature;
+      // The sketcher works in numbers. The engine puts each "=param"
+      // expression back wherever the value did not change (keep_expressions).
+      const feature = entry.resolved || entry.feature;
       const stored = resolveStoredPlane(entry.plane);
       const normal = new THREE.Vector3().crossVectors(stored.xDir, stored.yDir).normalize();
       sketchPlane = makeSketchPlane(stored.origin, normal, stored.xDir);
@@ -2807,8 +3346,8 @@
         sketchPlaneHelper = null;
       }
       if (mesh && dimmedMeshState) {
-        mesh.material.transparent = dimmedMeshState.transparent;
-        mesh.material.opacity = dimmedMeshState.opacity;
+        [].concat(mesh.material)[0].transparent = dimmedMeshState.transparent;
+        [].concat(mesh.material)[0].opacity = dimmedMeshState.opacity;
       }
       dimmedMeshState = null;
     }
@@ -3128,7 +3667,7 @@
       const ndc = point.clone().project(camera);
       const rect = renderer.domElement.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
-      const hits = raycaster.intersectObject(mesh);
+      const hits = partHits();
       const visible =
         hits.length === 0 || hits[0].distance >= camera.position.distanceTo(point) - 2 * worldRadius(EDGE_PICK_PIXELS, point);
       return {
@@ -3212,6 +3751,25 @@
       get mesh() {
         return mesh ? { ...mesh.userData.counts } : null;
       },
+      /// The bodies in the mesh header: id, name, color, visible, reference.
+      get bodies() {
+        return mesh ? mesh.geometry.userData.bodies.map((body) => ({ ...body })) : [];
+      },
+      /// Face `face`'s own colour as "#rrggbb", or null when it has none.
+      faceColour(face) {
+        const colours = mesh && mesh.userData.faceColours;
+        if (!colours || colours[face] === undefined || colours[face] === 0xffffffff) return null;
+        return "#" + colours[face].toString(16).padStart(6, "0");
+      },
+      /// The open right-click menu's items, or null.
+      get contextMenu() {
+        if (contextMenuEl.style.display !== "block") return null;
+        return Array.from(contextMenuEl.querySelectorAll("button")).map((button) => button.textContent);
+      },
+      /// The status line, when it shows.
+      get status() {
+        return statusEl.style.display === "none" ? null : statusEl.textContent;
+      },
 
       /// Where B-rep face `face` is on screen, in page pixels, and whether a
       /// click there would land on it rather than on something in front.
@@ -3248,7 +3806,7 @@
         const x = rect.left + ((ndc.x + 1) / 2) * rect.width;
         const y = rect.top + ((1 - ndc.y) / 2) * rect.height;
         raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
-        const hits = raycaster.intersectObject(mesh);
+        const hits = partHits();
         const visible = hits.length > 0 && geometry.userData.faceOfTriangle[hits[0].faceIndex] === face;
         return { x, y, visible };
       },

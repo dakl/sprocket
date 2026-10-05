@@ -1,0 +1,1613 @@
+{
+ "format_version": 2,
+ "features": [
+  {
+   "id": "pcbs",
+   "type": "sketch",
+   "plane": "XY",
+   "rect": {
+    "width": "=pcb_l",
+    "height": "=pcb_w",
+    "center": [
+     "=pcb_l/2",
+     "=pcb_w/2"
+    ]
+   }
+  },
+  {
+   "id": "pcb",
+   "type": "extrude",
+   "profile": "pcbs",
+   "distance": "=pcb_t"
+  },
+  {
+   "id": "holes",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "h0",
+     "kind": "circle",
+     "c": [
+      "=hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "h1",
+     "kind": "circle",
+     "c": [
+      "=pcb_l-hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "h2",
+     "kind": "circle",
+     "c": [
+      "=hole_inset",
+      "=pcb_w-hole_inset"
+     ],
+     "r": "=hole_d/2"
+    },
+    {
+     "id": "h3",
+     "kind": "circle",
+     "c": [
+      "=pcb_l-hole_inset",
+      "=pcb_w-hole_inset"
+     ],
+     "r": "=hole_d/2"
+    }
+   ]
+  },
+  {
+   "id": "pcbh",
+   "type": "extrude",
+   "base": "pcb",
+   "distance": "=-pcb_t",
+   "profiles": [
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h0"
+     ]
+    },
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h1"
+     ]
+    },
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h2"
+     ]
+    },
+    {
+     "sketch": "holes",
+     "bounded_by": [
+      "h3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cells0s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=cell_w",
+    "height": "=cell_w",
+    "center": [
+     "=pcb_l/2-9.5*2.54",
+     "=header_w/2-1.27"
+    ]
+   }
+  },
+  {
+   "id": "cells0",
+   "type": "extrude",
+   "profile": "cells0s",
+   "distance": "=header_h"
+  },
+  {
+   "id": "cells",
+   "type": "pattern",
+   "tool": "cells0",
+   "linear": {
+    "direction": [
+     1,
+     0,
+     0
+    ],
+    "count": 20,
+    "spacing": 2.54
+   },
+   "linear2": {
+    "direction": [
+     0,
+     1,
+     0
+    ],
+    "count": 2,
+    "spacing": 2.54
+   }
+  },
+  {
+   "id": "pins0s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+header_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=pin_w",
+    "height": "=pin_w",
+    "center": [
+     "=pcb_l/2-9.5*2.54",
+     "=header_w/2-1.27"
+    ]
+   }
+  },
+  {
+   "id": "pins0",
+   "type": "extrude",
+   "profile": "pins0s",
+   "distance": "=pin_up"
+  },
+  {
+   "id": "pins",
+   "type": "pattern",
+   "tool": "pins0",
+   "linear": {
+    "direction": [
+     1,
+     0,
+     0
+    ],
+    "count": 20,
+    "spacing": 2.54
+   },
+   "linear2": {
+    "direction": [
+     0,
+     1,
+     0
+    ],
+    "count": 2,
+    "spacing": 2.54
+   }
+  },
+  {
+   "id": "usbc1s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=usb_w",
+    "height": "=usb_d",
+    "center": [
+     11.5,
+     "=pcb_w-usb_d/2+0.5"
+    ]
+   }
+  },
+  {
+   "id": "usbc1",
+   "type": "extrude",
+   "profile": "usbc1s",
+   "distance": "=usb_h"
+  },
+  {
+   "id": "usbc2s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=usb_w",
+    "height": "=usb_d",
+    "center": [
+     23.2,
+     "=pcb_w-usb_d/2+0.5"
+    ]
+   }
+  },
+  {
+   "id": "usbc2",
+   "type": "extrude",
+   "profile": "usbc2s",
+   "distance": "=usb_h"
+  },
+  {
+   "id": "hdmis",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=hdmi_w",
+    "height": "=hdmi_d",
+    "center": [
+     52.7,
+     "=pcb_w-hdmi_d/2+0.5"
+    ]
+   }
+  },
+  {
+   "id": "hdmi",
+   "type": "extrude",
+   "profile": "hdmis",
+   "distance": "=hdmi_h"
+  },
+  {
+   "id": "socs",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=soc_l",
+    "height": "=soc_l",
+    "center": [
+     38,
+     18
+    ]
+   }
+  },
+  {
+   "id": "soc",
+   "type": "extrude",
+   "profile": "socs",
+   "distance": "=soc_h"
+  },
+  {
+   "id": "pads",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+soc_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=soc_l",
+    "height": "=soc_l",
+    "center": [
+     38,
+     18
+    ]
+   }
+  },
+  {
+   "id": "pad",
+   "type": "extrude",
+   "profile": "pads",
+   "distance": "=usb_h-soc_h"
+  },
+  {
+   "id": "sinks",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+usb_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=pcb_l",
+    "height": "=sink_y1-sink_y0",
+    "center": [
+     "=pcb_l/2",
+     "=(sink_y0+sink_y1)/2"
+    ]
+   }
+  },
+  {
+   "id": "sink",
+   "type": "extrude",
+   "profile": "sinks",
+   "distance": "=sink_top-pcb_t-usb_h"
+  },
+  {
+   "id": "earls",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=ear_w",
+    "height": "=sink_y0+ear_overlap",
+    "center": [
+     "=ear_w/2",
+     "=(sink_y0+ear_overlap)/2"
+    ]
+   }
+  },
+  {
+   "id": "earl",
+   "type": "extrude",
+   "profile": "earls",
+   "distance": "=usb_h+ear_overlap",
+   "base": "sink"
+  },
+  {
+   "id": "earrs",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=ear_w",
+    "height": "=sink_y0+ear_overlap",
+    "center": [
+     "=pcb_l-ear_w/2",
+     "=(sink_y0+ear_overlap)/2"
+    ]
+   }
+  },
+  {
+   "id": "earr",
+   "type": "extrude",
+   "profile": "earrs",
+   "distance": "=usb_h+ear_overlap",
+   "base": "earl"
+  },
+  {
+   "id": "fans",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=pcb_t+usb_h"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": "=fan_l",
+    "height": "=sink_y1+0.5-fan_y0",
+    "center": [
+     "=pcb_l-fan_l/2",
+     "=(fan_y0+sink_y1+0.5)/2"
+    ]
+   }
+  },
+  {
+   "id": "fan",
+   "type": "extrude",
+   "profile": "fans",
+   "distance": "=fan_top-pcb_t-usb_h"
+  },
+  {
+   "id": "fancut",
+   "type": "extrude",
+   "profile": "fans",
+   "base": "earr",
+   "mode": "cut",
+   "distance": "=fan_top-pcb_t-usb_h"
+  },
+  {
+   "id": "groovess",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     "=sink_top"
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "entities": [
+    {
+     "id": "g0_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+0*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+0*2.7"
+     ]
+    },
+    {
+     "id": "g0_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+0*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g0_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g0_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+0*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+0*2.7"
+     ]
+    },
+    {
+     "id": "g1_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+1*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+1*2.7"
+     ]
+    },
+    {
+     "id": "g1_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+1*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g1_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g1_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+1*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+1*2.7"
+     ]
+    },
+    {
+     "id": "g2_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+2*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+2*2.7"
+     ]
+    },
+    {
+     "id": "g2_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+2*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g2_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g2_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+2*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+2*2.7"
+     ]
+    },
+    {
+     "id": "g3_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+3*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+3*2.7"
+     ]
+    },
+    {
+     "id": "g3_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+3*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g3_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g3_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+3*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+3*2.7"
+     ]
+    },
+    {
+     "id": "g4_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+4*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+4*2.7"
+     ]
+    },
+    {
+     "id": "g4_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+4*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g4_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g4_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+4*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+4*2.7"
+     ]
+    },
+    {
+     "id": "g5_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+5*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+5*2.7"
+     ]
+    },
+    {
+     "id": "g5_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+5*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g5_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g5_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+5*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+5*2.7"
+     ]
+    },
+    {
+     "id": "g6_0",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+6*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+6*2.7"
+     ]
+    },
+    {
+     "id": "g6_1",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+6*2.7"
+     ],
+     "p1": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g6_2",
+     "kind": "line",
+     "p0": [
+      "=pcb_l-fan_l-0.5",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ]
+    },
+    {
+     "id": "g6_3",
+     "kind": "line",
+     "p0": [
+      "=-0.1",
+      "=fan_y0+1.1+6*2.7+groove_w"
+     ],
+     "p1": [
+      "=-0.1",
+      "=fan_y0+1.1+6*2.7"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "grooved",
+   "type": "extrude",
+   "base": "fancut",
+   "distance": "=-groove_depth",
+   "profiles": [
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g0_0",
+      "g0_1",
+      "g0_2",
+      "g0_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g1_0",
+      "g1_1",
+      "g1_2",
+      "g1_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g2_0",
+      "g2_1",
+      "g2_2",
+      "g2_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g3_0",
+      "g3_1",
+      "g3_2",
+      "g3_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g4_0",
+      "g4_1",
+      "g4_2",
+      "g4_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g5_0",
+      "g5_1",
+      "g5_2",
+      "g5_3"
+     ]
+    },
+    {
+     "sketch": "groovess",
+     "bounded_by": [
+      "g6_0",
+      "g6_1",
+      "g6_2",
+      "g6_3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "screws",
+   "type": "hole",
+   "base": "grooved",
+   "diameter": "=hole_d",
+   "through": true,
+   "points": [
+    [
+     "=hole_inset",
+     "=hole_inset",
+     "=pcb_t+usb_h"
+    ],
+    [
+     "=pcb_l-hole_inset",
+     "=hole_inset",
+     "=pcb_t+usb_h"
+    ]
+   ]
+  },
+  {
+   "id": "sdcards",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 12.5,
+    "height": 11.3,
+    "center": [
+     59.25,
+     -16.75
+    ]
+   }
+  },
+  {
+   "id": "sdcard",
+   "type": "extrude",
+   "profile": "sdcards",
+   "distance": "=sd_h"
+  },
+  {
+   "id": "mipis",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 16.6,
+    "height": 4.1,
+    "center": [
+     37.2,
+     -28.85
+    ]
+   }
+  },
+  {
+   "id": "mipi",
+   "type": "extrude",
+   "profile": "mipis",
+   "distance": "=under_h"
+  },
+  {
+   "id": "cam1s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 14.0,
+    "height": 5.7,
+    "center": [
+     29.0,
+     -3.25
+    ]
+   }
+  },
+  {
+   "id": "cam1",
+   "type": "extrude",
+   "profile": "cam1s",
+   "distance": "=under_h"
+  },
+  {
+   "id": "cam2s",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 14.2,
+    "height": 5.7,
+    "center": [
+     44.9,
+     -3.25
+    ]
+   }
+  },
+  {
+   "id": "cam2",
+   "type": "extrude",
+   "profile": "cam2s",
+   "distance": "=under_h"
+  },
+  {
+   "id": "fancs",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 4.6,
+    "height": 3.7,
+    "center": [
+     55.0,
+     -1.85
+    ]
+   }
+  },
+  {
+   "id": "fanc",
+   "type": "extrude",
+   "profile": "fancs",
+   "distance": "=under_h"
+  },
+  {
+   "id": "pcies",
+   "type": "sketch",
+   "plane": {
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "normal": [
+     0,
+     0,
+     -1
+    ],
+    "x_dir": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rect": {
+    "width": 4.9,
+    "height": 11.0,
+    "center": [
+     2.85,
+     -18.5
+    ]
+   }
+  },
+  {
+   "id": "pcie",
+   "type": "extrude",
+   "profile": "pcies",
+   "distance": "=under_h"
+  }
+ ],
+ "rollback_index": 44,
+ "parameters": {
+  "pcb_l": 65,
+  "pcb_w": 32,
+  "pcb_t": 1.2,
+  "hole_inset": 3.5,
+  "hole_d": 2.75,
+  "header_l": 50.8,
+  "header_w": 5.08,
+  "header_h": 2.5,
+  "usb_w": 9.0,
+  "usb_d": 7.3,
+  "usb_h": 3.3,
+  "hdmi_w": 11.6,
+  "hdmi_d": 7.0,
+  "hdmi_h": 3.3,
+  "soc_l": 14,
+  "soc_h": 1.0,
+  "sink_y0": 8.7,
+  "sink_y1": 32.0,
+  "sink_top": 10,
+  "ear_w": 5.7,
+  "ear_overlap": 0.5,
+  "fan_l": 20.4,
+  "fan_y0": 11.8,
+  "fan_top": 10.4,
+  "groove_w": 1.2,
+  "groove_depth": 2.5,
+  "pin_w": 0.64,
+  "cell_w": 2.24,
+  "pin_up": 6,
+  "under_h": 1.5,
+  "sd_h": 1.8
+ },
+ "appearances": [
+  {
+   "color": "#e8c52e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       55.42999999999999,
+       2.6100000000000003,
+       1.1,
+       57.83,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d83a2e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       55.42999999999999,
+       0.07000000000000006,
+       1.1,
+       57.83,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#d83a2e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       52.89,
+       0.07000000000000006,
+       1.1,
+       55.290000000000006,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       50.349999999999994,
+       0.07000000000000006,
+       1.1,
+       52.75,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       45.269999999999996,
+       2.6100000000000003,
+       1.1,
+       47.67,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       40.19,
+       0.07000000000000006,
+       1.1,
+       42.59,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#e8c52e",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       35.11,
+       2.6100000000000003,
+       1.1,
+       37.510000000000005,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       32.57,
+       0.07000000000000006,
+       1.1,
+       34.970000000000006,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       24.95,
+       2.6100000000000003,
+       1.1,
+       27.349999999999998,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2f9e44",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       22.41,
+       2.6100000000000003,
+       1.1,
+       24.81,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       19.87,
+       0.07000000000000006,
+       1.1,
+       22.27,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       14.79,
+       0.07000000000000006,
+       1.1,
+       17.189999999999998,
+       2.4699999999999998,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#1d1d1f",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       7.170000000000001,
+       2.6100000000000003,
+       1.1,
+       9.57,
+       5.01,
+       3.75
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "color": "#2f9e44",
+   "select": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "within",
+      "box": [
+       23.3,
+       0.1,
+       2.2,
+       23.9,
+       0.2,
+       2.7
+      ]
+     }
+    ]
+   }
+  }
+ ],
+ "bodies": {
+  "pcb": {
+   "name": "PCB",
+   "color": "#2d68b0"
+  },
+  "cells": {
+   "name": "Header plastic",
+   "color": "#2aa1d8"
+  },
+  "pins": {
+   "name": "Header pins",
+   "color": "#d4af37"
+  },
+  "usbc1": {
+   "name": "USB-C 1",
+   "color": "#b8bcc2"
+  },
+  "usbc2": {
+   "name": "USB-C 2",
+   "color": "#b8bcc2"
+  },
+  "hdmi": {
+   "name": "Mini HDMI",
+   "color": "#b8bcc2"
+  },
+  "soc": {
+   "name": "SoC",
+   "color": "#1b1c1e"
+  },
+  "pad": {
+   "name": "Thermal pad",
+   "color": "#8a8f96"
+  },
+  "sink": {
+   "name": "Heatsink",
+   "color": "#2a2c2f"
+  },
+  "fan": {
+   "name": "Fan bracket",
+   "color": "#b8bcc2"
+  },
+  "sdcard": {
+   "name": "microSD socket",
+   "color": "#b8bcc2"
+  },
+  "mipi": {
+   "name": "MIPI LCD connector",
+   "color": "#d9c9a3"
+  },
+  "cam1": {
+   "name": "Camera connector 1",
+   "color": "#d9c9a3"
+  },
+  "cam2": {
+   "name": "Camera connector 2",
+   "color": "#d9c9a3"
+  },
+  "fanc": {
+   "name": "Fan connector",
+   "color": "#d9c9a3"
+  },
+  "pcie": {
+   "name": "PCIe connector",
+   "color": "#d9c9a3"
+  }
+ },
+ "revision": 0,
+ "log": []
+}

@@ -19,8 +19,10 @@ op schema still only ever see numbers.
 
 import ast
 import copy
+import hashlib
 import json
 import operator
+import re
 import time
 from pathlib import Path
 
@@ -180,6 +182,43 @@ def resolve_value(value, parameters: dict[str, float]):
     return value
 
 
+def keep_expressions(old, new, parameters: dict[str, float], unlinked: list, path: str = ""):
+    """`new` with the `"=param"` strings of `old` put back wherever the value did not change.
+
+    The viewer and the engine's sketch solver work in numbers, so a sketch
+    comes back from either with every expression evaluated. Writing that over
+    the stored feature would cut every field loose from its parameter, when the
+    person moved one point. So a number that still equals its old expression's
+    value keeps the expression. A field whose value did change takes the number,
+    and its path goes into `unlinked` so the caller can say the link was replaced.
+    Entities and constraints are matched by id, so a reordered list is fine.
+    """
+    if isinstance(old, str) and old.startswith(EXPRESSION_PREFIX) and isinstance(new, (int, float)) and not isinstance(new, bool):
+        try:
+            value = evaluate(old[len(EXPRESSION_PREFIX):], parameters)
+        except DocumentError:
+            return new
+        if abs(value - new) <= 1e-6 * max(1.0, abs(value)):
+            return old
+        unlinked.append({"field": path, "was": old, "now": new})
+        return new
+    if isinstance(old, dict) and isinstance(new, dict):
+        return {
+            key: keep_expressions(old[key], value, parameters, unlinked, f"{path}.{key}" if path else key) if key in old else value
+            for key, value in new.items()
+        }
+    if isinstance(old, list) and isinstance(new, list):
+        if all(isinstance(item, dict) and "id" in item for item in old + new):
+            by_id = {item["id"]: item for item in old}
+            return [
+                keep_expressions(by_id[item["id"]], item, parameters, unlinked, f"{path}[{item['id']}]") if item["id"] in by_id else item
+                for item in new
+            ]
+        if len(old) == len(new):
+            return [keep_expressions(a, b, parameters, unlinked, f"{path}[{i}]") for i, (a, b) in enumerate(zip(old, new))]
+    return new
+
+
 def validate_feature(feature, parameters: dict[str, float]) -> dict:
     """Checks one feature against its op's JSON Schema and returns it resolved.
 
@@ -221,13 +260,22 @@ class Document:
         revision: int = 0,
         log: list[dict] | None = None,
         path: Path | None = None,
+        appearances: list[dict] | None = None,
+        bodies: dict | None = None,
     ):
         self.features = list(features or [])
         self.rollback_index = len(self.features) if rollback_index is None else rollback_index
         self.parameters = dict(parameters or {})
+        # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
+        self.appearances = list(appearances or [])
+        # Settings per body, keyed by body id: {"name", "color", "visible"}.
+        self.bodies = dict(bodies or {})
         self.revision = revision
         self.log = list(log or [])
         self.path = Path(path) if path else None
+        # The hash of the bytes last read from or written to `path`. The daemon
+        # compares the file against it to tell its own save from someone else's.
+        self.saved_sha256: str | None = None
 
     # ---- loading and saving ------------------------------------------------
 
@@ -245,7 +293,8 @@ class Document:
         """
         path = Path(path)
         try:
-            raw = path.read_text()
+            raw_bytes = path.read_bytes()
+            raw = raw_bytes.decode()
         except OSError as exc:
             raise DocumentError(f"cannot read document {path}: {exc.strerror}") from None
         except UnicodeDecodeError:
@@ -286,10 +335,26 @@ class Document:
         if not isinstance(log, list):
             raise DocumentError(f"{path}: 'log' must be a list")
 
+        appearances = data.get("appearances", [])
+        try:
+            _check_appearances(appearances)
+        except DocumentError as exc:
+            raise DocumentError(f"{path}: {exc}") from None
+
+        bodies = data.get("bodies", {})
+        if not isinstance(bodies, dict):
+            raise DocumentError(f"{path}: 'bodies' must be a JSON object keyed by body id")
+        for body_id, settings in bodies.items():
+            try:
+                _check_body_settings(settings)
+            except DocumentError as exc:
+                raise DocumentError(f"{path}: body {body_id!r}: {exc}") from None
+
         for feature in features:
             assign_constraint_ids(feature)
-        document = cls(features, rollback_index, parameters, revision, log, path)
+        document = cls(features, rollback_index, parameters, revision, log, path, appearances, bodies)
         resolve_parameters(document.parameters)  # fail at open, not at first build
+        document.saved_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         return document
 
     def to_json(self) -> dict:
@@ -298,6 +363,8 @@ class Document:
             "features": self.features,
             "rollback_index": self.rollback_index,
             "parameters": self.parameters,
+            "appearances": self.appearances,
+            "bodies": self.bodies,
             "revision": self.revision,
             "log": self.log,
         }
@@ -314,10 +381,19 @@ class Document:
         if target is None:
             raise DocumentError("this document has no path, so it cannot be saved")
         temporary = target.with_name(target.name + ".tmp")
-        temporary.write_text(json.dumps(self.to_json(), indent=2) + "\n")
+        data = (json.dumps(self.to_json(), indent=2) + "\n").encode()
+        temporary.write_bytes(data)
         temporary.replace(target)
         self.path = target
+        self.saved_sha256 = hashlib.sha256(data).hexdigest()
         return target
+
+    def file_sha256(self) -> str | None:
+        """The hash of what is on disk at `path` now, or None if nothing is."""
+        try:
+            return hashlib.sha256(self.path.read_bytes()).hexdigest() if self.path else None
+        except OSError:
+            return None
 
     # ---- reading -----------------------------------------------------------
 
@@ -325,12 +401,20 @@ class Document:
         return resolve_parameters(self.parameters)
 
     def for_replay(self) -> dict:
-        """The plain document `replay()` takes: numbers only, no log."""
+        """The plain document `replay()` takes: numbers only, no log.
+
+        A reference's `file` becomes absolute, against this document's folder,
+        and gains the file's hash. The hash is part of the feature, so the
+        BREP cache key changes when the referenced file does."""
         parameters = self.resolved_parameters()
-        return {
-            "features": [resolve_value(feature, parameters) for feature in self.features],
-            "rollback_index": self.rollback_index,
-        }
+        features = [resolve_value(feature, parameters) for feature in self.features]
+        folder = self.path.parent if self.path else Path.cwd()
+        for index, feature in enumerate(features):
+            if feature.get("type") == "reference" and isinstance(feature.get("file"), str):
+                path = (folder / feature["file"]).resolve()
+                digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+                features[index] = {**feature, "file": str(path), "source_sha256": digest}
+        return {"features": features, "rollback_index": self.rollback_index}
 
     def index_of(self, feature_id: str) -> int:
         for index, feature in enumerate(self.features):
@@ -381,12 +465,17 @@ class Document:
         if not isinstance(edits, list) or not edits:
             raise DocumentError("apply_edits needs a non-empty list of edits")
 
-        trial = Document(self.features, self.rollback_index, self.parameters, self.revision, [])
+        trial = Document(
+            self.features, self.rollback_index, self.parameters, self.revision, [],
+            appearances=copy.deepcopy(self.appearances), bodies=copy.deepcopy(self.bodies),
+        )
         entries = [trial._apply_one(edit, author) for edit in edits]
 
         self.features = trial.features
         self.rollback_index = trial.rollback_index
         self.parameters = trial.parameters
+        self.appearances = trial.appearances
+        self.bodies = trial.bodies
         self.revision += 1
         for entry in entries:
             entry["revision"] = self.revision
@@ -397,16 +486,44 @@ class Document:
         """The editable state, deep-copied, for undo. The log is not part of it:
         undoing an edit is itself an entry in the log, not an erasure."""
         return copy.deepcopy(
-            {"features": self.features, "rollback_index": self.rollback_index, "parameters": self.parameters}
+            {
+                "features": self.features,
+                "rollback_index": self.rollback_index,
+                "parameters": self.parameters,
+                "appearances": self.appearances,
+                "bodies": self.bodies,
+            }
         )
 
-    def restore(self, snapshot: dict, author: str) -> int:
-        """Puts back a state taken with `snapshot()` and returns the new revision."""
+    def restore(self, snapshot: dict, author: str, log: bool = True, action: str = "restore") -> int:
+        """Puts back a state taken with `snapshot()` and returns the new revision.
+        Undoing a view change (`log=False`) leaves no entry in the log. A reload
+        from disk logs `action="reload"`."""
         self.features = copy.deepcopy(snapshot["features"])
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
+        self.appearances = copy.deepcopy(snapshot.get("appearances", []))
+        self.bodies = copy.deepcopy(snapshot.get("bodies", {}))
         self.revision += 1
-        self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
+        if log:
+            self.log.append({"author": author, "action": action, "at": _now(), "revision": self.revision})
+        return self.revision
+
+    def set_visibility(self, body_id: str, visible: bool) -> int:
+        """Shows or hides one body: view state, saved with the document but not
+        an edit, so it adds nothing to the log. The daemon still puts it on the
+        undo stack. A hidden body still exports."""
+        self.index_of(body_id)
+        if not isinstance(visible, bool):
+            raise DocumentError("'visible' must be true or false")
+        settings = {key: value for key, value in self.bodies.get(body_id, {}).items() if key != "visible"}
+        if not visible:
+            settings["visible"] = False
+        if settings:
+            self.bodies[body_id] = settings
+        else:
+            self.bodies.pop(body_id, None)
+        self.revision += 1
         return self.revision
 
     def _apply_one(self, edit: dict, author: str) -> dict:
@@ -421,9 +538,13 @@ class Document:
             "set_rollback": self._set_rollback,
             "set_parameter": self._set_parameter,
             "edit_sketch": self._edit_sketch,
+            "set_body": self._set_body,
+            "set_appearances": self._set_appearances,
         }.get(kind)
         if handler is None:
-            raise DocumentError(f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch)")
+            raise DocumentError(
+                f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch, set_body, set_appearances)"
+            )
         detail = handler(edit)
         return {"author": author, "action": kind, "at": _now(), **detail}
 
@@ -451,15 +572,20 @@ class Document:
 
     def _update(self, edit: dict) -> dict:
         feature = edit.get("feature")
-        validate_feature(feature, self.resolved_parameters())
+        parameters = self.resolved_parameters()
+        validate_feature(feature, parameters)
         assign_constraint_ids(feature)
         feature_id = edit.get("id", feature.get("id"))
         index = self.index_of(feature_id)
         if feature["id"] != feature_id:
             raise DocumentError("an update cannot change a feature's id")
         self._check_references(feature, available=self.features[:index])
-        self.features[index] = feature
-        return {"feature_id": feature_id, "index": index}
+        unlinked = []
+        self.features[index] = keep_expressions(self.features[index], feature, parameters, unlinked)
+        detail = {"feature_id": feature_id, "index": index}
+        if unlinked:
+            detail["unlinked"] = unlinked
+        return detail
 
     def _delete(self, edit: dict) -> dict:
         feature_id = edit.get("id")
@@ -536,8 +662,43 @@ class Document:
         except ValueError as exc:
             raise DocumentError(str(exc)) from None
         validate_feature(feature, parameters)
-        self.features[index] = feature
+        unlinked = []
+        self.features[index] = keep_expressions(self.features[index], feature, parameters, unlinked)
+        if unlinked:
+            detail["unlinked"] = unlinked
         return {"feature_id": feature_id, "index": index, **detail}
+
+    def _set_body(self, edit: dict) -> dict:
+        """Changes one body's name or colour. A field set to None goes back to
+        its default. The body id is the id of the feature that started the
+        body, which need not be built yet. Visibility is not an edit: see
+        `set_visibility`."""
+        body_id = edit.get("id")
+        self.index_of(body_id)
+        if "visible" in edit:
+            raise DocumentError("visibility is view state, not an edit: use set_visibility")
+        settings = dict(self.bodies.get(body_id, {}))
+        for name in ("name", "color"):
+            if name not in edit:
+                continue
+            if edit[name] is None:
+                settings.pop(name, None)
+            else:
+                settings[name] = edit[name]
+        _check_body_settings(settings)
+        if settings:
+            self.bodies[body_id] = settings
+        else:
+            self.bodies.pop(body_id, None)
+        return {"body": body_id, **{name: edit[name] for name in ("name", "color") if name in edit}}
+
+    def _set_appearances(self, edit: dict) -> dict:
+        """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
+        applied in order over the body colours, later ones winning."""
+        appearances = edit.get("appearances")
+        _check_appearances(appearances)
+        self.appearances = copy.deepcopy(appearances)
+        return {"count": len(appearances)}
 
     def _check_references(self, feature: dict, available: list[dict]) -> None:
         """A feature may only reference features that come before it.
@@ -572,15 +733,44 @@ class Document:
 # tuple with two entries and grep found a third, `tool` on boolean, so the
 # coverage check in test_document.py reads the schemas rather than trusting
 # this line. Add a field here when an op grows a new reference.
-REFERENCE_FIELDS = ("base", "profile", "tool")
+REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
+
+
+def _check_appearances(appearances) -> None:
+    if not isinstance(appearances, list) or not all(
+        isinstance(item, dict)
+        and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
+        and isinstance(item.get("select"), dict)
+        for item in appearances
+    ):
+        raise DocumentError("'appearances' must be a list of {\"color\": \"#rrggbb\", \"select\": <selector>}")
+
+
+def _check_body_settings(settings) -> None:
+    if not isinstance(settings, dict):
+        raise DocumentError("body settings must be a JSON object")
+    unknown = set(settings) - {"name", "color", "visible"}
+    if unknown:
+        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible)")
+    if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
+        raise DocumentError("a body name must be a non-empty string")
+    if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):
+        raise DocumentError(f"a body color must be #rrggbb, not {settings['color']!r}")
+    if "visible" in settings and not isinstance(settings["visible"], bool):
+        raise DocumentError("a body's visible must be true or false")
 
 
 def _referenced_ids(feature: dict) -> list[str]:
-    return [
+    referenced = [
         feature[field]
         for field in REFERENCE_FIELDS
         if isinstance(feature.get(field), str)
     ]
+    # A sketch on a face names the feature that holds the face.
+    plane = feature.get("plane")
+    if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
+        referenced.append(plane["feature"])
+    return referenced
 
 
 def _now() -> str:

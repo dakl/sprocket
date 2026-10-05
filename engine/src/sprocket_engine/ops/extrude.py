@@ -1,13 +1,18 @@
-from build123d import Compound, Part, Sketch
+from build123d import Compound, Part, ShapeList, Sketch
 from build123d import extrude as b3d_extrude
 
 from ..regions import ProfileError, find_regions, pick_region
 from .registry import register
-from .sketch import resolve_plane
+from .sketch import resolve_plane, sketch_entities
 
 SCHEMA = {
     "type": "object",
-    "description": "Pushes a sketch into a solid. With no base it makes a new body. With a base, a positive distance fuses and a negative one cuts.",
+    "description": (
+        "Pushes a sketch into a solid. With no base it makes a new body. With a base and no mode, a positive "
+        "distance fuses and a negative one cuts. Give `mode` to choose the combine yourself: then the sign of "
+        "`distance` only picks the direction, so `mode: join` with a negative distance grows the part the other "
+        "way from the sketch plane."
+    ),
     "required": ["id", "type", "distance"],
     "oneOf": [{"required": ["profile"]}, {"required": ["profiles"]}],
     "properties": {
@@ -40,6 +45,14 @@ SCHEMA = {
         },
         "base": {"type": "string", "description": "id of a solid feature to fuse/cut into, if any"},
         "distance": {"type": "number", "not": {"const": 0}, "description": "mm, sign controls direction"},
+        "mode": {
+            "enum": ["join", "cut", "intersect", "new"],
+            "description": "How the extrude combines with `base`. Needs a base, except `new`, which takes none.",
+        },
+        "symmetric": {
+            "type": "boolean",
+            "description": "Extrude `distance` to both sides of the sketch plane, so the solid is twice as thick.",
+        },
     },
 }
 
@@ -52,6 +65,9 @@ def _profile_faces(feature: dict, ctx):
             raise ProfileError(f"sketch {feature['profile']!r} has no closed region to extrude")
         return whole
     picked = []
+    # Region detection splits the whole sketch, so it runs once per sketch, not
+    # once per picked region: 40 regions of one 160-line sketch took 23 s.
+    regions_of = {}
     for reference in feature["profiles"]:
         sketch = ctx.features.get(reference["sketch"])
         if sketch is None or sketch["type"] != "sketch":
@@ -60,20 +76,39 @@ def _profile_faces(feature: dict, ctx):
             # A sketch of one shape has no regions to choose between.
             picked.extend(ctx.results[reference["sketch"]].faces())
             continue
-        region = pick_region(find_regions(sketch["entities"]), reference)
-        picked.append(resolve_plane(sketch["plane"]) * region.face)
+        if reference["sketch"] not in regions_of:
+            regions_of[reference["sketch"]] = find_regions(sketch_entities(sketch))
+        region = pick_region(regions_of[reference["sketch"]], reference)
+        picked.append(resolve_plane(sketch["plane"], ctx) * region.face)
     return Sketch(Compound(picked))
+
+
+COMBINE = {
+    "join": lambda base, tool: base.fuse(tool),
+    "cut": lambda base, tool: base.cut(tool),
+    "intersect": lambda base, tool: base.intersect(tool),
+}
 
 
 @register("extrude", SCHEMA)
 def apply(feature: dict, ctx):
-    tool = b3d_extrude(_profile_faces(feature, ctx), amount=feature["distance"])
+    tool = b3d_extrude(_profile_faces(feature, ctx), amount=feature["distance"], both=feature.get("symmetric", False))
 
     base_id = feature.get("base")
+    mode = feature.get("mode")
+    if mode == "new" and base_id is not None:
+        raise ValueError("mode 'new' makes a new body, so it takes no base")
     if base_id is None:
+        if mode not in (None, "new"):
+            raise ValueError(f"mode {mode!r} needs a base to combine with")
         return tool
 
-    base = ctx.results[base_id]
-    if feature["distance"] < 0:
-        return Part([base.cut(tool)])
-    return Part([base.fuse(tool)])
+    # Documents from before `mode` existed carry the combine in the sign.
+    if mode is None:
+        mode = "cut" if feature["distance"] < 0 else "join"
+    result = COMBINE[mode](ctx.results[base_id], tool)
+    solids = list(result) if isinstance(result, ShapeList) else [result]
+    part = Part(solids)
+    if not solids or part.volume == 0:
+        raise ValueError(f"{mode} of {feature['id']} with {base_id} left an empty solid")
+    return part

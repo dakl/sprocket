@@ -67,10 +67,16 @@ struct WebView: NSViewRepresentable {
                 // Any client's edit, the viewer's own or an agent's, arrives
                 // here as a revision. The viewer refetches the files in place,
                 // which keeps the camera where the user left it.
-                EngineDaemon.shared.onDocumentChanged = { [weak self] revision, opened, viewerError in
+                EngineDaemon.shared.onDocumentChanged = { [weak self] revision, opened, viewerError, json in
                     let errorLiteral = viewerError.map { Self.literal($0) } ?? "null"
-                    self?.webView?.evaluateJavaScript("window.reloadPart && window.reloadPart(\(revision), \(opened), \(errorLiteral));") { _, error in
+                    // The params go in as a string literal and are parsed, so nothing in them runs as code.
+                    self?.webView?.evaluateJavaScript("window.reloadPart && window.reloadPart(\(revision), \(opened), \(errorLiteral), JSON.parse(\(Self.literal(json))));") { _, error in
                         if let error { print("[viewer] reloadPart failed: \(error)") }
+                    }
+                }
+                EngineDaemon.shared.onNotification = { [weak self] method, json in
+                    self?.webView?.evaluateJavaScript("window.__daemonNotification && window.__daemonNotification(\(Self.literal(method)), JSON.parse(\(Self.literal(json))));") { _, error in
+                        if let error { print("[viewer] \(method) failed: \(error)") }
                     }
                 }
                 // What an agent points at. Encoded as JSON, so nothing in it runs as code.

@@ -27,6 +27,11 @@ struct SprocketApp: App {
         // output otherwise only appears once the process exits.
         setvbuf(stdout, nil, _IONBF, 0)
 
+        // `swift run SprocketApp part.sprocket` passes the path to
+        // DocumentStore.startupDocument. Left alone, AppKit also reads it as a
+        // file to open, and then never creates the window, so the engine never starts.
+        UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"])
+
         // The engine runs as a long-lived `sprocket daemon` subprocess
         // (see EngineDaemon), so it needs an explicit stop or it outlives
         // the window.

@@ -1,0 +1,420 @@
+{
+ "format_version": 2,
+ "features": [
+  {
+   "id": "board",
+   "type": "reference",
+   "file": "orangepi-zero-3w.sprocket"
+  },
+  {
+   "id": "blocks",
+   "type": "sketch",
+   "plane": {
+    "name": "XY",
+    "offset": "=-(standoff_h+wall)"
+   },
+   "rect": {
+    "width": "=pcb_l+2*(clearance+wall)",
+    "height": "=pcb_w+2*(clearance+wall)",
+    "center": [
+     "=pcb_l/2",
+     "=pcb_w/2"
+    ]
+   }
+  },
+  {
+   "id": "block",
+   "type": "extrude",
+   "profile": "blocks",
+   "distance": "=wall+standoff_h+case_top"
+  },
+  {
+   "id": "tray",
+   "type": "shell",
+   "base": "block",
+   "thickness": "=wall",
+   "open": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "at_end",
+      "axis": "Z",
+      "end": "max"
+     }
+    ],
+    "expected_count": 1
+   }
+  },
+  {
+   "id": "postss",
+   "type": "sketch",
+   "plane": {
+    "name": "XY",
+    "offset": "=-standoff_h"
+   },
+   "entities": [
+    {
+     "id": "p",
+     "kind": "circle",
+     "c": [
+      "=hole_inset",
+      "=hole_inset"
+     ],
+     "r": "=post_d/2"
+    }
+   ],
+   "patterns": [
+    {
+     "entities": [
+      "p"
+     ],
+     "linear": {
+      "count": 2,
+      "step": [
+       "=pcb_l-2*hole_inset",
+       0
+      ]
+     },
+     "linear2": {
+      "count": 2,
+      "step": [
+       0,
+       "=pcb_w-2*hole_inset"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "posts",
+   "type": "extrude",
+   "profile": "postss",
+   "base": "tray",
+   "mode": "join",
+   "distance": "=standoff_h"
+  },
+  {
+   "id": "pilots",
+   "type": "hole",
+   "base": "posts",
+   "diameter": "=pilot_d",
+   "depth": "=standoff_h+wall/2",
+   "points": [
+    [
+     "=hole_inset",
+     "=hole_inset",
+     0
+    ],
+    [
+     "=pcb_l-hole_inset",
+     "=hole_inset",
+     0
+    ],
+    [
+     "=hole_inset",
+     "=pcb_w-hole_inset",
+     0
+    ],
+    [
+     "=pcb_l-hole_inset",
+     "=pcb_w-hole_inset",
+     0
+    ]
+   ]
+  },
+  {
+   "id": "portss",
+   "type": "sketch",
+   "plane": {
+    "feature": "pilots",
+    "face": {
+     "select": [
+      {
+       "op": "faces"
+      },
+      {
+       "op": "at_end",
+       "axis": "Y",
+       "end": "max"
+      }
+     ],
+     "expected_count": 1
+    }
+   },
+   "entities": [
+    {
+     "id": "u1_0",
+     "kind": "line",
+     "p0": [
+      "=-11.5-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-11.5+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u1_1",
+     "kind": "line",
+     "p0": [
+      "=-11.5+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-11.5+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u1_2",
+     "kind": "line",
+     "p0": [
+      "=-11.5+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-11.5-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u1_3",
+     "kind": "line",
+     "p0": [
+      "=-11.5-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-11.5-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u2_0",
+     "kind": "line",
+     "p0": [
+      "=-23.2-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-23.2+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u2_1",
+     "kind": "line",
+     "p0": [
+      "=-23.2+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-23.2+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u2_2",
+     "kind": "line",
+     "p0": [
+      "=-23.2+(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-23.2-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "u2_3",
+     "kind": "line",
+     "p0": [
+      "=-23.2-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2+(usb_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-23.2-(usb_w+2*port_margin)/2",
+      "=pcb_t+usb_h/2-(usb_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "h_0",
+     "kind": "line",
+     "p0": [
+      "=-52.7-(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2-(hdmi_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-52.7+(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2-(hdmi_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "h_1",
+     "kind": "line",
+     "p0": [
+      "=-52.7+(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2-(hdmi_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-52.7+(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2+(hdmi_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "h_2",
+     "kind": "line",
+     "p0": [
+      "=-52.7+(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2+(hdmi_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-52.7-(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2+(hdmi_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "h_3",
+     "kind": "line",
+     "p0": [
+      "=-52.7-(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2+(hdmi_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=-52.7-(hdmi_w+2*port_margin)/2",
+      "=pcb_t+hdmi_h/2-(hdmi_h+2*port_margin)/2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ports",
+   "type": "extrude",
+   "profile": "portss",
+   "base": "pilots",
+   "mode": "cut",
+   "distance": "=-(wall+clearance)"
+  },
+  {
+   "id": "sds",
+   "type": "sketch",
+   "plane": {
+    "feature": "ports",
+    "face": {
+     "select": [
+      {
+       "op": "faces"
+      },
+      {
+       "op": "at_end",
+       "axis": "X",
+       "end": "max"
+      }
+     ],
+     "expected_count": 1
+    }
+   },
+   "entities": [
+    {
+     "id": "s_0",
+     "kind": "line",
+     "p0": [
+      "=sd_y-(sd_w+2*port_margin)/2",
+      "=-sd_h/2-(sd_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=sd_y+(sd_w+2*port_margin)/2",
+      "=-sd_h/2-(sd_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "s_1",
+     "kind": "line",
+     "p0": [
+      "=sd_y+(sd_w+2*port_margin)/2",
+      "=-sd_h/2-(sd_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=sd_y+(sd_w+2*port_margin)/2",
+      "=-sd_h/2+(sd_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "s_2",
+     "kind": "line",
+     "p0": [
+      "=sd_y+(sd_w+2*port_margin)/2",
+      "=-sd_h/2+(sd_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=sd_y-(sd_w+2*port_margin)/2",
+      "=-sd_h/2+(sd_h+2*port_margin)/2"
+     ]
+    },
+    {
+     "id": "s_3",
+     "kind": "line",
+     "p0": [
+      "=sd_y-(sd_w+2*port_margin)/2",
+      "=-sd_h/2+(sd_h+2*port_margin)/2"
+     ],
+     "p1": [
+      "=sd_y-(sd_w+2*port_margin)/2",
+      "=-sd_h/2-(sd_h+2*port_margin)/2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sd",
+   "type": "extrude",
+   "profile": "sds",
+   "base": "ports",
+   "mode": "cut",
+   "distance": "=-(wall+clearance)"
+  },
+  {
+   "id": "fit",
+   "type": "boolean",
+   "operation": "subtract",
+   "base": "sd",
+   "tool": "board"
+  }
+ ],
+ "rollback_index": 12,
+ "parameters": {
+  "pcb_l": 65,
+  "pcb_w": 32,
+  "pcb_t": 1.2,
+  "hole_inset": 3.5,
+  "clearance": 1.0,
+  "wall": 2.0,
+  "standoff_h": 3.0,
+  "case_top": 12.0,
+  "post_d": 5.5,
+  "pilot_d": 2.2,
+  "port_margin": 1.0,
+  "usb_w": 9.0,
+  "usb_h": 3.3,
+  "hdmi_w": 11.6,
+  "hdmi_h": 3.3,
+  "sd_y": 16.75,
+  "sd_w": 11.3,
+  "sd_h": 1.8
+ },
+ "appearances": [],
+ "bodies": {
+  "board": {
+   "name": "Orange Pi Zero 3W"
+  },
+  "block": {
+   "name": "Case",
+   "color": "#e07b39"
+  }
+ },
+ "revision": 0,
+ "log": []
+}

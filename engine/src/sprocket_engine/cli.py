@@ -15,11 +15,10 @@ import json
 import sys
 from pathlib import Path
 
-from build123d import export_step, export_stl
-
 from .document import Document, DocumentError
+from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
 from .mesh import export_mesh
-from .replay import build_shape
+from .replay import build_shape, with_settings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,7 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     build = sub.add_parser("build", help="replay a document and export STEP/STL")
     build.add_argument("document", type=Path, help="path to a document JSON file")
     build.add_argument("--step", type=Path, help="write STEP to this path")
-    build.add_argument("--stl", type=Path, help="write STL to this path")
+    build.add_argument("--stl", type=Path, help="write STL to this path, every body in one file")
+    build.add_argument("--stl-dir", type=Path, help="write one STL per body into this existing directory")
+    build.add_argument("--3mf", dest="three_mf", type=Path, help="write a 3MF with one object per body")
     build.add_argument(
         "--mesh", type=Path, help="write the viewer's tessellated mesh file to this path"
     )
@@ -106,6 +107,8 @@ def _build_document(
     stl: Path | None,
     cache_dir: Path | None,
     mesh: Path | None = None,
+    stl_dir: Path | None = None,
+    three_mf: Path | None = None,
 ) -> tuple[bool, str, str | None]:
     """Replays one document and exports it. Shared by `build` and `serve`
     so the daemon path can't silently drift from the one-shot CLI path.
@@ -131,7 +134,7 @@ def _build_document(
     rollback_index = replayable["rollback_index"]
 
     try:
-        result, failed_id = build_shape(features, rollback_index, resolved_cache_dir)
+        result, failed_id, context = build_shape(features, rollback_index, resolved_cache_dir)
     except Exception as exc:
         return False, f"error: {exc}", getattr(exc, "feature_id", None)
 
@@ -143,28 +146,43 @@ def _build_document(
                 Path(path).unlink()
         return True, "replayed ok: empty document", failed_id
 
+    bodies = with_settings(context.bodies, document.bodies)
     messages = []
     if failed_id:
         messages.append(f"feature {failed_id!r} no longer builds, showing the part before it")
-    if step:
-        export_step(result, Path(step))
-        messages.append(f"wrote {step}")
-    if stl:
-        export_stl(result, Path(stl))
-        messages.append(f"wrote {stl}")
-    if mesh:
-        header = export_mesh(result, Path(mesh))
+    try:
+        if step:
+            write_step(result, step, bodies)
+            messages.append(f"wrote {step}")
+        if stl:
+            write_stl(result, stl)
+            messages.append(f"wrote {stl}")
+        if stl_dir:
+            messages.extend(f"wrote {path}" for path in write_stl_dir(bodies, stl_dir))
+        if three_mf:
+            write_3mf(bodies, three_mf)
+            messages.append(f"wrote {three_mf}")
+        header = export_mesh(result, Path(mesh), document.appearances, bodies) if mesh else None
+    except ExportError as exc:
+        return False, f"error: {exc}", failed_id
+    except OSError as exc:
+        return False, f"error: cannot write {exc.filename}: {exc.strerror}", failed_id
+    if header:
         counts = header["counts"]
         messages.append(
             f"wrote {mesh} ({counts['faces']} faces, {counts['triangles']} triangles, {counts['edges']} edges)"
         )
-    if not step and not stl and not mesh:
+    if len(bodies) > 1:
+        messages.append(f"{len(bodies)} bodies: {', '.join(body['name'] for body in bodies)}")
+    if not any((step, stl, mesh, stl_dir, three_mf)):
         messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")
     return True, "\n".join(messages), failed_id
 
 
 def _build(args: argparse.Namespace) -> int:
-    success, output, _ = _build_document(args.document, args.step, args.stl, args.cache_dir, args.mesh)
+    success, output, _ = _build_document(
+        args.document, args.step, args.stl, args.cache_dir, args.mesh, args.stl_dir, args.three_mf
+    )
     if not success:
         print(output, file=sys.stderr)
         return 1
@@ -207,6 +225,9 @@ def _daemon(args: argparse.Namespace) -> int:
     session = Session(document, args.cache_dir)
     server = Daemon(session, socket_path, autosave=not args.no_autosave, viewer_dir=args.viewer_dir)
     server.publish_viewer_files()
+    # A script, `sprocket build`, git or another editor can rewrite the file
+    # while the app has it open. See Daemon.check_file for the rule.
+    server.start_watching()
     print(f"listening on {socket_path} (revision {document.revision})", flush=True)
     try:
         server.serve_forever()
@@ -240,6 +261,7 @@ def _web(args: argparse.Namespace) -> int:
     socket_path = args.socket or Path(str(args.document) + ".sock")
     daemon = Daemon(Session(document, args.cache_dir), socket_path, autosave=not args.no_autosave)
     daemon.start_in_background()
+    daemon.start_watching()
     server = make_server(WebApp(daemon, viewer_dir), args.port)
     print(f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at {socket_path})", flush=True)
     try:
