@@ -26,6 +26,7 @@ from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
 from .ops import REGISTRY
+from .materials import PRESETS
 from .rpc import Client, RpcError
 
 SERVER_NAME = "sprocket"
@@ -209,7 +210,7 @@ def document_tools() -> list[types.Tool]:
             {
                 "appearances": {
                     "type": "array",
-                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}}},
+                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}, "material": {"enum": list(PRESETS), "description": "optional surface finish"}}},
                 },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },
@@ -243,12 +244,13 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "set_body",
-            "Names, colours, hides or shows one body. A hidden body still exports. Hiding is view state: it can be "
+            "Names, colours, finishes (material preset), hides or shows one body. A hidden body still exports. Hiding is view state: it can be "
             "undone, but it adds no log entry and no timeline row. A null name or colour goes back to its default.",
             {
                 "id": {"type": "string", "description": "the body id from get_bodies"},
                 "name": {"type": ["string", "null"]},
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
+                "material": {"enum": [*PRESETS, None], "description": "surface finish preset; null goes back to the default"},
                 "visible": {"type": "boolean", "description": "false hides the body in the viewer; it still exports"},
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },

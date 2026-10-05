@@ -176,7 +176,13 @@
       font: 12px -apple-system, sans-serif; background: #3a3a3a; color: #eee; border: 1px solid #666;
       border-radius: 4px; padding: 4px 8px; cursor: pointer;
     }
-    #colour-popover .recent-label { color: #999; font-size: 11px; margin: 10px 0 6px; }
+    #colour-popover .recent-label, #colour-popover .finish-label { color: #999; font-size: 11px; margin: 10px 0 6px; }
+    #colour-popover .finishes { display: flex; flex-wrap: wrap; gap: 4px; }
+    #colour-popover .finishes button {
+      font: 11px -apple-system, sans-serif; background: #2c2c2c; color: #ddd; border: 1px solid #555;
+      border-radius: 4px; padding: 3px 6px; cursor: pointer;
+    }
+    #colour-popover .finishes button.current { border-color: #5bb8e0; color: #fff; }
 
     /* The file changed on disk while this window had edits it does not hold. */
     #conflict {
@@ -572,6 +578,8 @@
     </div>
     <div class="recent-label">Recent</div>
     <div class="recent"></div>
+    <div class="finish-label">Finish</div>
+    <div class="finishes"></div>
   </div>
   <div id="conflict" role="alert"><span id="conflict-text"></span><button id="conflict-file">Use the file</button><button id="conflict-mine">Keep mine</button></div>
   <div id="extrude-panel">
@@ -842,7 +850,8 @@
       const nul = headerBytes.indexOf(0);
       const text = new TextDecoder().decode(nul === -1 ? headerBytes : headerBytes.subarray(0, nul));
       const header = JSON.parse(text);
-      if (header.format !== "sprocket-mesh" || header.version !== 1) {
+      // Version 2 adds face_materials; everything else is version 1.
+      if (header.format !== "sprocket-mesh" || (header.version !== 1 && header.version !== 2)) {
         throw new Error("unexpected mesh format " + header.format + " v" + header.version);
       }
 
@@ -898,6 +907,24 @@
         }
         bodyFaceStart += body.faces;
       }
+      // Finishes: one more material per distinct (roughness, metalness), from
+      // index 3. Only drawn part faces take one; hidden and reference keep theirs.
+      geometry.userData.finishes = [];
+      const finishes = mesh.buffers.face_materials;
+      if (finishes) {
+        const indexOf = new Map();
+        for (let face = 0; face < faceCount; face++) {
+          const roughness = finishes[face * 2];
+          if (roughness < 0 || geometry.groups[face].materialIndex !== 0) continue;
+          const key = roughness + "," + finishes[face * 2 + 1];
+          if (!indexOf.has(key)) {
+            indexOf.set(key, 3 + geometry.userData.finishes.length);
+            geometry.userData.finishes.push([roughness, finishes[face * 2 + 1]]);
+          }
+          geometry.groups[face].materialIndex = indexOf.get(key);
+        }
+      }
+      geometry.userData.faceFinishes = finishes || null;
       const faceColours = mesh.buffers.face_colors;
       if (faceColours) {
         // One colour per vertex, because ocp-tessellate gives every face its
@@ -919,6 +946,40 @@
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
       return geometry;
+    }
+
+    /// A soft studio environment for finished faces, made once: a sky
+    /// gradient with two bright panels, prefiltered by PMREM. Faces with no
+    /// finish do not use it, so their shading is as before.
+    let environmentTexture = null;
+    function environmentMap() {
+      if (environmentTexture) return environmentTexture;
+      const room = new THREE.Scene();
+      const sky = new THREE.SphereGeometry(50, 32, 16);
+      const tones = new Float32Array(sky.attributes.position.count * 3);
+      for (let k = 0; k < sky.attributes.position.count; k++) {
+        const up = (sky.attributes.position.getZ(k) / 50 + 1) / 2; // +Z is up, as in the viewport
+        const tone = 0.08 + 0.55 * up * up;
+        tones.set([tone, tone, tone * 1.05], k * 3);
+      }
+      sky.setAttribute("color", new THREE.BufferAttribute(tones, 3));
+      room.add(new THREE.Mesh(sky, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+      for (const [x, y, z] of [[30, 20, 25], [-35, -10, 15]]) {
+        const panel = new THREE.Mesh(new THREE.PlaneGeometry(30, 18), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+        panel.position.set(x, y, z);
+        panel.lookAt(0, 0, 0);
+        room.add(panel);
+      }
+      const generator = new THREE.PMREMGenerator(renderer);
+      environmentTexture = generator.fromScene(room, 0.02).texture;
+      generator.dispose();
+      return environmentTexture;
+    }
+
+    /// The materials that draw part faces: the plain one and every finish.
+    function partMaterials() {
+      const all = [].concat(mesh.material);
+      return all.filter((_, index) => index === 0 || index >= 3);
     }
 
     function disposePart() {
@@ -958,8 +1019,9 @@
           disposePart();
 
           // metalness 0: a metal surface takes its colour from reflections,
-          // and there is no environment map here, so any metalness above 0
-          // only drains the body colour towards black.
+          // and this material has no environment map, so any metalness above 0
+          // only drains the body colour towards black. Finished faces get
+          // their own material with one (see environmentMap).
           //
           // polygonOffset pushes the body away from the camera by a hair so
           // the edge lines below, which sit exactly on the body's boundary,
@@ -975,7 +1037,8 @@
           });
           const partGeometry = buildPartGeometry(parsed);
           const bodies = partGeometry.userData.bodies;
-          const layered = bodies.some((body) => body.reference || body.visible === false);
+          const finishes = partGeometry.userData.finishes;
+          const layered = finishes.length > 0 || bodies.some((body) => body.reference || body.visible === false);
           const hiddenMaterial = new THREE.MeshBasicMaterial({ visible: false });
           const referenceMaterial = new THREE.MeshStandardMaterial({
             color: srgb(REFERENCE_COLOUR),
@@ -985,7 +1048,18 @@
             metalness: 0,
             roughness: 0.8,
           });
-          mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial] : material);
+          // A finish is the part material with its own roughness and
+          // metalness, lit by a generated environment so a metal has
+          // something to reflect.
+          const finishMaterials = finishes.map(([roughness, metalness]) => {
+            const finished = material.clone();
+            finished.roughness = roughness;
+            finished.metalness = metalness;
+            finished.envMap = environmentMap();
+            finished.envMapIntensity = 0.9;
+            return finished;
+          });
+          mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial, ...finishMaterials] : material);
           mesh.userData.counts = counts;
           mesh.userData.faceColours = parsed.buffers.face_colors || null;
           scene.add(mesh);
@@ -2427,8 +2501,9 @@
       return button;
     }
 
-    /// The popover: palette, hex box, the system picker, and recent colours.
-    function openColourPicker(x, y, title, current, onPick) {
+    /// The popover: palette, hex box, the system picker, recent colours, and
+    /// finishes. `finish` is {current, onPick(id or null)}, or null to hide them.
+    function openColourPicker(x, y, title, current, onPick, finish) {
       closeMenus();
       colourTarget = onPick;
       colourPopoverEl.querySelector(".popover-title").textContent = title;
@@ -2440,6 +2515,22 @@
       recentEl.innerHTML = "";
       for (const hex of recent) recentEl.appendChild(swatchButton(hex));
       colourPopoverEl.querySelector(".recent-label").style.display = recent.length ? "block" : "none";
+      const finishesEl = colourPopoverEl.querySelector(".finishes");
+      finishesEl.innerHTML = "";
+      colourPopoverEl.querySelector(".finish-label").style.display = finish ? "block" : "none";
+      if (finish) {
+        for (const item of [...ViewerColours.MATERIALS, { id: null, name: "None" }]) {
+          const button = document.createElement("button");
+          button.textContent = item.name;
+          button.dataset.material = item.id || "";
+          if ((finish.current || null) === item.id) button.className = "current";
+          button.addEventListener("click", () => {
+            closeMenus();
+            finish.onPick(item.id);
+          });
+          finishesEl.appendChild(button);
+        }
+      }
       const start = ViewerColours.normaliseHex(current) || "#" + PART_COLOUR.toString(16).padStart(6, "0");
       colourHexEl.value = start;
       colourHexEl.classList.remove("invalid");
@@ -2491,15 +2582,21 @@
       return null;
     }
 
-    /// Colours face `faceIndex`, or clears its own colour when `colour` is null.
-    /// The daemon names the entries on the face and a box that picks it out alone.
-    async function setFaceColour(faceIndex, colour) {
+    /// Colours or finishes face `faceIndex` (`change` is {color?, material?}),
+    /// or clears what reaches it when `change` is null. The daemon names the
+    /// entries on the face and a box that picks it out alone.
+    async function setFaceAppearance(faceIndex, change) {
       const info = await rpcCall("get_face_appearance", { handle: "f" + faceIndex });
       const current = await rpcCall("get_document", {});
-      const appearances = colour
-        ? ViewerColours.withFaceColour(current.appearances, info, colour)
+      const shown = window.__tcad.faceColour(faceIndex) || (bodyOfFace(faceIndex) || {}).color || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+      const appearances = change
+        ? ViewerColours.withFaceAppearance(current.appearances, info, change, shown)
         : ViewerColours.withoutFaceColour(current.appearances, info);
       return sendCommand({ type: "set_appearances", appearances, base_revision: current.revision });
+    }
+
+    function bodyFinish(body) {
+      return { current: body.material || null, onPick: (material) => sendCommand({ type: "set_body", id: body.id, material }) };
     }
 
     function openBodyMenu(x, y, body) {
@@ -2507,7 +2604,7 @@
       openMenu(x, y, body.name, [
         body.reference ? null : {
           label: "Colour…",
-          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex }), bodyFinish(body)),
         },
         { label: hidden ? "Show" : "Hide", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: hidden }) },
       ]);
@@ -2527,14 +2624,19 @@
         : null;
       const clear = ViewerColours.clearLabel(info);
       const faceColour = window.__tcad.faceColour(faceIndex) || (body && body.color);
+      const ownEntry = info && [...info.entries].reverse().find((entry) => entry.faces === 1);
+      const faceFinish = {
+        current: (ownEntry && ownEntry.material) || null,
+        onPick: (material) => setFaceAppearance(faceIndex, { material }),
+      };
       openMenu(x, y, (body ? body.name + " · " : "") + "face f" + faceIndex, [
-        { label: "Colour…", action: () => openColourPicker(x, y, "Face colour", faceColour, (hex) => setFaceColour(faceIndex, hex)) },
+        { label: "Colour…", action: () => openColourPicker(x, y, "Face colour", faceColour, (hex) => setFaceAppearance(faceIndex, { color: hex }), info ? faceFinish : null) },
         body && !body.reference ? {
           label: "Body colour…",
-          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex }), bodyFinish(body)),
         } : null,
         body ? { label: "Hide body", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: false }) } : null,
-        clear ? { label: clear, action: () => setFaceColour(faceIndex, null) } : null,
+        clear ? { label: clear, action: () => setFaceAppearance(faceIndex, null) } : null,
       ]);
     }
 
@@ -3327,9 +3429,11 @@
       controls.enableRotate = false;
 
       if (mesh) {
-        dimmedMeshState = { transparent: [].concat(mesh.material)[0].transparent, opacity: [].concat(mesh.material)[0].opacity };
-        [].concat(mesh.material)[0].transparent = true;
-        [].concat(mesh.material)[0].opacity = 0.25;
+        dimmedMeshState = partMaterials().map((item) => ({ material: item, transparent: item.transparent, opacity: item.opacity }));
+        for (const item of partMaterials()) {
+          item.transparent = true;
+          item.opacity = 0.25;
+        }
       }
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
@@ -3401,9 +3505,11 @@
         sketchPlaneHelper.material.dispose();
         sketchPlaneHelper = null;
       }
-      if (mesh && dimmedMeshState) {
-        [].concat(mesh.material)[0].transparent = dimmedMeshState.transparent;
-        [].concat(mesh.material)[0].opacity = dimmedMeshState.opacity;
+      if (dimmedMeshState) {
+        for (const saved of dimmedMeshState) {
+          saved.material.transparent = saved.transparent;
+          saved.material.opacity = saved.opacity;
+        }
       }
       dimmedMeshState = null;
     }
@@ -3821,6 +3927,17 @@
       get contextMenu() {
         if (contextMenuEl.style.display !== "block") return null;
         return Array.from(contextMenuEl.querySelectorAll("button")).map((button) => button.textContent);
+      },
+      /// Face `face`'s finish as [roughness, metalness], or null when it has none.
+      faceFinish(face) {
+        const finishes = mesh && mesh.geometry.userData.faceFinishes;
+        if (!finishes || finishes[face * 2] < 0) return null;
+        return [finishes[face * 2], finishes[face * 2 + 1]];
+      },
+      /// The finished materials in use: [{roughness, metalness, hasEnvironment}].
+      get finishMaterials() {
+        if (!mesh) return [];
+        return [].concat(mesh.material).slice(3).map((item) => ({ roughness: item.roughness, metalness: item.metalness, hasEnvironment: Boolean(item.envMap) }));
       },
       /// The status line, when it shows.
       get status() {

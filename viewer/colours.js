@@ -19,6 +19,14 @@
     { name: "Blue", hex: "#2aa1d8" },
   ];
 
+  // Finishes, as the engine names them (engine/src/sprocket_engine/materials.py).
+  const MATERIALS = [
+    { id: "matte_plastic", name: "Matte plastic" },
+    { id: "glossy", name: "Glossy" },
+    { id: "anodised_aluminium", name: "Anodised aluminium" },
+    { id: "bare_metal", name: "Bare metal" },
+  ];
+
   const RECENT_LIMIT = 6;
 
   /// "#rrggbb" in lower case from what a person typed ("A1B2C3", "#a1b2c3",
@@ -40,9 +48,23 @@
   /// `info` is the daemon's get_face_appearance reply. An entry that colours
   /// this face alone was made for it, so a new colour replaces it rather than
   /// piling up behind it. Wider entries stay, and the new one wins by coming last.
+  ///
+  /// `change` is {color?, material?}. A field left out keeps what the face's
+  /// own entry had; `material: null` removes the finish. `shown` is the
+  /// colour on screen, used when there is no own entry and no new colour.
+  function withFaceAppearance(appearances, info, change, shown) {
+    const ownIndices = info.entries.filter((entry) => entry.faces === 1).map((entry) => entry.index);
+    const own = ownIndices.length ? appearances[ownIndices[ownIndices.length - 1]] : null;
+    const color = normaliseHex(change.color) || (own && own.color) || normaliseHex(shown);
+    const material = "material" in change ? change.material : own && own.material;
+    const entry = { color, select: info.selector };
+    if (material) entry.material = material;
+    const owned = new Set(ownIndices);
+    return [...appearances.filter((_, index) => !owned.has(index)), entry];
+  }
+
   function withFaceColour(appearances, info, colour) {
-    const own = new Set(info.entries.filter((entry) => entry.faces === 1).map((entry) => entry.index));
-    return [...appearances.filter((_, index) => !own.has(index)), { color: normaliseHex(colour), select: info.selector }];
+    return withFaceAppearance(appearances, info, { color: colour });
   }
 
   /// Drops every entry that colours this face. One that colours other faces
@@ -59,7 +81,7 @@
     return widest > 1 ? "Clear colour (" + widest + " faces)" : "Clear face colour";
   }
 
-  const api = { PALETTE, RECENT_LIMIT, normaliseHex, pushRecent, withFaceColour, withoutFaceColour, clearLabel };
+  const api = { PALETTE, MATERIALS, RECENT_LIMIT, normaliseHex, pushRecent, withFaceColour, withFaceAppearance, withoutFaceColour, clearLabel };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ViewerColours = api;
 })(typeof window !== "undefined" ? window : globalThis);

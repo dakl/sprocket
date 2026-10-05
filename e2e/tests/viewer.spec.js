@@ -426,3 +426,34 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
   await rpc(request, "set_body", { id: "f2", color: null });
 });
+
+// --- Material presets ------------------------------------------------------------
+
+test("a finish picked for a face and for a body reaches the document, the mesh and the materials drawn", async ({ page, request }) => {
+  await rpc(request, "set_appearances", { appearances: [] });
+  await settled(page);
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y, { button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toContain("Colour…");
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await page.locator('#colour-popover .finishes button[data-material="bare_metal"]').click();
+
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.material)).toEqual(["bare_metal"]);
+  await page.waitForFunction((face) => window.__tcad.faceFinish(face) !== null, top);
+  const finish = await page.evaluate((face) => window.__tcad.faceFinish(face), top);
+  expect(finish[0]).toBeCloseTo(0.2, 5);
+  expect(finish[1]).toBeCloseTo(1, 5);
+  expect(await page.evaluate(() => window.__tcad.finishMaterials)).toEqual([{ roughness: expect.any(Number), metalness: 1, hasEnvironment: true }]);
+
+  // The body: anodised aluminium from the tree row's menu.
+  await page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await page.locator('#colour-popover .finishes button[data-material="anodised_aluminium"]').click();
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].material).toBe("anodised_aluminium");
+  await page.waitForFunction(() => window.__tcad.finishMaterials.length === 2);
+
+  await rpc(request, "set_appearances", { appearances: [] });
+  await rpc(request, "set_body", { id: "f2", material: null });
+});

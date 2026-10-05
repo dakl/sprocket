@@ -28,6 +28,7 @@ from pathlib import Path
 
 import jsonschema
 
+from .materials import PRESETS
 from .ops import REGISTRY
 from .sketch_edit import assign_constraint_ids, edit_sketch
 
@@ -268,7 +269,7 @@ class Document:
         self.parameters = dict(parameters or {})
         # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
         self.appearances = list(appearances or [])
-        # Settings per body, keyed by body id: {"name", "color", "visible"}.
+        # Settings per body, keyed by body id: {"name", "color", "visible", "material"}.
         self.bodies = dict(bodies or {})
         self.revision = revision
         self.log = list(log or [])
@@ -678,7 +679,7 @@ class Document:
         if "visible" in edit:
             raise DocumentError("visibility is view state, not an edit: use set_visibility")
         settings = dict(self.bodies.get(body_id, {}))
-        for name in ("name", "color"):
+        for name in ("name", "color", "material"):
             if name not in edit:
                 continue
             if edit[name] is None:
@@ -690,7 +691,7 @@ class Document:
             self.bodies[body_id] = settings
         else:
             self.bodies.pop(body_id, None)
-        return {"body": body_id, **{name: edit[name] for name in ("name", "color") if name in edit}}
+        return {"body": body_id, **{name: edit[name] for name in ("name", "color", "material") if name in edit}}
 
     def _set_appearances(self, edit: dict) -> dict:
         """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
@@ -741,17 +742,25 @@ def _check_appearances(appearances) -> None:
         isinstance(item, dict)
         and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
         and isinstance(item.get("select"), dict)
+        and set(item) <= {"color", "select", "material"}
         for item in appearances
     ):
-        raise DocumentError("'appearances' must be a list of {\"color\": \"#rrggbb\", \"select\": <selector>}")
+        raise DocumentError(
+            "'appearances' must be a list of {\"color\": \"#rrggbb\", \"select\": <selector>, \"material\": <optional preset>}"
+        )
+    for item in appearances:
+        if "material" in item and item["material"] not in PRESETS:
+            raise DocumentError(f"unknown material {item['material']!r} (known: {', '.join(PRESETS)})")
 
 
 def _check_body_settings(settings) -> None:
     if not isinstance(settings, dict):
         raise DocumentError("body settings must be a JSON object")
-    unknown = set(settings) - {"name", "color", "visible"}
+    unknown = set(settings) - {"name", "color", "visible", "material"}
     if unknown:
-        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible)")
+        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible, material)")
+    if "material" in settings and settings["material"] not in PRESETS:
+        raise DocumentError(f"unknown material {settings['material']!r} (known: {', '.join(PRESETS)})")
     if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
         raise DocumentError("a body name must be a non-empty string")
     if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):

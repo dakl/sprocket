@@ -670,17 +670,17 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
 
 
 def _set_body(daemon: Daemon, params: dict) -> dict:
-    """Name and colour are a logged edit. `visible`, when given, goes through
+    """Name, colour and material are a logged edit. `visible`, when given, goes through
     `set_visibility` first, so it stays view state."""
     result = None
     if "visible" in params:
         result = _set_visibility(daemon, {"id": params.get("id"), "visible": params["visible"], "base_revision": params.get("base_revision")})
-    changes = {name: params[name] for name in ("name", "color") if name in params}
+    changes = {name: params[name] for name in ("name", "color", "material") if name in params}
     if changes:
         based = {} if result is None else {"base_revision": None}
         result = _edit(daemon, [{"op": "set_body", "id": params.get("id"), **changes}], {**params, **based})
     if result is None:
-        raise DocumentError("set_body needs name, color or visible")
+        raise DocumentError("set_body needs name, color, material or visible")
     return result
 
 
@@ -712,7 +712,7 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
         except SelectorError:
             continue
         if any(item.is_same(face) for item in picked):
-            entries.append({"index": index, "color": appearance["color"], "faces": len(picked)})
+            entries.append({"index": index, "color": appearance["color"], "material": appearance.get("material"), "faces": len(picked)})
     centre = list(face.center())
     selector = None
     for half in (0.05, 0.001):
@@ -735,6 +735,7 @@ def _get_bodies(daemon: Daemon, params: dict) -> dict:
                 "id": body["id"],
                 "name": body["name"],
                 "color": body["color"],
+                "material": body["material"],
                 "visible": body["visible"],
                 "reference": body["reference"],
                 "tip": body["tip"],

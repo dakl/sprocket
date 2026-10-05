@@ -62,7 +62,8 @@ test("set_body passes only the fields given", () => {
   assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000" }), [{ op: "set_body", id: "f2", color: "#ff0000" }]);
   // Visibility is view state, so it never becomes an edit.
   assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000", visible: false }), [{ op: "set_body", id: "f2", color: "#ff0000" }]);
-  assert.throws(() => editsFor(box, { type: "set_body", id: "f2" }), /needs name or color/);
+  assert.throws(() => editsFor(box, { type: "set_body", id: "f2" }), /needs name, color or material/);
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", material: "bare_metal" }), [{ op: "set_body", id: "f2", material: "bare_metal" }]);
 });
 
 test("set_rollback clamps to the feature count", () => {

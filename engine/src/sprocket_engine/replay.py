@@ -77,11 +77,14 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
 
 
 def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
-    """Each body with the document's settings for it: name, colour, visibility."""
+    """Each body with the document's settings for it: name, colour, finish, visibility."""
     merged = []
     for body in bodies:
         own = settings.get(body["id"], {})
-        merged.append({**body, "name": own.get("name", body["id"]), "color": own.get("color"), "visible": own.get("visible", True)})
+        merged.append({
+            **body, "name": own.get("name", body["id"]), "color": own.get("color"),
+            "material": own.get("material"), "visible": own.get("visible", True),
+        })
     return merged
 
 
