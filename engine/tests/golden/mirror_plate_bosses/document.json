@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "ps", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10, "center": [10, 0]}},
+    {"id": "plate", "type": "extrude", "profile": "ps", "distance": 3},
+    {"id": "bs", "type": "sketch", "plane": {"name": "XY", "offset": 3}, "circle": {"radius": 3, "center": [14, 0]}},
+    {"id": "boss", "type": "extrude", "profile": "bs", "base": "plate", "mode": "join", "distance": 5},
+    {"id": "both", "type": "mirror", "tool": "boss", "base": "boss", "plane": "YZ"}
+  ]
+}

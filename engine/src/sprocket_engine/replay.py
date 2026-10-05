@@ -41,7 +41,7 @@ class Context:
 
 
 # Ops whose `tool` ends the tool's body: its solid went into another body.
-CONSUMES_TOOL = {"boolean", "pattern"}
+CONSUMES_TOOL = {"boolean", "pattern", "mirror"}
 
 
 def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
