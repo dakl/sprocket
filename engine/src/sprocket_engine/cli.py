@@ -225,6 +225,9 @@ def _daemon(args: argparse.Namespace) -> int:
     session = Session(document, args.cache_dir)
     server = Daemon(session, socket_path, autosave=not args.no_autosave, viewer_dir=args.viewer_dir)
     server.publish_viewer_files()
+    # A script, `sprocket build`, git or another editor can rewrite the file
+    # while the app has it open. See Daemon.check_file for the rule.
+    server.start_watching()
     print(f"listening on {socket_path} (revision {document.revision})", flush=True)
     try:
         server.serve_forever()
@@ -258,6 +261,7 @@ def _web(args: argparse.Namespace) -> int:
     socket_path = args.socket or Path(str(args.document) + ".sock")
     daemon = Daemon(Session(document, args.cache_dir), socket_path, autosave=not args.no_autosave)
     daemon.start_in_background()
+    daemon.start_watching()
     server = make_server(WebApp(daemon, viewer_dir), args.port)
     print(f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at {socket_path})", flush=True)
     try:

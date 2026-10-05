@@ -22,8 +22,12 @@ final class EngineDaemon {
     static let shared = EngineDaemon()
 
     /// Called on the main queue with the new revision after any client's edit.
-    /// `opened` is true when the engine swapped in another document.
-    var onDocumentChanged: ((Int, Bool, String?) -> Void)?
+    /// `opened` is true when the engine swapped in another document. The last
+    /// argument is the whole notification's params as JSON (author, changes).
+    var onDocumentChanged: ((Int, Bool, String?, String) -> Void)?
+    /// Called on the main queue with any other notification the viewer acts
+    /// on, such as `document_conflict`: the method and its params as JSON.
+    var onNotification: ((String, String) -> Void)?
     /// Called on the main queue when an agent highlights faces, edges or sketches.
     /// An empty pair clears the highlight.
     var onHighlight: (([String], [String]) -> Void)?
@@ -170,7 +174,14 @@ final class EngineDaemon {
            let revision = params["revision"] as? Int {
             let opened = params["opened"] as? Bool ?? false
             let viewerError = params["viewer_error"] as? String
-            DispatchQueue.main.async { self.onDocumentChanged?(revision, opened, viewerError) }
+            let json = (try? JSONSerialization.data(withJSONObject: params)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            DispatchQueue.main.async { self.onDocumentChanged?(revision, opened, viewerError, json) }
+        }
+        if let method = message["method"] as? String, method == "document_conflict",
+           let params = message["params"] as? [String: Any],
+           let data = try? JSONSerialization.data(withJSONObject: params),
+           let json = String(data: data, encoding: .utf8) {
+            DispatchQueue.main.async { self.onNotification?(method, json) }
         }
         if message["method"] as? String == "highlight", let params = message["params"] as? [String: Any] {
             let handles = params["handles"] as? [String] ?? []

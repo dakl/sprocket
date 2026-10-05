@@ -273,6 +273,9 @@ class Document:
         self.revision = revision
         self.log = list(log or [])
         self.path = Path(path) if path else None
+        # The hash of the bytes last read from or written to `path`. The daemon
+        # compares the file against it to tell its own save from someone else's.
+        self.saved_sha256: str | None = None
 
     # ---- loading and saving ------------------------------------------------
 
@@ -290,7 +293,8 @@ class Document:
         """
         path = Path(path)
         try:
-            raw = path.read_text()
+            raw_bytes = path.read_bytes()
+            raw = raw_bytes.decode()
         except OSError as exc:
             raise DocumentError(f"cannot read document {path}: {exc.strerror}") from None
         except UnicodeDecodeError:
@@ -350,6 +354,7 @@ class Document:
             assign_constraint_ids(feature)
         document = cls(features, rollback_index, parameters, revision, log, path, appearances, bodies)
         resolve_parameters(document.parameters)  # fail at open, not at first build
+        document.saved_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         return document
 
     def to_json(self) -> dict:
@@ -376,10 +381,19 @@ class Document:
         if target is None:
             raise DocumentError("this document has no path, so it cannot be saved")
         temporary = target.with_name(target.name + ".tmp")
-        temporary.write_text(json.dumps(self.to_json(), indent=2) + "\n")
+        data = (json.dumps(self.to_json(), indent=2) + "\n").encode()
+        temporary.write_bytes(data)
         temporary.replace(target)
         self.path = target
+        self.saved_sha256 = hashlib.sha256(data).hexdigest()
         return target
+
+    def file_sha256(self) -> str | None:
+        """The hash of what is on disk at `path` now, or None if nothing is."""
+        try:
+            return hashlib.sha256(self.path.read_bytes()).hexdigest() if self.path else None
+        except OSError:
+            return None
 
     # ---- reading -----------------------------------------------------------
 
@@ -481,9 +495,10 @@ class Document:
             }
         )
 
-    def restore(self, snapshot: dict, author: str, log: bool = True) -> int:
+    def restore(self, snapshot: dict, author: str, log: bool = True, action: str = "restore") -> int:
         """Puts back a state taken with `snapshot()` and returns the new revision.
-        Undoing a view change (`log=False`) leaves no entry in the log."""
+        Undoing a view change (`log=False`) leaves no entry in the log. A reload
+        from disk logs `action="reload"`."""
         self.features = copy.deepcopy(snapshot["features"])
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
@@ -491,7 +506,7 @@ class Document:
         self.bodies = copy.deepcopy(snapshot.get("bodies", {}))
         self.revision += 1
         if log:
-            self.log.append({"author": author, "action": "restore", "at": _now(), "revision": self.revision})
+            self.log.append({"author": author, "action": action, "at": _now(), "revision": self.revision})
         return self.revision
 
     def set_visibility(self, body_id: str, visible: bool) -> int:

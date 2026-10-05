@@ -87,9 +87,18 @@ def test_with_no_handles_it_uses_the_selection_the_person_made(client):
 
 
 def test_a_stale_selection_is_refused_instead_of_resolved(client):
+    """Picked at an older revision than the part has now."""
+    widen(client, 30)
+    client.call("set_selection", handles=top_edges(client), revision=0)
+    with pytest.raises(RpcError, match="stale"):
+        client.call("resolve_selection")
+
+
+def test_edges_a_rebuild_moved_leave_nothing_to_resolve(client):
     client.call("set_selection", handles=top_edges(client), revision=0)
     widen(client, 30)
-    with pytest.raises(RpcError, match="stale"):
+    assert client.call("get_selection")["handles"] == []
+    with pytest.raises(RpcError):
         client.call("resolve_selection")
 
 

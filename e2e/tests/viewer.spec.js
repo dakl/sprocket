@@ -266,3 +266,87 @@ test("push/pull saves the picked face as a selector, and the feature survives a 
   expect(wider.built.ok).toBe(true);
   expect((await rpc(request, "measure")).volume).toBeCloseTo(60 * 30 * 15, 3);
 });
+
+// --- Live updates: another client or the file on disk moves the open page ------
+
+const fs = require("fs");
+const path = require("path");
+
+const TOP = { select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }], expected_count: 1 };
+
+test("a second client's edits update the open page live, keeping camera and selection", async ({ page, request }) => {
+  await page.evaluate(() => { window.__sameLoad = true; });
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual(["f" + top]);
+  const camera = await page.evaluate(() => window.__tcad.camera);
+
+  // Face colour.
+  await rpc(request, "set_appearances", { appearances: [{ color: "#2f9e44", select: TOP }], author: "agent:test" });
+  await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
+  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Updated by agent:test");
+  // The top face did not move, so it is still selected, here and for an agent.
+  await settled(page);
+  expect((await page.evaluate(() => window.__tcad.selection)).face).toBe(top);
+  expect((await rpc(request, "get_selection")).stale).toBe(false);
+
+  // Geometry, and the changed row glows.
+  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 7 } }], author: "agent:test" });
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 7);
+  await expect(chip(page, "f2")).toHaveClass(/timeline-chip-changed/);
+
+  // Body colour and visibility, in the bodies list.
+  await rpc(request, "set_body", { id: "f2", color: "#123456", author: "agent:test" });
+  await page.waitForFunction(() => window.__tcad.bodies[0] && window.__tcad.bodies[0].color === "#123456");
+  await expect(page.locator(".browser-swatch").first()).toHaveValue("#123456");
+  await rpc(request, "set_visibility", { id: "f2", visible: false });
+  await page.waitForFunction(() => window.__tcad.bodies[0].visible === false);
+  await rpc(request, "set_visibility", { id: "f2", visible: true });
+  await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
+
+  // A parameter change.
+  await rpc(request, "set_parameter", { name: "h", value: 9, author: "agent:test" });
+  const { revision } = await rpc(request, "get_document");
+  await page.waitForFunction((expected) => window.__tcad.revision === expected, revision);
+
+  // All of it without a page load, and the camera never moved.
+  await settled(page);
+  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+  const after = await page.evaluate(() => window.__tcad.camera);
+  [...after.position, ...after.target].forEach((value, k) => expect(value).toBeCloseTo([...camera.position, ...camera.target][k], 6));
+  await rpc(request, "set_appearances", { appearances: [] });
+  await rpc(request, "set_body", { id: "f2", color: null });
+});
+
+/// What `sprocket build`, git or a generator script does to the open file.
+function rewriteOnDisk(file, change) {
+  const document = JSON.parse(fs.readFileSync(file, "utf8"));
+  change(document);
+  const temporary = path.join(path.dirname(file), "rewrite.tmp");
+  fs.writeFileSync(temporary, JSON.stringify(document));
+  fs.renameSync(temporary, file);
+}
+
+test("the document rewritten on disk reloads in the open page", async ({ page, request }) => {
+  await page.evaluate(() => { window.__sameLoad = true; });
+  const { path: file } = await rpc(request, "get_document");
+  rewriteOnDisk(file, (document) => { document.features[1].distance = 13; });
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 13, null, { timeout: 3000 });
+  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Reloaded from disk");
+  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+});
+
+test("an edit that races a rewrite on disk is a conflict the person settles", async ({ page, request }) => {
+  const { path: file } = await rpc(request, "get_document");
+  rewriteOnDisk(file, (document) => { document.features[1].distance = 21; });
+  // Before the watcher has looked: the engine must not save over the file.
+  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 4 } }], author: "viewer" });
+  await expect(page.locator("#conflict")).toBeVisible();
+  expect(JSON.parse(fs.readFileSync(file, "utf8")).features[1].distance).toBe(21);
+  await page.locator("#conflict-file").click();
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 21);
+  await expect(page.locator("#conflict")).toBeHidden();
+  expect((await rpc(request, "get_file_status")).conflict).toBe(null);
+});

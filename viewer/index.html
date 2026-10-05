@@ -130,6 +130,42 @@
 
     .timeline-chip .timeline-icon svg { width: 14px; height: 14px; vertical-align: -3px; }
 
+    /* A row someone else just changed (an agent, or the file on disk): a
+       short glow that fades, so the eye finds it without a lasting badge. */
+    @keyframes changed-glow {
+      from { box-shadow: 0 0 0 2px #5bb8e0; border-color: #5bb8e0; }
+      to { box-shadow: 0 0 0 2px transparent; }
+    }
+    .timeline-chip.timeline-chip-changed { animation: changed-glow 1.8s ease-out; }
+
+    /* The file changed on disk while this window had edits it does not hold. */
+    #conflict {
+      position: fixed;
+      left: 50%;
+      top: 70px;
+      transform: translateX(-50%);
+      background: #2c2a1a;
+      border: 1px solid #c9a227;
+      color: #f0dc8a;
+      font: 13px -apple-system, sans-serif;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      max-width: 80%;
+      z-index: 20;
+    }
+    #conflict button {
+      font: 12px -apple-system, sans-serif;
+      background: #3a3a3a;
+      color: #eee;
+      border: 1px solid #666;
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+    }
+
     /* The playhead sits in the gap between two chips: everything to its left
        is built, everything to its right is rolled back. It is absolutely
        positioned inside #timeline, so it scrolls with the chips. The wide,
@@ -485,6 +521,7 @@
   <div id="status"></div>
   <div id="warning"></div>
   <div id="mesh-error"></div>
+  <div id="conflict" role="alert"><span id="conflict-text"></span><button id="conflict-file">Use the file</button><button id="conflict-mine">Keep mine</button></div>
   <div id="extrude-panel">
     <input id="extrude-distance" type="text" autocomplete="off" spellcheck="false" />
     <button id="extrude-ok">OK</button>
@@ -600,6 +637,7 @@
   <script src="vendor/OrbitControls.js"></script>
   <script src="params-form.js"></script>
   <script src="edits.js"></script>
+  <script src="live.js"></script>
   <script src="vendor/planegcs.js"></script>
   <script src="sketch-solver.js"></script>
   <script src="sketch-model.js"></script>
@@ -848,7 +886,7 @@
     function loadPart(token, options) {
       const refit = Boolean(options && options.refit);
       const path = urlWithCacheBust(partBase, token);
-      trackPending(fetch(path)
+      return trackPending(fetch(path)
         // file:// fetches report status 0, not 200, so response.ok is always
         // false there.
         .then((response) => {
@@ -896,6 +934,7 @@
           });
           mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial] : material);
           mesh.userData.counts = counts;
+          mesh.userData.faceColours = parsed.buffers.face_colors || null;
           scene.add(mesh);
 
           // The B-rep edge curves, already tessellated into consecutive point
@@ -968,7 +1007,7 @@
     // A sidecar JSON next to part.mesh, written by the Swift app on every
     // rebuild: a plain array of {id, type}, one per feature in the document.
     function loadFeatures(token) {
-      trackPending(fetch(urlWithCacheBust(featuresBase, token))
+      return trackPending(fetch(urlWithCacheBust(featuresBase, token))
         // file:// fetches report status 0, not 200, so response.ok is always
         // false in the app. Treat 0 as success or the timeline never loads
         // outside a local server.
@@ -1005,7 +1044,11 @@
     // `opened` means the engine swapped in another document. Its revision can
     // equal the old one's, so its files are fetched under a fresh URL, and the
     // selection, a sketch in progress and hidden sketches belonged to the old one.
-    window.reloadPart = function (token, opened, viewerError) {
+    //
+    // `info` is the rest of the daemon's `document_changed` (author, changes),
+    // when the change came from somewhere else. Swift and the event stream
+    // both pass it; the viewer's own edits call this without it.
+    window.reloadPart = function (token, opened, viewerError, info) {
       loadedRevision = token;
       sawRevision(token);
       showMeshError(viewerError);
@@ -1013,11 +1056,86 @@
       const fetchToken = opened ? token + "-" + Date.now() : token;
       // A rebuild renumbers faces and edges, so what an agent pointed at is gone.
       showAgentHighlight({});
-      loadPart(fetchToken, { refit: Boolean(opened) });
-      loadFeatures(fetchToken);
+      // The daemon has already carried the selection over to the new handles
+      // (rpc.py's _carry_selection). Ask for it before the reload clears the
+      // page's own copy, and keep that clearing from being reported back as
+      // "nothing selected".
+      const selection = opened || !canCallDaemon() ? Promise.resolve(null) : rpcCall("get_selection", {}).catch(() => null);
+      restoringSelection = true;
+      const loads = [loadPart(fetchToken, { refit: Boolean(opened) }), loadFeatures(fetchToken), selection];
+      trackPending(
+        Promise.all(loads)
+          .then(([, , view]) => {
+            if (token !== loadedRevision) return; // a newer reload owns the screen
+            applyDaemonSelection(view);
+            showChangeCue(ViewerLive.changeCue(info));
+          })
+          .finally(() => {
+            if (token !== loadedRevision) return;
+            restoringSelection = false;
+            reportSelection();
+          })
+      );
       // The app and the browser both come through here. A sketch being edited
       // may be the thing that changed, and the sketcher checks.
       if (!opened && sketchStage === "draw") sketcher.remoteChanged();
+    };
+
+    const canCallDaemon = () => hasSwiftBridge() || /^https?:$/.test(window.location.protocol);
+
+    /// Selects what the daemon says is selected, if it belongs to the part on
+    /// screen, without telling the daemon again.
+    function applyDaemonSelection(view) {
+      const picked = ViewerLive.selectionToApply(view, loadedRevision);
+      if (!picked || !mesh) return;
+      if (picked.face !== null && mesh.geometry.groups[picked.face] && !selectedSketch) {
+        selectedPatch = facePatch(picked.face);
+        setHighlight(selectedPatch, 0xffdd55);
+      }
+      if (picked.edge !== null && edgeLines && edgeLines.userData.edgeStart[picked.edge + 1] !== undefined) selectEdge(picked.edge);
+      updateToolbarState();
+      renderBrowser();
+    }
+
+    /// "Updated by agent:…" in the status line for a moment, and a short glow
+    /// on each timeline row the change touched.
+    function showChangeCue(cue) {
+      if (!cue) return;
+      showNotice(cue.text, 2500);
+      for (const id of cue.featureIds) {
+        const chip = timelineEl.querySelector('.timeline-chip[data-feature-id="' + CSS.escape(id) + '"]');
+        if (!chip) continue;
+        chip.classList.remove("timeline-chip-changed");
+        void chip.offsetWidth; // restart the animation when the same row changes twice
+        chip.classList.add("timeline-chip-changed");
+      }
+    }
+
+    // The file changed on disk while this window held edits it does not have.
+    // Neither side is dropped without the person choosing.
+    const conflictEl = document.getElementById("conflict");
+    function showConflict(params) {
+      if (!params || params.resolved || !params.message) {
+        conflictEl.style.display = "none";
+        return;
+      }
+      document.getElementById("conflict-text").textContent = params.message;
+      conflictEl.style.display = "flex";
+    }
+    for (const [button, keep] of [["conflict-file", "file"], ["conflict-mine", "mine"]]) {
+      document.getElementById(button).addEventListener("click", () => {
+        conflictEl.style.display = "none";
+        trackPending(rpcCall("resolve_conflict", { keep }).then((result) => {
+          sawRevision(result.revision);
+          if (result.revision !== loadedRevision) window.reloadPart(result.revision);
+        }));
+      });
+    }
+
+    // Swift forwards the daemon's other notifications here; the browser gets
+    // them from the event stream below.
+    window.__daemonNotification = function (method, params) {
+      if (method === "document_conflict") showConflict(params);
     };
 
     /// The engine could not write the part as a mesh, so it deleted the mesh
@@ -1358,11 +1476,14 @@
       const events = new EventSource("/events");
       events.addEventListener("highlight", (event) => showAgentHighlight(JSON.parse(event.data).params));
       events.addEventListener("document_changed", (event) => {
-        const { revision, opened, viewer_error } = JSON.parse(event.data).params;
+        const params = JSON.parse(event.data).params;
+        const { revision, opened, viewer_error } = params;
         sawRevision(revision);
-        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error);
+        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error, params);
         else showMeshError(viewer_error);
+        if (params.conflict) showConflict(params.conflict);
       });
+      events.addEventListener("document_conflict", (event) => showConflict(JSON.parse(event.data).params));
     }
 
     function setRollback(index) {
@@ -1387,12 +1508,21 @@
     /// examples/box.sprocket, so the extrude axis is unchanged. On a curved face
     /// the node normal is the surface's and the winding normal is one facet's.
     function facePatchAt(hit) {
+      const patch = facePatch(mesh.geometry.userData.faceOfTriangle[hit.faceIndex], hit.faceIndex);
+      patch.anchorPoint = hit.point.clone();
+      return patch;
+    }
+
+    /// Face `faceIndex` as a patch. Its normal is read at `triangle`, or at
+    /// its first triangle; its anchor is that triangle's first corner.
+    function facePatch(faceIndex, triangle) {
       const geometry = mesh.geometry;
       const normals = geometry.attributes.normal;
-      const faceIndex = geometry.userData.faceOfTriangle[hit.faceIndex];
       const group = geometry.groups[faceIndex];
-      const corner = geometry.index.getX(hit.faceIndex * 3);
+      const corner = geometry.index.getX((triangle === undefined ? group.start / 3 : triangle) * 3);
+      const position = geometry.attributes.position;
       return {
+        anchorPoint: new THREE.Vector3(position.getX(corner), position.getY(corner), position.getZ(corner)),
         faceIndex: faceIndex,
         firstTriangle: group.start / 3,
         triangleCount: group.count / 3,
@@ -1959,7 +2089,9 @@
     // Handles are the ones describe_geometry gives: f<i> and e<i>, taken at the
     // revision this page has loaded, because a rebuild renumbers them.
     let reportedSelection = "";
+    let restoringSelection = false; // a reload is putting the daemon's selection back
     function reportSelection() {
+      if (restoringSelection) return;
       if (!hasSwiftBridge() && !/^https?:$/.test(window.location.protocol)) return;
       const handles = [selectedPatch && "f" + selectedPatch.faceIndex, selectedEdge && "e" + selectedEdge.edgeIndex].filter(Boolean);
       const sketches = selectedSketch ? [selectedSketch.id] : [];
@@ -1998,10 +2130,11 @@
       statusEl.style.display = "none";
     }
     /// A status line that outlives the rebuild it came with, for six seconds.
-    function showNotice(text) {
+    function showNotice(text, milliseconds) {
+      const shown = milliseconds || 6000;
       showStatus(text);
-      noticeUntil = Date.now() + 6000;
-      setTimeout(hideStatus, 6100);
+      noticeUntil = Date.now() + shown;
+      setTimeout(hideStatus, shown + 100);
     }
 
     let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
@@ -3345,6 +3478,20 @@
       },
       get mesh() {
         return mesh ? { ...mesh.userData.counts } : null;
+      },
+      /// The bodies in the mesh header: id, name, color, visible, reference.
+      get bodies() {
+        return mesh ? mesh.geometry.userData.bodies.map((body) => ({ ...body })) : [];
+      },
+      /// Face `face`'s own colour as "#rrggbb", or null when it has none.
+      faceColour(face) {
+        const colours = mesh && mesh.userData.faceColours;
+        if (!colours || colours[face] === undefined || colours[face] === 0xffffffff) return null;
+        return "#" + colours[face].toString(16).padStart(6, "0");
+      },
+      /// The status line, when it shows.
+      get status() {
+        return statusEl.style.display === "none" ? null : statusEl.textContent;
       },
 
       /// Where B-rep face `face` is on screen, in page pixels, and whether a
