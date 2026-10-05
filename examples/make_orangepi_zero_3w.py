@@ -195,6 +195,9 @@ def header_cells():
 
 
 appearances = header_cells()
+# One face Daniel picked in the app: the -Y side of pin 28's cell, on the
+# board-edge row. Centre (23.61, 0.15, 2.45), 2.24 x 2.5 mm.
+appearances.append(paint("#2f9e44", 23.3, 0.1, 2.2, 23.9, 0.2, 2.7))
 
 document = {
     "format_version": 2, "features": features, "rollback_index": len(features),

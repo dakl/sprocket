@@ -108,3 +108,20 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(t
     assert sum(piece.volume for piece in pieces) == pytest.approx(0, abs=1e-6)
     box = case.bounding_box()
     assert (box.min.X, box.min.Y, box.max.X, box.max.Y) == pytest.approx((-3, -3, 68, 35))
+
+
+def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
+    """The last appearance in examples/orangepi-zero-3w.sprocket colours the
+    one face Daniel picked: pin 28's cell, -Y side, area 2.24 x 2.5."""
+    from pathlib import Path
+
+    from sprocket_engine.selectors import resolve_selector
+
+    document = Document.load(Path(__file__).parents[2] / "examples" / "orangepi-zero-3w.sprocket")
+    shape, ctx = replay(document.for_replay(), return_context=True)
+    entry = document.appearances[-1]
+    assert entry["color"] == "#2f9e44"
+    (face,) = resolve_selector(shape, entry["select"], ctx)
+    assert tuple(face.center()) == pytest.approx((23.61, 0.15, 2.45), abs=0.01)
+    assert tuple(face.normal_at()) == pytest.approx((0, -1, 0))
+    assert face.area == pytest.approx(5.6)
