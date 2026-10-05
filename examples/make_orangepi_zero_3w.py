@@ -40,6 +40,7 @@ parameters = {
     "cell_w": 2.24,  # UNMEASURED: plastic cell per pin, 0.3 mm gap at 2.54 pitch
     "pin_up": 6,  # UNMEASURED: pin above the plastic body
     "under_h": 1.5,  # UNMEASURED: backside connectors
+    "sd_h": 1.8,  # UNMEASURED: microSD socket below the PCB, from the underside photo
 }
 
 
@@ -133,13 +134,18 @@ features.append({
     "points": [["=hole_inset", "=hole_inset", "=pcb_t+usb_h"], ["=pcb_l-hole_inset", "=hole_inset", "=pcb_t+usb_h"]],
 })
 
-# Backside, from the vendor bottom-view picture. All UNMEASURED.
-add("sdcard", "down", 0, 5.5, 18.5, 12, 15, "=under_h")
-add("mipi", "down", 0, 27, 29.5, 17, 3, "=under_h")
-add("cam1", "down", 0, 18, 2.5, 15.5, 4, "=under_h")
-add("cam2", "down", 0, 34.5, 2.5, 15.5, 4, "=under_h")
-add("fanc", "down", 0, 7, 2.5, 6, 4, "=under_h")  # fan connector
-add("pcie", "down", 0, 59.5, 21, 3, 11, "=under_h")
+# Backside, from a photo of the real underside (2026-10-05, about 12.3 px/mm).
+# Model coordinates, measured off the photo, not with calipers: all UNMEASURED.
+def add_under(fid, x0, x1, y0, y1, height="=under_h"):
+    add(fid, "down", 0, round((x0 + x1) / 2, 3), round((y0 + y1) / 2, 3), round(x1 - x0, 3), round(y1 - y0, 3), height)
+
+
+add_under("sdcard", 53.0, 65.5, 11.1, 22.4, "=sd_h")  # overhangs the +X edge by 0.5; the card slides out toward +X
+add_under("mipi", 28.9, 45.5, 26.8, 30.9)  # MIPI LCD FPC
+add_under("cam1", 22.0, 36.0, 0.4, 6.1)
+add_under("cam2", 37.8, 52.0, 0.4, 6.1)
+add_under("fanc", 52.7, 57.3, 0.0, 3.7)  # fan connector
+add_under("pcie", 0.4, 5.3, 13.0, 24.0)  # PCIe FPC
 
 SILVER = "#b8bcc2"
 BLACK = "#1b1c1e"

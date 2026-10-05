@@ -18,7 +18,7 @@ parameters = {
     "hole_inset": 3.5,  # UNMEASURED: Pi Zero pattern
     "clearance": 1.0,  # UNMEASURED: gap from the board edge to the wall; the ports stick out 0.5 mm
     "wall": 2.0,  # wall and floor thickness
-    "standoff_h": 3.0,  # UNMEASURED: under the board, clears the 1.5 mm backside connectors
+    "standoff_h": 3.0,  # UNMEASURED: under the board, clears the 1.8 mm microSD socket
     "case_top": 12.0,  # UNMEASURED: wall top above the PCB underside; the fan bracket reaches 10.4
     "post_d": 5.5,  # UNMEASURED
     "pilot_d": 2.2,  # UNMEASURED: M2.5 self-tapping pilot
@@ -27,12 +27,13 @@ parameters = {
     "usb_h": 3.3,  # UNMEASURED
     "hdmi_w": 11.6,  # UNMEASURED
     "hdmi_h": 3.3,  # UNMEASURED
-    "sd_w": 15.0,  # UNMEASURED: microSD socket depth along Y
-    "sd_h": 1.5,  # UNMEASURED
+    "sd_y": 16.75,  # UNMEASURED: microSD socket centre along Y, from the underside photo
+    "sd_w": 11.3,  # UNMEASURED: socket width along Y (y 11.1 to 22.4)
+    "sd_h": 1.8,  # UNMEASURED: socket height below the PCB
 }
 
 OUTER_Y = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Y", "end": "max"}], "expected_count": 1}
-OUTER_X = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "X", "end": "min"}], "expected_count": 1}
+OUTER_X = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "X", "end": "max"}], "expected_count": 1}
 TOP = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
 
 
@@ -71,13 +72,15 @@ features = [
      + port("u2_", -23.2, "pcb_t+usb_h/2", "usb_w+2*port_margin", "usb_h+2*port_margin")
      + port("h_", -52.7, "pcb_t+hdmi_h/2", "hdmi_w+2*port_margin", "hdmi_h+2*port_margin")},
     {"id": "ports", "type": "extrude", "profile": "portss", "base": "pilots", "mode": "cut", "distance": "=-(wall+clearance)"},
-    # microSD slot in the -X wall, under the board. On that face u = -y.
+    # microSD slot in the +X wall, under the board: the socket sits at that end
+    # and the card slides out toward +X. On that face u = y and v = z.
     {"id": "sds", "type": "sketch", "plane": {"feature": "ports", "face": OUTER_X},
-     "entities": port("s_", -18.5, "-sd_h/2", "sd_w+2*port_margin", "sd_h+2*port_margin")},
+     "entities": port("s_", "sd_y", "-sd_h/2", "sd_w+2*port_margin", "sd_h+2*port_margin")},
     {"id": "sd", "type": "extrude", "profile": "sds", "base": "ports", "mode": "cut", "distance": "=-(wall+clearance)"},
-    # check_clearance found the backside fan connector (UNMEASURED position)
-    # inside the post at (3.5, 3.5). Cutting the board out of the case notches
-    # whatever it touches. A reference body stays on screen after the cut.
+    # Cutting the board out of the case notches whatever it touches. With the
+    # backside parts at their photo positions (2026-10-05) nothing does: only
+    # the PCB rests on the posts. It stays as a guard while those positions are
+    # UNMEASURED. A reference body stays on screen after the cut.
     {"id": "fit", "type": "boolean", "operation": "subtract", "base": "sd", "tool": "board"},
 ]
 

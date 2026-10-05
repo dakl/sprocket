@@ -311,7 +311,7 @@
       {
        "op": "at_end",
        "axis": "X",
-       "end": "min"
+       "end": "max"
       }
      ],
      "expected_count": 1
@@ -322,11 +322,11 @@
      "id": "s_0",
      "kind": "line",
      "p0": [
-      "=-18.5-(sd_w+2*port_margin)/2",
+      "=sd_y-(sd_w+2*port_margin)/2",
       "=-sd_h/2-(sd_h+2*port_margin)/2"
      ],
      "p1": [
-      "=-18.5+(sd_w+2*port_margin)/2",
+      "=sd_y+(sd_w+2*port_margin)/2",
       "=-sd_h/2-(sd_h+2*port_margin)/2"
      ]
     },
@@ -334,11 +334,11 @@
      "id": "s_1",
      "kind": "line",
      "p0": [
-      "=-18.5+(sd_w+2*port_margin)/2",
+      "=sd_y+(sd_w+2*port_margin)/2",
       "=-sd_h/2-(sd_h+2*port_margin)/2"
      ],
      "p1": [
-      "=-18.5+(sd_w+2*port_margin)/2",
+      "=sd_y+(sd_w+2*port_margin)/2",
       "=-sd_h/2+(sd_h+2*port_margin)/2"
      ]
     },
@@ -346,11 +346,11 @@
      "id": "s_2",
      "kind": "line",
      "p0": [
-      "=-18.5+(sd_w+2*port_margin)/2",
+      "=sd_y+(sd_w+2*port_margin)/2",
       "=-sd_h/2+(sd_h+2*port_margin)/2"
      ],
      "p1": [
-      "=-18.5-(sd_w+2*port_margin)/2",
+      "=sd_y-(sd_w+2*port_margin)/2",
       "=-sd_h/2+(sd_h+2*port_margin)/2"
      ]
     },
@@ -358,11 +358,11 @@
      "id": "s_3",
      "kind": "line",
      "p0": [
-      "=-18.5-(sd_w+2*port_margin)/2",
+      "=sd_y-(sd_w+2*port_margin)/2",
       "=-sd_h/2+(sd_h+2*port_margin)/2"
      ],
      "p1": [
-      "=-18.5-(sd_w+2*port_margin)/2",
+      "=sd_y-(sd_w+2*port_margin)/2",
       "=-sd_h/2-(sd_h+2*port_margin)/2"
      ]
     }
@@ -401,8 +401,9 @@
   "usb_h": 3.3,
   "hdmi_w": 11.6,
   "hdmi_h": 3.3,
-  "sd_w": 15.0,
-  "sd_h": 1.5
+  "sd_y": 16.75,
+  "sd_w": 11.3,
+  "sd_h": 1.8
  },
  "appearances": [],
  "bodies": {

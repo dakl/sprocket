@@ -1022,11 +1022,11 @@
     ]
    },
    "rect": {
-    "width": 12,
-    "height": 15,
+    "width": 12.5,
+    "height": 11.3,
     "center": [
-     5.5,
-     -18.5
+     59.25,
+     -16.75
     ]
    }
   },
@@ -1034,7 +1034,7 @@
    "id": "sdcard",
    "type": "extrude",
    "profile": "sdcards",
-   "distance": "=under_h"
+   "distance": "=sd_h"
   },
   {
    "id": "mipis",
@@ -1057,11 +1057,11 @@
     ]
    },
    "rect": {
-    "width": 17,
-    "height": 3,
+    "width": 16.6,
+    "height": 4.1,
     "center": [
-     27,
-     -29.5
+     37.2,
+     -28.85
     ]
    }
   },
@@ -1092,11 +1092,11 @@
     ]
    },
    "rect": {
-    "width": 15.5,
-    "height": 4,
+    "width": 14.0,
+    "height": 5.7,
     "center": [
-     18,
-     -2.5
+     29.0,
+     -3.25
     ]
    }
   },
@@ -1127,11 +1127,11 @@
     ]
    },
    "rect": {
-    "width": 15.5,
-    "height": 4,
+    "width": 14.2,
+    "height": 5.7,
     "center": [
-     34.5,
-     -2.5
+     44.9,
+     -3.25
     ]
    }
   },
@@ -1162,11 +1162,11 @@
     ]
    },
    "rect": {
-    "width": 6,
-    "height": 4,
+    "width": 4.6,
+    "height": 3.7,
     "center": [
-     7,
-     -2.5
+     55.0,
+     -1.85
     ]
    }
   },
@@ -1197,11 +1197,11 @@
     ]
    },
    "rect": {
-    "width": 3,
-    "height": 11,
+    "width": 4.9,
+    "height": 11.0,
     "center": [
-     59.5,
-     -21
+     2.85,
+     -18.5
     ]
    }
   },
@@ -1243,7 +1243,8 @@
   "pin_w": 0.64,
   "cell_w": 2.24,
   "pin_up": 6,
-  "under_h": 1.5
+  "under_h": 1.5,
+  "sd_h": 1.8
  },
  "appearances": [
   {
