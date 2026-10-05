@@ -459,10 +459,10 @@
    },
    "rect": {
     "width": "=ear_w",
-    "height": "=sink_y0",
+    "height": "=sink_y0+ear_overlap",
     "center": [
      "=ear_w/2",
-     "=sink_y0/2"
+     "=(sink_y0+ear_overlap)/2"
     ]
    }
   },
@@ -470,7 +470,7 @@
    "id": "earl",
    "type": "extrude",
    "profile": "earls",
-   "distance": "=usb_h",
+   "distance": "=usb_h+ear_overlap",
    "base": "sink"
   },
   {
@@ -495,10 +495,10 @@
    },
    "rect": {
     "width": "=ear_w",
-    "height": "=sink_y0",
+    "height": "=sink_y0+ear_overlap",
     "center": [
      "=pcb_l-ear_w/2",
-     "=sink_y0/2"
+     "=(sink_y0+ear_overlap)/2"
     ]
    }
   },
@@ -506,7 +506,7 @@
    "id": "earr",
    "type": "extrude",
    "profile": "earrs",
-   "distance": "=usb_h",
+   "distance": "=usb_h+ear_overlap",
    "base": "earl"
   },
   {
@@ -1234,6 +1234,7 @@
   "sink_y1": 32.0,
   "sink_top": 10,
   "ear_w": 5.7,
+  "ear_overlap": 0.5,
   "fan_l": 20.4,
   "fan_y0": 11.8,
   "fan_top": 10.4,

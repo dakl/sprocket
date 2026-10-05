@@ -30,6 +30,7 @@ parameters = {
     "sink_y1": 32.0,  # ESTIMATE: ports poke out just past it
     "sink_top": 10,  # PLACEHOLDER: height above the PCB underside is not visible in the photo
     "ear_w": 5.7,  # ESTIMATE: screw ears either side of the header
+    "ear_overlap": 0.5,  # the ears reach this far into the plate, so the heatsink is one solid, not three
     "fan_l": 20.4,  # ESTIMATE: fan and bracket at the left end
     "fan_y0": 11.8,
     "fan_top": 10.4,  # PLACEHOLDER
@@ -104,8 +105,8 @@ SINK_Z = "=pcb_t+usb_h"  # the heatsink body rests on the tallest connector
 add("pad", "up", "=pcb_t+soc_h", 38, 18, "=soc_l", "=soc_l", "=usb_h-soc_h")  # thermal pad up to the sink
 # The heatsink is one body: the plate, two screw ears, fin grooves and screw holes.
 add("sink", "up", SINK_Z, "=pcb_l/2", "=(sink_y0+sink_y1)/2", "=pcb_l", "=sink_y1-sink_y0", "=sink_top-pcb_t-usb_h")
-add("earl", "up", "=pcb_t", "=ear_w/2", "=sink_y0/2", "=ear_w", "=sink_y0", "=usb_h", base="sink")
-add("earr", "up", "=pcb_t", "=pcb_l-ear_w/2", "=sink_y0/2", "=ear_w", "=sink_y0", "=usb_h", base="earl")
+add("earl", "up", "=pcb_t", "=ear_w/2", "=(sink_y0+ear_overlap)/2", "=ear_w", "=sink_y0+ear_overlap", "=usb_h+ear_overlap", base="sink")
+add("earr", "up", "=pcb_t", "=pcb_l-ear_w/2", "=(sink_y0+ear_overlap)/2", "=ear_w", "=sink_y0+ear_overlap", "=usb_h+ear_overlap", base="earl")
 add("fan", "up", SINK_Z, "=fan_l/2", "=(fan_y0+sink_y1+0.5)/2", "=fan_l", "=sink_y1+0.5-fan_y0", "=fan_top-pcb_t-usb_h")
 # The fan bracket is a body of its own, so the heatsink gives up the space it sits in.
 features.append({"id": "fancut", "type": "extrude", "profile": "fans", "base": "earr", "mode": "cut", "distance": "=fan_top-pcb_t-usb_h"})
