@@ -1128,6 +1128,52 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(str(exc)) from None
 
 
+def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
+    """A sketch plane that follows a picked face: `{"feature", "face"}` for a
+    new sketch's `plane`, and where it lands now.
+
+    The face is looked up in the body that owns it, and the selector is
+    synthesised against that body's tip, which is what `resolve_plane` searches.
+    A face of the combined part is not a face of any one feature's result when
+    the document has several bodies."""
+    from .ops.sketch import plane_json, resolve_plane
+
+    handle = params.get("handle")
+    if not isinstance(handle, str) or not handle.startswith("f"):
+        raise DocumentError("'handle' must be a face handle like 'f3'")
+    shape = daemon.session.require_shape()
+    try:
+        face = _resolve_handle(shape, handle)
+    except ValueError as exc:
+        raise DocumentError(str(exc)) from None
+    ctx = daemon.session.context()
+    for body in daemon.session.bodies():
+        if body["reference"]:
+            continue
+        faces = body["shape"].faces()
+        local = next((index for index, item in enumerate(faces) if item.is_same(face)), None)
+        if local is not None:
+            break
+    else:
+        raise DocumentError(f"{handle} is not on a part body")
+    features = daemon.session.document.for_replay()["features"]
+    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") != "sketch"]
+    try:
+        found = synthesize(body["shape"], ctx, [f"f{local}"], candidates)
+    except SelectorError as exc:
+        raise DocumentError(str(exc)) from None
+    reference = {"feature": body["tip"], "face": found["selector"]}
+    try:
+        plane = resolve_plane(reference, ctx)
+    except (ValueError, SelectorError) as exc:
+        raise DocumentError(f"cannot sketch on {handle}: {exc}") from None
+    # The plane must hold the picked face, or the selector found another one.
+    if abs((face.center() - plane.origin).dot(plane.z_dir)) > 1e-6:
+        raise DocumentError(f"the selector for {handle} lands on another face")
+    return {"plane": reference, "resolved": plane_json(plane), "strategy": found["strategy"]}
+
+
 def _highlight(daemon: Daemon, params: dict) -> dict:
     """Shows handles in the viewer, in a colour that is not the selection's.
     An empty list clears it. It does not change what is selected."""
@@ -1242,6 +1288,7 @@ METHODS = {
     "resolve_conflict": _resolve_conflict,
     "get_file_status": _get_file_status,
     "resolve_selection": _resolve_selection,
+    "face_sketch_plane": _face_sketch_plane,
     "highlight": _highlight,
     "measure": _measure,
     "render_view": _render_view,

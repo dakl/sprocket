@@ -1208,6 +1208,16 @@
 
     loadPart(params.get("t"), { refit: true });
     loadFeatures(params.get("t"));
+    // The revision on screen at start, so a face handle can be sent to the
+    // daemon before the first change arrives. After this script has run,
+    // because the transport below is declared further down.
+    Promise.resolve().then(() => {
+      if (!canCallDaemon()) return;
+      trackPending(rpcCall("get_timeline", {}).then((timeline) => {
+        sawRevision(timeline.revision);
+        if (loadedRevision === null) loadedRevision = timeline.revision;
+      }).catch(() => {}));
+    });
 
     // A chip's click sets rollback_index: an active chip rolls back to just
     // before it; a greyed-out one rolls forward to just past it. Cmd+Z /
@@ -2273,9 +2283,7 @@
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
         if (!hit) return;
-        const normal = facePatchAt(hit).normal;
-        sketchPlane = makeSketchPlane(hit.point, normal, computeXDir(normal));
-        enterSketchDrawStage();
+        sketchOnFace(facePatchAt(hit), hit.point);
         return;
       }
       if (sketchStage === "draw") {
@@ -3010,7 +3018,7 @@
         });
       },
       planePayload: (plane) =>
-        plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
+        plane.payload || plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
       ui: {
         tools: [...sketchDrawPanelEl.querySelectorAll("[data-tool]")],
         constraints: [...sketchDrawPanelEl.querySelectorAll("[data-constraint]")],
@@ -3225,9 +3233,52 @@
  
  
     function startSketchPickPlane() {
+      // A face picked first is the plane: pick, then press Sketch.
+      if (selectedPatch && mesh) {
+        const patch = selectedPatch;
+        clearSelection();
+        sketchStage = "pick-plane";
+        updateToolbarState();
+        sketchOnFace(patch, patch.anchorPoint);
+        return;
+      }
       sketchStage = "pick-plane";
       sketchPlanePanelEl.style.display = "flex";
       updateToolbarState();
+    }
+
+    /// Starts a sketch on a picked face. The daemon turns the face into a
+    /// plane reference ({feature, face selector}) that the engine finds again
+    /// on every rebuild, so the sketch follows the face when an upstream
+    /// dimension moves it. The sketcher draws in the plane the engine will
+    /// use. Without a daemon, or on a face that is not flat, the plane is
+    /// the fixed tangent plane at the click, and the status line says so.
+    function sketchOnFace(patch, point) {
+      const fixed = () => {
+        sketchPlane = makeSketchPlane(point, patch.normal, computeXDir(patch.normal));
+        enterSketchDrawStage();
+      };
+      if (!canCallDaemon() || loadedRevision !== daemonRevision) return fixed();
+      sketchStage = "resolving-plane";
+      trackPending(
+        rpcCall("face_sketch_plane", { handle: "f" + patch.faceIndex })
+          .then((found) => {
+            if (sketchStage !== "resolving-plane") return;
+            const resolved = found.resolved;
+            sketchPlane = makeSketchPlane(
+              new THREE.Vector3(...resolved.origin),
+              new THREE.Vector3(...resolved.normal),
+              new THREE.Vector3(...resolved.x_dir)
+            );
+            sketchPlane.payload = found.plane;
+            enterSketchDrawStage();
+          })
+          .catch((error) => {
+            if (sketchStage !== "resolving-plane") return;
+            showNotice("Sketch plane is fixed, it will not follow the face: " + error.message);
+            fixed();
+          })
+      );
     }
 
     /// Opens the sketcher on `sketchPlane`. Pass an entity sketch's feature to
@@ -3309,6 +3360,9 @@
       const normal = new THREE.Vector3().crossVectors(stored.xDir, stored.yDir).normalize();
       sketchPlane = makeSketchPlane(stored.origin, normal, stored.xDir);
       sketchPlane.ref = typeof entry.plane === "string" ? entry.plane : null;
+      // A face or offset plane stays a reference when the sketch is redrawn.
+      const raw = entry.feature && entry.feature.plane;
+      if (raw && typeof raw === "object" && (raw.feature || raw.name)) sketchPlane.payload = raw;
       // The sketcher draws it now, and the saved outline would sit under it.
       editedSketchId = entry.id;
       hiddenSketchIDs.add(entry.id);

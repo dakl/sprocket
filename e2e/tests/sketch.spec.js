@@ -572,3 +572,45 @@ test("an agent's edit and the viewer's next edit both survive", async ({ page, r
   const saved = (await rpc(request, "get_document")).features[0].constraints.filter((item) => item.kind === "distance");
   expect(saved.map((item) => item.value).sort()).toEqual([25, 55]);
 });
+
+// --- M5: a sketch on a picked face follows the face --------------------------
+
+const BOX = {
+  features: [
+    { id: "f1", type: "sketch", plane: "XY", rect: { width: 40, height: 30 } },
+    { id: "f2", type: "extrude", profile: "f1", distance: 10 },
+  ],
+  rollback_index: 2,
+};
+
+test("pick a face, press Sketch: the sketch sits on that face and follows it when the part grows", async ({ page, request }) => {
+  await resetDocument(request, BOX);
+  await page.reload();
+  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  await settled(page);
+
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+  await page.locator("#tool-sketch").click();
+  await page.waitForFunction(() => window.__tcad.sketch.active);
+  await cameraStill(page);
+  await drawRectangle(page, [-5, -5], [5, 5]);
+  await finishSketch(page);
+
+  const sketch = (await rpc(request, "get_document")).features[2];
+  expect(sketch.type).toBe("sketch");
+  expect(sketch.plane.feature).toBe("f2");
+  expect(sketch.plane.face.expected_count).toBe(1);
+
+  await extrudeRegion(page, "f3", 0, 4);
+  expect((await rpc(request, "measure")).bounding_box.max[2]).toBeCloseTo(14, 6);
+
+  // Make the box taller: the sketch and its pad ride up with the top face.
+  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...BOX.features[1], distance: 25 } }] });
+  expect((await rpc(request, "measure")).bounding_box.max[2]).toBeCloseTo(29, 6);
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 25);
+  expect((await page.evaluate(() => window.__tcad.timeline)).every((entry) => !entry.failed)).toBe(true);
+});

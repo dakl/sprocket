@@ -223,6 +223,13 @@ def document_tools() -> list[types.Tool]:
             ["handle"],
         ),
         _tool(
+            "face_sketch_plane",
+            "A sketch plane that follows a face: {feature, face selector} to use as a new sketch's `plane`, "
+            "and where it lands now (origin, normal, x_dir). Sketch coordinates are in that plane's u, v.",
+            {"handle": {"type": "string", "description": "a planar face handle from describe_geometry, like 'f3'"}},
+            ["handle"],
+        ),
+        _tool(
             "get_file_status",
             "Whether the document file changed on disk, whether the engine holds edits the file does not, "
             "and any open conflict between the two.",
@@ -398,7 +405,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status", "face_sketch_plane"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")
