@@ -216,6 +216,19 @@ def document_tools() -> list[types.Tool]:
             ["appearances"],
         ),
         _tool(
+            "get_face_appearance",
+            "Which appearance entries colour one face (with how many faces each colours), and a within-box "
+            "selector that matches that face alone. Append {color, select: selector} with set_appearances to colour it.",
+            {"handle": {"type": "string", "description": "a face handle from describe_geometry, like 'f3'"}},
+            ["handle"],
+        ),
+        _tool(
+            "get_file_status",
+            "Whether the document file changed on disk, whether the engine holds edits the file does not, "
+            "and any open conflict between the two.",
+            {},
+        ),
+        _tool(
             "check_clearance",
             "For each part body and each reference body: the smallest distance between them and the volume "
             "they share. Overlap above 0 means the part collides with the reference.",
@@ -385,7 +398,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

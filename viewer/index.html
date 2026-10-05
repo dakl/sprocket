@@ -138,6 +138,46 @@
     }
     .timeline-chip.timeline-chip-changed { animation: changed-glow 1.8s ease-out; }
 
+    /* Right-click menu on a face or a body row, and the colour popover. */
+    #context-menu, #colour-popover {
+      position: fixed;
+      background: rgba(36, 36, 36, 0.97);
+      border: 1px solid #555;
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      color: #eee;
+      font: 13px -apple-system, sans-serif;
+      display: none;
+      z-index: 30;
+    }
+    #context-menu { padding: 4px 0; min-width: 170px; }
+    #context-menu .menu-title { padding: 4px 12px 6px; color: #999; font-size: 11px; border-bottom: 1px solid #444; margin-bottom: 4px; }
+    #context-menu button {
+      display: block; width: 100%; text-align: left; background: none; border: 0; color: inherit;
+      font: inherit; padding: 5px 12px; cursor: pointer;
+    }
+    #context-menu button:hover, #context-menu button:focus { background: #2f5d8a; outline: none; }
+    #colour-popover { padding: 10px; width: 196px; }
+    #colour-popover .popover-title { color: #bbb; font-size: 12px; margin-bottom: 8px; }
+    #colour-popover .palette, #colour-popover .recent { display: grid; grid-template-columns: repeat(6, 26px); gap: 6px; }
+    #colour-popover .swatch {
+      width: 26px; height: 26px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 0; cursor: pointer;
+    }
+    #colour-popover .swatch:hover, #colour-popover .swatch:focus { outline: 2px solid #5bb8e0; outline-offset: 1px; }
+    #colour-popover .popover-row { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+    #colour-popover input[type="text"] {
+      width: 78px; background: #1e1e1e; color: #eee; border: 1px solid #555; border-radius: 4px;
+      font: 12px ui-monospace, monospace; padding: 4px 6px;
+    }
+    #colour-popover input[type="text"].invalid { border-color: #d0453a; }
+    #colour-popover input[type="color"] { width: 30px; height: 26px; border: 0; padding: 0; background: none; cursor: pointer; }
+    #colour-popover button.apply {
+      font: 12px -apple-system, sans-serif; background: #3a3a3a; color: #eee; border: 1px solid #666;
+      border-radius: 4px; padding: 4px 8px; cursor: pointer;
+    }
+    #colour-popover .recent-label { color: #999; font-size: 11px; margin: 10px 0 6px; }
+
     /* The file changed on disk while this window had edits it does not hold. */
     #conflict {
       position: fixed;
@@ -521,6 +561,18 @@
   <div id="status"></div>
   <div id="warning"></div>
   <div id="mesh-error"></div>
+  <div id="context-menu" role="menu"></div>
+  <div id="colour-popover" role="dialog" aria-label="Colour">
+    <div class="popover-title"></div>
+    <div class="palette"></div>
+    <div class="popover-row">
+      <input type="text" id="colour-hex" placeholder="#rrggbb" maxlength="7" aria-label="Hex colour" />
+      <input type="color" id="colour-native" title="More colours" aria-label="More colours" />
+      <button class="apply" id="colour-apply">Apply</button>
+    </div>
+    <div class="recent-label">Recent</div>
+    <div class="recent"></div>
+  </div>
   <div id="conflict" role="alert"><span id="conflict-text"></span><button id="conflict-file">Use the file</button><button id="conflict-mine">Keep mine</button></div>
   <div id="extrude-panel">
     <input id="extrude-distance" type="text" autocomplete="off" spellcheck="false" />
@@ -638,6 +690,7 @@
   <script src="params-form.js"></script>
   <script src="edits.js"></script>
   <script src="live.js"></script>
+  <script src="colours.js"></script>
   <script src="vendor/planegcs.js"></script>
   <script src="sketch-solver.js"></script>
   <script src="sketch-model.js"></script>
@@ -1435,6 +1488,9 @@
       let call;
       if (message.type === "undo" || message.type === "redo") {
         call = () => rpcCall(message.type, {});
+      } else if (message.type === "set_appearances") {
+        // Face colours: the same call an agent makes, so it is undoable and logged.
+        call = () => rpcCall("set_appearances", { appearances: message.appearances, author: "viewer", base_revision: message.base_revision });
       } else if (message.type === "set_visibility") {
         // View state, not an edit: undoable, but no log entry or timeline row.
         call = () => rpcCall("set_visibility", { id: message.id, visible: message.visible });
@@ -1958,6 +2014,13 @@
           row.appendChild(swatch);
         }
 
+        if (options.onContextMenu) {
+          row.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            options.onContextMenu(event);
+          });
+        }
+
         tree.appendChild(row);
       }
 
@@ -2042,6 +2105,7 @@
             onToggle: () => sendCommand({ type: "set_visibility", id: body.id, visible: body.visible === false }),
             color: body.color,
             onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
+            onContextMenu: (event) => openBodyMenu(event.clientX, event.clientY, body),
           });
         }
       }
@@ -2203,6 +2267,9 @@
     renderer.domElement.addEventListener("wheel", cancelCameraMove, { passive: true });
 
     renderer.domElement.addEventListener("pointerdown", (event) => {
+      // The right button pans the camera, and a right click without a drag
+      // opens the context menu (below). Neither picks.
+      if (event.button === 2) return;
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
         if (!hit) return;
@@ -2269,6 +2336,207 @@
       renderSketchSelection();
       hideHint();
       selectionChanged();
+    });
+
+    // --- Right-click menu and colour picker ---------------------------------
+    // A right click on a face (a press and release without a drag, so a
+    // right-drag still pans) opens a menu for that face and its body. Colours
+    // go through the daemon's own calls: set_appearances for a face,
+    // set_body for a body. So they are undoable, logged, and an agent sees them.
+    const contextMenuEl = document.getElementById("context-menu");
+    const colourPopoverEl = document.getElementById("colour-popover");
+    const colourHexEl = document.getElementById("colour-hex");
+    const colourNativeEl = document.getElementById("colour-native");
+    const RIGHT_CLICK_SLOP = 4; // pixels the pointer may move and still count as a click
+    let rightPress = null;
+    let colourTarget = null; // what the popover's colour goes to: a function of "#rrggbb"
+
+    function menuOpen() {
+      return contextMenuEl.style.display === "block" || colourPopoverEl.style.display === "block";
+    }
+    function closeMenus() {
+      contextMenuEl.style.display = "none";
+      colourPopoverEl.style.display = "none";
+      colourTarget = null;
+    }
+
+    /// Shows `element` at (x, y), kept inside the window.
+    function placeAt(element, x, y) {
+      element.style.display = "block";
+      const width = element.offsetWidth;
+      const height = element.offsetHeight;
+      element.style.left = Math.max(4, Math.min(x, window.innerWidth - width - 4)) + "px";
+      element.style.top = Math.max(4, Math.min(y, window.innerHeight - height - 4)) + "px";
+    }
+
+    /// `items` is [{label, action}]; a null entry is left out.
+    function openMenu(x, y, title, items) {
+      closeMenus();
+      contextMenuEl.innerHTML = "";
+      const heading = document.createElement("div");
+      heading.className = "menu-title";
+      heading.textContent = title;
+      contextMenuEl.appendChild(heading);
+      for (const item of items.filter(Boolean)) {
+        const button = document.createElement("button");
+        button.setAttribute("role", "menuitem");
+        button.textContent = item.label;
+        button.addEventListener("click", () => {
+          contextMenuEl.style.display = "none";
+          item.action();
+        });
+        contextMenuEl.appendChild(button);
+      }
+      placeAt(contextMenuEl, x, y);
+    }
+
+    function loadRecentColours() {
+      try {
+        const stored = JSON.parse(localStorage.getItem("sprocket.recentColours") || "[]");
+        return Array.isArray(stored) ? stored.filter((item) => ViewerColours.normaliseHex(item)) : [];
+      } catch (error) {
+        return [];
+      }
+    }
+    function saveRecentColours(list) {
+      try {
+        localStorage.setItem("sprocket.recentColours", JSON.stringify(list));
+      } catch (error) {
+        // Private mode or blocked storage: the list just does not persist.
+      }
+    }
+
+    function swatchButton(hex, name) {
+      const button = document.createElement("button");
+      button.className = "swatch";
+      button.style.background = hex;
+      button.title = name ? name + " " + hex : hex;
+      button.setAttribute("aria-label", button.title);
+      button.dataset.hex = hex;
+      button.addEventListener("click", () => pickColour(hex));
+      return button;
+    }
+
+    /// The popover: palette, hex box, the system picker, and recent colours.
+    function openColourPicker(x, y, title, current, onPick) {
+      closeMenus();
+      colourTarget = onPick;
+      colourPopoverEl.querySelector(".popover-title").textContent = title;
+      const palette = colourPopoverEl.querySelector(".palette");
+      palette.innerHTML = "";
+      for (const item of ViewerColours.PALETTE) palette.appendChild(swatchButton(item.hex, item.name));
+      const recent = loadRecentColours();
+      const recentEl = colourPopoverEl.querySelector(".recent");
+      recentEl.innerHTML = "";
+      for (const hex of recent) recentEl.appendChild(swatchButton(hex));
+      colourPopoverEl.querySelector(".recent-label").style.display = recent.length ? "block" : "none";
+      const start = ViewerColours.normaliseHex(current) || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+      colourHexEl.value = start;
+      colourHexEl.classList.remove("invalid");
+      colourNativeEl.value = start;
+      placeAt(colourPopoverEl, x, y);
+      colourHexEl.focus();
+      colourHexEl.select();
+    }
+
+    function pickColour(colour) {
+      const hex = ViewerColours.normaliseHex(colour);
+      if (!hex || !colourTarget) return;
+      const target = colourTarget;
+      saveRecentColours(ViewerColours.pushRecent(loadRecentColours(), hex));
+      closeMenus();
+      target(hex);
+    }
+
+    function applyHexBox() {
+      const hex = ViewerColours.normaliseHex(colourHexEl.value);
+      colourHexEl.classList.toggle("invalid", !hex);
+      if (hex) pickColour(hex);
+    }
+    document.getElementById("colour-apply").addEventListener("click", applyHexBox);
+    colourHexEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") applyHexBox();
+    });
+    colourHexEl.addEventListener("input", () => {
+      const hex = ViewerColours.normaliseHex(colourHexEl.value);
+      colourHexEl.classList.toggle("invalid", !hex && colourHexEl.value.length >= 4);
+      if (hex) colourNativeEl.value = hex;
+    });
+    colourNativeEl.addEventListener("change", () => pickColour(colourNativeEl.value));
+
+    // A press anywhere else closes them; one inside does not.
+    window.addEventListener("pointerdown", (event) => {
+      if (!menuOpen()) return;
+      if (contextMenuEl.contains(event.target) || colourPopoverEl.contains(event.target)) return;
+      closeMenus();
+    }, true);
+
+    /// The body that owns face `faceIndex`, from the mesh header's face counts.
+    function bodyOfFace(faceIndex) {
+      let start = 0;
+      for (const body of mesh.geometry.userData.bodies) {
+        if (faceIndex < start + body.faces) return body;
+        start += body.faces;
+      }
+      return null;
+    }
+
+    /// Colours face `faceIndex`, or clears its own colour when `colour` is null.
+    /// The daemon names the entries on the face and a box that picks it out alone.
+    async function setFaceColour(faceIndex, colour) {
+      const info = await rpcCall("get_face_appearance", { handle: "f" + faceIndex });
+      const current = await rpcCall("get_document", {});
+      const appearances = colour
+        ? ViewerColours.withFaceColour(current.appearances, info, colour)
+        : ViewerColours.withoutFaceColour(current.appearances, info);
+      return sendCommand({ type: "set_appearances", appearances, base_revision: current.revision });
+    }
+
+    function openBodyMenu(x, y, body) {
+      const hidden = body.visible === false;
+      openMenu(x, y, body.name, [
+        body.reference ? null : {
+          label: "Colour…",
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+        },
+        { label: hidden ? "Show" : "Hide", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: hidden }) },
+      ]);
+    }
+
+    async function openFaceMenu(event) {
+      if (sketchStage || extrudeArmed || !mesh) return;
+      const hit = raycastFace(event);
+      if (!hit) return;
+      const x = event.clientX;
+      const y = event.clientY;
+      const faceIndex = mesh.geometry.userData.faceOfTriangle[hit.faceIndex];
+      const body = bodyOfFace(faceIndex);
+      // The handle is only good for the part the daemon has now.
+      const info = loadedRevision === daemonRevision
+        ? await trackPending(rpcCall("get_face_appearance", { handle: "f" + faceIndex })).catch(() => null)
+        : null;
+      const clear = ViewerColours.clearLabel(info);
+      const faceColour = window.__tcad.faceColour(faceIndex) || (body && body.color);
+      openMenu(x, y, (body ? body.name + " · " : "") + "face f" + faceIndex, [
+        { label: "Colour…", action: () => openColourPicker(x, y, "Face colour", faceColour, (hex) => setFaceColour(faceIndex, hex)) },
+        body && !body.reference ? {
+          label: "Body colour…",
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+        } : null,
+        body ? { label: "Hide body", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: false }) } : null,
+        clear ? { label: clear, action: () => setFaceColour(faceIndex, null) } : null,
+      ]);
+    }
+
+    renderer.domElement.addEventListener("contextmenu", (event) => event.preventDefault());
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      rightPress = event.button === 2 ? { x: event.clientX, y: event.clientY } : null;
+    });
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      if (event.button !== 2 || !rightPress) return;
+      const moved = Math.hypot(event.clientX - rightPress.x, event.clientY - rightPress.y);
+      rightPress = null;
+      if (moved <= RIGHT_CLICK_SLOP) openFaceMenu(event);
     });
 
     // Ends a corner or edge drag and sends the new profile to Swift, which
@@ -2643,6 +2911,10 @@
 
 
     window.addEventListener("keydown", (event) => {
+      if (menuOpen()) {
+        if (event.key === "Escape") closeMenus();
+        return; // the hex box takes letters; nothing else should act meanwhile
+      }
       // The parameter form is a text field: "e" and "s" are letters there, and
       // Cmd+Z undoes the typing rather than the document.
       if (propertiesEl.contains(document.activeElement)) return;
@@ -3488,6 +3760,11 @@
         const colours = mesh && mesh.userData.faceColours;
         if (!colours || colours[face] === undefined || colours[face] === 0xffffffff) return null;
         return "#" + colours[face].toString(16).padStart(6, "0");
+      },
+      /// The open right-click menu's items, or null.
+      get contextMenu() {
+        if (contextMenuEl.style.display !== "block") return null;
+        return Array.from(contextMenuEl.querySelectorAll("button")).map((button) => button.textContent);
       },
       /// The status line, when it shows.
       get status() {

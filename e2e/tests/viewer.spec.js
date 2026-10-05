@@ -350,3 +350,79 @@ test("an edit that races a rewrite on disk is a conflict the person settles", as
   await expect(page.locator("#conflict")).toBeHidden();
   expect((await rpc(request, "get_file_status")).conflict).toBe(null);
 });
+
+// --- Colour picker and right-click menu ----------------------------------------
+
+test("right-click a face, pick a colour: the face is coloured in the document and on screen", async ({ page, request }) => {
+  await rpc(request, "set_appearances", { appearances: [] });
+  await settled(page);
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+
+  // A right-drag pans and opens nothing.
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(point.x + 40, point.y + 30, { steps: 5 });
+  await page.mouse.up({ button: "right" });
+  expect(await page.evaluate(() => window.__tcad.contextMenu)).toBe(null);
+  await settled(page);
+
+  const again = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(again.x, again.y, { button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body"]);
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await expect(page.locator("#colour-popover")).toBeVisible();
+  await page.locator('#colour-popover .palette .swatch[data-hex="#2f9e44"]').click();
+
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#2f9e44"]);
+  await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
+  // Only that face: the box the engine gave picks it out alone.
+  const coloured = await page.evaluate((count) => Array.from({ length: count }, (_, k) => window.__tcad.faceColour(k)), faces.length);
+  expect(coloured.filter((hex) => hex === "#2f9e44")).toHaveLength(1);
+
+  // The hex box, and the recent list remembers the green.
+  const point2 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point2.x, point2.y, { button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toContain("Clear face colour");
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await expect(page.locator('#colour-popover .recent .swatch[data-hex="#2f9e44"]')).toHaveCount(1);
+  await page.locator("#colour-hex").fill("#d4af37");
+  await page.locator("#colour-hex").press("Enter");
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#d4af37"]);
+
+  // Undo puts the green back: it is an ordinary edit.
+  await page.mouse.click(640, 790);
+  await page.keyboard.press("Meta+z");
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#2f9e44"]);
+
+  // Clear.
+  await settled(page);
+  const point3 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point3.x, point3.y, { button: "right" });
+  await page.getByRole("menuitem", { name: "Clear face colour" }).click();
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances).toEqual([]);
+});
+
+test("a body row's right-click menu colours and hides the body; the swatch still works", async ({ page, request }) => {
+  const row = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first();
+  await row.click({ button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide"]);
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#d83a2e");
+
+  await page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Hide" }).click();
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].visible).toBe(false);
+  await rpc(request, "set_visibility", { id: "f2", visible: true });
+
+  // The swatch in the row still sends set_body by itself.
+  await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
+  await page.locator(".browser-swatch").first().evaluate((input) => {
+    input.value = "#1f6b3a";
+    input.dispatchEvent(new Event("change"));
+  });
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
+  await rpc(request, "set_body", { id: "f2", color: null });
+});

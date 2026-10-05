@@ -37,7 +37,7 @@ from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 from .render import render_png
 from .replay import build_shape, last_solid_index, replay, with_settings
-from .selectors import SelectorError
+from .selectors import SelectorError, resolve_selector
 from .synthesis import synthesize
 from .viewer_files import write_viewer_files
 
@@ -688,6 +688,45 @@ def _set_appearances(daemon: Daemon, params: dict) -> dict:
     return _edit(daemon, [{"op": "set_appearances", "appearances": params.get("appearances")}], params)
 
 
+def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
+    """What colours one face, and a selector that picks out just that face.
+
+    `entries` are the appearances that reach the face, with how many faces
+    each one colours, so a client can tell an entry made for this face from a
+    wider one. `selector` is a `within` box around the face's centre, checked
+    against the current build to match this face alone. Appearances resolve
+    without a replay context, so a box is the selector that works there, and
+    it survives any rebuild that leaves the face where it is."""
+    handle = params.get("handle")
+    if not isinstance(handle, str) or not handle.startswith("f"):
+        raise DocumentError("'handle' must be a face handle like 'f3'")
+    shape = daemon.session.require_shape()
+    try:
+        face = _resolve_handle(shape, handle)
+    except ValueError as exc:
+        raise DocumentError(str(exc)) from None
+    entries = []
+    for index, appearance in enumerate(daemon.session.document.appearances):
+        try:
+            picked = resolve_selector(shape, appearance["select"])
+        except SelectorError:
+            continue
+        if any(item.is_same(face) for item in picked):
+            entries.append({"index": index, "color": appearance["color"], "faces": len(picked)})
+    centre = list(face.center())
+    selector = None
+    for half in (0.05, 0.001):
+        box = [round(value - half, 6) for value in centre] + [round(value + half, 6) for value in centre]
+        candidate = {"select": [{"op": "faces"}, {"op": "within", "box": box}]}
+        picked = resolve_selector(shape, candidate)
+        if len(picked) == 1 and picked[0].is_same(face):
+            selector = candidate
+            break
+    if selector is None:
+        raise DocumentError(f"no box around {handle}'s centre picks it out alone: another face shares that centre")
+    return {"handle": handle, "centre": [round(value, 6) for value in centre], "entries": entries, "selector": selector}
+
+
 def _get_bodies(daemon: Daemon, params: dict) -> dict:
     """The built bodies in order, with their settings, volume and face count."""
     return {
@@ -1197,6 +1236,7 @@ METHODS = {
     "set_body": _set_body,
     "set_visibility": _set_visibility,
     "set_appearances": _set_appearances,
+    "get_face_appearance": _get_face_appearance,
     "set_selection": _set_selection,
     "get_selection": _get_selection,
     "resolve_conflict": _resolve_conflict,
