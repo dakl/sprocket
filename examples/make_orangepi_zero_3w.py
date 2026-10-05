@@ -31,7 +31,7 @@ parameters = {
     "sink_top": 10,  # PLACEHOLDER: height above the PCB underside is not visible in the photo
     "ear_w": 5.7,  # ESTIMATE: screw ears either side of the header
     "ear_overlap": 0.5,  # the ears reach this far into the plate, so the heatsink is one solid, not three
-    "fan_l": 20.4,  # ESTIMATE: fan and bracket at the left end
+    "fan_l": 20.4,  # ESTIMATE: fan and bracket at the HDMI end (photo IMG_8393, 2026-10-05)
     "fan_y0": 11.8,
     "fan_top": 10.4,  # PLACEHOLDER
     "groove_w": 1.2,  # ESTIMATE: fin grooves
@@ -107,7 +107,7 @@ add("pad", "up", "=pcb_t+soc_h", 38, 18, "=soc_l", "=soc_l", "=usb_h-soc_h")  # 
 add("sink", "up", SINK_Z, "=pcb_l/2", "=(sink_y0+sink_y1)/2", "=pcb_l", "=sink_y1-sink_y0", "=sink_top-pcb_t-usb_h")
 add("earl", "up", "=pcb_t", "=ear_w/2", "=(sink_y0+ear_overlap)/2", "=ear_w", "=sink_y0+ear_overlap", "=usb_h+ear_overlap", base="sink")
 add("earr", "up", "=pcb_t", "=pcb_l-ear_w/2", "=(sink_y0+ear_overlap)/2", "=ear_w", "=sink_y0+ear_overlap", "=usb_h+ear_overlap", base="earl")
-add("fan", "up", SINK_Z, "=fan_l/2", "=(fan_y0+sink_y1+0.5)/2", "=fan_l", "=sink_y1+0.5-fan_y0", "=fan_top-pcb_t-usb_h")
+add("fan", "up", SINK_Z, "=pcb_l-fan_l/2", "=(fan_y0+sink_y1+0.5)/2", "=fan_l", "=sink_y1+0.5-fan_y0", "=fan_top-pcb_t-usb_h")
 # The fan bracket is a body of its own, so the heatsink gives up the space it sits in.
 features.append({"id": "fancut", "type": "extrude", "profile": "fans", "base": "earr", "mode": "cut", "distance": "=fan_top-pcb_t-usb_h"})
 
@@ -116,7 +116,7 @@ grooves = []
 for k in range(7):
     y0 = f"=fan_y0+1.1+{k}*2.7"
     y1 = f"=fan_y0+1.1+{k}*2.7+groove_w"
-    x0, x1 = "=fan_l+0.5", "=pcb_l+0.1"
+    x0, x1 = "=-0.1", "=pcb_l-fan_l-0.5"
     corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
     ids = [f"g{k}_{j}" for j in range(4)]
     for j in range(4):
@@ -178,11 +178,11 @@ PIN_COLOURS.update({n: "#1d1d1f" for n in (6, 9, 14, 20, 25, 30, 34, 39)})  # gr
 def header_cells():
     """Header plastic coloured by pin function, as on the vendor photo: 3.3 V yellow,
     5 V red, ground black, ID_SD green. Everything else keeps the body's GPIO blue.
-    Pin 1 is at the low-X end on the inner row; pin 2 is beside it on the board-edge
+    Pin 1 is at the high-X (HDMI and fan) end on the inner row; pin 2 is beside it on the board-edge
     row. Face colours, because one body holds all 40 cells."""
     entries = []
     for number, colour in sorted(PIN_COLOURS.items()):
-        x = 65 / 2 + ((number - 1) // 2 - 9.5) * 2.54
+        x = 65 / 2 + (9.5 - (number - 1) // 2) * 2.54
         y = 1.27 if number % 2 == 0 else 3.81
         entries.append(paint(colour, x - 1.2, y - 1.2, 1.1, x + 1.2, y + 1.2, 3.75))
     return entries
