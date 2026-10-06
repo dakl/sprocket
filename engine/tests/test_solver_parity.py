@@ -102,3 +102,13 @@ def test_two_dimensions_that_disagree_are_named():
     assert not result["ok"]
     assert {8, 9} <= set(result["conflicting"]), "the two distance constraints are indices 8 and 9"
     assert result["sketch"] is sketch, "a refused sketch comes back untouched"
+
+
+def test_arcs_add_no_hidden_redundant_constraints():
+    """Duplicate arc rules made every arc redundant. Nothing reported it, but each
+    diagnosis then ran planegcs's slow redundancy search (24 ms on this plate, 14 without)."""
+    from solver_cases import sprocket_plate
+    from sprocket_engine.solver import _Build
+
+    diagnosis = _Build(sprocket_plate(), None).system.diagnose()
+    assert list(diagnosis.redundant) == []
