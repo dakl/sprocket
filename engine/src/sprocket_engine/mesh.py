@@ -40,10 +40,16 @@ from OCP.TopExp import TopExp
 from OCP.TopoDS import TopoDS
 from ocp_tessellate.ocp_utils import TopTools_IndexedMapOfShape
 
+from .materials import PRESETS
 from .selectors import resolve_selector
 
 FORMAT = "sprocket-mesh"
+# Version 2 adds `face_materials`. A file without it is written as version 1,
+# byte for byte what it was, and a viewer reads both. A version 1 reader
+# refuses a version 2 file rather than draw a metal face as matte plastic.
 VERSION = 1
+VERSION_WITH_MATERIALS = 2
+NO_MATERIAL = -1.0
 
 # (header name, instance key, numpy dtype to store as, JSON type tag)
 _BUFFERS = (
@@ -56,6 +62,8 @@ _BUFFERS = (
     # Optional: one 0xRRGGBB per face, 0xFFFFFFFF for "no colour". Absent when
     # the document has no appearances, so a viewer must not require it.
     ("face_colors", "face_colors", "<u4", "uint32"),
+    # Optional, version 2: (roughness, metalness) per face, -1 for "no finish".
+    ("face_materials", "face_materials", "<f4", "float32"),
 )
 
 
@@ -140,15 +148,35 @@ def face_colours(shape, appearances) -> np.ndarray:
     first and the exceptions follow. A face no appearance names stays NO_COLOUR
     and the viewer draws it in its default.
     """
-    faces = shape.faces()
-    colours = np.full(len(faces), NO_COLOUR, dtype="<u4")
-    for appearance in appearances or []:
-        value = int(appearance["color"].lstrip("#"), 16)
-        for picked in resolve_selector(shape, appearance["select"]):
-            for index, face in enumerate(faces):
-                if face.is_same(picked):
-                    colours[index] = value
+    colours = np.full(len(shape.faces()), NO_COLOUR, dtype="<u4")
+    for appearance, indices in _painted(shape, appearances):
+        colours[indices] = int(appearance["color"].lstrip("#"), 16)
     return colours
+
+
+def _painted(shape, appearances):
+    """(appearance, face indices it reaches) for each appearance, in order."""
+    faces = shape.faces()
+    for appearance in appearances or []:
+        picked = resolve_selector(shape, appearance["select"])
+        yield appearance, [index for index, face in enumerate(faces) if any(face.is_same(item) for item in picked)]
+
+
+def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None:
+    """(roughness, metalness) per face: the body's finish, then appearances
+    that name one. None when nothing has a finish, so the buffer is left out."""
+    if not any(body.get("material") for body in bodies) and not any("material" in item for item in appearances or []):
+        return None
+    values = np.full((sum(face_counts), 2), NO_MATERIAL, dtype="<f4")
+    start = 0
+    for body, count in zip(bodies, face_counts):
+        if body.get("material"):
+            values[start:start + count] = PRESETS[body["material"]]
+        start += count
+    if shape is not None:
+        for appearance, indices in _painted(shape, [item for item in appearances or [] if "material" in item]):
+            values[indices] = PRESETS[appearance["material"]]
+    return values
 
 
 def body_colours(bodies, face_counts, shape, appearances) -> np.ndarray:
@@ -193,15 +221,23 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                 "reference": body["reference"],
                 "faces": count,
                 "edges": len(item["segments_per_edge"]),
+                # Only when set, so a document with no finishes writes the same bytes as before.
+                **({"material": body["material"]} if body.get("material") else {}),
             })
         if appearances or any(body.get("color") for body in ordered):
             instance["face_colors"] = body_colours(ordered, face_counts, shape, appearances)
+        finishes = face_materials(ordered, face_counts, shape, appearances)
+        if finishes is not None:
+            instance["face_materials"] = finishes
         expected_faces = sum(len(body["shape"].faces()) for body in ordered)
         expected_edges = sum(len(body["shape"].edges()) for body in ordered)
     else:
         instance = tessellate(shape)
         if appearances:
             instance["face_colors"] = face_colours(shape, appearances)
+            finishes = face_materials([{}], [len(shape.faces())], shape, appearances)
+            if finishes is not None:
+                instance["face_materials"] = finishes
         expected_faces, expected_edges = len(shape.faces()), len(shape.edges())
 
     vertex_count = len(instance["vertices"]) // 3
@@ -240,7 +276,7 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
 
     header = {
         "format": FORMAT,
-        "version": VERSION,
+        "version": VERSION_WITH_MATERIALS if "face_materials" in instance else VERSION,
         "counts": {
             "vertices": vertex_count,
             "triangles": triangle_count,

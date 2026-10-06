@@ -26,6 +26,7 @@ from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
 from .ops import REGISTRY
+from .materials import PRESETS
 from .rpc import Client, RpcError
 
 SERVER_NAME = "sprocket"
@@ -158,9 +159,11 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "measure",
-            "Volume, area and bounding box of the whole part, or of the handles you name. "
-            "Two handles give the distance between their centres.",
-            {"handles": HANDLES},
+            "Volume, area and bounding box of the whole part, with each body's volume and area; or of one body "
+            "(`body`); or of the handles you name. One handle gives a face's area or an edge's length. Two give "
+            "`distance` (the closest they come), `centre_distance`, and `angle` in degrees when both are flat "
+            "faces (between normals, 0 to 180) or straight edges (0 to 90), or one of each (line to plane, 0 to 90).",
+            {"handles": HANDLES, "body": {"type": "string", "description": "a body id, as get_bodies lists them"}},
         ),
         _tool(
             "render_view",
@@ -209,7 +212,7 @@ def document_tools() -> list[types.Tool]:
             {
                 "appearances": {
                     "type": "array",
-                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}}},
+                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}, "material": {"enum": list(PRESETS), "description": "optional surface finish"}}},
                 },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },
@@ -220,6 +223,13 @@ def document_tools() -> list[types.Tool]:
             "Which appearance entries colour one face (with how many faces each colours), and a within-box "
             "selector that matches that face alone. Append {color, select: selector} with set_appearances to colour it.",
             {"handle": {"type": "string", "description": "a face handle from describe_geometry, like 'f3'"}},
+            ["handle"],
+        ),
+        _tool(
+            "face_sketch_plane",
+            "A sketch plane that follows a face: {feature, face selector} to use as a new sketch's `plane`, "
+            "and where it lands now (origin, normal, x_dir). Sketch coordinates are in that plane's u, v.",
+            {"handle": {"type": "string", "description": "a planar face handle from describe_geometry, like 'f3'"}},
             ["handle"],
         ),
         _tool(
@@ -236,12 +246,13 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "set_body",
-            "Names, colours, hides or shows one body. A hidden body still exports. Hiding is view state: it can be "
+            "Names, colours, finishes (material preset), hides or shows one body. A hidden body still exports. Hiding is view state: it can be "
             "undone, but it adds no log entry and no timeline row. A null name or colour goes back to its default.",
             {
                 "id": {"type": "string", "description": "the body id from get_bodies"},
                 "name": {"type": ["string", "null"]},
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
+                "material": {"enum": [*PRESETS, None], "description": "surface finish preset; null goes back to the default"},
                 "visible": {"type": "boolean", "description": "false hides the body in the viewer; it still exports"},
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },
@@ -281,6 +292,17 @@ def document_tools() -> list[types.Tool]:
                 "3mf": {"type": "string", "description": "path to write a 3MF with one object per body"},
                 "mesh": {"type": "string", "description": "path to write the viewer mesh to"},
             },
+        ),
+        _tool(
+            "section",
+            "Cuts the part with a plane and reports the cut: its area, face count and 2D extent in the plane's own "
+            "frame. Give `path` ending .dxf or .svg to write the section as a drawing. The plane takes any form a "
+            "sketch's `plane` takes, such as {'name': 'XZ', 'offset': 5}.",
+            {
+                "plane": {"description": "a sketch plane reference"},
+                "path": {"type": "string", "description": "a .dxf or .svg file to write the section to"},
+            },
+            ["plane"],
         ),
     ]
 
@@ -398,7 +420,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status", "face_sketch_plane", "section"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

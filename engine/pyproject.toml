@@ -25,6 +25,8 @@ mcp = ["mcp>=2.0"]
 # a different release can move the answers. It has no macOS wheel, so a Mac
 # builds it from source: `brew install eigen boost`, then `make test-solver`.
 solver = ["planegcs==0.8.0"]
+# Modeled threads (ops/thread.py). Cosmetic threads, the default, need nothing.
+threads = ["bd-warehouse>=0.3.0,<0.4"]
 
 [project.scripts]
 sprocket = "sprocket_engine:main"

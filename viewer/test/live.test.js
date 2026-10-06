@@ -24,3 +24,8 @@ test("the daemon's selection is put back only for the revision on screen", () =>
   assert.equal(selectionToApply({ ...view, stale: true }, 5), null);
   assert.deepEqual(selectionToApply({ handles: [], sketches: [], revision: 5, stale: false }, 5), { face: null, edge: null, sketches: [] });
 });
+
+test("a referenced file that changed says which, and lights its reference row", () => {
+  const cue = changeCue({ author: "file", changes: [{ action: "reference_changed", feature_id: "board", file: "orangepi-zero-3w.sprocket" }] });
+  assert.deepEqual(cue, { text: "Rebuilt: orangepi-zero-3w.sprocket changed", featureIds: ["board"] });
+});

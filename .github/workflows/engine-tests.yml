@@ -21,6 +21,7 @@ jobs:
           python-version: "3.12"
       # The MCP tests need the mcp extra; a plain sync leaves out mcp and anyio. The
       # solver extra is planegcs, which tests/test_solver_parity.py compares with
-      # the viewer's solver under node. Linux has a wheel for it.
-      - run: uv sync --extra mcp --extra solver
+      # the viewer's solver under node. Linux has a wheel for it. The threads
+      # extra is bd_warehouse, for the modeled-thread tests, which skip without it.
+      - run: uv sync --extra mcp --extra solver --extra threads
       - run: uv run pytest -v

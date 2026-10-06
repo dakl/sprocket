@@ -43,3 +43,17 @@ test("clearing drops every entry on the face, and the label warns when that reac
   assert.equal(clearLabel({ selector: box, entries: [{ index: 0, color: "#00ff00", faces: 6 }] }), "Clear colour (6 faces)");
   assert.equal(clearLabel({ selector: box, entries: [] }), null);
 });
+
+test("a finish on a face keeps the face's own colour, and a new colour keeps its finish", () => {
+  const { withFaceAppearance, MATERIALS } = require("../colours.js");
+  assert.deepEqual(MATERIALS.map((item) => item.id), ["matte_plastic", "glossy", "anodised_aluminium", "bare_metal"]);
+  const own = { selector: box, entries: [{ index: 1, color: "#ff0000", faces: 1 }] };
+  const finished = withFaceAppearance([everything, mine], own, { material: "bare_metal" }, "#999999");
+  assert.deepEqual(finished, [everything, { color: "#ff0000", select: box, material: "bare_metal" }]);
+  const recoloured = withFaceAppearance(finished, own, { color: "#0000ff" });
+  assert.deepEqual(recoloured, [everything, { color: "#0000ff", select: box, material: "bare_metal" }]);
+  assert.deepEqual(withFaceAppearance(recoloured, own, { material: null }), [everything, { color: "#0000ff", select: box }]);
+  // No own entry: the colour on screen is kept.
+  const fresh = { selector: box, entries: [{ index: 0, color: "#00ff00", faces: 6 }] };
+  assert.deepEqual(withFaceAppearance([everything], fresh, { material: "glossy" }, "#00ff00"), [everything, { color: "#00ff00", select: box, material: "glossy" }]);
+});

@@ -1,0 +1,11 @@
+{
+  "volume": 2333.3333333333335,
+  "surface_area": 1170.8203932499368,
+  "bounding_box": {"min": [-10, -10, 0], "max": [10, 10, 10]},
+  "center_of_mass": [0, 0, 3.9285714285714284],
+  "solids": 1,
+  "faces": 6,
+  "edges": 12,
+  "vertices": 8,
+  "face_types": {"BSPLINE": 4, "PLANE": 2}
+}

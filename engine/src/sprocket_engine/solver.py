@@ -128,12 +128,12 @@ class _Build:
             end = entity["a1"]
             while end <= entity["a0"]:
                 end += TWO_PI
-            arc = system.add_arc(
+            # add_arc adds the arc rules itself. A second arc_rules call makes
+            # every arc redundant, and the diagnosis then runs a slow search.
+            self.shapes[entity_id] = system.add_arc(
                 at("c"), at("p0"), at("p1"), self.radii[entity_id],
                 system.add_param(entity["a0"]), system.add_param(end),
             )
-            system.arc_rules(arc)
-            self.shapes[entity_id] = arc
 
     def _curve_pair(self, constraint: dict, table: dict):
         a = _entity(self.sketch, constraint["a"])

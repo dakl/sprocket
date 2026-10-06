@@ -426,3 +426,100 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
   await rpc(request, "set_body", { id: "f2", color: null });
 });
+
+// --- Material presets ------------------------------------------------------------
+
+test("a finish picked for a face and for a body reaches the document, the mesh and the materials drawn", async ({ page, request }) => {
+  await rpc(request, "set_appearances", { appearances: [] });
+  await settled(page);
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y, { button: "right" });
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toContain("Colour…");
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await page.locator('#colour-popover .finishes button[data-material="bare_metal"]').click();
+
+  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.material)).toEqual(["bare_metal"]);
+  await page.waitForFunction((face) => window.__tcad.faceFinish(face) !== null, top);
+  const finish = await page.evaluate((face) => window.__tcad.faceFinish(face), top);
+  expect(finish[0]).toBeCloseTo(0.2, 5);
+  expect(finish[1]).toBeCloseTo(1, 5);
+  expect(await page.evaluate(() => window.__tcad.finishMaterials)).toEqual([{ roughness: expect.any(Number), metalness: 1, hasEnvironment: true }]);
+
+  // The body: anodised aluminium from the tree row's menu.
+  await page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
+  await page.locator('#colour-popover .finishes button[data-material="anodised_aluminium"]').click();
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].material).toBe("anodised_aluminium");
+  await page.waitForFunction(() => window.__tcad.finishMaterials.length === 2);
+
+  await rpc(request, "set_appearances", { appearances: [] });
+  await rpc(request, "set_body", { id: "f2", material: null });
+});
+
+test("a referenced file rewritten on disk rebuilds the open document live", async ({ page, request }) => {
+  const { path: file } = await rpc(request, "get_document");
+  const boardPath = path.join(path.dirname(file), "board.sprocket");
+  const board = (extra) => ({
+    features: [
+      { id: "s", type: "sketch", plane: { name: "XY", offset: 20 }, rect: { width: 10, height: 10 } },
+      { id: "b", type: "extrude", profile: "s", distance: 2 },
+      ...extra,
+    ],
+  });
+  fs.writeFileSync(boardPath, JSON.stringify(board([])));
+  await resetDocument(request, { features: [...fixture.features, { id: "ref", type: "reference", file: "board.sprocket" }], rollback_index: 3 });
+  await page.evaluate(() => { window.__sameLoad = true; });
+  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 6));
+  const revision = (await rpc(request, "get_document")).revision;
+
+  rewriteOnDisk(boardPath, (document) => {
+    document.features.push(
+      { id: "cs", type: "sketch", plane: { name: "XY", offset: 22 }, circle: { radius: 2 } },
+      { id: "c", type: "extrude", profile: "cs", base: "b", mode: "join", distance: 3 }
+    );
+  });
+  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 8), null, { timeout: 15000 });
+  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Rebuilt: board.sprocket changed");
+  expect((await rpc(request, "get_document")).revision).toBe(revision);
+  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+});
+
+test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", async ({ page, request }) => {
+  const threaded = require("../../engine/tests/golden/thread_cosmetic_m3/document.json");
+  await resetDocument(request, { features: threaded.features, rollback_index: threaded.features.length });
+  await settled(page);
+  // 4 mm of M3 at 0.5 mm pitch is 8 turns of 24 steps: 193 points.
+  await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([{ designation: "M3", points: 193 }]);
+  await rpc(request, "set_rollback", { index: threaded.features.length - 1 });
+  await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([]);
+});
+
+test("Measure shows the volume, then a picked face's area, and hides again", async ({ page, request }) => {
+  expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
+  await page.locator("#tool-measure").click();
+  // The box fixture: 40 x 30 x 10.
+  await expect.poll(() => page.evaluate(() => window.__tcad.measure)).toBe("Volume 12000 mm³");
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.measure)).toBe("Area 1200 mm²");
+  await page.keyboard.press("i");
+  expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
+});
+
+test("Section view clips the part across an axis, flips, and turns off", async ({ page }) => {
+  await page.locator("#tool-section").click();
+  // The box fixture is 10 tall, so Z starts at the middle.
+  await expect.poll(() => page.evaluate(() => window.__tcad.section)).toMatchObject({ axis: "Z", offset: 5, flip: false, cap: true });
+  expect((await page.evaluate(() => window.__tcad.section)).clipped).toBeGreaterThan(0);
+  await page.locator('#section-panel button[data-axis="X"]').click();
+  await expect.poll(() => page.evaluate(() => window.__tcad.section)).toMatchObject({ axis: "X", offset: 0 });
+  await page.locator("#section-flip").click();
+  await expect.poll(() => page.evaluate(() => window.__tcad.section.flip)).toBe(true);
+  await page.locator("#tool-section").click();
+  expect(await page.evaluate(() => window.__tcad.section)).toBeNull();
+  await expect(page.locator("#section-panel")).toBeHidden();
+});

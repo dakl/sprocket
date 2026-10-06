@@ -9,8 +9,14 @@
   /// have no author, get no cue: they already know.
   function changeCue(info, ownAuthor) {
     if (!info || !info.author || info.author === (ownAuthor || "viewer")) return null;
-    const text = info.author === "file" ? "Reloaded from disk" : "Updated by " + info.author;
-    const featureIds = (info.changes || []).map((change) => change.feature_id).filter(Boolean);
+    const changes = info.changes || [];
+    const reference = changes.find((change) => change.action === "reference_changed");
+    const text = reference
+      ? "Rebuilt: " + (reference.file || reference.feature_id) + " changed"
+      : info.author === "file"
+        ? "Reloaded from disk"
+        : "Updated by " + info.author;
+    const featureIds = changes.map((change) => change.feature_id).filter(Boolean);
     return { text, featureIds: Array.from(new Set(featureIds)) };
   }
 

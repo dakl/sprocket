@@ -74,18 +74,25 @@ def _size(item) -> float:
     return getattr(item, "length", 0.0)
 
 
-def _unchanged(item, olds) -> bool:
-    """Whether `olds` holds the same face or edge as `item`.
+def _signature(item) -> tuple:
+    centre = item.center()
+    return (getattr(item, "geom_type", None), centre.X, centre.Y, centre.Z, _size(item))
+
+
+def _unchanged(item, old_signatures) -> bool:
+    """Whether `old_signatures` (from `_signature`) holds the same face or edge as `item`.
 
     By geometry, not identity. Each feature's result is cached on its own, so a
     shape that came from the cache shares no OCCT identity with one built in
-    the same run, and an identity test would call everything new.
+    the same run, and an identity test would call everything new. The old
+    side is measured once per `new_since`, not once per comparison: on the
+    Orange Pi case that was 90,000 centre calls and most of a 4 s selector search.
     """
-    centre = item.center()
-    for old in olds:
-        if getattr(old, "geom_type", None) != getattr(item, "geom_type", None):
+    kind, x, y, z, size = _signature(item)
+    for old_kind, ox, oy, oz, old_size in old_signatures:
+        if old_kind != kind or abs(old_size - size) > SAME_GEOMETRY:
             continue
-        if (old.center() - centre).length > SAME_GEOMETRY or abs(_size(old) - _size(item)) > SAME_GEOMETRY:
+        if ((ox - x) ** 2 + (oy - y) ** 2 + (oz - z) ** 2) ** 0.5 > SAME_GEOMETRY:
             continue
         return True
     return False
@@ -132,7 +139,7 @@ def _new_since(current, starter: str, feature_id: str, ctx):
     before = ctx.results.get(base_id)
     if before is None:
         raise SelectorError(f"new_since {feature_id!r}: its base {base_id!r} has no result")
-    olds = getattr(before, starter)()
+    olds = [_signature(old) for old in getattr(before, starter)()]
     # A ShapeList, so the steps after this one can still sort and filter.
     return ShapeList([item for item in current if not _unchanged(item, olds)])
 

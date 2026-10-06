@@ -1,10 +1,11 @@
 import math
 
-from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector
-from OCP.BRep import BRep_Builder
+from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector, Wire
+from OCP.BRep import BRep_Builder, BRep_Tool
+from OCP.GeomLib import GeomLib_IsPlanarSurface
 from OCP.TopoDS import TopoDS_Compound
 
-from ..regions import find_regions
+from ..regions import FUZZY, ProfileError, entity_edge, find_regions
 from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
 from .registry import register
 
@@ -222,7 +223,8 @@ def _face_plane(plane_ref, ctx) -> Plane:
     if len(faces) != 1:
         raise SelectorError(f"sketch plane face selector matched {len(faces)} faces, expected exactly 1")
     face = faces[0]
-    if face.geom_type != GeomType.PLANE:
+    # A ruled loft's flat sides are B-spline surfaces, so ask whether it is flat, not what type it is.
+    if face.geom_type != GeomType.PLANE and not GeomLib_IsPlanarSurface(BRep_Tool.Surface_s(face.wrapped), 1e-7).IsPlanar():
         raise ValueError(f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face")
     normal = face.normal_at(face.center()).normalized()
     origin = normal * normal.dot(face.center())
@@ -301,6 +303,44 @@ def sketch_entities(feature: dict) -> list[dict]:
         for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
             entities.extend(_moved(by_id[entity_id], index, du, dv, turn, centre) for entity_id in pattern["entities"])
     return entities
+
+
+PATH_SCHEMA = {
+    "type": "object",
+    "description": "Entities of a sketch that join end to end into one path.",
+    "required": ["sketch"],
+    "properties": {
+        "sketch": {"type": "string", "description": "id of a sketch feature with entities"},
+        "entities": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "ids of the entities on the path. Default: every entity that is not construction.",
+        },
+    },
+}
+
+
+def sketch_path(path_ref: dict, ctx) -> Wire:
+    """The wire a `PATH_SCHEMA` reference names, placed on its sketch's plane."""
+    sketch = ctx.features.get(path_ref["sketch"])
+    if sketch is None or sketch["type"] != "sketch" or "entities" not in sketch:
+        raise ProfileError(f"path refers to {path_ref['sketch']!r}, which is not a sketch with entities earlier in the document")
+    entities = sketch_entities(sketch)
+    wanted = path_ref.get("entities")
+    if wanted:
+        known = {entity["id"] for entity in entities}
+        missing = [entity_id for entity_id in wanted if entity_id not in known]
+        if missing:
+            raise ProfileError(f"path names {', '.join(missing)}, which are not entities of sketch {path_ref['sketch']!r}")
+        entities = [entity for entity in entities if entity["id"] in wanted]
+    else:
+        entities = [entity for entity in entities if not entity.get("construction")]
+    plane = resolve_plane(sketch["plane"], ctx)
+    wires = Wire.combine([plane * entity_edge(entity) for entity in entities], tol=FUZZY)
+    if len(wires) != 1:
+        raise ProfileError(f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate pieces, not one chain")
+    return wires[0]
 
 
 _POINTS = {"line": {"p0", "p1"}, "arc": {"p0", "p1", "c"}, "circle": {"c"}}

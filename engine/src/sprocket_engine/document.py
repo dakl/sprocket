@@ -28,6 +28,7 @@ from pathlib import Path
 
 import jsonschema
 
+from .materials import PRESETS
 from .ops import REGISTRY
 from .sketch_edit import assign_constraint_ids, edit_sketch
 
@@ -268,7 +269,7 @@ class Document:
         self.parameters = dict(parameters or {})
         # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
         self.appearances = list(appearances or [])
-        # Settings per body, keyed by body id: {"name", "color", "visible"}.
+        # Settings per body, keyed by body id: {"name", "color", "visible", "material"}.
         self.bodies = dict(bodies or {})
         self.revision = revision
         self.log = list(log or [])
@@ -408,13 +409,34 @@ class Document:
         BREP cache key changes when the referenced file does."""
         parameters = self.resolved_parameters()
         features = [resolve_value(feature, parameters) for feature in self.features]
-        folder = self.path.parent if self.path else Path.cwd()
+        sources = dict(self.reference_sources())
         for index, feature in enumerate(features):
-            if feature.get("type") == "reference" and isinstance(feature.get("file"), str):
-                path = (folder / feature["file"]).resolve()
-                digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
-                features[index] = {**feature, "file": str(path), "source_sha256": digest}
+            if feature.get("id") in sources:
+                path = sources[feature["id"]]
+                features[index] = {**feature, "file": str(path), "source_sha256": reference_digest(path)}
         return {"features": features, "rollback_index": self.rollback_index}
+
+    def reference_sources(self) -> list[tuple[str, Path]]:
+        """(feature id, absolute path) for each `reference` feature with a file."""
+        folder = self.path.parent if self.path else Path.cwd()
+        return [
+            (feature.get("id"), (folder / feature["file"]).resolve())
+            for feature in self.features
+            if feature.get("type") == "reference" and isinstance(feature.get("file"), str)
+        ]
+
+    def referenced_files(self) -> list[Path]:
+        """Every file this document's build reads besides itself: its references,
+        and theirs, and so on. A cycle is cut where it closes."""
+        found: list[Path] = []
+        pending = [path for _, path in self.reference_sources()]
+        while pending:
+            path = pending.pop()
+            if path in found or path == self.path:
+                continue
+            found.append(path)
+            pending.extend(_nested_references(path))
+        return found
 
     def index_of(self, feature_id: str) -> int:
         for index, feature in enumerate(self.features):
@@ -678,7 +700,7 @@ class Document:
         if "visible" in edit:
             raise DocumentError("visibility is view state, not an edit: use set_visibility")
         settings = dict(self.bodies.get(body_id, {}))
-        for name in ("name", "color"):
+        for name in ("name", "color", "material"):
             if name not in edit:
                 continue
             if edit[name] is None:
@@ -690,7 +712,7 @@ class Document:
             self.bodies[body_id] = settings
         else:
             self.bodies.pop(body_id, None)
-        return {"body": body_id, **{name: edit[name] for name in ("name", "color") if name in edit}}
+        return {"body": body_id, **{name: edit[name] for name in ("name", "color", "material") if name in edit}}
 
     def _set_appearances(self, edit: dict) -> dict:
         """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
@@ -736,22 +758,60 @@ class Document:
 REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
 
 
+def _nested_references(path: Path) -> list[Path]:
+    """The files a referenced .sprocket references itself. Read as plain JSON,
+    because a file that does not load is the reference op's error to report."""
+    if path.suffix != ".sprocket" or not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return []
+    features = data.get("features") if isinstance(data, dict) else None
+    return [
+        (path.parent / feature["file"]).resolve()
+        for feature in features or []
+        if isinstance(feature, dict) and feature.get("type") == "reference" and isinstance(feature.get("file"), str)
+    ]
+
+
+def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
+    """SHA-256 of a referenced file and, for a .sprocket, of everything it
+    references in turn. It goes in the BREP cache key, so an edit two
+    references deep rebuilds this document too."""
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256(path.read_bytes())
+    if path not in seen:
+        for nested in _nested_references(path):
+            digest.update((reference_digest(nested, seen | {path}) or "missing").encode())
+    return digest.hexdigest()
+
+
 def _check_appearances(appearances) -> None:
     if not isinstance(appearances, list) or not all(
         isinstance(item, dict)
         and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
         and isinstance(item.get("select"), dict)
+        and set(item) <= {"color", "select", "material"}
         for item in appearances
     ):
-        raise DocumentError("'appearances' must be a list of {\"color\": \"#rrggbb\", \"select\": <selector>}")
+        raise DocumentError(
+            "'appearances' must be a list of {\"color\": \"#rrggbb\", \"select\": <selector>, \"material\": <optional preset>}"
+        )
+    for item in appearances:
+        if "material" in item and item["material"] not in PRESETS:
+            raise DocumentError(f"unknown material {item['material']!r} (known: {', '.join(PRESETS)})")
 
 
 def _check_body_settings(settings) -> None:
     if not isinstance(settings, dict):
         raise DocumentError("body settings must be a JSON object")
-    unknown = set(settings) - {"name", "color", "visible"}
+    unknown = set(settings) - {"name", "color", "visible", "material"}
     if unknown:
-        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible)")
+        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible, material)")
+    if "material" in settings and settings["material"] not in PRESETS:
+        raise DocumentError(f"unknown material {settings['material']!r} (known: {', '.join(PRESETS)})")
     if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
         raise DocumentError("a body name must be a non-empty string")
     if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):
@@ -770,6 +830,15 @@ def _referenced_ids(feature: dict) -> list[str]:
     plane = feature.get("plane")
     if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
         referenced.append(plane["feature"])
+    # A sweep path and picked regions name their sketches one level down.
+    path = feature.get("path")
+    if isinstance(path, dict) and isinstance(path.get("sketch"), str):
+        referenced.append(path["sketch"])
+    for profile in feature.get("profiles") or []:
+        if isinstance(profile, dict) and isinstance(profile.get("sketch"), str):
+            referenced.append(profile["sketch"])
+    # A loft names its sections as a list of ids.
+    referenced.extend(section for section in feature.get("sections") or [] if isinstance(section, str))
     return referenced
 
 

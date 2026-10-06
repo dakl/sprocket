@@ -199,10 +199,10 @@ def test_get_face_appearance_names_the_entries_on_a_face_and_a_box_that_picks_it
         top = next(item["handle"] for item in faces if item.get("normal") == [0, 0, 1])
         client.call("set_appearances", appearances=[everything])
         info = client.call("get_face_appearance", handle=top)
-        assert info["entries"] == [{"index": 0, "color": "#00ff00", "faces": len(faces)}]
+        assert info["entries"] == [{"index": 0, "color": "#00ff00", "material": None, "faces": len(faces)}]
         # Painting with the box colours that face and no other.
         client.call("set_appearances", appearances=[everything, {"color": "#ff0000", "select": info["selector"]}])
         again = client.call("get_face_appearance", handle=top)
-        assert again["entries"][-1] == {"index": 1, "color": "#ff0000", "faces": 1}
+        assert again["entries"][-1] == {"index": 1, "color": "#ff0000", "material": None, "faces": 1}
         with pytest.raises(Exception, match="face handle"):
             client.call("get_face_appearance", handle="e0")

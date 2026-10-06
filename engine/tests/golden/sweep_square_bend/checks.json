@@ -1,0 +1,11 @@
+{
+  "volume": 571.3274122871835,
+  "surface_area": 603.3274122871835,
+  "bounding_box": {"min": [0, -2, -2], "max": [32, 10, 2]},
+  "center_of_mass": [17.236844176009647, 1.561172753759202, 0],
+  "solids": 1,
+  "faces": 8,
+  "edges": 18,
+  "vertices": 12,
+  "face_types": {"PLANE": 6, "CYLINDER": 2}
+}

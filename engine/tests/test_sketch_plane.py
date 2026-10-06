@@ -84,3 +84,45 @@ def test_the_face_owner_cannot_be_deleted_while_a_sketch_sits_on_it():
     document = Document(BOX + pad_on({"feature": "b", "face": face("Z", "max")}), parameters={"height": 10})
     with pytest.raises(DocumentError, match="still reference it"):
         document.apply_edits([{"op": "delete", "id": "b"}], None, "test")
+
+
+def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
+    """The viewer's flow: pick a face, ask the daemon for a plane reference,
+    sketch on it. A taller box carries the sketch up with its top face."""
+    from conftest import running
+    from sprocket_engine.rpc import Client
+
+    with running({"features": BOX, "parameters": {"height": 10}}, tmp_path) as daemon, Client(daemon.socket_path) as client:
+        faces = client.call("describe_geometry")["faces"]
+        top = next(item["handle"] for item in faces if item.get("normal") == [0, 0, 1])
+        found = client.call("face_sketch_plane", handle=top)
+        assert found["plane"]["feature"] == "b"
+        assert found["resolved"]["origin"][2] == pytest.approx(10)
+        sketch = {"id": "p", "type": "sketch", "plane": found["plane"], "rect": {"width": 4, "height": 4}}
+        pad = {"id": "e", "type": "extrude", "profile": "p", "base": "b", "distance": 5}
+        client.call("apply_edit", edits=[{"op": "insert", "feature": sketch}, {"op": "insert", "feature": pad}])
+        assert client.call("measure")["bounding_box"]["max"][2] == pytest.approx(15)
+        client.call("set_parameter", name="height", value=30)
+        assert client.call("measure")["bounding_box"]["max"][2] == pytest.approx(35)
+        # A side face works too, and its plane is the face, wherever it is.
+        faces = client.call("describe_geometry")["faces"]
+        side = next(item["handle"] for item in faces if item.get("normal") == [1, 0, 0] and item["centre"][0] == 10)
+        side_plane = client.call("face_sketch_plane", handle=side)["resolved"]
+        assert side_plane["normal"] == pytest.approx([1, 0, 0])
+        assert side_plane["origin"][0] == pytest.approx(10)
+        with pytest.raises(Exception, match="face handle"):
+            client.call("face_sketch_plane", handle="e1")
+
+
+def test_a_face_of_the_second_body_names_that_body(tmp_path):
+    from conftest import running
+    from sprocket_engine.rpc import Client
+
+    second = [{"id": "s2", "type": "sketch", "plane": {"name": "XY", "offset": 50}, "rect": {"width": 6, "height": 6}},
+              {"id": "c", "type": "extrude", "profile": "s2", "distance": 3}]
+    with running({"features": BOX + second, "parameters": {"height": 10}}, tmp_path) as daemon, Client(daemon.socket_path) as client:
+        faces = client.call("describe_geometry")["faces"]
+        top = max((item for item in faces if item.get("normal") == [0, 0, 1]), key=lambda item: item["centre"][2])
+        found = client.call("face_sketch_plane", handle=top["handle"])
+        assert found["plane"]["feature"] == "c"
+        assert found["resolved"]["origin"][2] == pytest.approx(53)

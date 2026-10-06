@@ -14,6 +14,7 @@ from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
 from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
+from .ops.thread import thread_geometry
 
 
 def features_summary(document, failed_feature: str | None, ctx=None) -> list[dict]:
@@ -58,6 +59,13 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
                 # A sketch the engine cannot read has no regions to show. The
                 # timeline still has to list it so it can be fixed.
                 entry["regions"] = []
+        if feature.get("type") == "thread" and entry["active"] and ctx is not None:
+            # Where to draw a cosmetic thread. Nothing when it does not resolve:
+            # the feature's own failure says why.
+            try:
+                entry["thread"] = thread_geometry(feature, ctx)
+            except Exception:
+                pass
         if feature.get("id") == failed_feature:
             entry["failed"] = True
         entries.append(entry)

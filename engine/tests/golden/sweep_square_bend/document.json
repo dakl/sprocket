@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "section", "type": "sketch", "plane": "YZ", "rect": {"width": 4, "height": 4}},
+    {"id": "route", "type": "sketch", "plane": "XY", "entities": [
+      {"id": "e1", "kind": "line", "p0": [0, 0], "p1": [20, 0]},
+      {"id": "e2", "kind": "arc", "c": [20, 10], "r": 10, "a0": -1.5707963267948966, "a1": 0}
+    ], "constraints": []},
+    {"id": "duct", "type": "sweep", "profile": "section", "path": {"sketch": "route"}}
+  ]
+}

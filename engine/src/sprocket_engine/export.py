@@ -1,4 +1,4 @@
-"""STEP, STL and 3MF export with errors a person can act on.
+"""STEP, STL, 3MF and section (DXF, SVG) export with errors a person can act on.
 
 build123d hides why a write failed. `export_step` raises a bare "Failed to
 write STEP file", and `export_stl` returns False on a denied path. So each path
@@ -10,7 +10,7 @@ import copy
 import re
 from pathlib import Path
 
-from build123d import Color, Compound, Mesher, export_step, export_stl
+from build123d import Color, Compound, ExportDXF, ExportSVG, Face, Mesher, ShapeList, export_step, export_stl
 
 
 class ExportError(Exception):
@@ -107,3 +107,32 @@ def write_3mf(bodies, path) -> None:
         mesher.write(str(path))
     except Exception as exc:
         raise ExportError(f"cannot write 3MF file {path}: {exc}") from None
+
+
+def section_of(shape, plane):
+    """The faces where `plane` cuts `shape`, moved into the plane's own 2D frame
+    (its x_dir is +X, z = 0), or None when the plane misses the part."""
+    box = shape.bounding_box()
+    # A plane's origin can sit far from the part (a face plane's is the world
+    # origin projected onto it), so the cutting face reaches past the whole box.
+    reach = (box.center() - plane.origin).length + box.diagonal + 1
+    cut = shape.intersect(Face.make_rect(2 * reach, 2 * reach, plane))
+    faces = [] if cut is None else (cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else [])
+    return plane.to_local_coords(Compound(list(faces))) if faces else None
+
+
+def write_section(section, path) -> None:
+    """A section from `section_of` as DXF or SVG, chosen by the file's extension."""
+    path = Path(path)
+    kind = path.suffix.lower().lstrip(".")
+    if kind not in ("dxf", "svg"):
+        raise ExportError(f"cannot write a section to {path}: the file must end in .dxf or .svg")
+    _check_writable(path, kind.upper())
+    if kind == "dxf":
+        drawing = ExportDXF()
+        drawing.add_shape(section)
+    else:
+        drawing = ExportSVG()
+        drawing.add_layer("section", fill_color=0xC8783C)
+        drawing.add_shape(section, layer="section")
+    drawing.write(str(path))

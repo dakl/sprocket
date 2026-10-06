@@ -40,6 +40,51 @@
       max-width: 70%;
     }
 
+    /* Section view controls. Bottom left, clear of the panels at the bottom centre. */
+    #section-panel {
+      position: fixed;
+      left: 12px;
+      bottom: 52px;
+      background: rgba(30, 30, 30, 0.9);
+      color: #eee;
+      font: 12px -apple-system, sans-serif;
+      padding: 8px 10px;
+      border-radius: 8px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    #section-panel button {
+      background: #2a2a2a;
+      color: #ddd;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+    #section-panel button.active { border-color: #5be0a0; color: #5be0a0; }
+    #section-offset { width: 140px; }
+    #section-value { min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* What the selection measures, from the daemon's B-rep. Bottom right, clear
+       of the extrude and selection panels at the bottom centre. */
+    #measure-readout {
+      position: fixed;
+      right: 12px;
+      bottom: 52px;
+      background: rgba(30, 30, 30, 0.85);
+      color: #ddd;
+      font: 12px -apple-system, sans-serif;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none;
+      pointer-events: none;
+      white-space: pre;
+      font-variant-numeric: tabular-nums;
+    }
+
     /* Under #warning, so a dropped op and a mesh that would not write can both
        be on screen. */
     #mesh-error { top: 110px; }
@@ -176,7 +221,13 @@
       font: 12px -apple-system, sans-serif; background: #3a3a3a; color: #eee; border: 1px solid #666;
       border-radius: 4px; padding: 4px 8px; cursor: pointer;
     }
-    #colour-popover .recent-label { color: #999; font-size: 11px; margin: 10px 0 6px; }
+    #colour-popover .recent-label, #colour-popover .finish-label { color: #999; font-size: 11px; margin: 10px 0 6px; }
+    #colour-popover .finishes { display: flex; flex-wrap: wrap; gap: 4px; }
+    #colour-popover .finishes button {
+      font: 11px -apple-system, sans-serif; background: #2c2c2c; color: #ddd; border: 1px solid #555;
+      border-radius: 4px; padding: 3px 6px; cursor: pointer;
+    }
+    #colour-popover .finishes button.current { border-color: #5bb8e0; color: #fff; }
 
     /* The file changed on disk while this window had edits it does not hold. */
     #conflict {
@@ -561,6 +612,14 @@
   <div id="status"></div>
   <div id="warning"></div>
   <div id="mesh-error"></div>
+  <div id="measure-readout" aria-live="polite"></div>
+  <div id="section-panel" role="group" aria-label="Section view">
+    <span>Section</span>
+    <button data-axis="X">X</button><button data-axis="Y">Y</button><button data-axis="Z">Z</button>
+    <input type="range" id="section-offset" step="any" aria-label="Section offset" />
+    <span id="section-value"></span>
+    <button id="section-flip">Flip</button>
+  </div>
   <div id="context-menu" role="menu"></div>
   <div id="colour-popover" role="dialog" aria-label="Colour">
     <div class="popover-title"></div>
@@ -572,6 +631,8 @@
     </div>
     <div class="recent-label">Recent</div>
     <div class="recent"></div>
+    <div class="finish-label">Finish</div>
+    <div class="finishes"></div>
   </div>
   <div id="conflict" role="alert"><span id="conflict-text"></span><button id="conflict-file">Use the file</button><button id="conflict-mine">Keep mine</button></div>
   <div id="extrude-panel">
@@ -626,8 +687,8 @@
       </div>
       <div class="tool-group">
         <div class="tool-group-buttons">
-          <button class="tool-button" disabled title="Measure - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6L9 21l-6-6z" /><path d="m7 13 2 2" /><path d="m11 9 2 2" /><path d="m15 5 2 2" /></svg></button>
-          <button class="tool-button" disabled title="Section view - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1" /><path d="M2 12h20" stroke-dasharray="3 2" /></svg></button>
+          <button class="tool-button" id="tool-measure" title="Measure (I): the selection, or each body's volume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6L9 21l-6-6z" /><path d="m7 13 2 2" /><path d="m11 9 2 2" /><path d="m15 5 2 2" /></svg></button>
+          <button class="tool-button" id="tool-section" title="Section view: cut the part with a plane"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1" /><path d="M2 12h20" stroke-dasharray="3 2" /></svg></button>
         </div>
         <div class="tool-group-label">INSPECT</div>
       </div>
@@ -720,6 +781,93 @@
     // its only visible trace until something extrudes it.
     const sketchOutlineGroup = new THREE.Group();
     scene.add(sketchOutlineGroup);
+
+    // --- Section view ------------------------------------------------------
+    // A clipping plane across one world axis. three.js keeps what lies on the
+    // plane normal's side, so the normal points back toward what stays. The cut
+    // face is the part's own back faces, seen through the cut and drawn flat in
+    // the section colour: a closed solid shows them only where it is cut open.
+    const sectionPanelEl = document.getElementById("section-panel");
+    const sectionOffsetEl = document.getElementById("section-offset");
+    const sectionValueEl = document.getElementById("section-value");
+    const toolSectionEl = document.getElementById("tool-section");
+    const sectionPlane = new THREE.Plane();
+    const SECTION_AXES = { X: new THREE.Vector3(1, 0, 0), Y: new THREE.Vector3(0, 1, 0), Z: new THREE.Vector3(0, 0, 1) };
+    let section = null; // { axis, offset, flip } while the view is on
+    let sectionCap = null;
+
+    function sectionRange(axis) {
+      if (!mesh) return [0, 0];
+      mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox;
+      const key = axis.toLowerCase();
+      return [box.min[key], box.max[key]];
+    }
+
+    function applySection() {
+      const planes = section ? [sectionPlane] : null;
+      if (section) {
+        const [low, high] = sectionRange(section.axis);
+        section.offset = Math.min(high, Math.max(low, section.offset));
+        Object.assign(sectionOffsetEl, { min: low, max: high, value: section.offset });
+        sectionValueEl.textContent = Number(section.offset.toFixed(2)) + " mm";
+        sectionPlane.normal.copy(SECTION_AXES[section.axis]).multiplyScalar(section.flip ? 1 : -1);
+        sectionPlane.constant = section.flip ? -section.offset : section.offset;
+        sectionPanelEl.querySelectorAll("button[data-axis]").forEach((button) => button.classList.toggle("active", button.dataset.axis === section.axis));
+      }
+      renderer.localClippingEnabled = Boolean(section);
+      const clipped = [mesh && mesh.material, edgeLines && edgeLines.material, ...threadGroup.children.map((line) => line.material)];
+      clipped.flat().filter(Boolean).forEach((material) => {
+        material.clippingPlanes = planes;
+        material.needsUpdate = true;
+      });
+      if (sectionCap) {
+        scene.remove(sectionCap);
+        [].concat(sectionCap.material).forEach((material) => material.dispose());
+        sectionCap = null;
+      }
+      if (section && mesh) {
+        const cap = new THREE.MeshBasicMaterial({ color: srgb(0xc8783c), side: THREE.BackSide, clippingPlanes: planes });
+        const none = new THREE.MeshBasicMaterial({ visible: false });
+        // Same slots as the part's materials: 1 is a hidden body and 2 a reference body, which get no cap.
+        const materials = Array.isArray(mesh.material) ? mesh.material.map((_, index) => (index === 1 || index === 2 ? none : cap)) : cap;
+        sectionCap = new THREE.Mesh(mesh.geometry, materials);
+        sectionCap.raycast = () => {};
+        scene.add(sectionCap);
+      }
+      toolSectionEl.classList.toggle("active", Boolean(section));
+      sectionPanelEl.style.display = section ? "flex" : "none";
+    }
+
+    function setSectionAxis(axis) {
+      const [low, high] = sectionRange(axis);
+      section = { axis, offset: (low + high) / 2, flip: section ? section.flip : false };
+      applySection();
+    }
+    toolSectionEl.addEventListener("click", () => {
+      if (section) {
+        section = null;
+        applySection();
+      } else {
+        setSectionAxis("Z");
+      }
+    });
+    sectionPanelEl.querySelectorAll("button[data-axis]").forEach((button) =>
+      button.addEventListener("click", () => setSectionAxis(button.dataset.axis))
+    );
+    sectionOffsetEl.addEventListener("input", () => {
+      section.offset = Number(sectionOffsetEl.value);
+      applySection();
+    });
+    document.getElementById("section-flip").addEventListener("click", () => {
+      section.flip = !section.flip;
+      applySection();
+    });
+
+    // Cosmetic threads leave the solid alone, so a helix over the face is
+    // their only visible trace. Rebuilt on every features.json load.
+    const threadGroup = new THREE.Group();
+    scene.add(threadGroup);
 
     // One entry per drawn sketch: { feature, line, fill, handles }. The fill is
     // an invisible mesh over the polygon, so a click inside the sketch picks
@@ -842,7 +990,8 @@
       const nul = headerBytes.indexOf(0);
       const text = new TextDecoder().decode(nul === -1 ? headerBytes : headerBytes.subarray(0, nul));
       const header = JSON.parse(text);
-      if (header.format !== "sprocket-mesh" || header.version !== 1) {
+      // Version 2 adds face_materials; everything else is version 1.
+      if (header.format !== "sprocket-mesh" || (header.version !== 1 && header.version !== 2)) {
         throw new Error("unexpected mesh format " + header.format + " v" + header.version);
       }
 
@@ -898,6 +1047,24 @@
         }
         bodyFaceStart += body.faces;
       }
+      // Finishes: one more material per distinct (roughness, metalness), from
+      // index 3. Only drawn part faces take one; hidden and reference keep theirs.
+      geometry.userData.finishes = [];
+      const finishes = mesh.buffers.face_materials;
+      if (finishes) {
+        const indexOf = new Map();
+        for (let face = 0; face < faceCount; face++) {
+          const roughness = finishes[face * 2];
+          if (roughness < 0 || geometry.groups[face].materialIndex !== 0) continue;
+          const key = roughness + "," + finishes[face * 2 + 1];
+          if (!indexOf.has(key)) {
+            indexOf.set(key, 3 + geometry.userData.finishes.length);
+            geometry.userData.finishes.push([roughness, finishes[face * 2 + 1]]);
+          }
+          geometry.groups[face].materialIndex = indexOf.get(key);
+        }
+      }
+      geometry.userData.faceFinishes = finishes || null;
       const faceColours = mesh.buffers.face_colors;
       if (faceColours) {
         // One colour per vertex, because ocp-tessellate gives every face its
@@ -919,6 +1086,40 @@
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
       return geometry;
+    }
+
+    /// A soft studio environment for finished faces, made once: a sky
+    /// gradient with two bright panels, prefiltered by PMREM. Faces with no
+    /// finish do not use it, so their shading is as before.
+    let environmentTexture = null;
+    function environmentMap() {
+      if (environmentTexture) return environmentTexture;
+      const room = new THREE.Scene();
+      const sky = new THREE.SphereGeometry(50, 32, 16);
+      const tones = new Float32Array(sky.attributes.position.count * 3);
+      for (let k = 0; k < sky.attributes.position.count; k++) {
+        const up = (sky.attributes.position.getZ(k) / 50 + 1) / 2; // +Z is up, as in the viewport
+        const tone = 0.08 + 0.55 * up * up;
+        tones.set([tone, tone, tone * 1.05], k * 3);
+      }
+      sky.setAttribute("color", new THREE.BufferAttribute(tones, 3));
+      room.add(new THREE.Mesh(sky, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+      for (const [x, y, z] of [[30, 20, 25], [-35, -10, 15]]) {
+        const panel = new THREE.Mesh(new THREE.PlaneGeometry(30, 18), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+        panel.position.set(x, y, z);
+        panel.lookAt(0, 0, 0);
+        room.add(panel);
+      }
+      const generator = new THREE.PMREMGenerator(renderer);
+      environmentTexture = generator.fromScene(room, 0.02).texture;
+      generator.dispose();
+      return environmentTexture;
+    }
+
+    /// The materials that draw part faces: the plain one and every finish.
+    function partMaterials() {
+      const all = [].concat(mesh.material);
+      return all.filter((_, index) => index === 0 || index >= 3);
     }
 
     function disposePart() {
@@ -958,8 +1159,9 @@
           disposePart();
 
           // metalness 0: a metal surface takes its colour from reflections,
-          // and there is no environment map here, so any metalness above 0
-          // only drains the body colour towards black.
+          // and this material has no environment map, so any metalness above 0
+          // only drains the body colour towards black. Finished faces get
+          // their own material with one (see environmentMap).
           //
           // polygonOffset pushes the body away from the camera by a hair so
           // the edge lines below, which sit exactly on the body's boundary,
@@ -975,7 +1177,8 @@
           });
           const partGeometry = buildPartGeometry(parsed);
           const bodies = partGeometry.userData.bodies;
-          const layered = bodies.some((body) => body.reference || body.visible === false);
+          const finishes = partGeometry.userData.finishes;
+          const layered = finishes.length > 0 || bodies.some((body) => body.reference || body.visible === false);
           const hiddenMaterial = new THREE.MeshBasicMaterial({ visible: false });
           const referenceMaterial = new THREE.MeshStandardMaterial({
             color: srgb(REFERENCE_COLOUR),
@@ -985,7 +1188,18 @@
             metalness: 0,
             roughness: 0.8,
           });
-          mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial] : material);
+          // A finish is the part material with its own roughness and
+          // metalness, lit by a generated environment so a metal has
+          // something to reflect.
+          const finishMaterials = finishes.map(([roughness, metalness]) => {
+            const finished = material.clone();
+            finished.roughness = roughness;
+            finished.metalness = metalness;
+            finished.envMap = environmentMap();
+            finished.envMapIntensity = 0.9;
+            return finished;
+          });
+          mesh = new THREE.Mesh(partGeometry, layered ? [material, hiddenMaterial, referenceMaterial, ...finishMaterials] : material);
           mesh.userData.counts = counts;
           mesh.userData.faceColours = parsed.buffers.face_colors || null;
           scene.add(mesh);
@@ -1043,6 +1257,7 @@
           if (refit) frameCameraOn(mesh);
           applyVisibility();
           renderBrowser();
+          applySection();
         })
         .catch((error) => {
           // Also fires for a genuinely empty document (rolled back before the
@@ -1071,6 +1286,7 @@
           // re-resolved by id instead of dropped, so editing a corner leaves
           // the same sketch selected and its handles up for the next drag.
           browserFeatures = features;
+          measureAsked = ""; // a rebuild changes what the same handles measure
           const selectedSketchID = selectedSketch && selectedSketch.id;
           selectedSketch = null;
           selectedPatch = null;
@@ -1080,6 +1296,7 @@
           renderTimeline(features);
           renderProperties();
           renderSketchOutlines(features);
+          renderThreads(features);
           const stillThere = features.find(
             (feature) => feature.id === selectedSketchID && feature.type === "sketch" && feature.active
           );
@@ -1106,7 +1323,9 @@
       sawRevision(token);
       showMeshError(viewerError);
       if (opened) resetForNewDocument();
-      const fetchToken = opened ? token + "-" + Date.now() : token;
+      // A new document, or the same revision rebuilt because a referenced file
+      // changed: either way the old URL would serve what is already shown.
+      const fetchToken = opened || (info && info.refresh) ? token + "-" + Date.now() : token;
       // A rebuild renumbers faces and edges, so what an agent pointed at is gone.
       showAgentHighlight({});
       // The daemon has already carried the selection over to the new handles
@@ -1208,6 +1427,16 @@
 
     loadPart(params.get("t"), { refit: true });
     loadFeatures(params.get("t"));
+    // The revision on screen at start, so a face handle can be sent to the
+    // daemon before the first change arrives. After this script has run,
+    // because the transport below is declared further down.
+    Promise.resolve().then(() => {
+      if (!canCallDaemon()) return;
+      trackPending(rpcCall("get_timeline", {}).then((timeline) => {
+        sawRevision(timeline.revision);
+        if (loadedRevision === null) loadedRevision = timeline.revision;
+      }).catch(() => {}));
+    });
 
     // A chip's click sets rollback_index: an active chip rolls back to just
     // before it; a greyed-out one rolls forward to just past it. Cmd+Z /
@@ -1224,6 +1453,18 @@
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1" /><circle cx="12" cy="12" r="3" /></svg>',
       pattern:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" /><rect x="15" y="3" width="6" height="6" /><rect x="3" y="15" width="6" height="6" /><rect x="15" y="15" width="6" height="6" /></svg>',
+      mirror:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" stroke-dasharray="2 2" /><path d="M9 6L4 18h5z" /><path d="M15 6l5 12h-5z" /></svg>',
+      sweep:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V12a8 8 0 0 1 8-8h8" /><ellipse cx="4" cy="20" rx="3" ry="1.5" /></svg>',
+      loft:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="19" rx="8" ry="2.5" /><ellipse cx="12" cy="5" rx="4" ry="1.5" /><path d="M4 19 8 5" /><path d="M20 19 16 5" /></svg>',
+      split:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="7" rx="1" /><rect x="4" y="14" width="16" height="7" rx="1" /><path d="M2 12h20" stroke-dasharray="2 2" /></svg>',
+      draft:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18" /><path d="M6 20 9 5h6l3 15" /></svg>',
+      thread:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v18" /><path d="M16 3v18" /><path d="m8 6 8 3" /><path d="m8 11 8 3" /><path d="m8 16 8 3" /></svg>',
       reference:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1" stroke-dasharray="3 3" /></svg>',
       // The same drawings as the toolbar buttons for these ops.
@@ -1535,7 +1776,7 @@
         const params = JSON.parse(event.data).params;
         const { revision, opened, viewer_error } = params;
         sawRevision(revision);
-        if (opened || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error, params);
+        if (opened || params.refresh || revision !== loadedRevision) window.reloadPart(revision, opened, viewer_error, params);
         else showMeshError(viewer_error);
         if (params.conflict) showConflict(params.conflict);
       });
@@ -2147,6 +2388,53 @@
       updateToolbarState();
       renderBrowser();
       reportSelection();
+      updateMeasure();
+    }
+
+    // The measure readout: a face's area, an edge's length, a face and an edge's
+    // distance and angle, or with nothing selected each body's volume. The
+    // daemon measures the B-rep, so a page with no daemon shows nothing.
+    const measureEl = document.getElementById("measure-readout");
+    const toolMeasureEl = document.getElementById("tool-measure");
+    let measureOn = false;
+    let measureAsked = "";
+    function toggleMeasure() {
+      measureOn = !measureOn;
+      toolMeasureEl.classList.toggle("active", measureOn);
+      measureAsked = "";
+      if (measureOn) updateMeasure();
+      else measureEl.style.display = "none";
+    }
+    toolMeasureEl.addEventListener("click", toggleMeasure);
+    const millimetres = (value) => String(Number(value.toFixed(2)));
+    function updateMeasure() {
+      if (!measureOn || !canCallDaemon()) return;
+      const handles = [selectedPatch && "f" + selectedPatch.faceIndex, selectedEdge && "e" + selectedEdge.edgeIndex].filter(Boolean);
+      const key = JSON.stringify(handles);
+      if (key === measureAsked) return;
+      measureAsked = key;
+      rpcCall("measure", handles.length ? { handles } : {})
+        .then((result) => {
+          if (key !== measureAsked) return;
+          measureEl.textContent = measureLines(result, handles).join("\n");
+          measureEl.style.display = measureEl.textContent ? "block" : "none";
+        })
+        .catch(() => {
+          measureEl.style.display = "none";
+        });
+    }
+    function measureLines(result, handles) {
+      if (handles.length === 2) {
+        const lines = ["Distance " + millimetres(result.distance) + " mm"];
+        if (result.angle !== undefined) lines.push("Angle " + millimetres(result.angle) + "°");
+        return lines;
+      }
+      if (handles.length === 1) {
+        return result.area !== undefined ? ["Area " + millimetres(result.area) + " mm²"] : ["Length " + millimetres(result.length) + " mm"];
+      }
+      const bodies = result.bodies || [];
+      if (bodies.length === 1) return ["Volume " + millimetres(bodies[0].volume) + " mm³"];
+      return bodies.map((body) => body.name + "  " + millimetres(body.volume) + " mm³");
     }
 
     // The daemon holds the selection so an agent can read it ("fillet these").
@@ -2273,9 +2561,7 @@
       if (sketchStage === "pick-plane") {
         const hit = raycastFace(event);
         if (!hit) return;
-        const normal = facePatchAt(hit).normal;
-        sketchPlane = makeSketchPlane(hit.point, normal, computeXDir(normal));
-        enterSketchDrawStage();
+        sketchOnFace(facePatchAt(hit), hit.point);
         return;
       }
       if (sketchStage === "draw") {
@@ -2417,8 +2703,9 @@
       return button;
     }
 
-    /// The popover: palette, hex box, the system picker, and recent colours.
-    function openColourPicker(x, y, title, current, onPick) {
+    /// The popover: palette, hex box, the system picker, recent colours, and
+    /// finishes. `finish` is {current, onPick(id or null)}, or null to hide them.
+    function openColourPicker(x, y, title, current, onPick, finish) {
       closeMenus();
       colourTarget = onPick;
       colourPopoverEl.querySelector(".popover-title").textContent = title;
@@ -2430,6 +2717,22 @@
       recentEl.innerHTML = "";
       for (const hex of recent) recentEl.appendChild(swatchButton(hex));
       colourPopoverEl.querySelector(".recent-label").style.display = recent.length ? "block" : "none";
+      const finishesEl = colourPopoverEl.querySelector(".finishes");
+      finishesEl.innerHTML = "";
+      colourPopoverEl.querySelector(".finish-label").style.display = finish ? "block" : "none";
+      if (finish) {
+        for (const item of [...ViewerColours.MATERIALS, { id: null, name: "None" }]) {
+          const button = document.createElement("button");
+          button.textContent = item.name;
+          button.dataset.material = item.id || "";
+          if ((finish.current || null) === item.id) button.className = "current";
+          button.addEventListener("click", () => {
+            closeMenus();
+            finish.onPick(item.id);
+          });
+          finishesEl.appendChild(button);
+        }
+      }
       const start = ViewerColours.normaliseHex(current) || "#" + PART_COLOUR.toString(16).padStart(6, "0");
       colourHexEl.value = start;
       colourHexEl.classList.remove("invalid");
@@ -2481,15 +2784,21 @@
       return null;
     }
 
-    /// Colours face `faceIndex`, or clears its own colour when `colour` is null.
-    /// The daemon names the entries on the face and a box that picks it out alone.
-    async function setFaceColour(faceIndex, colour) {
+    /// Colours or finishes face `faceIndex` (`change` is {color?, material?}),
+    /// or clears what reaches it when `change` is null. The daemon names the
+    /// entries on the face and a box that picks it out alone.
+    async function setFaceAppearance(faceIndex, change) {
       const info = await rpcCall("get_face_appearance", { handle: "f" + faceIndex });
       const current = await rpcCall("get_document", {});
-      const appearances = colour
-        ? ViewerColours.withFaceColour(current.appearances, info, colour)
+      const shown = window.__tcad.faceColour(faceIndex) || (bodyOfFace(faceIndex) || {}).color || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+      const appearances = change
+        ? ViewerColours.withFaceAppearance(current.appearances, info, change, shown)
         : ViewerColours.withoutFaceColour(current.appearances, info);
       return sendCommand({ type: "set_appearances", appearances, base_revision: current.revision });
+    }
+
+    function bodyFinish(body) {
+      return { current: body.material || null, onPick: (material) => sendCommand({ type: "set_body", id: body.id, material }) };
     }
 
     function openBodyMenu(x, y, body) {
@@ -2497,7 +2806,7 @@
       openMenu(x, y, body.name, [
         body.reference ? null : {
           label: "Colour…",
-          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex }), bodyFinish(body)),
         },
         { label: hidden ? "Show" : "Hide", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: hidden }) },
       ]);
@@ -2517,14 +2826,19 @@
         : null;
       const clear = ViewerColours.clearLabel(info);
       const faceColour = window.__tcad.faceColour(faceIndex) || (body && body.color);
+      const ownEntry = info && [...info.entries].reverse().find((entry) => entry.faces === 1);
+      const faceFinish = {
+        current: (ownEntry && ownEntry.material) || null,
+        onPick: (material) => setFaceAppearance(faceIndex, { material }),
+      };
       openMenu(x, y, (body ? body.name + " · " : "") + "face f" + faceIndex, [
-        { label: "Colour…", action: () => openColourPicker(x, y, "Face colour", faceColour, (hex) => setFaceColour(faceIndex, hex)) },
+        { label: "Colour…", action: () => openColourPicker(x, y, "Face colour", faceColour, (hex) => setFaceAppearance(faceIndex, { color: hex }), info ? faceFinish : null) },
         body && !body.reference ? {
           label: "Body colour…",
-          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex })),
+          action: () => openColourPicker(x, y, body.name + " colour", body.color, (hex) => sendCommand({ type: "set_body", id: body.id, color: hex }), bodyFinish(body)),
         } : null,
         body ? { label: "Hide body", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: false }) } : null,
-        clear ? { label: clear, action: () => setFaceColour(faceIndex, null) } : null,
+        clear ? { label: clear, action: () => setFaceAppearance(faceIndex, null) } : null,
       ]);
     }
 
@@ -2938,6 +3252,8 @@
         // Stops the "e" itself landing in the distance box, which arming focuses.
         event.preventDefault();
         armCurrentSelection();
+      } else if (event.key === "i" || event.key === "I") {
+        toggleMeasure();
       } else if (event.key === "Escape" && !extrudeArmed) {
         clearSelection();
       } else if (event.key === "Escape" && extrudeArmed) {
@@ -3010,7 +3326,7 @@
         });
       },
       planePayload: (plane) =>
-        plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
+        plane.payload || plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
       ui: {
         tools: [...sketchDrawPanelEl.querySelectorAll("[data-tool]")],
         constraints: [...sketchDrawPanelEl.querySelectorAll("[data-constraint]")],
@@ -3107,6 +3423,38 @@
           .setPosition(plane.origin)
       );
       return geometry;
+    }
+
+    /// One helix per thread the engine resolved, one turn per pitch. It sits a
+    /// little off the face, into the air (inside a hole, outside a shaft), so it
+    /// does not z-fight with the surface.
+    function renderThreads(features) {
+      threadGroup.clear();
+      features
+        .filter((feature) => feature.type === "thread" && feature.thread)
+        .forEach(({ thread }) => {
+          const start = new THREE.Vector3(...thread.start);
+          const axis = new THREE.Vector3(...thread.direction).normalize();
+          const helper = Math.abs(axis.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+          const u = new THREE.Vector3().crossVectors(axis, helper).normalize();
+          const v = new THREE.Vector3().crossVectors(axis, u);
+          const radius = thread.radius * (thread.internal ? 0.97 : 1.03);
+          const turns = thread.length / thread.pitch;
+          const steps = Math.max(24, Math.ceil(turns * 24));
+          const points = Array.from({ length: steps + 1 }, (_, step) => {
+            const along = step / steps;
+            const angle = 2 * Math.PI * turns * along;
+            return start
+              .clone()
+              .addScaledVector(axis, thread.length * along)
+              .addScaledVector(u, radius * Math.cos(angle))
+              .addScaledVector(v, radius * Math.sin(angle));
+          });
+          const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: srgb(0xd0a040) }));
+          line.userData.designation = thread.designation;
+          threadGroup.add(line);
+        });
+      if (section) applySection();
     }
 
     // Draws every sketch feature in the timeline, since a bare sketch has no
@@ -3225,9 +3573,52 @@
  
  
     function startSketchPickPlane() {
+      // A face picked first is the plane: pick, then press Sketch.
+      if (selectedPatch && mesh) {
+        const patch = selectedPatch;
+        clearSelection();
+        sketchStage = "pick-plane";
+        updateToolbarState();
+        sketchOnFace(patch, patch.anchorPoint);
+        return;
+      }
       sketchStage = "pick-plane";
       sketchPlanePanelEl.style.display = "flex";
       updateToolbarState();
+    }
+
+    /// Starts a sketch on a picked face. The daemon turns the face into a
+    /// plane reference ({feature, face selector}) that the engine finds again
+    /// on every rebuild, so the sketch follows the face when an upstream
+    /// dimension moves it. The sketcher draws in the plane the engine will
+    /// use. Without a daemon, or on a face that is not flat, the plane is
+    /// the fixed tangent plane at the click, and the status line says so.
+    function sketchOnFace(patch, point) {
+      const fixed = () => {
+        sketchPlane = makeSketchPlane(point, patch.normal, computeXDir(patch.normal));
+        enterSketchDrawStage();
+      };
+      if (!canCallDaemon() || loadedRevision !== daemonRevision) return fixed();
+      sketchStage = "resolving-plane";
+      trackPending(
+        rpcCall("face_sketch_plane", { handle: "f" + patch.faceIndex })
+          .then((found) => {
+            if (sketchStage !== "resolving-plane") return;
+            const resolved = found.resolved;
+            sketchPlane = makeSketchPlane(
+              new THREE.Vector3(...resolved.origin),
+              new THREE.Vector3(...resolved.normal),
+              new THREE.Vector3(...resolved.x_dir)
+            );
+            sketchPlane.payload = found.plane;
+            enterSketchDrawStage();
+          })
+          .catch((error) => {
+            if (sketchStage !== "resolving-plane") return;
+            showNotice("Sketch plane is fixed, it will not follow the face: " + error.message);
+            fixed();
+          })
+      );
     }
 
     /// Opens the sketcher on `sketchPlane`. Pass an entity sketch's feature to
@@ -3274,9 +3665,11 @@
       controls.enableRotate = false;
 
       if (mesh) {
-        dimmedMeshState = { transparent: [].concat(mesh.material)[0].transparent, opacity: [].concat(mesh.material)[0].opacity };
-        [].concat(mesh.material)[0].transparent = true;
-        [].concat(mesh.material)[0].opacity = 0.25;
+        dimmedMeshState = partMaterials().map((item) => ({ material: item, transparent: item.transparent, opacity: item.opacity }));
+        for (const item of partMaterials()) {
+          item.transparent = true;
+          item.opacity = 0.25;
+        }
       }
 
       sketchPlaneHelper = buildSketchPlaneHelper(sketchPlane);
@@ -3309,6 +3702,9 @@
       const normal = new THREE.Vector3().crossVectors(stored.xDir, stored.yDir).normalize();
       sketchPlane = makeSketchPlane(stored.origin, normal, stored.xDir);
       sketchPlane.ref = typeof entry.plane === "string" ? entry.plane : null;
+      // A face or offset plane stays a reference when the sketch is redrawn.
+      const raw = entry.feature && entry.feature.plane;
+      if (raw && typeof raw === "object" && (raw.feature || raw.name)) sketchPlane.payload = raw;
       // The sketcher draws it now, and the saved outline would sit under it.
       editedSketchId = entry.id;
       hiddenSketchIDs.add(entry.id);
@@ -3345,9 +3741,11 @@
         sketchPlaneHelper.material.dispose();
         sketchPlaneHelper = null;
       }
-      if (mesh && dimmedMeshState) {
-        [].concat(mesh.material)[0].transparent = dimmedMeshState.transparent;
-        [].concat(mesh.material)[0].opacity = dimmedMeshState.opacity;
+      if (dimmedMeshState) {
+        for (const saved of dimmedMeshState) {
+          saved.material.transparent = saved.transparent;
+          saved.material.opacity = saved.opacity;
+        }
       }
       dimmedMeshState = null;
     }
@@ -3681,6 +4079,23 @@
       get axes() {
         return { ...axesVisible };
       },
+      /// The section view: axis, offset and flip, and how many materials are clipped, or null when off.
+      get section() {
+        if (!section) return null;
+        const clipped = [].concat(mesh ? mesh.material : [], edgeLines ? edgeLines.material : []).filter((material) => material.clippingPlanes && material.clippingPlanes.length);
+        return { ...section, clipped: clipped.length, cap: Boolean(sectionCap) };
+      },
+      /// The measure readout's text, empty when it is hidden.
+      get measure() {
+        return measureEl.style.display === "none" ? "" : measureEl.textContent;
+      },
+      /// The cosmetic threads drawn: designation and point count of each helix.
+      get threads() {
+        return threadGroup.children.map((line) => ({
+          designation: line.userData.designation,
+          points: line.geometry.attributes.position.count,
+        }));
+      },
       /// False while a mesh, a timeline or a command is still in flight.
       get idle() {
         return pendingCount === 0;
@@ -3765,6 +4180,17 @@
       get contextMenu() {
         if (contextMenuEl.style.display !== "block") return null;
         return Array.from(contextMenuEl.querySelectorAll("button")).map((button) => button.textContent);
+      },
+      /// Face `face`'s finish as [roughness, metalness], or null when it has none.
+      faceFinish(face) {
+        const finishes = mesh && mesh.geometry.userData.faceFinishes;
+        if (!finishes || finishes[face * 2] < 0) return null;
+        return [finishes[face * 2], finishes[face * 2 + 1]];
+      },
+      /// The finished materials in use: [{roughness, metalness, hasEnvironment}].
+      get finishMaterials() {
+        if (!mesh) return [];
+        return [].concat(mesh.material).slice(3).map((item) => ({ roughness: item.roughness, metalness: item.metalness, hasEnvironment: Boolean(item.envMap) }));
       },
       /// The status line, when it shows.
       get status() {
