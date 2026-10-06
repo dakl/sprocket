@@ -43,6 +43,15 @@ def test_reference_fields_covers_every_schema_that_names_a_feature():
     assert naming <= set(REFERENCE_FIELDS), f"not in REFERENCE_FIELDS: {naming - set(REFERENCE_FIELDS)}"
 
 
+def test_a_sketch_whose_region_an_extrude_picked_cannot_be_deleted():
+    document = Document()
+    document.apply_edits([{"op": "insert", "feature": SKETCH}], None, "test")
+    picked = {"id": "e1", "type": "extrude", "profiles": [{"sketch": "s1", "bounded_by": []}], "distance": 10}
+    document.apply_edits([{"op": "insert", "feature": picked}], None, "test")
+    with pytest.raises(DocumentError, match="'e1' still reference it"):
+        document.apply_edits([{"op": "delete", "id": "s1"}], None, "test")
+
+
 def test_a_stale_base_revision_is_refused_with_both_numbers():
     document = build()
     with pytest.raises(StaleRevision) as caught:
