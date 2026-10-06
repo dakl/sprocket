@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("schemas", help="print every op's JSON Schema, which the viewer builds its parameter forms from")
 
     mcp = sub.add_parser("mcp", help="expose a running daemon's document as MCP tools over stdio")
-    mcp.add_argument("--socket", type=Path, required=True, help="socket path of a running daemon")
+    mcp.add_argument("--socket", type=Path, help="socket path of a running daemon (default: the newest running app)")
 
     args = parser.parse_args(argv)
     if args.command == "build":

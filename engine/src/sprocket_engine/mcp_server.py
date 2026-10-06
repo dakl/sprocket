@@ -27,7 +27,7 @@ from mcp.server.stdio import stdio_server
 
 from .ops import REGISTRY
 from .materials import PRESETS
-from .rpc import Client, RpcError
+from .rpc import INTERNAL_ERROR, Client, RpcError
 
 SERVER_NAME = "sprocket"
 SERVER_VERSION = "0.1.0"
@@ -485,8 +485,62 @@ def build_server(client: Client) -> Server:
     )
 
 
-def run(socket_path: Path) -> int:
-    client = Client(Path(socket_path))
+def find_socket(extra_folder: Path | None = None) -> Path:
+    """The newest socket of a running Sprocket app.
+
+    The app names its socket after its process id, so the path changes on every
+    launch. A sandboxed session can have a different temp directory from the
+    app's, so the macOS per-user temp folders are searched as well. A dead app
+    leaves its file behind; only a socket that accepts a connection counts.
+    """
+    if extra_folder:
+        candidates = list(extra_folder.glob("sprocket-*.sock"))
+    else:
+        folders = {Path(tempfile.gettempdir()), Path("/tmp")}
+        candidates = [path for folder in folders for path in folder.glob("sprocket-*.sock")]
+        candidates += Path("/var/folders").glob("*/*/T/sprocket-*.sock")
+    for path in sorted(candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True):
+        try:
+            Client(path).close()
+        except OSError:
+            continue
+        return path
+    raise RpcError(INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket")
+
+
+class LazyClient:
+    """Connects on the first call, so the MCP can start before the app does.
+
+    A dropped connection means the app quit or restarted. The next call looks
+    for the socket again, which is the new app's.
+    """
+
+    def __init__(self, socket_path: Path | None = None, search_folder: Path | None = None):
+        self._socket_path = socket_path
+        self._search_folder = search_folder
+        self._client: Client | None = None
+
+    def call(self, method: str, **params):
+        for attempt in (1, 2):
+            if self._client is None:
+                self._client = Client(self._socket_path or find_socket(self._search_folder))
+            try:
+                return self._client.call(method, **params)
+            except (OSError, RpcError) as error:
+                if isinstance(error, RpcError) and "closed the connection" not in str(error):
+                    raise
+                self.close()
+                if attempt == 2:
+                    raise
+
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+
+def run(socket_path: Path | None = None) -> int:
+    client = LazyClient(socket_path)
     server = build_server(client)
 
     async def main():

@@ -9,6 +9,7 @@ refused edit raised instead of returned, an image that never gets encoded.
 import asyncio
 import base64
 import json
+from pathlib import Path
 
 import anyio
 import pytest
@@ -16,7 +17,7 @@ from mcp import ClientSession
 from mcp.shared.memory import create_client_server_memory_streams
 from mcp import types
 
-from sprocket_engine.mcp_server import build_server
+from sprocket_engine.mcp_server import LazyClient, build_server
 from sprocket_engine.ops import REGISTRY
 from sprocket_engine.rpc import Client
 
@@ -172,3 +173,21 @@ def test_an_agent_can_read_the_selection_and_highlight_it(daemon):
     assert json.loads(text_of(picked))["handles"] == ["f0"]
     assert shown.is_error is not True
     assert json.loads(text_of(shown))["handles"] == ["f0"]
+
+
+def test_the_client_finds_the_app_socket_and_follows_it_to_a_new_one(daemon):
+    # A dead app leaves a file that refuses connections, and it is the newest.
+    # A socket path over about 100 characters cannot be connected, and pytest's tmp_path is longer.
+    tmp_path = Path(daemon.socket_path).parent
+    live = tmp_path / "sprocket-2.sock"
+    live.symlink_to(daemon.socket_path)
+    (tmp_path / "sprocket-1.sock").touch()
+
+    client = LazyClient(search_folder=tmp_path)
+    assert client.call("ping")["ok"]
+    assert client._client.socket_path == live
+
+    # The app quits and a new one starts: the next call reconnects.
+    client._client._socket.close()
+    assert client.call("ping")["ok"]
+    client.close()
