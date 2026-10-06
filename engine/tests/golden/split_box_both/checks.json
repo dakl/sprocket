@@ -1,0 +1,11 @@
+{
+  "volume": 2000,
+  "surface_area": 1400,
+  "bounding_box": {"min": [-10, -5, 0], "max": [10, 5, 10]},
+  "center_of_mass": [0, 0, 5],
+  "solids": 2,
+  "faces": 12,
+  "edges": 24,
+  "vertices": 16,
+  "face_types": {"PLANE": 12}
+}

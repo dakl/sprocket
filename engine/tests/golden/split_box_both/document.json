@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10}},
+    {"id": "box", "type": "extrude", "profile": "bs", "distance": 10},
+    {"id": "halves", "type": "split", "base": "box", "plane": {"name": "XY", "offset": 4}}
+  ]
+}
