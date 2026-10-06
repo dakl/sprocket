@@ -119,3 +119,13 @@ test("extrude_face uses the selector the engine made from the pick, when there i
 test("extrude_face without a selector still needs the point and normal", () => {
   assert.throws(() => editsFor(box, { type: "extrude_face", distance: 5 }), /point/);
 });
+
+test("add_feature inserts a tool panel's feature with a fresh id", () => {
+  const fillet = { type: "fillet", base: "e1", radius: 2, edges: { select: [{ op: "edges" }] } };
+  const [insert] = editsFor(box, { type: "add_feature", feature: fillet });
+  assert.deepEqual(insert, { op: "insert", feature: { ...fillet, id: "f3" } });
+  const rolledBack = editsFor({ ...box, rollbackIndex: 1 }, { type: "add_feature", feature: fillet });
+  assert.deepEqual(rolledBack[0], { op: "delete", id: "e1" });
+  assert.throws(() => editsFor({ features: [sketch], rollbackIndex: 0 }, { type: "add_feature", feature: fillet }), /no part/);
+  assert.throws(() => editsFor(box, { type: "add_feature", feature: {} }), /type/);
+});

@@ -359,3 +359,12 @@ def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
     assert plane["origin"] == [0, 0, 11]
     with pytest.raises(RpcError, match="does not resolve"):
         client.call("resolve_plane", plane={"feature": "nope", "face": top})
+
+
+def test_preview_can_return_a_mesh_for_the_viewer(client):
+    good = {"id": "try", "type": "fillet", "base": "e1", "radius": 3, "edges": ALL_EDGES}
+    plain = client.call("preview_feature", feature=good)
+    assert "mesh" not in plain
+    mesh = client.call("preview_feature", feature=good, mesh=True)["mesh"]
+    assert len(mesh["vertices"]) % 3 == 0 and len(mesh["triangles"]) % 3 == 0 and mesh["edges"]
+    assert max(mesh["triangles"]) < len(mesh["vertices"]) // 3

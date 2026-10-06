@@ -912,7 +912,7 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
         }
     if shape is None:
         return {"would_build": False, "reason": "the previewed feature built nothing"}
-    return {
+    built = {
         "would_build": True,
         "volume": round(shape.volume, 9),
         "area": round(shape.area, 9),
@@ -922,6 +922,25 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
             "solids": len(shape.solids()),
         },
     }
+    if params.get("mesh"):
+        built["mesh"] = _preview_mesh(shape)
+    return built
+
+
+def _preview_mesh(shape) -> dict:
+    """Flat triangle and edge-line coordinates of every solid, for a viewer
+    that draws the previewed part over the real one. No face or edge identity:
+    a preview is only looked at, never picked."""
+    from .mesh import tessellate
+
+    vertices, triangles, edges = [], [], []
+    for solid in shape.solids():
+        instance = tessellate(solid)
+        offset = len(vertices) // 3
+        triangles.extend((instance["triangles"].reshape(-1) + offset).tolist())
+        vertices.extend(instance["vertices"].reshape(-1).round(4).tolist())
+        edges.extend(instance["edges"].reshape(-1).round(4).tolist())
+    return {"vertices": vertices, "triangles": triangles, "edges": edges}
 
 
 def _get_profiles(daemon: Daemon, params: dict) -> dict:
