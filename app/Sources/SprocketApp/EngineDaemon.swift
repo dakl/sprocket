@@ -54,6 +54,7 @@ final class EngineDaemon {
             throw EngineError(message: "socket path is too long: \(path)")
         }
         try? FileManager.default.removeItem(atPath: path)
+        Self.removeStaleSockets()
 
         let process = Process()
         let launch = AppPaths.engineLaunch
@@ -123,6 +124,20 @@ final class EngineDaemon {
         }
         if written < 0 {
             finish(id, .failure(EngineError(message: "the engine is not responding")))
+        }
+    }
+
+    /// Deletes `sprocket-<pid>.sock` files left by a run that was killed, so
+    /// they do not pile up. A socket whose pid is still alive is kept.
+    static func removeStaleSockets() {
+        let directory = NSTemporaryDirectory()
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+        for name in names where name.hasPrefix("sprocket-") && name.hasSuffix(".sock") {
+            let digits = name.dropFirst("sprocket-".count).dropLast(".sock".count)
+            guard let pid = Int32(digits) else { continue }
+            // kill(pid, 0) sends nothing. EPERM means the pid exists but is not ours.
+            if kill(pid, 0) == 0 || errno == EPERM { continue }
+            try? FileManager.default.removeItem(atPath: directory + name)
         }
     }
 
