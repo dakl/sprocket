@@ -12,6 +12,7 @@
     "extrude_face",
     "add_sketch",
     "extrude_sketch",
+    "add_feature",
     "update_sketch",
     "update_sketch_entities",
     "update_feature",
@@ -123,6 +124,16 @@
       const base = lastSolidId(kept);
       if (base !== null) feature.base = base;
       return [...deletes, { op: "insert", feature }];
+    },
+
+    /// A finished feature from a tool panel (fillet, chamfer, shell, hole and so
+    /// on), without its id. The panel already named its `base`.
+    add_feature(state, message) {
+      require_(message, "feature");
+      if (!message.feature.type) fail("add_feature needs a feature with a type");
+      const { deletes, kept } = dropRolledBackTail(state);
+      if (!kept.length) fail("there is no part yet");
+      return [...deletes, { op: "insert", feature: { ...message.feature, id: newId(kept) } }];
     },
 
     update_sketch(state, message) {

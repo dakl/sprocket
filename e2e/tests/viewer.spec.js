@@ -523,3 +523,218 @@ test("Section view clips the part across an axis, flips, and turns off", async (
   expect(await page.evaluate(() => window.__tcad.section)).toBeNull();
   await expect(page.locator("#section-panel")).toBeHidden();
 });
+
+// ---- Modify tools: fillet, chamfer, shell, hole ---------------------------
+// The preview and the rebuild are engine calls, so these wait up to 15 s: the
+// CI runner is slow.
+
+const SLOW = { timeout: 15_000 };
+
+/// Screen points of `count` edges that sit at the top of the box and face the camera.
+async function topEdgePoints(page, request, count) {
+  const { edges } = await rpc(request, "describe_geometry");
+  const points = await page.evaluate(
+    ([candidates, wanted]) => {
+      const found = [];
+      for (const edge of candidates) {
+        const point = window.__tcad.screenPointOf({ edge });
+        if (point && point.visible) found.push({ edge, x: point.x, y: point.y });
+      }
+      return found.slice(0, wanted);
+    },
+    [edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])), count]
+  );
+  expect(points).toHaveLength(count);
+  return points;
+}
+
+async function clickTopFace(page, request) {
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+}
+
+const modifying = (page) => page.evaluate(() => window.__tcad.modifying);
+const previewReady = (page) => page.waitForFunction(() => window.__tcad.modifying && window.__tcad.modifying.ok && window.__tcad.modifying.preview, null, SLOW);
+const timelineTypes = (page) => page.evaluate(() => window.__tcad.timeline.map((entry) => entry.type));
+
+async function undoOnce(page) {
+  await page.keyboard.press("Meta+z");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 2, null, SLOW);
+  await settled(page);
+}
+
+test("fillet: Shift-click two edges, set a radius, see the preview, Enter applies, undo removes it", async ({ page, request }) => {
+  const [first, second] = await topEdgePoints(page, request, 2);
+  await expect(page.locator("#tool-fillet")).toBeDisabled();
+  await page.mouse.click(first.x, first.y);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(second.x, second.y);
+  await page.keyboard.up("Shift");
+  await expect.poll(() => page.evaluate(() => window.__tcad.selectedEdges)).toEqual([first.edge, second.edge]);
+  await expect(page.locator("#tool-fillet")).toBeEnabled();
+
+  await page.locator("#tool-fillet").click();
+  await expect(page.locator("#modify-panel")).toBeVisible();
+  await previewReady(page);
+  await page.locator("#modify-radius").fill("2");
+  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === 2 && window.__tcad.modifying.ok, null, SLOW);
+  await expect(page.locator("#modify-info")).toContainText("Preview");
+  // Nothing is committed yet.
+  expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
+
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  expect(await timelineTypes(page)).toEqual(["sketch", "extrude", "fillet"]);
+  const feature = (await rpc(request, "get_document")).features[2];
+  expect(feature.radius).toBe(2);
+  expect(feature.edges.expected_count).toBe(2);
+  expect((await rpc(request, "measure")).volume).toBeLessThan(12000 - 1);
+  await expect(page.locator("#modify-panel")).toBeHidden();
+
+  await undoOnce(page);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000, 3);
+});
+
+test("fillet: a radius the part cannot take shows the reason and cannot be applied", async ({ page, request }) => {
+  const [edge] = await topEdgePoints(page, request, 1);
+  await page.mouse.click(edge.x, edge.y);
+  await page.keyboard.press("f");
+  await previewReady(page);
+  await page.locator("#modify-radius").fill("999");
+  await expect(page.locator("#modify-info")).toHaveClass(/bad/, SLOW);
+  await expect(page.locator("#modify-ok")).toBeDisabled();
+  await page.locator("#modify-radius").fill("abc");
+  await expect(page.locator("#modify-info")).toContainText("Radius must be");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#modify-panel")).toBeHidden();
+  expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
+});
+
+test("chamfer: C on a selected edge previews and applies a distance", async ({ page, request }) => {
+  const [edge] = await topEdgePoints(page, request, 1);
+  await page.mouse.click(edge.x, edge.y);
+  await page.keyboard.press("c");
+  await expect(page.locator("#modify-panel")).toBeVisible();
+  await previewReady(page);
+  await page.locator("#modify-length").fill("1.5");
+  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.length === 1.5 && window.__tcad.modifying.ok, null, SLOW);
+  await page.locator("#modify-ok").click();
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  expect(await timelineTypes(page)).toEqual(["sketch", "extrude", "chamfer"]);
+  // A 1.5 mm bevel along a 40 mm or 30 mm edge removes 1.5 * 1.5 / 2 of cross section.
+  const removed = 12000 - (await rpc(request, "measure")).volume;
+  expect([1.125 * 40, 1.125 * 30]).toContainEqual(expect.closeTo(removed, 2));
+  await undoOnce(page);
+});
+
+test("shell: the picked face is left open, and with none the part becomes a closed hollow", async ({ page, request }) => {
+  // No selection: Shell is live and hollows the part with no opening.
+  await expect(page.locator("#tool-shell")).toBeEnabled();
+  await page.locator("#tool-shell").click();
+  await expect(page.locator("#modify-closed")).toHaveCount(0);
+  await previewReady(page);
+  await page.locator("#modify-ok").click();
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  const closed = (await rpc(request, "get_document")).features[2];
+  expect(closed.open).toBeUndefined();
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000 - 36 * 26 * 6, 2);
+  await undoOnce(page);
+
+  // A picked face is the opening.
+  await clickTopFace(page, request);
+  await page.locator("#tool-shell").click();
+  await expect(page.locator("#modify-closed")).toBeVisible();
+  await previewReady(page);
+  await page.locator("#modify-thickness").fill("2");
+  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.thickness === 2 && window.__tcad.modifying.ok, null, SLOW);
+  expect((await modifying(page)).feature.open).toBeDefined();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000 - 36 * 26 * 8, 2);
+  await undoOnce(page);
+});
+
+test("hole: a picked face, diameter and depth, then a counterbore", async ({ page, request }) => {
+  await clickTopFace(page, request);
+  await expect(page.locator("#tool-hole")).toBeEnabled();
+  await page.keyboard.press("h");
+  await expect(page.locator("#modify-panel")).toBeVisible();
+  await expect(page.locator("#modify-head_diameter")).toHaveCount(0);
+  await previewReady(page);
+  await page.locator("#modify-diameter").fill("6");
+  await page.locator("#modify-depth").fill("4");
+  await page.waitForFunction(
+    () => window.__tcad.modifying.feature && window.__tcad.modifying.feature.diameter === 6 && window.__tcad.modifying.feature.depth === 4 && window.__tcad.modifying.ok,
+    null,
+    SLOW
+  );
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  expect(await timelineTypes(page)).toEqual(["sketch", "extrude", "hole"]);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000 - Math.PI * 9 * 4, 2);
+  await undoOnce(page);
+
+  // A counterbore asks for its head too.
+  await clickTopFace(page, request);
+  await page.locator("#tool-hole").click();
+  await page.locator("#modify-kind").selectOption("counterbore");
+  await expect(page.locator("#modify-head_diameter")).toBeVisible();
+  await expect(page.locator("#modify-head_depth")).toBeVisible();
+  await page.locator("#modify-diameter").fill("4");
+  await page.locator("#modify-head_diameter").fill("8");
+  await page.locator("#modify-head_depth").fill("2");
+  await page.locator("#modify-depth").fill("5");
+  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.head_depth === 2 && window.__tcad.modifying.feature.depth === 5 && window.__tcad.modifying.ok, null, SLOW);
+  await page.locator("#modify-ok").click();
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  const bored = 12000 - (await rpc(request, "measure")).volume;
+  expect(bored).toBeCloseTo(Math.PI * 16 * 2 + Math.PI * 4 * 3, 2);
+  await undoOnce(page);
+
+  // And a countersink asks for an angle instead.
+  await clickTopFace(page, request);
+  await page.locator("#tool-hole").click();
+  await page.locator("#modify-kind").selectOption("countersink");
+  await expect(page.locator("#modify-head_angle")).toBeVisible();
+  await expect(page.locator("#modify-head_depth")).toHaveCount(0);
+  await previewReady(page);
+  await page.keyboard.press("Escape");
+  expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
+});
+
+test("revolve: a selected sketch turns about an axis, previews, applies, and undo removes it", async ({ page, request }) => {
+  // A rectangle off the Y axis, with no extrude: the sketch is all there is.
+  await resetDocument(request, {
+    features: [{ id: "f1", type: "sketch", plane: "XY", polygon: [[10, 0], [20, 0], [20, 10], [10, 10]] }],
+    rollback_index: 1,
+  });
+  await page.goto("/index.html");
+  await page.waitForFunction(() => window.__tcad && window.__tcad.timeline.length === 1);
+  await settled(page);
+  await expect(page.locator("#tool-revolve")).toBeDisabled();
+  // A sketch alone leaves the camera unframed, so pick it from its timeline chip.
+  await chip(page, "f1").click();
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.sketch)).toBe("f1");
+  await expect(page.locator("#tool-revolve")).toBeEnabled();
+
+  await page.locator("#tool-revolve").click();
+  await previewReady(page);
+  expect((await modifying(page)).feature).toEqual({ type: "revolve", profile: "f1", axis: "Y" });
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 2, null, SLOW);
+  await settled(page);
+  expect(await timelineTypes(page)).toEqual(["sketch", "revolve"]);
+  // A ring of 10 x 10 mm section between radius 10 and 20: pi * (20^2 - 10^2) * 10.
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(Math.PI * 300 * 10, 1);
+  await page.keyboard.press("Meta+z");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 1, null, SLOW);
+});
