@@ -32,19 +32,49 @@
    "id": "tray",
    "type": "shell",
    "base": "block",
-   "thickness": "=wall",
-   "open": {
+   "thickness": "=wall"
+  },
+  {
+   "id": "taper",
+   "type": "draft",
+   "base": "tray",
+   "angle": "=draft_angle",
+   "neutral": {
+    "name": "XY",
+    "offset": "=-(standoff_h+wall)"
+   },
+   "faces": {
     "select": [
      {
       "op": "faces"
      },
      {
-      "op": "at_end",
-      "axis": "Z",
-      "end": "max"
+      "op": "nearest_each",
+      "points": [
+       [
+        "=-clearance-wall",
+        "=pcb_w/2",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l+clearance+wall",
+        "=pcb_w/2",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l/2",
+        "=-clearance-wall",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l/2",
+        "=pcb_w+clearance+wall",
+        "=(case_top-standoff_h-wall)/2"
+       ]
+      ]
      }
     ],
-    "expected_count": 1
+    "expected_count": 4
    }
   },
   {
@@ -91,7 +121,7 @@
    "id": "posts",
    "type": "extrude",
    "profile": "postss",
-   "base": "tray",
+   "base": "taper",
    "mode": "join",
    "distance": "=standoff_h"
   },
@@ -382,9 +412,156 @@
    "operation": "subtract",
    "base": "sd",
    "tool": "board"
+  },
+  {
+   "id": "base",
+   "type": "split",
+   "base": "fit",
+   "plane": {
+    "name": "XY",
+    "offset": "=split_z"
+   },
+   "keep": "below"
+  },
+  {
+   "id": "lips",
+   "type": "sketch",
+   "plane": {
+    "name": "XY",
+    "offset": "=split_z"
+   },
+   "rect": {
+    "width": "=pcb_l+2*clearance+2*lip_t",
+    "height": "=pcb_w+2*clearance+2*lip_t",
+    "center": [
+     "=pcb_l/2",
+     "=pcb_w/2"
+    ]
+   }
+  },
+  {
+   "id": "lip",
+   "type": "extrude",
+   "profile": "lips",
+   "base": "base",
+   "mode": "join",
+   "distance": "=lip_h"
+  },
+  {
+   "id": "lipbores",
+   "type": "sketch",
+   "plane": {
+    "name": "XY",
+    "offset": "=split_z"
+   },
+   "rect": {
+    "width": "=pcb_l+2*clearance+0",
+    "height": "=pcb_w+2*clearance+0",
+    "center": [
+     "=pcb_l/2",
+     "=pcb_w/2"
+    ]
+   }
+  },
+  {
+   "id": "lipbore",
+   "type": "extrude",
+   "profile": "lipbores",
+   "base": "lip",
+   "mode": "cut",
+   "distance": "=lip_h"
+  },
+  {
+   "id": "lid_block",
+   "type": "extrude",
+   "profile": "blocks",
+   "distance": "=wall+standoff_h+case_top"
+  },
+  {
+   "id": "lid_shell",
+   "type": "shell",
+   "base": "lid_block",
+   "thickness": "=wall"
+  },
+  {
+   "id": "lid_taper",
+   "type": "draft",
+   "base": "lid_shell",
+   "angle": "=draft_angle",
+   "neutral": {
+    "name": "XY",
+    "offset": "=-(standoff_h+wall)"
+   },
+   "faces": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "nearest_each",
+      "points": [
+       [
+        "=-clearance-wall",
+        "=pcb_w/2",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l+clearance+wall",
+        "=pcb_w/2",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l/2",
+        "=-clearance-wall",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l/2",
+        "=pcb_w+clearance+wall",
+        "=(case_top-standoff_h-wall)/2"
+       ]
+      ]
+     }
+    ],
+    "expected_count": 4
+   }
+  },
+  {
+   "id": "lid",
+   "type": "split",
+   "base": "lid_taper",
+   "plane": {
+    "name": "XY",
+    "offset": "=split_z"
+   },
+   "keep": "above"
+  },
+  {
+   "id": "grooves",
+   "type": "sketch",
+   "plane": {
+    "name": "XY",
+    "offset": "=split_z"
+   },
+   "rect": {
+    "width": "=pcb_l+2*clearance+2*(lip_t+lip_fit)",
+    "height": "=pcb_w+2*clearance+2*(lip_t+lip_fit)",
+    "center": [
+     "=pcb_l/2",
+     "=pcb_w/2"
+    ]
+   }
+  },
+  {
+   "id": "groove",
+   "type": "extrude",
+   "profile": "grooves",
+   "base": "lid",
+   "mode": "cut",
+   "distance": "=lip_h+lip_fit"
   }
  ],
- "rollback_index": 12,
+ "rollback_index": 24,
  "parameters": {
   "pcb_l": 65,
   "pcb_w": 32,
@@ -393,7 +570,7 @@
   "clearance": 1.0,
   "wall": 2.0,
   "standoff_h": 3.0,
-  "case_top": 12.0,
+  "case_top": 13.0,
   "post_d": 5.5,
   "pilot_d": 2.2,
   "port_margin": 1.0,
@@ -403,7 +580,12 @@
   "hdmi_h": 3.3,
   "sd_y": 16.75,
   "sd_w": 11.3,
-  "sd_h": 1.8
+  "sd_h": 1.8,
+  "split_z": 7.0,
+  "lip_h": 2.0,
+  "lip_t": 0.8,
+  "lip_fit": 0.15,
+  "draft_angle": 1.0
  },
  "appearances": [],
  "bodies": {
@@ -411,7 +593,11 @@
    "name": "Orange Pi Zero 3W"
   },
   "block": {
-   "name": "Case",
+   "name": "Case base",
+   "color": "#e07b39"
+  },
+  "lid_block": {
+   "name": "Lid",
    "color": "#e07b39"
   }
  },
