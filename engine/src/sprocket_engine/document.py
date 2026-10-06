@@ -31,6 +31,7 @@ import jsonschema
 from .materials import PRESETS
 from .ops import REGISTRY
 from .sketch_edit import assign_constraint_ids, edit_sketch
+from .sketch_reference import has_references, projector
 
 FORMAT_VERSION = 2
 
@@ -680,7 +681,7 @@ class Document:
             raise DocumentError(f"{feature_id!r} is not a sketch of lines, arcs and circles")
         parameters = self.resolved_parameters()
         try:
-            detail = edit_sketch(feature, edit, lambda draft: resolve_value(draft, parameters))
+            detail = edit_sketch(feature, edit, lambda draft: resolve_value(draft, parameters), self._projector(index, parameters))
         except ValueError as exc:
             raise DocumentError(str(exc)) from None
         validate_feature(feature, parameters)
@@ -689,6 +690,40 @@ class Document:
         if unlinked:
             detail["unlinked"] = unlinked
         return {"feature_id": feature_id, "index": index, **detail}
+
+    def _projector(self, index: int, parameters: dict):
+        """Turns a reference's source into the entity it projects to, for the sketch at `index`.
+
+        The features before the sketch are built on the first call, because a
+        sketch on a face finds its plane in them. Only an edit that projects
+        or re-projects pays for that.
+        """
+        built = []
+
+        def project(source):
+            if not built:
+                from .replay import replay
+
+                earlier = self.for_replay()["features"][:index]
+                _, ctx = replay({"features": earlier, "rollback_index": len(earlier)}, return_context=True)
+                plane = resolve_value(self.features[index], parameters)["plane"]
+                built.append(projector(plane, ctx))
+            return built[0](source)
+
+        return project
+
+    def sync_references(self, built: dict) -> None:
+        """Copies the solved entities of sketches with projected references back
+        into the stored features. `built` maps a sketch id to its feature as
+        replay left it. The numbers are derived from the sources, so this is a
+        cache refresh, not an edit: no revision, no log entry, no undo step."""
+        parameters = self.resolved_parameters()
+        for index, stored in enumerate(self.features):
+            fresh = built.get(stored.get("id"))
+            if stored.get("type") != "sketch" or fresh is None or not has_references(fresh):
+                continue
+            if not _same_numbers(resolve_value(stored, parameters)["entities"], fresh["entities"]):
+                self.features[index] = keep_expressions(stored, {**stored, "entities": fresh["entities"]}, parameters, [])
 
     def _set_body(self, edit: dict) -> dict:
         """Changes one body's name or colour. A field set to None goes back to
@@ -830,6 +865,11 @@ def _referenced_ids(feature: dict) -> list[str]:
     plane = feature.get("plane")
     if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
         referenced.append(plane["feature"])
+    # A projected reference names the sketch or body it was projected from.
+    for entity in feature.get("entities") or []:
+        source = entity.get("reference") if isinstance(entity, dict) else None
+        if isinstance(source, dict):
+            referenced.extend(source[key] for key in ("sketch", "feature") if isinstance(source.get(key), str))
     # A sweep path and picked regions name their sketches one level down.
     path = feature.get("path")
     if isinstance(path, dict) and isinstance(path.get("sketch"), str):
@@ -840,6 +880,17 @@ def _referenced_ids(feature: dict) -> list[str]:
     # A loft names its sections as a list of ids.
     referenced.extend(section for section in feature.get("sections") or [] if isinstance(section, str))
     return referenced
+
+
+def _same_numbers(a, b) -> bool:
+    """Whether two JSON values are equal, numbers to within what a solver leaves over."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same_numbers(a[key], b[key]) for key in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same_numbers(x, y) for x, y in zip(a, b))
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(a - b) < 1e-9
+    return a == b
 
 
 def _now() -> str:

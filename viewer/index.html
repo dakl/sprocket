@@ -531,7 +531,7 @@
       white-space: nowrap;
     }
 
-    #sketch-draw-panel { flex-wrap: wrap; justify-content: center; max-width: 92vw; white-space: normal; }
+    #sketch-draw-panel { flex-wrap: wrap; justify-content: center; width: max-content; max-width: 92vw; white-space: normal; }
     #sketch-plane-panel > *, #sketch-draw-panel > * { flex-shrink: 0; }
 
     #sketch-plane-panel button, #sketch-draw-panel button {
@@ -544,6 +544,7 @@
       cursor: pointer;
     }
 
+    #sketch-draw-panel button { padding: 4px 9px; }
     #sketch-draw-panel button:disabled { opacity: 0.35; cursor: default; }
     #sketch-draw-panel button.active { background: #5be0a0; color: #103; border-color: #5be0a0; }
     .sketch-panel-group { display: flex; gap: 4px; padding-right: 10px; border-right: 1px solid #444; }
@@ -756,7 +757,8 @@
       <button data-tool="rectangle" title="Rectangle (R)">Rectangle</button>
       <button data-tool="circle" title="Circle (C)">Circle</button>
       <button data-tool="arc" title="Three-point arc (A)">Arc</button>
-      <button data-tool="dimension" title="Dimension (D)">Dimension</button>
+      <button data-tool="dimension" title="Dimension (D). Between two points, press H, V or A in the box to measure across, up or straight">Dimension</button>
+      <button data-tool="project" title="Project (P): click an edge of another sketch or of the part to bring it into this sketch as a locked reference">Project</button>
     </div>
     <div class="sketch-panel-group">
       <button data-constraint="coincident" title="Two points meet">Coincident</button>
@@ -770,6 +772,7 @@
       <button data-constraint="fix" title="Lock a point or shape in place">Fix</button>
     </div>
     <div class="sketch-panel-group">
+      <button id="sketch-construction" title="Construction (X): turn the selected shapes into dashed guides that bound no region, or back" disabled>Construction</button>
       <button id="sketch-constraints-toggle" title="Show or hide the constraint glyphs">Constraints</button>
     </div>
     <span id="sketch-status"></span>
@@ -3677,6 +3680,13 @@
       },
       planePayload: (plane) =>
         plane.payload || plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() },
+      pickProjectable,
+      /// What projecting `ref` ({sketch, entity} or {handle}) into a sketch on `plane` gives: {source, entity}.
+      projectReference(plane, ref) {
+        if (ref.handle && loadedRevision !== daemonRevision) return Promise.reject(new Error("the part is still rebuilding, try again"));
+        const payload = plane.payload || plane.ref || { origin: plane.origin.toArray(), normal: plane.normal.toArray(), x_dir: plane.xDir.toArray() };
+        return rpcCall("project_reference", { plane: payload, ...(ref.handle ? { handle: ref.handle } : { source: ref }) });
+      },
       ui: {
         tools: [...sketchDrawPanelEl.querySelectorAll("[data-tool]")],
         constraints: [...sketchDrawPanelEl.querySelectorAll("[data-constraint]")],
@@ -3684,6 +3694,7 @@
         state: document.getElementById("sketch-state"),
         finish: document.getElementById("sketch-finish"),
         toggle: document.getElementById("sketch-constraints-toggle"),
+        construction: document.getElementById("sketch-construction"),
         cancel: document.getElementById("sketch-cancel"),
         labels: document.getElementById("sketch-labels"),
         dimension: document.getElementById("sketch-dimension"),
@@ -3740,24 +3751,66 @@
       return plane.origin.clone().addScaledVector(plane.xDir, u).addScaledVector(plane.yDir, v);
     }
 
-    /// Every entity of a drawn sketch as one run of line segments, in world space.
-    function entityOutlinePoints(feature, plane) {
-      const points = [];
-      const arcPoints = (entity, steps, start, end) =>
+    /// One entity as a run of points in world space.
+    function entityRun(entity, plane) {
+      const arcPoints = (steps, start, end) =>
         Array.from({ length: steps + 1 }, (_, step) => {
           const angle = start + ((end - start) * step) / steps;
           return worldOfPlane(plane, [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)]);
         });
+      if (entity.kind === "line") return [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)];
+      return entity.kind === "circle" ? arcPoints(72, 0, 2 * Math.PI) : arcPoints(48, entity.a0, entity.a1);
+    }
+
+    /// Every entity of a drawn sketch as one run of line segments, in world space.
+    function entityOutlinePoints(feature, plane) {
+      const points = [];
       for (const entity of feature.entities || (feature.resolved || feature.feature).entities) {
-        const run =
-          entity.kind === "line"
-            ? [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)]
-            : entity.kind === "circle"
-              ? arcPoints(entity, 72, 0, 2 * Math.PI)
-              : arcPoints(entity, 48, entity.a0, entity.a1);
+        const run = entityRun(entity, plane);
         run.slice(1).forEach((point, index) => points.push(run[index], point));
       }
       return points;
+    }
+
+    /// What the Project tool would take at the pointer: the nearest entity of an
+    /// earlier, shown sketch, else an edge of the part. {ref, segments} or null.
+    /// `ref` is {sketch, entity} or {handle: "e7"}, which the engine turns into a
+    /// selector that follows the edge. `segments` are the points to highlight, in pairs.
+    function pickProjectable(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const pointer = [event.clientX - rect.left, event.clientY - rect.top];
+      camera.updateMatrixWorld();
+      const onScreen = (point) => {
+        const projected = point.clone().project(camera);
+        return [((projected.x + 1) / 2) * rect.width, ((1 - projected.y) / 2) * rect.height];
+      };
+      // A sketch can only project from the ones before it in the timeline.
+      const before = editedSketchId ? browserFeatures.findIndex((feature) => feature.id === editedSketchId) : browserFeatures.length;
+      let best = null;
+      browserFeatures.forEach((feature, index) => {
+        const shown = feature.type === "sketch" && feature.active && feature.plane && !hiddenSketchIDs.has(feature.id);
+        if (!shown || index >= before) return;
+        const entities = feature.entities || (feature.resolved || feature.feature).entities;
+        const plane = resolveStoredPlane(feature.plane);
+        for (const entity of entities || []) {
+          const run = entityRun(entity, plane);
+          for (let step = 0; step + 1 < run.length; step++) {
+            const gap = pointToSegment(pointer, onScreen(run[step]), onScreen(run[step + 1]));
+            if (gap <= 8 && (!best || gap < best.gap)) best = { gap, ref: { sketch: feature.id, entity: entity.id }, run };
+          }
+        }
+      });
+      if (best) return { ref: best.ref, segments: best.run.slice(1).flatMap((point, index) => [best.run[index], point]) };
+      const hit = raycastEdge(event);
+      if (!hit) return null;
+      const edgeIndex = edgeIndexOfHit(hit);
+      const { edgeStart } = edgeLines.userData;
+      const positions = edgeLines.geometry.attributes.position.array;
+      const points = [];
+      for (let at = edgeStart[edgeIndex] * 6; at < edgeStart[edgeIndex + 1] * 6; at += 3) {
+        points.push(new THREE.Vector3(positions[at], positions[at + 1], positions[at + 2]));
+      }
+      return { ref: { handle: "e" + edgeIndex }, segments: points };
     }
 
     /// A region as a flat mesh in world space: its outline with its holes cut out.

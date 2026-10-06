@@ -168,6 +168,12 @@
       }
       case "distance":
         return [{ type: "p2p_distance", p1_id: constraint.a, p2_id: constraint.b, distance: constraint.value }];
+      case "distance_x":
+      case "distance_y": {
+        // b's u (or v) minus a's, which planegcs states as param2 - param1 = difference.
+        const prop = kind === "distance_x" ? "x" : "y";
+        return [{ type: "difference", param1: { o_id: constraint.a, prop }, param2: { o_id: constraint.b, prop }, difference: constraint.value }];
+      }
       case "radius": {
         const entity = requireKind(sketch, constraint.e, "circle", "arc");
         return [{ type: entity.kind + "_radius", [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id, radius: constraint.value }];
@@ -185,6 +191,27 @@
     }
   }
 
+  /// A projected reference is locked where its source put it: each of its points
+  /// is pinned, and a circle keeps its radius. These are constraints rather than
+  /// fixed points, so a dimension between two references is reported as the
+  /// conflict it is instead of being dropped.
+  function lockReferences(sketch) {
+    return sketch.entities
+      .filter((entity) => entity.reference)
+      .flatMap((entity) => {
+        const pins = POINTS[entity.kind].flatMap((name) => {
+          const reference = entity.id + "." + name;
+          const [x, y] = pointOf(sketch, reference);
+          return [
+            { type: "coordinate_x", p_id: reference, x },
+            { type: "coordinate_y", p_id: reference, y },
+          ];
+        });
+        if (entity.kind === "circle") pins.push({ type: "circle_radius", c_id: entity.id, radius: entity.r });
+        return pins;
+      });
+  }
+
   /// Pushes the sketch into `gcs`. `extra` is more planegcs constraints, used
   /// by entityStates to probe a single point. `pinned` lists point ids the
   /// solver must not move.
@@ -199,6 +226,7 @@
         constraints.push({ id, ...planegcs });
       });
     });
+    lockReferences(sketch).forEach((planegcs, index) => constraints.push({ id: "#lock" + index, ...planegcs }));
     (extra || []).forEach((planegcs, index) => constraints.push({ id: "probe" + index, ...planegcs }));
     const primitives = primitivesFor(sketch);
     for (const primitive of primitives) {

@@ -106,6 +106,10 @@ class _Build:
             for name in POINTS[entity["kind"]]:
                 reference = f"{entity['id']}.{name}"
                 x, y = point_of(self.sketch, reference)
+                # A projected reference is locked where its source put it.
+                if entity.get("reference"):
+                    self.points[reference] = system.add_fixed_point(x, y)
+                    continue
                 self.points[reference] = system.add_point(x, y)
                 if reference in pinned:
                     system.fix_point(self.points[reference], x, y)
@@ -122,6 +126,8 @@ class _Build:
             self.radii[entity_id] = system.add_param(entity["r"])
             if entity["kind"] == "circle":
                 self.shapes[entity_id] = system.add_circle(at("c"), self.radii[entity_id])
+                if entity.get("reference"):
+                    system.set_circle_radius(self.shapes[entity_id], entity["r"])
                 continue
             # planegcs runs an arc counter-clockwise from start to end and
             # wants the end angle above the start angle.
@@ -184,6 +190,10 @@ class _Build:
             return self._fix(constraint)
         if kind == "distance":
             return [s.set_p2p_distance(points[constraint["a"]], points[constraint["b"]], constraint["value"])]
+        if kind in ("distance_x", "distance_y"):
+            axis = 0 if kind == "distance_x" else 1
+            first, second = (s.get_point_param_ids(points[constraint[name]])[axis] for name in ("a", "b"))
+            return [s.difference(first, second, s.add_fixed_param(constraint["value"]))]
         if kind in ("radius", "diameter"):
             entity = _require(sketch, constraint["e"], "circle", "arc")
             setter = getattr(s, f"set_{entity['kind']}_{kind}")

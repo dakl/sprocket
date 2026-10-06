@@ -15,6 +15,7 @@ from .mesh import export_mesh
 from .ops import REGISTRY
 from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
 from .ops.thread import thread_geometry
+from .sketch_reference import has_references
 
 
 def features_summary(document, failed_feature: str | None, ctx=None) -> list[dict]:
@@ -43,6 +44,10 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             "resolved": feature,
         }
         if feature.get("type") == "sketch":
+            # A sketch with projected references is drawn as the build solved it around them.
+            built = ctx.features.get(raw.get("id")) if ctx is not None else None
+            if built is not None and has_references(built):
+                feature = entry["resolved"] = built
             entry["plane"] = _drawable_plane(feature["plane"], ctx)
             if feature.get("patterns"):
                 # Pattern copies to draw. The sketcher edits only the originals.

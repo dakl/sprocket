@@ -70,6 +70,15 @@ ENTITY_SCHEMA = {
         "a0": {"type": "number", "description": "arc start angle in radians, counter-clockwise from the plane's x axis"},
         "a1": {"type": "number", "description": "arc end angle in radians. The arc runs counter-clockwise from a0 to a1."},
         "construction": {"type": "boolean", "description": "Reference geometry. It bounds no region."},
+        "reference": {
+            "type": "object",
+            "description": (
+                "Marks a projected reference: this entity is an edge of an earlier sketch or body, projected onto this "
+                "sketch's plane and locked. Its numbers are refreshed from the source on every rebuild, so do not edit them. "
+                "{\"sketch\": \"f1\", \"entity\": \"e3\"} names an entity of an earlier sketch. "
+                "{\"feature\": \"f2\", \"edge\": <selector>} names one straight or circular edge of that feature's body."
+            ),
+        },
     },
 }
 
@@ -93,6 +102,9 @@ CONSTRAINT_FIELDS = {
     "equal": ("a", "b"),
     "fix": ("e",),
     "distance": ("a", "b", "value"),
+    # b's u (distance_x) or v (distance_y) minus a's. Signed, so a before b gives a positive value.
+    "distance_x": ("a", "b", "value"),
+    "distance_y": ("a", "b", "value"),
     "radius": ("e", "value"),
     "diameter": ("e", "value"),
     "angle": ("a", "b", "value"),
@@ -107,7 +119,7 @@ CONSTRAINT_SCHEMA = {
         "e": {"type": "string", "description": "the one entity or point a constraint acts on"},
         "a": {"type": "string", "description": "first entity or point. For point_on, the point"},
         "b": {"type": "string", "description": "second entity or point. For point_on, the line, circle or arc it lies on"},
-        "value": {"type": "number", "description": "mm for distance, radius and diameter; degrees for angle"},
+        "value": {"type": "number", "description": "mm for distance, distance_x, distance_y, radius and diameter; degrees for angle"},
     },
 }
 
