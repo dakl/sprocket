@@ -40,6 +40,23 @@
       max-width: 70%;
     }
 
+    /* What the selection measures, from the daemon's B-rep. Bottom right, clear
+       of the extrude and selection panels at the bottom centre. */
+    #measure-readout {
+      position: fixed;
+      right: 12px;
+      bottom: 52px;
+      background: rgba(30, 30, 30, 0.85);
+      color: #ddd;
+      font: 12px -apple-system, sans-serif;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none;
+      pointer-events: none;
+      white-space: pre;
+      font-variant-numeric: tabular-nums;
+    }
+
     /* Under #warning, so a dropped op and a mesh that would not write can both
        be on screen. */
     #mesh-error { top: 110px; }
@@ -567,6 +584,7 @@
   <div id="status"></div>
   <div id="warning"></div>
   <div id="mesh-error"></div>
+  <div id="measure-readout" aria-live="polite"></div>
   <div id="context-menu" role="menu"></div>
   <div id="colour-popover" role="dialog" aria-label="Colour">
     <div class="popover-title"></div>
@@ -634,7 +652,7 @@
       </div>
       <div class="tool-group">
         <div class="tool-group-buttons">
-          <button class="tool-button" disabled title="Measure - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6L9 21l-6-6z" /><path d="m7 13 2 2" /><path d="m11 9 2 2" /><path d="m15 5 2 2" /></svg></button>
+          <button class="tool-button" id="tool-measure" title="Measure (I): the selection, or each body's volume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6L9 21l-6-6z" /><path d="m7 13 2 2" /><path d="m11 9 2 2" /><path d="m15 5 2 2" /></svg></button>
           <button class="tool-button" disabled title="Section view - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1" /><path d="M2 12h20" stroke-dasharray="3 2" /></svg></button>
         </div>
         <div class="tool-group-label">INSPECT</div>
@@ -1150,6 +1168,7 @@
           // re-resolved by id instead of dropped, so editing a corner leaves
           // the same sketch selected and its handles up for the next drag.
           browserFeatures = features;
+          measureAsked = ""; // a rebuild changes what the same handles measure
           const selectedSketchID = selectedSketch && selectedSketch.id;
           selectedSketch = null;
           selectedPatch = null;
@@ -2251,6 +2270,53 @@
       updateToolbarState();
       renderBrowser();
       reportSelection();
+      updateMeasure();
+    }
+
+    // The measure readout: a face's area, an edge's length, a face and an edge's
+    // distance and angle, or with nothing selected each body's volume. The
+    // daemon measures the B-rep, so a page with no daemon shows nothing.
+    const measureEl = document.getElementById("measure-readout");
+    const toolMeasureEl = document.getElementById("tool-measure");
+    let measureOn = false;
+    let measureAsked = "";
+    function toggleMeasure() {
+      measureOn = !measureOn;
+      toolMeasureEl.classList.toggle("active", measureOn);
+      measureAsked = "";
+      if (measureOn) updateMeasure();
+      else measureEl.style.display = "none";
+    }
+    toolMeasureEl.addEventListener("click", toggleMeasure);
+    const millimetres = (value) => String(Number(value.toFixed(2)));
+    function updateMeasure() {
+      if (!measureOn || !canCallDaemon()) return;
+      const handles = [selectedPatch && "f" + selectedPatch.faceIndex, selectedEdge && "e" + selectedEdge.edgeIndex].filter(Boolean);
+      const key = JSON.stringify(handles);
+      if (key === measureAsked) return;
+      measureAsked = key;
+      rpcCall("measure", handles.length ? { handles } : {})
+        .then((result) => {
+          if (key !== measureAsked) return;
+          measureEl.textContent = measureLines(result, handles).join("\n");
+          measureEl.style.display = measureEl.textContent ? "block" : "none";
+        })
+        .catch(() => {
+          measureEl.style.display = "none";
+        });
+    }
+    function measureLines(result, handles) {
+      if (handles.length === 2) {
+        const lines = ["Distance " + millimetres(result.distance) + " mm"];
+        if (result.angle !== undefined) lines.push("Angle " + millimetres(result.angle) + "°");
+        return lines;
+      }
+      if (handles.length === 1) {
+        return result.area !== undefined ? ["Area " + millimetres(result.area) + " mm²"] : ["Length " + millimetres(result.length) + " mm"];
+      }
+      const bodies = result.bodies || [];
+      if (bodies.length === 1) return ["Volume " + millimetres(bodies[0].volume) + " mm³"];
+      return bodies.map((body) => body.name + "  " + millimetres(body.volume) + " mm³");
     }
 
     // The daemon holds the selection so an agent can read it ("fillet these").
@@ -3068,6 +3134,8 @@
         // Stops the "e" itself landing in the distance box, which arming focuses.
         event.preventDefault();
         armCurrentSelection();
+      } else if (event.key === "i" || event.key === "I") {
+        toggleMeasure();
       } else if (event.key === "Escape" && !extrudeArmed) {
         clearSelection();
       } else if (event.key === "Escape" && extrudeArmed) {
@@ -3891,6 +3959,10 @@
     window.__tcad = {
       get axes() {
         return { ...axesVisible };
+      },
+      /// The measure readout's text, empty when it is hidden.
+      get measure() {
+        return measureEl.style.display === "none" ? "" : measureEl.textContent;
       },
       /// The cosmetic threads drawn: designation and point count of each helix.
       get threads() {

@@ -159,9 +159,11 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "measure",
-            "Volume, area and bounding box of the whole part, or of the handles you name. "
-            "Two handles give the distance between their centres.",
-            {"handles": HANDLES},
+            "Volume, area and bounding box of the whole part, with each body's volume and area; or of one body "
+            "(`body`); or of the handles you name. One handle gives a face's area or an edge's length. Two give "
+            "`distance` (the closest they come), `centre_distance`, and `angle` in degrees when both are flat "
+            "faces (between normals, 0 to 180) or straight edges (0 to 90), or one of each (line to plane, 0 to 90).",
+            {"handles": HANDLES, "body": {"type": "string", "description": "a body id, as get_bodies lists them"}},
         ),
         _tool(
             "render_view",

@@ -495,3 +495,17 @@ test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", 
   await rpc(request, "set_rollback", { index: threaded.features.length - 1 });
   await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([]);
 });
+
+test("Measure shows the volume, then a picked face's area, and hides again", async ({ page, request }) => {
+  expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
+  await page.locator("#tool-measure").click();
+  // The box fixture: 40 x 30 x 10.
+  await expect.poll(() => page.evaluate(() => window.__tcad.measure)).toBe("Volume 12000 mm³");
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.measure)).toBe("Area 1200 mm²");
+  await page.keyboard.press("i");
+  expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
+});

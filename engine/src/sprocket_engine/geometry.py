@@ -12,6 +12,10 @@ with. One ordering across the whole system, so a handle an agent names is the
 face a human sees highlighted.
 """
 
+import math
+
+from build123d import GeomType
+
 AXIS_NAMES = (
     ((1, 0, 0), "+X"),
     ((-1, 0, 0), "-X"),
@@ -140,10 +144,10 @@ def _resolve_handle(shape, handle: str):
 def measure(shape, handles: list[str] | None = None) -> dict:
     """Measures the whole shape, one handle, or the gap between two.
 
-    Two handles give the distance between their centres, which is the question
-    an agent actually asks ("how far is this hole from that edge"). It is not
-    the minimum distance between the two pieces of geometry, and the key says
-    so rather than leaving the caller to assume.
+    Two handles give `distance`, the closest the two pieces of geometry come,
+    and `centre_distance` between their centres, which is the question an agent
+    often asks ("how far is this hole from that edge"). Where both have a
+    direction (flat faces, straight edges) they also give `angle`.
     """
     handles = handles or []
     if not handles:
@@ -165,9 +169,40 @@ def measure(shape, handles: list[str] | None = None) -> dict:
         return measured
     if len(items) == 2:
         first, second = (item.center() for item in items)
-        return {
+        measured = {
             "handles": handles,
+            "distance": round(items[0].distance_to(items[1]), 9),
             "centre_distance": round((second - first).length, 9),
             "centre_delta": _xyz(second - first),
         }
+        angle = _angle(*items)
+        if angle is not None:
+            measured["angle"] = angle
+        return measured
     raise ValueError("measure takes no handles, one handle, or two")
+
+
+def _direction(item):
+    """('normal', n) for a flat face, ('line', d) for a straight edge, else None."""
+    if item.geom_type == GeomType.PLANE:
+        return "normal", item.normal_at(item.center())
+    if item.geom_type == GeomType.LINE:
+        return "line", (item.position_at(1) - item.position_at(0)).normalized()
+    return None
+
+
+def _angle(a, b) -> float | None:
+    """Degrees. Two flat faces: between their normals, 0 to 180, so faces that
+    face each other read 180. Two straight edges: 0 to 90, since a line has no
+    way round. A face and an edge: the line's angle to the plane, 0 to 90."""
+    found = _direction(a), _direction(b)
+    if None in found:
+        return None
+    (kind_a, vector_a), (kind_b, vector_b) = found
+    cosine = max(-1.0, min(1.0, vector_a.dot(vector_b)))
+    degrees = math.degrees(math.acos(cosine))
+    if kind_a == kind_b == "normal":
+        return round(degrees, 9)
+    if kind_a == kind_b == "line":
+        return round(min(degrees, 180 - degrees), 9)
+    return round(abs(90 - degrees), 9)

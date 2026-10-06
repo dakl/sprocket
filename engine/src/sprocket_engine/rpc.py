@@ -1245,7 +1245,26 @@ def _highlight(daemon: Daemon, params: dict) -> dict:
 
 
 def _measure(daemon: Daemon, params: dict) -> dict:
-    return measure(daemon.session.require_shape(), params.get("handles"))
+    """The part, one body (`body`), or one or two handles. The whole part also
+    lists each part body's volume and area."""
+    session = daemon.session
+    shape = session.require_shape()
+    parts = [body for body in session.bodies() if not body["reference"]]
+    body_id = params.get("body")
+    if body_id is not None:
+        if params.get("handles"):
+            raise DocumentError("measure takes a body or handles, not both")
+        body = next((body for body in parts if body["id"] == body_id), None)
+        if body is None:
+            raise DocumentError(f"no part body {body_id!r}; part bodies are {', '.join(body['id'] for body in parts) or 'none'}")
+        return {"body": body_id, **measure(body["shape"])}
+    measured = measure(shape, params.get("handles"))
+    if not params.get("handles"):
+        measured["bodies"] = [
+            {"id": body["id"], "name": body["name"], "volume": round(body["shape"].volume, 9), "area": round(body["shape"].area, 9)}
+            for body in parts
+        ]
+    return measured
 
 
 def _render_view(daemon: Daemon, params: dict) -> dict:
