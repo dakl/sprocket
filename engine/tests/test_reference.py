@@ -92,21 +92,31 @@ def test_check_clearance_reports_distance_and_overlap(tmp_path):
 
 
 def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(tmp_path):
-    """examples/orangepi-case.sprocket: the board is a reference body, the case
-    the only exported body, and they share no volume."""
+    """examples/orangepi-case.sprocket: the board is a reference body, the base
+    and the lid are the exported bodies, one solid each, and neither shares
+    volume with the board. The base touches it only from below (the posts), so
+    lifting the board opens a gap, and the lid's groove clears the base's lip."""
     from pathlib import Path
 
-    from build123d import ShapeList
+    from build123d import Align, Box, Pos, ShapeList
+
+    def volume(shared):
+        pieces = list(shared) if isinstance(shared, ShapeList) else [shared] if shared is not None else []
+        return sum(piece.volume for piece in pieces)
 
     document = Document.load(Path(__file__).parents[2] / "examples" / "orangepi-case.sprocket")
     part, ctx = replay(document.for_replay(), return_context=True)
-    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [("board", True), ("block", False)]
-    board, case = ctx.bodies[0]["shape"], ctx.bodies[1]["shape"]
-    assert part.volume == pytest.approx(case.volume)
-    shared = case.intersect(board)
-    pieces = list(shared) if isinstance(shared, ShapeList) else [shared] if shared is not None else []
-    assert sum(piece.volume for piece in pieces) == pytest.approx(0, abs=1e-6)
-    box = case.bounding_box()
+    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [("board", True), ("block", False), ("lid_block", False)]
+    board, base, lid = (body["shape"] for body in ctx.bodies)
+    assert part.volume == pytest.approx(base.volume + lid.volume)
+    for case in (base, lid):
+        assert len(case.solids()) == 1 and case.is_valid
+        assert volume(case.intersect(board)) == pytest.approx(0, abs=1e-6)
+    assert base.distance_to(Pos(0, 0, 0.05) * board) == pytest.approx(0.05, abs=1e-6)
+    assert volume(base.intersect(lid)) == pytest.approx(0, abs=1e-6)
+    (lip,) = base.intersect(Pos(32.5, 16, 7.001) * Box(200, 200, 10, align=(Align.CENTER, Align.CENTER, Align.MIN))).solids()
+    assert lip.distance_to(lid) == pytest.approx(document.parameters["lip_fit"], abs=1e-6)
+    box = base.bounding_box()
     assert (box.min.X, box.min.Y, box.max.X, box.max.Y) == pytest.approx((-3, -3, 68, 35))
 
 
