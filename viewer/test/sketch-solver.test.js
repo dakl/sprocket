@@ -295,3 +295,57 @@ test("point_on the sketch axes puts a point on the line through the origin, howe
   near(line(result, "e2").p0[0], 0, "on the y axis");
   near(line(result, "e1").p0[0], 40, "and it slid along the axis, not to the origin");
 });
+
+test("distance_x holds b's u at a's plus the value, and distance_y does the same in v", () => {
+  const sketch = {
+    entities: [
+      { id: "e1", kind: "line", p0: [0, 0], p1: [5, 5] },
+      { id: "e2", kind: "line", p0: [1, 1], p1: [9, 9] },
+    ],
+    constraints: [
+      { kind: "fix", e: "e1.p0" },
+      { kind: "distance_x", a: "e1.p0", b: "e2.p1", value: 12 },
+      { kind: "distance_y", a: "e1.p0", b: "e2.p1", value: -4 },
+    ],
+  };
+  const result = solve(gcs, sketch);
+  assert.ok(result.ok);
+  near(line(result, "e2").p1[0], 12, "u");
+  near(line(result, "e2").p1[1], -4, "v is signed, so below a");
+});
+
+test("a projected reference stays where its source put it, and a dimension to it moves the rest", () => {
+  const sketch = {
+    entities: [
+      { id: "e1", kind: "line", p0: [-30, 0], p1: [-30, 20] },
+      { id: "e2", kind: "line", p0: [-10, 0], p1: [-10, 20], construction: true, reference: { sketch: "f1", entity: "e4" } },
+      { id: "c1", kind: "circle", c: [5, 5], r: 3, reference: { sketch: "f1", entity: "e9" } },
+    ],
+    constraints: [
+      { kind: "vertical", e: "e1" },
+      { kind: "distance_x", a: "e1.p0", b: "e2.p0", value: 7 },
+    ],
+  };
+  const result = solve(gcs, sketch);
+  assert.ok(result.ok);
+  assert.deepEqual(line(result, "e2").p0, [-10, 0]);
+  assert.deepEqual(line(result, "e2").p1, [-10, 20]);
+  near(line(result, "e1").p0[0], -17, "7 left of the reference");
+  assert.deepEqual(line(result, "c1").c, [5, 5]);
+  near(line(result, "c1").r, 3, "a referenced circle keeps its size");
+  // The reference cannot be pulled, even when a drag asks for it.
+  const dragged = solve(gcs, { entities: sketch.entities, constraints: [] }, { drag: { ref: "e1.p0", delta: [3, 0] } });
+  assert.ok(dragged.ok);
+  assert.deepEqual(line(dragged, "e2").p0, [-10, 0]);
+});
+
+test("a dimension between two references, which cannot both move, is a conflict", () => {
+  const sketch = {
+    entities: [
+      { id: "e1", kind: "line", p0: [0, 0], p1: [0, 5], reference: { sketch: "f1", entity: "e1" } },
+      { id: "e2", kind: "line", p0: [10, 0], p1: [10, 5], reference: { sketch: "f1", entity: "e2" } },
+    ],
+    constraints: [{ kind: "distance_x", a: "e1.p0", b: "e2.p0", value: 4 }],
+  };
+  assert.equal(solve(gcs, sketch).ok, false);
+});

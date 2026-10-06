@@ -324,7 +324,7 @@ def sketch_tools() -> list[types.Tool]:
         _tool(
             "sketch_add_constraint",
             common + "A constraint with no solution is refused, and the reply names the ones that conflict.",
-            {**SKETCH_TOOL_PROPERTIES, "constraint": {"type": "object", "description": "{kind, and a, b or e, and value for a dimension}"}},
+            {**SKETCH_TOOL_PROPERTIES, "constraint": {"type": "object", "description": "{kind, and a, b or e, and value for a dimension}. distance_x and distance_y measure from a to b along the sketch's u or v axis, signed"}},
             ["feature", "constraint"],
         ),
         _tool(
@@ -344,6 +344,22 @@ def sketch_tools() -> list[types.Tool]:
             common + "Join it to the rest with sketch_add_constraint.",
             {**SKETCH_TOOL_PROPERTIES, "entity": {"type": "object", "description": "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind"}},
             ["feature", "entity"],
+        ),
+        _tool(
+            "sketch_add_reference",
+            common + "Projects an edge of an earlier sketch or body into this sketch as a locked reference entity, "
+            "drawn dashed and left out of profiles. A constraint or dimension may then name it, such as "
+            "distance_x between its end and a point of this sketch. It is projected again on every rebuild, so the "
+            "dimension holds when the source changes. A source is {sketch, entity} for an entity of an earlier sketch, "
+            "or {feature, edge} with a selector for one straight or circular edge of a body.",
+            {
+                **SKETCH_TOOL_PROPERTIES,
+                "source": {
+                    "type": "object",
+                    "description": "{'sketch': 'f1', 'entity': 'e3'} or {'feature': 'f2', 'edge': <selector>}",
+                },
+            },
+            ["feature", "source"],
         ),
         _tool(
             "sketch_update_entity",

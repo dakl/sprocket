@@ -118,6 +118,33 @@ ANGLES_AND_CIRCLES = {
     ],
 }
 
+# An inner rectangle held a set distance from a projected edge, as the viewer sends it:
+# the reference is locked, and distance_x and distance_y are signed.
+PROJECTED_EDGE = {
+    "entities": [
+        {"id": "e1", "kind": "line", "p0": [-31, 9], "p1": [21, 10]},
+        {"id": "e2", "kind": "line", "p0": [21, 10], "p1": [20, 41]},
+        {"id": "e3", "kind": "line", "p0": [20, 41], "p1": [-30, 40]},
+        {"id": "e4", "kind": "line", "p0": [-30, 40], "p1": [-31, 9]},
+        {"id": "e5", "kind": "line", "p0": [-40, 60], "p1": [-40, -5], "construction": True, "reference": {"sketch": "f1", "entity": "e4"}},
+        {"id": "e6", "kind": "circle", "c": [0, 70], "r": 4, "construction": True, "reference": {"sketch": "f1", "entity": "e9"}},
+    ],
+    "constraints": [
+        {"kind": "coincident", "a": "e1.p1", "b": "e2.p0"},
+        {"kind": "coincident", "a": "e2.p1", "b": "e3.p0"},
+        {"kind": "coincident", "a": "e3.p1", "b": "e4.p0"},
+        {"kind": "coincident", "a": "e4.p1", "b": "e1.p0"},
+        {"kind": "horizontal", "e": "e1"},
+        {"kind": "horizontal", "e": "e3"},
+        {"kind": "vertical", "e": "e2"},
+        {"kind": "vertical", "e": "e4"},
+        {"kind": "distance_x", "a": "e5.p0", "b": "e4.p0", "value": 5},
+        {"kind": "distance_y", "a": "e6.c", "b": "e3.p0", "value": -25},
+        {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 50},
+        {"kind": "distance", "a": "e2.p0", "b": "e2.p1", "value": 30},
+    ],
+}
+
 CASES = {
     "rectangle_dimensioned": {
         "sketch": rough_rectangle([
@@ -143,5 +170,6 @@ CASES = {
     },
     "slot": {"sketch": SLOT, "drag": {"ref": "l2.p1", "delta": [0, -0.5]}},
     "angles_and_circles": {"sketch": ANGLES_AND_CIRCLES, "drag": {"ref": "c2.c", "delta": [1, 0]}},
+    "projected_edge_and_axis_distances": {"sketch": PROJECTED_EDGE, "drag": {"ref": "e3.p0", "delta": [2, 1]}},
     "sprocket_plate_52_entities": {"sketch": sprocket_plate(), "drag": {"ref": "up3.p1", "delta": [0.4, 0.2]}},
 }

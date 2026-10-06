@@ -16,8 +16,8 @@
   const SNAP_PIXELS = 10;
   const ALIGN_DEGREES = 4;
   const DRAG_PIXELS = 4;
-  const COLOURS = { free: 0x4da3ff, fixed: 0xe8e8e8, selected: 0xffaa00, hover: 0xffdd55, preview: 0x5be0a0, origin: 0xff6b6b };
-  const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension" };
+  const COLOURS = { free: 0x4da3ff, fixed: 0xe8e8e8, selected: 0xffaa00, hover: 0xffdd55, preview: 0x5be0a0, origin: 0xff6b6b, reference: 0xc77dff };
+  const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension", p: "project" };
   const HINTS = {
     select: "Click to select, drag to move. Delete removes.",
     line: "Click to start a line, click again to place its end. Esc ends the chain.",
@@ -25,7 +25,10 @@
     circle: "Click the centre, then a point on the circle",
     arc: "Click the start, the end, then a point the arc passes through",
     dimension: "Click a line, a circle, two points or two lines",
+    project: "Click an edge of another sketch or of the part to project it here as a locked reference",
   };
+  // In the dimension box, between two points: which way to measure.
+  const ORIENTATIONS = { a: "aligned", h: "horizontal", v: "vertical" };
   const PLACING = {
     line: ["Click the line's end"],
     rectangle: ["Click the opposite corner"],
@@ -110,14 +113,28 @@
       object.material.dispose();
     }
 
-    function line(points, colour) {
-      const object = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(points.map(toWorld)),
-        new THREE.LineBasicMaterial({ color: host.srgb(colour), depthTest: false })
-      );
+    function line(points, colour, dashed) {
+      const geometry = new THREE.BufferGeometry().setFromPoints(points.map(toWorld));
+      const material = dashed
+        ? new THREE.LineDashedMaterial({ color: host.srgb(colour), depthTest: false, dashSize: radius(7), gapSize: radius(4) })
+        : new THREE.LineBasicMaterial({ color: host.srgb(colour), depthTest: false });
+      const object = new THREE.Line(geometry, material);
+      if (dashed) object.computeLineDistances();
       object.renderOrder = 1000;
       return object;
     }
+
+    /// Straight pieces in world space, as the pairs of points they run between.
+    function segments(points, colour) {
+      const object = new THREE.LineSegments(
+        new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({ color: host.srgb(colour), depthTest: false })
+      );
+      object.renderOrder = 1002;
+      return object;
+    }
+
+    const isReferenceEntity = (id) => sketch.entities.some((entity) => entity.id === id && entity.reference);
 
     const chosen = () => {
       const constraint = selectedConstraint && sketch.constraints.find((item) => item.id === selectedConstraint);
@@ -127,6 +144,7 @@
     function colourOf(id) {
       if (selection.includes(id) || chosen().includes(id)) return COLOURS.selected;
       if (hover && hover.hit && hover.hit.kind === "entity" && hover.hit.reference === id && tool !== "line") return COLOURS.hover;
+      if (isReferenceEntity(id)) return COLOURS.reference;
       return states[id] === "fixed" ? COLOURS.fixed : COLOURS.free;
     }
 
@@ -136,7 +154,8 @@
         const child = group.children.pop();
         dispose(child);
       }
-      for (const entity of sketch.entities) group.add(line(polyline(entity), colourOf(entity.id)));
+      // Construction shapes and projected references are dashed: they bound no region.
+      for (const entity of sketch.entities) group.add(line(polyline(entity), colourOf(entity.id), entity.construction || entity.reference));
 
       const references = [model.ORIGIN, ...sketch.entities.flatMap((entity) => solver.POINTS[entity.kind].map((name) => entity.id + "." + name))];
       const dotColours = references.map((reference) => {
@@ -152,6 +171,7 @@
 
       const preview = previewShape();
       if (preview) group.add(line(preview, COLOURS.preview));
+      if (hover && hover.project) group.add(segments(hover.project.segments, COLOURS.hover));
       renderLabels();
       renderSnap();
       renderPanel();
@@ -200,9 +220,11 @@
     // --- Dimension labels -----------------------------------------------------
 
     let labels = [];
-    const VALUE_KINDS = ["distance", "radius", "diameter", "angle"];
+    const VALUE_KINDS = ["distance", "distance_x", "distance_y", "radius", "diameter", "angle"];
     const FORMAT = {
       distance: (value) => value.toFixed(2),
+      distance_x: (value) => "↔ " + value.toFixed(2),
+      distance_y: (value) => "↕ " + value.toFixed(2),
       radius: (value) => "R" + value.toFixed(2),
       diameter: (value) => "⌀" + value.toFixed(2),
       angle: (value) => value.toFixed(1) + "°",
@@ -301,7 +323,8 @@
       ui.dimension.value = open.constraint.value.toFixed(open.constraint.kind === "angle" ? 1 : 2);
       ui.dimension.focus();
       ui.dimension.select();
-      setMessage(open.constraint.kind + ": type a value and press Enter");
+      const orient = open.selection && open.selection.length === 2 && open.selection.every(model.isPointReference) ? ". H across, V up, A straight" : "";
+      setMessage(open.constraint.kind + ": type a value and press Enter" + orient);
     }
 
     function closeDimension() {
@@ -600,8 +623,27 @@
       // A line or circle alone is enough for a dimension. Points and lines
       // want a second pick, and a second line turns the length into an angle.
       const suggestion = model.suggestDimension(sketch, selection);
-      if (suggestion) openDimension({ constraint: suggestion.constraint, anchor: suggestion.anchor, index: null });
+      if (suggestion) openDimension({ constraint: suggestion.constraint, anchor: suggestion.anchor, index: null, selection: [...selection] });
       else render();
+    }
+
+    /// A new dimension's box is open on one pick, say a line's length. Clicking
+    /// another shape or point then measures between the two instead: two lines
+    /// give the gap between them, two points the distance, a line and a circle nothing.
+    function addSecondPick(event) {
+      const isNew = dimension.index === null || dimension.index === undefined;
+      if (tool !== "dimension" || !isNew || !dimension.selection) return;
+      const under = selectionUnder(event);
+      if (!under || !under.hit || dimension.selection.includes(under.hit.reference)) return;
+      const picks = [...dimension.selection, under.hit.reference];
+      const suggestion = model.suggestDimension(sketch, picks);
+      if (!suggestion) {
+        setMessage("Those two cannot be dimensioned together");
+        return;
+      }
+      selection = picks;
+      openDimension({ constraint: suggestion.constraint, anchor: suggestion.anchor, index: null, selection: picks });
+      render();
     }
 
     function selectionUnder(event) {
@@ -633,12 +675,50 @@
       change(model.deleteEntities(sketch, ids));
     }
 
+    /// Flips the selected shapes between solid and construction. Construction
+    /// shapes are dashed and bound no region, so they guide without being extruded.
+    function toggleConstruction() {
+      const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))];
+      const next = model.toggleConstruction(sketch, ids);
+      if (!next) {
+        setMessage(ids.length ? "A projected reference is always construction" : "Select a shape first, then toggle construction");
+        return;
+      }
+      change(next);
+      setMessage(next.entities.some((entity) => ids.includes(entity.id) && entity.construction) ? "Now construction: dashed, no region" : "Now a solid shape again");
+    }
+
+    let projecting = false;
+
+    /// Asks the engine to project what the pointer is over into this sketch,
+    /// and adds it as a locked reference.
+    async function projectPick(pick) {
+      if (projecting) return;
+      projecting = true;
+      setMessage("Projecting...");
+      try {
+        const found = await host.projectReference(plane, pick.ref);
+        const added = model.addReference(sketch, found.source, found.entity);
+        if (!added) {
+          setMessage("That edge is already projected here");
+        } else if (change(added.sketch)) {
+          selection = [added.id];
+          setMessage("Projected as " + added.id + ", locked. Dimension it with D, or Delete removes it");
+        }
+      } catch (error) {
+        setMessage("Cannot project that: " + error.message);
+      } finally {
+        projecting = false;
+        render();
+      }
+    }
+
     // --- Pointer and key events, called by the viewer ----------------------------------
 
     function pointerMove(event) {
       const uv = pointerUV(event);
       if (!uv) return;
-      if (press && !press.dragging && Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_PIXELS && press.hit && press.hit.reference !== model.ORIGIN) {
+      if (press && !press.dragging && Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_PIXELS && press.hit && press.hit.reference !== model.ORIGIN && !isReferenceEntity(model.entityIdOf(press.hit.reference))) {
         press.dragging = true;
         remember();
         host.setCameraEnabled(false);
@@ -656,13 +736,18 @@
         if (direction === "horizontal") hover.uv = [uv[0], pending[0].uv[1]];
         if (direction === "vertical") hover.uv = [pending[0].uv[0], uv[1]];
       }
-      renderer.domElement.style.cursor = under && tool === "select" ? "move" : "crosshair";
+      if (tool === "project") hover.project = host.pickProjectable(event);
+      renderer.domElement.style.cursor = tool === "project" ? (hover.project ? "pointer" : "crosshair") : under && tool === "select" ? "move" : "crosshair";
       render();
     }
 
+
     function pointerDown(event) {
       if (event.button !== 0) return;
-      if (dimension) return;
+      if (dimension) {
+        addSecondPick(event);
+        return;
+      }
       if (tool === "select") {
         const under = selectionUnder(event);
         if (!under) return;
@@ -672,6 +757,12 @@
       if (tool === "dimension") {
         const under = selectionUnder(event);
         dimensionClick(under && under.hit);
+        return;
+      }
+      if (tool === "project") {
+        const pick = host.pickProjectable(event);
+        if (pick) projectPick(pick);
+        else setMessage("Nothing to project there. Click an edge of another sketch, or of the part");
         return;
       }
       place(event);
@@ -703,9 +794,13 @@
     /// True when the sketcher used the key.
     function keyDown(event) {
       if (event.target === ui.dimension) {
+        const orientation = ORIENTATIONS[event.key.toLowerCase()];
         if (event.key === "Enter") acceptDimension();
         else if (event.key === "Escape") closeDimension();
-        else return false;
+        else if (orientation && dimension && dimension.selection && (dimension.index === null || dimension.index === undefined)) {
+          const suggestion = model.suggestDimension(sketch, dimension.selection, orientation);
+          if (suggestion) openDimension({ constraint: suggestion.constraint, anchor: suggestion.anchor, index: null, selection: dimension.selection });
+        } else return false;
         event.preventDefault();
         return true;
       }
@@ -730,6 +825,10 @@
       if (event.key === "Enter") {
         if (tool === "line" && pending.length) endChain();
         else finish();
+        return true;
+      }
+      if (key === "x") {
+        toggleConstruction();
         return true;
       }
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -758,6 +857,11 @@
         button.disabled = !usable;
       });
       if (ui.toggle) ui.toggle.classList.toggle("active", showConstraints);
+      if (ui.construction) {
+        const known = new Set(sketch.entities.filter((entity) => !entity.reference).map((entity) => entity.id));
+        ui.construction.disabled = !selection.some((reference) => known.has(model.entityIdOf(reference)));
+        ui.construction.classList.toggle("active", selection.some((reference) => sketch.entities.some((entity) => entity.id === model.entityIdOf(reference) && entity.construction && !entity.reference)));
+      }
       const constrained = dof === 0 && sketch.entities.length ? "Fully constrained" : dof === null ? "" : dof + " freedom left";
       ui.status.textContent = message || (pending.length ? "" : HINTS[tool]);
       ui.state.textContent = constrained;
@@ -883,6 +987,7 @@
     ui.constraints.forEach((button) => button.addEventListener("click", () => applyConstraint(button.dataset.constraint)));
     ui.finish.addEventListener("click", finish);
     ui.cancel.addEventListener("click", cancel);
+    if (ui.construction) ui.construction.addEventListener("click", toggleConstruction);
     if (ui.toggle) {
       ui.toggle.addEventListener("click", () => {
         showConstraints = !showConstraints;

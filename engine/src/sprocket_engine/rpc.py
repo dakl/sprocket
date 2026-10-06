@@ -105,6 +105,7 @@ class Session:
                 replayable["features"], replayable["rollback_index"], self.cache_dir
             )
             self._built_revision = self.document.revision
+            self.document.sync_references(self._context.features)
         return self._shape, self._failed_feature
 
     def context(self):
@@ -827,6 +828,7 @@ SKETCH_EDIT_FIELDS = {
     "update_constraint": ("constraint_id", "changes"),
     "remove_constraint": ("constraint_id",),
     "add_entity": ("entity",),
+    "add_reference": ("source",),
     "update_entity": ("entity_id", "changes"),
     "remove_entity": ("entity_id",),
 }
@@ -932,6 +934,8 @@ def _get_profiles(daemon: Daemon, params: dict) -> dict:
     feature = document.for_replay()["features"][document.index_of(feature_id)]
     if feature.get("type") != "sketch":
         raise DocumentError(f"feature {feature_id!r} is a {feature.get('type')}, not a sketch")
+    # As the build left it: a sketch with projected references is solved around them there.
+    feature = daemon.session.context().features.get(feature_id, feature)
     return {"feature": feature_id, "profiles": sketch_profiles(feature)}
 
 
@@ -1231,6 +1235,60 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
     return {"plane": reference, "resolved": plane_json(plane), "strategy": found["strategy"]}
 
 
+def _edge_source(daemon: Daemon, handle: str) -> dict:
+    """A reference source for the body edge `handle` (`e7`) of the current build: the
+    body's tip feature and a selector that finds the edge again on every rebuild."""
+    shape = daemon.session.require_shape()
+    try:
+        edge = _resolve_handle(shape, handle)
+    except ValueError as exc:
+        raise DocumentError(str(exc)) from None
+    ctx = daemon.session.context()
+    for body in daemon.session.bodies():
+        edges = body["shape"].edges()
+        local = next((index for index, item in enumerate(edges) if item.is_same(edge)), None)
+        if local is not None:
+            break
+    else:
+        raise DocumentError(f"{handle} is not an edge of a body")
+    features = daemon.session.document.for_replay()["features"]
+    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") != "sketch"]
+    try:
+        found = synthesize(body["shape"], ctx, [f"e{local}"], candidates)
+    except SelectorError as exc:
+        raise DocumentError(str(exc)) from None
+    return {"feature": body["tip"], "edge": found["selector"]}
+
+
+def _project_reference(daemon: Daemon, params: dict) -> dict:
+    """What projecting an edge into a sketch gives, without changing the document.
+
+    The viewer calls it while a sketch is open, because a new sketch is not in
+    the document yet. `plane` is the sketch's plane reference. The edge is named
+    by `source` ({sketch, entity} or {feature, edge}), or by `handle`, an `e7`
+    from the current build, which the reply turns into a `source`. The reply
+    holds the `source` and the `entity` fields (kind and geometry) it projects to.
+    """
+    from .sketch_reference import projector
+
+    plane = params.get("plane")
+    if plane is None:
+        raise DocumentError("project_reference needs 'plane'")
+    source = params.get("source")
+    if source is None:
+        if not isinstance(params.get("handle"), str):
+            raise DocumentError("project_reference needs 'source' or 'handle'")
+        source = _edge_source(daemon, params["handle"])
+    if not isinstance(source, dict):
+        raise DocumentError("'source' must be an object")
+    ctx = daemon.session.context()
+    try:
+        return {"source": source, "entity": projector(plane, ctx)(source)}
+    except (KeyError, ValueError, SelectorError) as exc:
+        raise DocumentError(f"cannot project that: {exc}") from None
+
+
 def _highlight(daemon: Daemon, params: dict) -> dict:
     """Shows handles in the viewer, in a colour that is not the selection's.
     An empty list clears it. It does not change what is selected."""
@@ -1385,6 +1443,7 @@ METHODS = {
     "get_profiles": _get_profiles,
     "describe_geometry": _describe_geometry,
     "resolve_plane": _resolve_plane,
+    "project_reference": _project_reference,
     "get_bodies": _get_bodies,
     "check_clearance": _check_clearance,
     "set_body": _set_body,

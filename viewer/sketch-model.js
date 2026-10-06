@@ -64,6 +64,31 @@
     return next;
   }
 
+  /// An edge of another sketch or a body, projected into this one and locked.
+  /// `fields` is the entity's kind and geometry as the engine projected it, and
+  /// `source` names what it came from. Null when that edge is already here.
+  function addReference(sketch, source, fields) {
+    if (sketch.entities.some((entity) => entity.reference && JSON.stringify(entity.reference) === JSON.stringify(source))) return null;
+    const id = nextId(sketch);
+    return { sketch: withEntity(sketch, { id, ...copy(fields), construction: true, reference: copy(source) }), id };
+  }
+
+  /// The sketch with the construction flag flipped on the entities `ids` name:
+  /// all of them become construction, or if they all were, none do. A projected
+  /// reference is always construction and is skipped. Null when nothing is left to flip.
+  function toggleConstruction(sketch, ids) {
+    const targets = new Set(sketch.entities.filter((entity) => ids.includes(entity.id) && !entity.reference).map((entity) => entity.id));
+    if (!targets.size) return null;
+    const make = !sketch.entities.filter((entity) => targets.has(entity.id)).every((entity) => entity.construction);
+    const next = copy(sketch);
+    for (const entity of next.entities) {
+      if (!targets.has(entity.id)) continue;
+      if (make) entity.construction = true;
+      else delete entity.construction;
+    }
+    return next;
+  }
+
   function addLine(sketch, p0, p1) {
     const id = nextId(sketch);
     return { sketch: withEntity(sketch, { id, kind: "line", p0, p1 }), id };
@@ -341,9 +366,18 @@
 
   /// The dimension a selection can carry, with its current value so that
   /// accepting it unchanged moves nothing, and where to put its label. Null
-  /// when the selection has none.
-  function suggestDimension(sketch, selection) {
+  /// when the selection has none. Two points can be measured "aligned" (the
+  /// straight distance, the default), "horizontal" or "vertical". Two lines
+  /// that are both upright, or both level, are measured across: the gap
+  /// between the edges. Any other two lines give their angle.
+  function suggestDimension(sketch, selection, orientation = "aligned") {
     const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    /// A distance along one axis from the lower of the two to the higher, so its value is positive.
+    const across = (kind, aRef, bRef, a, b) => {
+      const axis = kind === "distance_x" ? 0 : 1;
+      const [first, second] = a[axis] <= b[axis] ? [aRef, bRef] : [bRef, aRef];
+      return { constraint: { kind, a: first, b: second, value: Math.abs(b[axis] - a[axis]) }, anchor: midpoint(a, b) };
+    };
     if (selection.length === 1 && !isPointReference(selection[0])) {
       const entity = sketch.entities.find((item) => item.id === selection[0]);
       if (entity.kind === "line") {
@@ -354,12 +388,18 @@
     }
     if (selection.length === 2 && selection.every(isPointReference)) {
       const [a, b] = selection.map((reference) => pointOf(sketch, reference));
+      if (orientation === "horizontal") return across("distance_x", selection[0], selection[1], a, b);
+      if (orientation === "vertical") return across("distance_y", selection[0], selection[1], a, b);
       return { constraint: { kind: "distance", a: selection[0], b: selection[1], value: distance(a, b) }, anchor: midpoint(a, b) };
     }
     if (selection.length === 2 && selection.every((reference) => isLine(sketch, reference))) {
       const [one, two] = selection.map((id) => sketch.entities.find((entity) => entity.id === id));
       const d1 = [one.p1[0] - one.p0[0], one.p1[1] - one.p0[1]];
       const d2 = [two.p1[0] - two.p0[0], two.p1[1] - two.p0[1]];
+      const upright = (d) => Math.abs(d[0]) < 1e-6 * Math.max(1, Math.abs(d[1]));
+      const level = (d) => Math.abs(d[1]) < 1e-6 * Math.max(1, Math.abs(d[0]));
+      if (upright(d1) && upright(d2)) return across("distance_x", one.id + ".p0", two.id + ".p0", one.p0, two.p0);
+      if (level(d1) && level(d2)) return across("distance_y", one.id + ".p0", two.id + ".p0", one.p0, two.p0);
       // planegcs measures the angle counter-clockwise from the first line to the second.
       const degrees = (Math.atan2(d1[0] * d2[1] - d1[1] * d2[0], d1[0] * d2[0] + d1[1] * d2[1]) * 180) / Math.PI;
       return { constraint: { kind: "angle", a: one.id, b: two.id, value: degrees }, anchor: midpoint(one.p1, two.p1) };
@@ -371,8 +411,8 @@
   function dimensionAnchor(sketch, constraint) {
     const suggestion = suggestDimension(
       sketch,
-      constraint.kind === "distance"
-        ? [constraint.a, constraint.b].map((reference) => reference)
+      constraint.kind === "distance" || constraint.kind === "distance_x" || constraint.kind === "distance_y"
+        ? [constraint.a, constraint.b]
         : constraint.kind === "angle"
           ? [constraint.a, constraint.b]
           : constraint.e
@@ -426,6 +466,8 @@
   const api = {
     emptySketch,
     nextId,
+    addReference,
+    toggleConstruction,
     addLine,
     addCircle,
     addArc,

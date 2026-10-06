@@ -14,6 +14,7 @@ from build123d import Compound
 
 from .cache import BrepCache, feature_cache_key
 from .ops import REGISTRY
+from .sketch_reference import has_references, refresh_references
 
 
 class ReplayError(Exception):
@@ -129,6 +130,14 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
             raise _tagged(error, feature, index) from exc
 
         key = feature_cache_key(feature, upstream_key)
+        # A sketch with projected references is read as its sources leave it
+        # now. The key above is of what is stored: with the sources' own
+        # features in `upstream_key` it fixes what this refresh gives.
+        if op_type == "sketch" and has_references(feature):
+            try:
+                feature = refresh_references(feature, ctx)
+            except Exception as exc:
+                raise _tagged(exc, feature, index) from None
         result = cache.get(key) if cache else None
         if result is None:
             try:
@@ -183,7 +192,7 @@ def build_shape(
     export_index = last_solid_index(features, rollback_index)
     try:
         shape, ctx = replay({"features": features, "rollback_index": export_index}, cache_dir=cache_dir, return_context=True)
-        return shape, None, ctx
+        return shape, _trailing_sketches(features, export_index, rollback_index, ctx), ctx
     except Exception as exc:
         failed_index = getattr(exc, "feature_index", None)
         failed_id = getattr(exc, "feature_id", None)
@@ -191,4 +200,25 @@ def build_shape(
             raise
         good_index = last_solid_index(features, failed_index)
         shape, ctx = replay({"features": features, "rollback_index": good_index}, cache_dir=cache_dir, return_context=True)
+        _trailing_sketches(features, good_index, failed_index, ctx)
         return shape, failed_id, ctx
+
+
+def _trailing_sketches(features: list[dict], start: int, stop: int, ctx: Context) -> str | None:
+    """Puts the sketches between the last solid and `stop` into `ctx.features`.
+
+    Replay stops at the last solid, because a sketch makes no part. But a sketch
+    that projects an edge of another one still has to be read as its sources
+    leave it now, and the viewer draws it from here. Returns the id of the first
+    one that cannot be, as a failed feature.
+    """
+    for feature in features[start:stop]:
+        if feature.get("type") != "sketch":
+            continue
+        try:
+            feature = refresh_references(feature, ctx)
+        except Exception as exc:
+            ctx.features[feature["id"]] = feature
+            return getattr(exc, "feature_id", None) or feature["id"]
+        ctx.features[feature["id"]] = feature
+    return None

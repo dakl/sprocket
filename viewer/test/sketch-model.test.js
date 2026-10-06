@@ -248,3 +248,85 @@ test("a constraint between two shapes has a glyph beside each", () => {
   assert.deepEqual(model.glyphAnchors(sketch, { kind: "parallel", a: "e1", b: "e3" }), [[5, 0], [5, 5]]);
   assert.deepEqual(model.glyphAnchors(sketch, { kind: "horizontal", e: "e1" }), [[5, 0]]);
 });
+
+// --- Projected references, orientation and construction -----------------------
+
+/// The user's case: an inner rectangle, and the outer one's left edge projected beside it.
+function innerWithProjectedEdge() {
+  let { sketch } = model.addRectangle(model.emptySketch(), [10, 10], [70, 40]);
+  const added = model.addReference(sketch, { sketch: "f1", entity: "e4" }, { kind: "line", p0: [0, 60], p1: [0, 0] });
+  return { sketch: added.sketch, reference: added.id };
+}
+
+test("a projected edge is a locked construction entity that remembers its source", () => {
+  const { sketch, reference } = innerWithProjectedEdge();
+  const entity = sketch.entities.find((item) => item.id === reference);
+  assert.equal(entity.construction, true);
+  assert.deepEqual(entity.reference, { sketch: "f1", entity: "e4" });
+  assert.equal(model.addReference(sketch, { sketch: "f1", entity: "e4" }, entity), null, "the same edge twice adds nothing");
+});
+
+test("two upright lines are dimensioned across, edge to edge, with the lower one first", () => {
+  const { sketch, reference } = innerWithProjectedEdge();
+  // e4 is the inner left edge, at u = 10. The reference is the line u = 0.
+  const suggestion = model.suggestDimension(sketch, ["e4", reference]);
+  assert.equal(suggestion.constraint.kind, "distance_x");
+  assert.equal(suggestion.constraint.a, reference + ".p0", "the reference is the left one, so it comes first");
+  assert.equal(suggestion.constraint.b, "e4.p0");
+  near(suggestion.constraint.value, 10);
+  // Picked the other way round gives the same dimension.
+  assert.deepEqual(model.suggestDimension(sketch, [reference, "e4"]).constraint, suggestion.constraint);
+});
+
+test("the gap to a projected edge holds after the edge moves, which is what a rebuild does to it", () => {
+  const { sketch, reference } = innerWithProjectedEdge();
+  const dimensioned = model.withConstraint(sketch, model.suggestDimension(sketch, ["e4", reference]).constraint);
+  // Pin the width so the rectangle keeps its size, as a drawn one has.
+  const sized = model.withConstraint(dimensioned, { kind: "distance", a: "e1.p0", b: "e1.p1", value: 60 });
+  const first = solve(gcs, sized);
+  assert.ok(first.ok);
+  // The outer sketch widens, so its left edge is now at u = -40: the engine re-projects it and sends the sketch back.
+  const moved = JSON.parse(JSON.stringify(first.sketch));
+  const edge = moved.entities.find((entity) => entity.id === reference);
+  edge.p0 = [-40, 60];
+  edge.p1 = [-40, 0];
+  const again = solve(gcs, moved);
+  assert.ok(again.ok);
+  const left = again.sketch.entities.find((entity) => entity.id === "e4");
+  near(left.p0[0], -30, "the inner left edge stays 10 right of the outer one");
+  near(again.sketch.entities.find((entity) => entity.id === "e2").p0[0], 30, "and the rectangle keeps its width");
+});
+
+test("two level lines are dimensioned up the page, and two points take the orientation they are asked for", () => {
+  const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [30, 12]);
+  // e1 is the bottom edge and e3 the top.
+  const up = model.suggestDimension(sketch, ["e1", "e3"]);
+  assert.equal(up.constraint.kind, "distance_y");
+  near(up.constraint.value, 12);
+  const points = ["e1.p0", "e3.p0"];
+  assert.equal(model.suggestDimension(sketch, points).constraint.kind, "distance");
+  const across = model.suggestDimension(sketch, ["e1.p0", "e2.p1"], "horizontal");
+  assert.deepEqual([across.constraint.kind, across.constraint.a, across.constraint.b], ["distance_x", "e1.p0", "e2.p1"]);
+  near(across.constraint.value, 30);
+  const down = model.suggestDimension(sketch, ["e3.p0", "e1.p0"], "vertical");
+  assert.deepEqual([down.constraint.a, down.constraint.b], ["e1.p0", "e3.p0"], "lower first, so the value is positive");
+  near(down.constraint.value, 12);
+});
+
+test("a dimension label for a distance along an axis sits between its two points", () => {
+  const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [30, 12]);
+  const anchor = model.dimensionAnchor(sketch, { kind: "distance_x", a: "e1.p0", b: "e1.p1", value: 30 });
+  assert.deepEqual(anchor, [15, 0]);
+});
+
+test("construction flips on the entities picked, and a projected reference is left alone", () => {
+  const { sketch, reference } = innerWithProjectedEdge();
+  const made = model.toggleConstruction(sketch, ["e1", "e2"]);
+  assert.deepEqual(made.entities.filter((entity) => entity.construction && !entity.reference).map((entity) => entity.id), ["e1", "e2"]);
+  const half = model.toggleConstruction(made, ["e1", "e3"]);
+  assert.ok(half.entities.find((entity) => entity.id === "e1").construction && half.entities.find((entity) => entity.id === "e3").construction, "a mixed pick makes all construction");
+  const undone = model.toggleConstruction(made, ["e1", "e2"]);
+  assert.equal(undone.entities.some((entity) => "construction" in entity && !entity.reference), false);
+  assert.equal(model.toggleConstruction(sketch, [reference]), null);
+  assert.equal(model.toggleConstruction(sketch, []), null);
+});
