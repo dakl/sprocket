@@ -485,3 +485,13 @@ test("a referenced file rewritten on disk rebuilds the open document live", asyn
   expect((await rpc(request, "get_document")).revision).toBe(revision);
   expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
 });
+
+test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", async ({ page, request }) => {
+  const threaded = require("../../engine/tests/golden/thread_cosmetic_m3/document.json");
+  await resetDocument(request, { features: threaded.features, rollback_index: threaded.features.length });
+  await settled(page);
+  // 4 mm of M3 at 0.5 mm pitch is 8 turns of 24 steps: 193 points.
+  await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([{ designation: "M3", points: 193 }]);
+  await rpc(request, "set_rollback", { index: threaded.features.length - 1 });
+  await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([]);
+});

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "ps", "type": "sketch", "plane": "XY", "rect": {"width": 10, "height": 10}},
+    {"id": "plate", "type": "extrude", "profile": "ps", "distance": 4},
+    {"id": "hs", "type": "sketch", "plane": {"name": "XY", "offset": 4}, "circle": {"radius": 1.25}},
+    {"id": "tap", "type": "extrude", "profile": "hs", "base": "plate", "mode": "cut", "distance": -4},
+    {"id": "m3", "type": "thread", "base": "tap", "designation": "M3",
+     "face": {"select": [{"op": "faces"}, {"op": "within", "box": [-2, -2, 1, 2, 2, 3]}], "expected_count": 1}}
+  ]
+}
