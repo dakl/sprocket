@@ -48,6 +48,49 @@
    }
   },
   {
+   "id": "taper",
+   "type": "draft",
+   "base": "tray",
+   "angle": "=draft_angle",
+   "neutral": {
+    "name": "XY",
+    "offset": "=-(standoff_h+wall)"
+   },
+   "faces": {
+    "select": [
+     {
+      "op": "faces"
+     },
+     {
+      "op": "nearest_each",
+      "points": [
+       [
+        "=-clearance-wall",
+        "=pcb_w/2",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l+clearance+wall",
+        "=pcb_w/2",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l/2",
+        "=-clearance-wall",
+        "=(case_top-standoff_h-wall)/2"
+       ],
+       [
+        "=pcb_l/2",
+        "=pcb_w+clearance+wall",
+        "=(case_top-standoff_h-wall)/2"
+       ]
+      ]
+     }
+    ],
+    "expected_count": 4
+   }
+  },
+  {
    "id": "postss",
    "type": "sketch",
    "plane": {
@@ -91,7 +134,7 @@
    "id": "posts",
    "type": "extrude",
    "profile": "postss",
-   "base": "tray",
+   "base": "taper",
    "mode": "join",
    "distance": "=standoff_h"
   },
@@ -384,7 +427,7 @@
    "tool": "board"
   }
  ],
- "rollback_index": 12,
+ "rollback_index": 13,
  "parameters": {
   "pcb_l": 65,
   "pcb_w": 32,
@@ -403,7 +446,8 @@
   "hdmi_h": 3.3,
   "sd_y": 16.75,
   "sd_w": 11.3,
-  "sd_h": 1.8
+  "sd_h": 1.8,
+  "draft_angle": 1.0
  },
  "appearances": [],
  "bodies": {

@@ -30,11 +30,19 @@ parameters = {
     "sd_y": 16.75,  # UNMEASURED: microSD socket centre along Y, from the underside photo
     "sd_w": 11.3,  # UNMEASURED: socket width along Y (y 11.1 to 22.4)
     "sd_h": 1.8,  # UNMEASURED: socket height below the PCB
+    "draft_angle": 1.0,  # UNMEASURED: degrees on the outer walls, narrowing upward, so the part lets go of a bed or mould
 }
 
 OUTER_Y = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Y", "end": "max"}], "expected_count": 1}
 OUTER_X = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "X", "end": "max"}], "expected_count": 1}
 TOP = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
+# The outer side faces, by their centres: each sits at the outside of a wall, at
+# the case's mid-height. The inner faces are a wall's thickness away.
+MID_Z = "(case_top-standoff_h-wall)/2"
+OUTER_WALLS = {"select": [{"op": "faces"}, {"op": "nearest_each", "points": [
+    ["=-clearance-wall", "=pcb_w/2", f"={MID_Z}"], ["=pcb_l+clearance+wall", "=pcb_w/2", f"={MID_Z}"],
+    ["=pcb_l/2", "=-clearance-wall", f"={MID_Z}"], ["=pcb_l/2", "=pcb_w+clearance+wall", f"={MID_Z}"]]}],
+    "expected_count": 4}
 
 
 def port(entity_prefix, u, v, width, height):
@@ -55,12 +63,16 @@ features = [
      "rect": {"width": "=pcb_l+2*(clearance+wall)", "height": "=pcb_w+2*(clearance+wall)", "center": ["=pcb_l/2", "=pcb_w/2"]}},
     {"id": "block", "type": "extrude", "profile": "blocks", "distance": "=wall+standoff_h+case_top"},
     {"id": "tray", "type": "shell", "base": "block", "thickness": "=wall", "open": TOP},
+    # The four outer walls lean in by draft_angle about the floor's underside.
+    # Only the outside: the cavity stays square to the board.
+    {"id": "taper", "type": "draft", "base": "tray", "angle": "=draft_angle",
+     "neutral": {"name": "XY", "offset": "=-(standoff_h+wall)"}, "faces": OUTER_WALLS},
     # Screw posts on the 58 x 25 mm hole pattern: one circle, then a sketch pattern.
     {"id": "postss", "type": "sketch", "plane": {"name": "XY", "offset": "=-standoff_h"},
      "entities": [{"id": "p", "kind": "circle", "c": ["=hole_inset", "=hole_inset"], "r": "=post_d/2"}],
      "patterns": [{"entities": ["p"], "linear": {"count": 2, "step": ["=pcb_l-2*hole_inset", 0]},
                    "linear2": {"count": 2, "step": [0, "=pcb_w-2*hole_inset"]}}]},
-    {"id": "posts", "type": "extrude", "profile": "postss", "base": "tray", "mode": "join", "distance": "=standoff_h"},
+    {"id": "posts", "type": "extrude", "profile": "postss", "base": "taper", "mode": "join", "distance": "=standoff_h"},
     {"id": "pilots", "type": "hole", "base": "posts", "diameter": "=pilot_d", "depth": "=standoff_h+wall/2",
      "points": [["=hole_inset", "=hole_inset", 0], ["=pcb_l-hole_inset", "=hole_inset", 0],
                 ["=hole_inset", "=pcb_w-hole_inset", 0], ["=pcb_l-hole_inset", "=pcb_w-hole_inset", 0]]},
