@@ -293,6 +293,17 @@ def document_tools() -> list[types.Tool]:
                 "mesh": {"type": "string", "description": "path to write the viewer mesh to"},
             },
         ),
+        _tool(
+            "section",
+            "Cuts the part with a plane and reports the cut: its area, face count and 2D extent in the plane's own "
+            "frame. Give `path` ending .dxf or .svg to write the section as a drawing. The plane takes any form a "
+            "sketch's `plane` takes, such as {'name': 'XZ', 'offset': 5}.",
+            {
+                "plane": {"description": "a sketch plane reference"},
+                "path": {"type": "string", "description": "a .dxf or .svg file to write the section to"},
+            },
+            ["plane"],
+        ),
     ]
 
 
@@ -409,7 +420,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status", "face_sketch_plane"):
+    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status", "face_sketch_plane", "section"):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")

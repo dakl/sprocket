@@ -1267,6 +1267,38 @@ def _measure(daemon: Daemon, params: dict) -> dict:
     return measured
 
 
+def _section(daemon: Daemon, params: dict) -> dict:
+    """Where a plane cuts the part: the cut's area and 2D extent in the plane's
+    own frame, and, given a `path` ending .dxf or .svg, the section drawn there."""
+    from .export import ExportError, section_of, write_section
+    from .ops.sketch import plane_json, resolve_plane
+
+    if params.get("plane") is None:
+        raise DocumentError("section needs 'plane'")
+    try:
+        plane = resolve_plane(params["plane"], daemon.session.context())
+    except (KeyError, ValueError, SelectorError) as exc:
+        raise DocumentError(f"plane does not resolve: {exc}") from None
+    section = section_of(daemon.session.require_shape(), plane)
+    result = {"plane": plane_json(plane), "faces": 0, "area": 0.0}
+    if section is not None:
+        box = section.bounding_box()
+        result.update({
+            "faces": len(section.faces()),
+            "area": round(section.area, 9),
+            "bounding_box": {"min": [round(box.min.X, 9), round(box.min.Y, 9)], "max": [round(box.max.X, 9), round(box.max.Y, 9)]},
+        })
+    if params.get("path"):
+        if section is None:
+            raise DocumentError("the plane misses the part, so there is no section to write")
+        try:
+            write_section(section, params["path"])
+        except ExportError as exc:
+            raise DocumentError(str(exc)) from None
+        result["written"] = params["path"]
+    return result
+
+
 def _render_view(daemon: Daemon, params: dict) -> dict:
     path = params.get("path")
     if not path:
@@ -1369,6 +1401,7 @@ METHODS = {
     "measure": _measure,
     "render_view": _render_view,
     "export": _export,
+    "section": _section,
     "get_schemas": _get_schemas,
     "validate_feature": _validate_feature,
     "list_methods": _list_methods,

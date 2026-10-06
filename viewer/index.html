@@ -40,6 +40,34 @@
       max-width: 70%;
     }
 
+    /* Section view controls. Bottom left, clear of the panels at the bottom centre. */
+    #section-panel {
+      position: fixed;
+      left: 12px;
+      bottom: 52px;
+      background: rgba(30, 30, 30, 0.9);
+      color: #eee;
+      font: 12px -apple-system, sans-serif;
+      padding: 8px 10px;
+      border-radius: 8px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    #section-panel button {
+      background: #2a2a2a;
+      color: #ddd;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+    #section-panel button.active { border-color: #5be0a0; color: #5be0a0; }
+    #section-offset { width: 140px; }
+    #section-value { min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+
     /* What the selection measures, from the daemon's B-rep. Bottom right, clear
        of the extrude and selection panels at the bottom centre. */
     #measure-readout {
@@ -585,6 +613,13 @@
   <div id="warning"></div>
   <div id="mesh-error"></div>
   <div id="measure-readout" aria-live="polite"></div>
+  <div id="section-panel" role="group" aria-label="Section view">
+    <span>Section</span>
+    <button data-axis="X">X</button><button data-axis="Y">Y</button><button data-axis="Z">Z</button>
+    <input type="range" id="section-offset" step="any" aria-label="Section offset" />
+    <span id="section-value"></span>
+    <button id="section-flip">Flip</button>
+  </div>
   <div id="context-menu" role="menu"></div>
   <div id="colour-popover" role="dialog" aria-label="Colour">
     <div class="popover-title"></div>
@@ -653,7 +688,7 @@
       <div class="tool-group">
         <div class="tool-group-buttons">
           <button class="tool-button" id="tool-measure" title="Measure (I): the selection, or each body's volume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6L9 21l-6-6z" /><path d="m7 13 2 2" /><path d="m11 9 2 2" /><path d="m15 5 2 2" /></svg></button>
-          <button class="tool-button" disabled title="Section view - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1" /><path d="M2 12h20" stroke-dasharray="3 2" /></svg></button>
+          <button class="tool-button" id="tool-section" title="Section view: cut the part with a plane"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1" /><path d="M2 12h20" stroke-dasharray="3 2" /></svg></button>
         </div>
         <div class="tool-group-label">INSPECT</div>
       </div>
@@ -746,6 +781,88 @@
     // its only visible trace until something extrudes it.
     const sketchOutlineGroup = new THREE.Group();
     scene.add(sketchOutlineGroup);
+
+    // --- Section view ------------------------------------------------------
+    // A clipping plane across one world axis. three.js keeps what lies on the
+    // plane normal's side, so the normal points back toward what stays. The cut
+    // face is the part's own back faces, seen through the cut and drawn flat in
+    // the section colour: a closed solid shows them only where it is cut open.
+    const sectionPanelEl = document.getElementById("section-panel");
+    const sectionOffsetEl = document.getElementById("section-offset");
+    const sectionValueEl = document.getElementById("section-value");
+    const toolSectionEl = document.getElementById("tool-section");
+    const sectionPlane = new THREE.Plane();
+    const SECTION_AXES = { X: new THREE.Vector3(1, 0, 0), Y: new THREE.Vector3(0, 1, 0), Z: new THREE.Vector3(0, 0, 1) };
+    let section = null; // { axis, offset, flip } while the view is on
+    let sectionCap = null;
+
+    function sectionRange(axis) {
+      if (!mesh) return [0, 0];
+      mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox;
+      const key = axis.toLowerCase();
+      return [box.min[key], box.max[key]];
+    }
+
+    function applySection() {
+      const planes = section ? [sectionPlane] : null;
+      if (section) {
+        const [low, high] = sectionRange(section.axis);
+        section.offset = Math.min(high, Math.max(low, section.offset));
+        Object.assign(sectionOffsetEl, { min: low, max: high, value: section.offset });
+        sectionValueEl.textContent = Number(section.offset.toFixed(2)) + " mm";
+        sectionPlane.normal.copy(SECTION_AXES[section.axis]).multiplyScalar(section.flip ? 1 : -1);
+        sectionPlane.constant = section.flip ? -section.offset : section.offset;
+        sectionPanelEl.querySelectorAll("button[data-axis]").forEach((button) => button.classList.toggle("active", button.dataset.axis === section.axis));
+      }
+      renderer.localClippingEnabled = Boolean(section);
+      const clipped = [mesh && mesh.material, edgeLines && edgeLines.material, ...threadGroup.children.map((line) => line.material)];
+      clipped.flat().filter(Boolean).forEach((material) => {
+        material.clippingPlanes = planes;
+        material.needsUpdate = true;
+      });
+      if (sectionCap) {
+        scene.remove(sectionCap);
+        [].concat(sectionCap.material).forEach((material) => material.dispose());
+        sectionCap = null;
+      }
+      if (section && mesh) {
+        const cap = new THREE.MeshBasicMaterial({ color: srgb(0xc8783c), side: THREE.BackSide, clippingPlanes: planes });
+        const none = new THREE.MeshBasicMaterial({ visible: false });
+        // Same slots as the part's materials: 1 is a hidden body and 2 a reference body, which get no cap.
+        const materials = Array.isArray(mesh.material) ? mesh.material.map((_, index) => (index === 1 || index === 2 ? none : cap)) : cap;
+        sectionCap = new THREE.Mesh(mesh.geometry, materials);
+        sectionCap.raycast = () => {};
+        scene.add(sectionCap);
+      }
+      toolSectionEl.classList.toggle("active", Boolean(section));
+      sectionPanelEl.style.display = section ? "flex" : "none";
+    }
+
+    function setSectionAxis(axis) {
+      const [low, high] = sectionRange(axis);
+      section = { axis, offset: (low + high) / 2, flip: section ? section.flip : false };
+      applySection();
+    }
+    toolSectionEl.addEventListener("click", () => {
+      if (section) {
+        section = null;
+        applySection();
+      } else {
+        setSectionAxis("Z");
+      }
+    });
+    sectionPanelEl.querySelectorAll("button[data-axis]").forEach((button) =>
+      button.addEventListener("click", () => setSectionAxis(button.dataset.axis))
+    );
+    sectionOffsetEl.addEventListener("input", () => {
+      section.offset = Number(sectionOffsetEl.value);
+      applySection();
+    });
+    document.getElementById("section-flip").addEventListener("click", () => {
+      section.flip = !section.flip;
+      applySection();
+    });
 
     // Cosmetic threads leave the solid alone, so a helix over the face is
     // their only visible trace. Rebuilt on every features.json load.
@@ -1140,6 +1257,7 @@
           if (refit) frameCameraOn(mesh);
           applyVisibility();
           renderBrowser();
+          applySection();
         })
         .catch((error) => {
           // Also fires for a genuinely empty document (rolled back before the
@@ -3336,6 +3454,7 @@
           line.userData.designation = thread.designation;
           threadGroup.add(line);
         });
+      if (section) applySection();
     }
 
     // Draws every sketch feature in the timeline, since a bare sketch has no
@@ -3959,6 +4078,12 @@
     window.__tcad = {
       get axes() {
         return { ...axesVisible };
+      },
+      /// The section view: axis, offset and flip, and how many materials are clipped, or null when off.
+      get section() {
+        if (!section) return null;
+        const clipped = [].concat(mesh ? mesh.material : [], edgeLines ? edgeLines.material : []).filter((material) => material.clippingPlanes && material.clippingPlanes.length);
+        return { ...section, clipped: clipped.length, cap: Boolean(sectionCap) };
       },
       /// The measure readout's text, empty when it is hidden.
       get measure() {

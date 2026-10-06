@@ -509,3 +509,17 @@ test("Measure shows the volume, then a picked face's area, and hides again", asy
   await page.keyboard.press("i");
   expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
 });
+
+test("Section view clips the part across an axis, flips, and turns off", async ({ page }) => {
+  await page.locator("#tool-section").click();
+  // The box fixture is 10 tall, so Z starts at the middle.
+  await expect.poll(() => page.evaluate(() => window.__tcad.section)).toMatchObject({ axis: "Z", offset: 5, flip: false, cap: true });
+  expect((await page.evaluate(() => window.__tcad.section)).clipped).toBeGreaterThan(0);
+  await page.locator('#section-panel button[data-axis="X"]').click();
+  await expect.poll(() => page.evaluate(() => window.__tcad.section)).toMatchObject({ axis: "X", offset: 0 });
+  await page.locator("#section-flip").click();
+  await expect.poll(() => page.evaluate(() => window.__tcad.section.flip)).toBe(true);
+  await page.locator("#tool-section").click();
+  expect(await page.evaluate(() => window.__tcad.section)).toBeNull();
+  await expect(page.locator("#section-panel")).toBeHidden();
+});
