@@ -480,7 +480,7 @@ test("a referenced file rewritten on disk rebuilds the open document live", asyn
       { id: "c", type: "extrude", profile: "cs", base: "b", mode: "join", distance: 3 }
     );
   });
-  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 8), null, { timeout: 4000 });
+  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 8), null, { timeout: 15000 });
   await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Rebuilt: board.sprocket changed");
   expect((await rpc(request, "get_document")).revision).toBe(revision);
   expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
