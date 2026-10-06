@@ -1,10 +1,10 @@
 import math
 
-from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector
+from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector, Wire
 from OCP.BRep import BRep_Builder
 from OCP.TopoDS import TopoDS_Compound
 
-from ..regions import find_regions
+from ..regions import FUZZY, ProfileError, entity_edge, find_regions
 from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
 from .registry import register
 
@@ -301,6 +301,44 @@ def sketch_entities(feature: dict) -> list[dict]:
         for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
             entities.extend(_moved(by_id[entity_id], index, du, dv, turn, centre) for entity_id in pattern["entities"])
     return entities
+
+
+PATH_SCHEMA = {
+    "type": "object",
+    "description": "Entities of a sketch that join end to end into one path.",
+    "required": ["sketch"],
+    "properties": {
+        "sketch": {"type": "string", "description": "id of a sketch feature with entities"},
+        "entities": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "ids of the entities on the path. Default: every entity that is not construction.",
+        },
+    },
+}
+
+
+def sketch_path(path_ref: dict, ctx) -> Wire:
+    """The wire a `PATH_SCHEMA` reference names, placed on its sketch's plane."""
+    sketch = ctx.features.get(path_ref["sketch"])
+    if sketch is None or sketch["type"] != "sketch" or "entities" not in sketch:
+        raise ProfileError(f"path refers to {path_ref['sketch']!r}, which is not a sketch with entities earlier in the document")
+    entities = sketch_entities(sketch)
+    wanted = path_ref.get("entities")
+    if wanted:
+        known = {entity["id"] for entity in entities}
+        missing = [entity_id for entity_id in wanted if entity_id not in known]
+        if missing:
+            raise ProfileError(f"path names {', '.join(missing)}, which are not entities of sketch {path_ref['sketch']!r}")
+        entities = [entity for entity in entities if entity["id"] in wanted]
+    else:
+        entities = [entity for entity in entities if not entity.get("construction")]
+    plane = resolve_plane(sketch["plane"], ctx)
+    wires = Wire.combine([plane * entity_edge(entity) for entity in entities], tol=FUZZY)
+    if len(wires) != 1:
+        raise ProfileError(f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate pieces, not one chain")
+    return wires[0]
 
 
 _POINTS = {"line": {"p0", "p1"}, "arc": {"p0", "p1", "c"}, "circle": {"c"}}

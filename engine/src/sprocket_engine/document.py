@@ -830,7 +830,10 @@ def _referenced_ids(feature: dict) -> list[str]:
     plane = feature.get("plane")
     if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
         referenced.append(plane["feature"])
-    # Picked regions name their sketches one level down.
+    # A sweep path and picked regions name their sketches one level down.
+    path = feature.get("path")
+    if isinstance(path, dict) and isinstance(path.get("sketch"), str):
+        referenced.append(path["sketch"])
     for profile in feature.get("profiles") or []:
         if isinstance(profile, dict) and isinstance(profile.get("sketch"), str):
             referenced.append(profile["sketch"])

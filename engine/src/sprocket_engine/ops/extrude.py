@@ -57,7 +57,7 @@ SCHEMA = {
 }
 
 
-def _profile_faces(feature: dict, ctx):
+def profile_faces(feature: dict, ctx):
     """The shape to extrude: the whole sketch, or the regions picked from it."""
     if "profiles" not in feature:
         whole = ctx.results[feature["profile"]]
@@ -90,25 +90,31 @@ COMBINE = {
 }
 
 
-@register("extrude", SCHEMA)
-def apply(feature: dict, ctx):
-    tool = b3d_extrude(_profile_faces(feature, ctx), amount=feature["distance"], both=feature.get("symmetric", False))
-
+def combine(feature: dict, tool, ctx, mode: str | None = None):
+    """`tool` combined with the feature's `base` by `mode` (default join), or
+    `tool` alone as a new body when there is no base."""
     base_id = feature.get("base")
-    mode = feature.get("mode")
+    mode = mode or feature.get("mode")
     if mode == "new" and base_id is not None:
         raise ValueError("mode 'new' makes a new body, so it takes no base")
     if base_id is None:
         if mode not in (None, "new"):
             raise ValueError(f"mode {mode!r} needs a base to combine with")
         return tool
-
-    # Documents from before `mode` existed carry the combine in the sign.
-    if mode is None:
-        mode = "cut" if feature["distance"] < 0 else "join"
+    mode = mode or "join"
     result = COMBINE[mode](ctx.results[base_id], tool)
     solids = list(result) if isinstance(result, ShapeList) else [result]
     part = Part(solids)
     if not solids or part.volume == 0:
         raise ValueError(f"{mode} of {feature['id']} with {base_id} left an empty solid")
     return part
+
+
+@register("extrude", SCHEMA)
+def apply(feature: dict, ctx):
+    tool = b3d_extrude(profile_faces(feature, ctx), amount=feature["distance"], both=feature.get("symmetric", False))
+    mode = feature.get("mode")
+    # Documents from before `mode` existed carry the combine in the sign.
+    if mode is None and feature.get("base") is not None:
+        mode = "cut" if feature["distance"] < 0 else "join"
+    return combine(feature, tool, ctx, mode)
