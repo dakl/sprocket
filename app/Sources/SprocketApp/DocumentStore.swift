@@ -35,6 +35,11 @@ final class DocumentStore: ObservableObject {
 
     init() {
         refreshRecents()
+        // The viewer's Export button comes through the web view, which cannot open a save panel itself.
+        NotificationCenter.default.addObserver(forName: .sprocketExportRequested, object: nil, queue: .main) { [weak self] note in
+            guard let format = note.userInfo?["format"] as? String else { return }
+            MainActor.assumeIsolated { self?.export(format) }
+        }
     }
 
     var isUntitled: Bool { url.map(Self.isUntitled) ?? true }
@@ -119,7 +124,7 @@ final class DocumentStore: ObservableObject {
         }
     }
 
-    /// `format` is "step" or "stl", which is also the extension and the
+    /// `format` is "step", "stl" or "3mf", which is also the extension and the
     /// engine's parameter name.
     func export(_ format: String) {
         let panel = NSSavePanel()

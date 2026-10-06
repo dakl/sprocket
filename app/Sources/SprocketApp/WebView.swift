@@ -5,9 +5,10 @@ import WebKit
 /// so it can fetch part.mesh, features.json and schemas.json next to it.
 ///
 /// The viewer talks to the engine through one WKScriptMessageHandler named
-/// "sprocket". Its only message is `{type: "rpc", id, method, params}`, which
-/// this forwards to the daemon, and the reply goes back through the page's own
-/// window.__rpcReply. The viewer decides what a click means (viewer/edits.js).
+/// "sprocket". Its messages are `{type: "rpc", id, method, params}`, which
+/// this forwards to the daemon, with the reply going back through the page's own
+/// window.__rpcReply, and `{type: "export", format}`, which asks the File menu's
+/// export to run (see DocumentStore). The viewer decides what a click means (viewer/edits.js).
 /// Nothing here does.
 struct WebView: NSViewRepresentable {
     let url: URL
@@ -102,6 +103,12 @@ struct WebView: NSViewRepresentable {
                 return
             }
 
+            // The Export button asks for a save panel, which only Swift can open.
+            if type == "export", let format = body["format"] as? String {
+                NotificationCenter.default.post(name: .sprocketExportRequested, object: nil, userInfo: ["format": format])
+                return
+            }
+
             guard type == "rpc",
                   let id = body["id"] as? Int,
                   let method = body["method"] as? String
@@ -138,4 +145,9 @@ struct WebView: NSViewRepresentable {
             return String(array.dropFirst().dropLast())
         }
     }
+}
+
+extension Notification.Name {
+    /// Posted when the viewer's Export button is used. `userInfo["format"]` is "stl", "3mf" or "step".
+    static let sprocketExportRequested = Notification.Name("sprocketExportRequested")
 }

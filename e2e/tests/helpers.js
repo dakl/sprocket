@@ -18,7 +18,8 @@ async function resetDocument(request, document) {
     { op: "set_rollback", index: document.rollback_index },
   ];
   await rpc(request, "apply_edit", { edits });
-  for (const name of Object.keys(current.parameters)) {
+  // Newest first: a parameter defined later may be an expression over an earlier one.
+  for (const name of Object.keys(current.parameters).reverse()) {
     await rpc(request, "set_parameter", { name, value: null });
   }
 }

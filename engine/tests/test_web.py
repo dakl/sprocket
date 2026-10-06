@@ -180,3 +180,50 @@ def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(tmp_pa
             client.close()
         http.shutdown()
         http.server_close()
+
+
+def get_with_headers(base: str, route: str, headers: dict | None = None):
+    request = urllib.request.Request(base + route, headers=headers or {})
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status, dict(response.headers), response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, dict(error.headers), error.read()
+
+
+def test_the_export_route_hands_the_part_over_as_a_download(server):
+    """A 40 x 30 x 10 box: a box is 12 triangles and 8 corners, whatever the writer does."""
+    import io
+    import re
+    import struct
+    import zipfile
+
+    base, _ = server
+    status, headers, stl = get_with_headers(base, "/export?format=stl")
+    assert status == 200
+    assert headers["Content-Disposition"] == 'attachment; filename="part.stl"'
+    if stl[:5] == b"solid" and b"facet" in stl[:300]:
+        assert stl.count(b"facet normal") == 12
+    else:
+        assert struct.unpack("<I", stl[80:84])[0] == 12
+
+    _, _, step = get_with_headers(base, "/export?format=step")
+    assert step.startswith(b"ISO-10303-21")
+    assert b"MANIFOLD_SOLID_BREP" in step
+
+    _, headers, threemf = get_with_headers(base, "/export?format=3mf")
+    assert headers["Content-Disposition"] == 'attachment; filename="part.3mf"'
+    with zipfile.ZipFile(io.BytesIO(threemf)) as archive:
+        model = archive.read("3D/3dmodel.model").decode()
+    assert len(re.findall(r"<vertex ", model)) == 8
+
+
+def test_the_export_route_refuses_what_it_cannot_serve(server):
+    base, _ = server
+    assert get_with_headers(base, "/export?format=obj")[0] == 400
+    assert get_with_headers(base, "/export")[0] == 400
+    assert get_with_headers(base, "/export?format=stl", {"Origin": "https://evil.example"})[0] == 403
+    rpc(base, "apply_edit", edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}])
+    status, _, body = get_with_headers(base, "/export?format=stl")
+    assert status == 409
+    assert "no geometry" in json.loads(body)["error"]

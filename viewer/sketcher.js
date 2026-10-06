@@ -17,7 +17,7 @@
   const ALIGN_DEGREES = 4;
   const DRAG_PIXELS = 4;
   const COLOURS = { free: 0x4da3ff, fixed: 0xe8e8e8, selected: 0xffaa00, hover: 0xffdd55, preview: 0x5be0a0, origin: 0xff6b6b, reference: 0xc77dff };
-  const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension", p: "project" };
+  const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension", p: "project", f: "fillet" };
   const HINTS = {
     select: "Click to select, drag to move. Delete removes.",
     line: "Click to start a line, click again to place its end. Esc ends the chain.",
@@ -25,6 +25,7 @@
     circle: "Click the centre, then a point on the circle",
     arc: "Click the start, the end, then a point the arc passes through",
     dimension: "Click a line, a circle, two points or two lines",
+    fillet: "Click a corner where two lines meet, then type the radius",
     project: "Click an edge of another sketch or of the part to project it here as a locked reference",
   };
   // In the dimension box, between two points: which way to measure.
@@ -35,11 +36,11 @@
     circle: ["Click a point on the circle"],
     arc: ["Click the arc's end", "Click a point the arc passes through"],
   };
-  const GLYPHS = { coincident: "•", point_on: "∘", horizontal: "—", vertical: "|", parallel: "∥", perpendicular: "⟂", tangent: "◠", equal: "=", fix: "▣" };
+  const GLYPHS = { coincident: "•", point_on: "∘", horizontal: "—", vertical: "|", parallel: "∥", perpendicular: "⟂", tangent: "◠", equal: "=", fix: "▣", symmetric: "⇋" };
   const UNDO_LIMIT = 100;
   const STALE = /based on revision/;
   const copy = (value) => JSON.parse(JSON.stringify(value));
-  const CONSTRAINTS = ["coincident", "point_on", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "fix"];
+  const CONSTRAINTS = ["coincident", "point_on", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "fix", "symmetric"];
 
   function createSketcher(host) {
     const { THREE, scene, camera, renderer, model, solver } = host;
@@ -339,6 +340,15 @@
       const value = parseFloat(ui.dimension.value);
       if (!Number.isFinite(value) || value <= 0 && dimension.constraint.kind !== "angle") {
         setMessage("Type a number above zero");
+        return;
+      }
+      if (dimension.fillet) {
+        try {
+          const rounded = model.addFillet(sketch, dimension.fillet, value);
+          if (change(rounded.sketch)) closeDimension();
+        } catch (error) {
+          setMessage(error.message);
+        }
         return;
       }
       const constraint = { ...dimension.constraint, value };
@@ -675,6 +685,36 @@
       change(model.deleteEntities(sketch, ids));
     }
 
+    /// The shapes and the line for a mirror: the selection's last pick, if it is
+    /// a line, is what to mirror across, and the rest are mirrored. Null when the
+    /// selection is not that.
+    function mirrorPlan() {
+      const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))].filter((id) => sketch.entities.some((entity) => entity.id === id));
+      const last = selection.length ? model.entityIdOf(selection[selection.length - 1]) : null;
+      const line = sketch.entities.find((entity) => entity.id === last && entity.kind === "line");
+      return line && ids.length > 1 ? { ids: ids.filter((id) => id !== last), line: last } : null;
+    }
+
+    /// Copies the selected shapes across the selected line, tied to the originals
+    /// by symmetric constraints, so the copy follows when the original moves.
+    function mirrorSelection() {
+      const plan = mirrorPlan();
+      if (!plan) {
+        setMessage("Select the shapes, then shift-click the line to mirror across, then Mirror");
+        return;
+      }
+      try {
+        const mirrored = model.mirrorEntities(sketch, plan.ids, plan.line);
+        if (change(mirrored.sketch)) {
+          selection = mirrored.ids;
+          setMessage("Mirrored " + mirrored.ids.length + (mirrored.ids.length === 1 ? " shape" : " shapes") + ", tied to the originals");
+        }
+      } catch (error) {
+        setMessage(error.message);
+      }
+      render();
+    }
+
     /// Flips the selected shapes between solid and construction. Construction
     /// shapes are dashed and bound no region, so they guide without being extruded.
     function toggleConstruction() {
@@ -686,6 +726,17 @@
       }
       change(next);
       setMessage(next.entities.some((entity) => ids.includes(entity.id) && entity.construction) ? "Now construction: dashed, no region" : "Now a solid shape again");
+    }
+
+    /// Opens the radius box for rounding the corner at `reference`.
+    function startFillet(reference) {
+      const radius = model.suggestFilletRadius(sketch, reference);
+      if (radius === null) {
+        setMessage("Click a point where exactly two lines meet");
+        return;
+      }
+      openDimension({ constraint: { kind: "radius", value: radius }, anchor: solver.pointOf(sketch, reference), index: null, fillet: reference });
+      setMessage("Fillet radius: type a value and press Enter");
     }
 
     let projecting = false;
@@ -728,7 +779,7 @@
         if (change(sketch, { drag: { ref: press.hit.reference, delta } })) press.uv = uv;
         return;
       }
-      const under = tool === "line" || tool === "select" || tool === "dimension" ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) : null;
+      const under = tool === "line" || tool === "select" || tool === "dimension" || tool === "fillet" ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) : null;
       const snapped = tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc" ? target(uv) : { uv };
       hover = { uv: snapped.uv, hit: under, snap: snapped.reference || snapped.curve ? snapped : null };
       if (tool === "line" && pending.length && !snapped.reference && !snapped.curve) {
@@ -757,6 +808,12 @@
       if (tool === "dimension") {
         const under = selectionUnder(event);
         dimensionClick(under && under.hit);
+        return;
+      }
+      if (tool === "fillet") {
+        const under = selectionUnder(event);
+        if (under && under.hit && under.hit.kind === "point") startFillet(under.hit.reference);
+        else setMessage("Click a point where two lines meet");
         return;
       }
       if (tool === "project") {
@@ -831,6 +888,10 @@
         toggleConstruction();
         return true;
       }
+      if (key === "m") {
+        mirrorSelection();
+        return true;
+      }
       if (event.key === "Delete" || event.key === "Backspace") {
         deleteSelection();
         event.preventDefault();
@@ -857,6 +918,7 @@
         button.disabled = !usable;
       });
       if (ui.toggle) ui.toggle.classList.toggle("active", showConstraints);
+      if (ui.mirror) ui.mirror.disabled = !mirrorPlan();
       if (ui.construction) {
         const known = new Set(sketch.entities.filter((entity) => !entity.reference).map((entity) => entity.id));
         ui.construction.disabled = !selection.some((reference) => known.has(model.entityIdOf(reference)));
@@ -988,6 +1050,7 @@
     ui.finish.addEventListener("click", finish);
     ui.cancel.addEventListener("click", cancel);
     if (ui.construction) ui.construction.addEventListener("click", toggleConstruction);
+    if (ui.mirror) ui.mirror.addEventListener("click", mirrorSelection);
     if (ui.toggle) {
       ui.toggle.addEventListener("click", () => {
         showConstraints = !showConstraints;

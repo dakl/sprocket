@@ -73,6 +73,62 @@
     return { sketch: withEntity(sketch, { id, ...copy(fields), construction: true, reference: copy(source) }), id };
   }
 
+  /// Copies of the entities `ids`, mirrored across the line `lineId`, each tied
+  /// to its original by `symmetric` constraints so the copy follows when the
+  /// original moves. A circle's copy also has an equal radius, and an arc's follows from its three points. An arc runs the
+  /// other way round once mirrored, so its copy's start is the mirror of the
+  /// original's end. The mirror line itself is not copied. Returns
+  /// {sketch, ids} with the new entity ids, or throws an Error.
+  function mirrorEntities(sketch, ids, lineId) {
+    const axis = sketch.entities.find((entity) => entity.id === lineId);
+    if (!axis || axis.kind !== "line") fail("Mirror across a line");
+    const [ax, ay] = axis.p0;
+    const [dx, dy] = [axis.p1[0] - ax, axis.p1[1] - ay];
+    const length = Math.hypot(dx, dy);
+    if (length < 1e-9) fail("The mirror line has no length");
+    const [ux, uy] = [dx / length, dy / length];
+    const reflect = ([x, y]) => {
+      const along = (x - ax) * ux + (y - ay) * uy;
+      const foot = [ax + along * ux, ay + along * uy];
+      return [2 * foot[0] - x, 2 * foot[1] - y];
+    };
+    const mirrorAngle = 2 * Math.atan2(uy, ux);
+    const sources = sketch.entities.filter((entity) => ids.includes(entity.id) && entity.id !== lineId);
+    if (!sources.length) fail("Select the shapes to mirror, then the line to mirror across");
+    let next = copy(sketch);
+    const created = [];
+    for (const source of sources) {
+      const id = nextId(next);
+      created.push(id);
+      const entity = { id, kind: source.kind };
+      if (source.construction) entity.construction = true;
+      const tie = (from, to) => next.constraints.push({ kind: "symmetric", a: from, b: to, e: lineId, id: nextConstraintId(next) });
+      if (source.kind === "line") {
+        entity.p0 = reflect(source.p0);
+        entity.p1 = reflect(source.p1);
+        next.entities.push(entity);
+        tie(source.id + ".p0", id + ".p0");
+        tie(source.id + ".p1", id + ".p1");
+      } else {
+        entity.c = reflect(source.c);
+        entity.r = source.r;
+        if (source.kind === "arc") {
+          entity.a0 = mirrorAngle - source.a1;
+          entity.a1 = mirrorAngle - source.a0;
+          while (entity.a1 <= entity.a0) entity.a1 += TWO_PI;
+        }
+        next.entities.push(entity);
+        tie(source.id + ".c", id + ".c");
+        if (source.kind === "arc") {
+          tie(source.id + ".p0", id + ".p1");
+          tie(source.id + ".p1", id + ".p0");
+        }
+        if (source.kind === "circle") next.constraints.push({ kind: "equal", a: source.id, b: id, id: nextConstraintId(next) });
+      }
+    }
+    return { sketch: next, ids: created };
+  }
+
   /// The sketch with the construction flag flipped on the entities `ids` name:
   /// all of them become construction, or if they all were, none do. A projected
   /// reference is always construction and is skipped. Null when nothing is left to flip.
@@ -165,6 +221,97 @@
     if (snapped.reference) return connect(sketch, snapped.reference, fresh);
     if (snapped.curve) return withConstraint(sketch, { kind: "point_on", a: fresh, b: snapped.curve });
     return sketch;
+  }
+
+  /// The lines that end at the point `reference`, counting every point joined to
+  /// it by coincident constraints: [{id, end}] with `end` "p0" or "p1". A corner
+  /// of two lines gives two.
+  function lineEndsAt(sketch, reference) {
+    const joined = new Set([reference]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const constraint of sketch.constraints) {
+        if (constraint.kind !== "coincident") continue;
+        const [a, b] = [constraint.a, constraint.b];
+        if (joined.has(a) !== joined.has(b)) {
+          joined.add(a);
+          joined.add(b);
+          grew = true;
+        }
+      }
+    }
+    return [...joined]
+      .filter((point) => point !== ORIGIN)
+      .map((point) => ({ id: entityIdOf(point), end: point.split(".")[1], reference: point }))
+      .filter(({ id, end }) => (end === "p0" || end === "p1") && sketch.entities.some((entity) => entity.id === id && entity.kind === "line"));
+  }
+
+  /// Rounds the corner of two lines at `reference` with an arc of `radius`: each
+  /// line is cut back to where the arc touches it, and the arc is tangent to
+  /// both with that radius. Every coincident constraint on the two line ends is replaced by
+  /// the arc's own. Returns {sketch, id} for the arc, or throws an Error that
+  /// says why the corner cannot be rounded.
+  function addFillet(sketch, reference, radius) {
+    const ends = lineEndsAt(sketch, reference);
+    if (ends.length !== 2 || ends[0].id === ends[1].id) fail("Click a point where exactly two lines meet");
+    if (!(radius > 0)) fail("The radius must be above zero");
+    const corner = pointOf(sketch, reference);
+    const lines = ends.map((end) => sketch.entities.find((entity) => entity.id === end.id));
+    const far = ends.map((end, index) => lines[index][end.end === "p0" ? "p1" : "p0"]);
+    const lengths = far.map((point) => distance(point, corner));
+    if (lengths.some((length) => length < 1e-9)) fail("A line there has no length");
+    const [d1, d2] = far.map((point, index) => [(point[0] - corner[0]) / lengths[index], (point[1] - corner[1]) / lengths[index]]);
+    const cosine = Math.max(-1, Math.min(1, d1[0] * d2[0] + d1[1] * d2[1]));
+    const angle = Math.acos(cosine);
+    if (angle < 1e-3 || angle > Math.PI - 1e-3) fail("Those two lines run along each other, so there is no corner to round");
+    const reach = radius / Math.tan(angle / 2);
+    if (reach > 0.999 * Math.min(...lengths)) fail("The radius is too big for these lines: the arc would start past the end of one");
+    const touch = [d1, d2].map((direction) => [corner[0] + direction[0] * reach, corner[1] + direction[1] * reach]);
+    const bisector = [d1[0] + d2[0], d1[1] + d2[1]];
+    const bisectorLength = Math.hypot(...bisector);
+    const centre = [
+      corner[0] + (bisector[0] / bisectorLength) * (radius / Math.sin(angle / 2)),
+      corner[1] + (bisector[1] / bisectorLength) * (radius / Math.sin(angle / 2)),
+    ];
+    const angleOf = (point) => Math.atan2(point[1] - centre[1], point[0] - centre[0]);
+    // The arc runs counter-clockwise, and the short way round: from whichever
+    // touch point is clockwise of the other one.
+    const turn = (touch[0][0] - centre[0]) * (touch[1][1] - centre[1]) - (touch[0][1] - centre[1]) * (touch[1][0] - centre[0]);
+    const startsAtFirst = turn > 0;
+    const a0 = angleOf(touch[startsAtFirst ? 0 : 1]);
+    let a1 = angleOf(touch[startsAtFirst ? 1 : 0]);
+    while (a1 <= a0) a1 += TWO_PI;
+
+    const next = copy(sketch);
+    const id = nextId(next);
+    ends.forEach((end, index) => {
+      next.entities.find((entity) => entity.id === end.id)[end.end] = touch[index];
+    });
+    next.entities.push({ id, kind: "arc", c: centre, r: radius, a0, a1 });
+    // What joined the corner now joins each line to its end of the arc.
+    const cornerPoints = new Set(ends.map((end) => end.reference));
+    // That includes a joint to the origin or to another shape's point: the line's end is no longer at the corner.
+    next.constraints = next.constraints.filter((constraint) => !(constraint.kind === "coincident" && (cornerPoints.has(constraint.a) || cornerPoints.has(constraint.b))));
+    ends.forEach((end, index) => {
+      const arcEnd = (startsAtFirst ? index === 0 : index === 1) ? "p0" : "p1";
+      next.constraints.push({ kind: "coincident", a: end.reference, b: id + "." + arcEnd, id: nextConstraintId(next) });
+      next.constraints.push({ kind: "tangent", a: end.id, b: id, id: nextConstraintId(next) });
+    });
+    next.constraints.push({ kind: "radius", e: id, value: radius, id: nextConstraintId(next) });
+    return { sketch: next, id, reach };
+  }
+
+  /// A radius to offer for rounding the corner at `reference`: a quarter of the
+  /// shorter line, to two places. Null when it is not a corner of two lines.
+  function suggestFilletRadius(sketch, reference) {
+    const ends = lineEndsAt(sketch, reference);
+    if (ends.length !== 2 || ends[0].id === ends[1].id) return null;
+    const lengths = ends.map((end) => {
+      const line = sketch.entities.find((entity) => entity.id === end.id);
+      return distance(line.p0, line.p1);
+    });
+    return Math.round((Math.min(...lengths) / 4) * 100) / 100;
   }
 
   /// Removes entities, and every constraint that mentions one.
@@ -355,6 +502,12 @@
         if (selection.length === 2 && isPointReference(point) && !isPointReference(curve) && curve !== entityIdOf(point)) return { kind, a: point, b: curve };
         return fail("Select a point and a line, circle or arc to put it on");
       }
+      case "symmetric": {
+        const points = selection.filter(isPointReference);
+        const lines = selection.filter((reference) => isLine(sketch, reference));
+        if (selection.length === 3 && points.length === 2 && lines.length === 1) return { kind, a: points[0], b: points[1], e: lines[0] };
+        return fail("Select two points and a line to make the points mirror images across it");
+      }
       case "fix":
         if (selection.length === 1 && first === ORIGIN) return fail("The origin is already fixed");
         if (selection.length === 1) return { kind, e: first };
@@ -467,6 +620,10 @@
     emptySketch,
     nextId,
     addReference,
+    mirrorEntities,
+    addFillet,
+    lineEndsAt,
+    suggestFilletRadius,
     toggleConstruction,
     addLine,
     addCircle,
