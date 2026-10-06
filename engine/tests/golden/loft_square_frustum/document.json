@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "foot", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 20}},
+    {"id": "head", "type": "sketch", "plane": {"name": "XY", "offset": 10}, "rect": {"width": 10, "height": 10}},
+    {"id": "frustum", "type": "loft", "sections": ["foot", "head"], "ruled": true}
+  ]
+}

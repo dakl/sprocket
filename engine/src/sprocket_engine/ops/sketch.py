@@ -1,7 +1,8 @@
 import math
 
 from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector, Wire
-from OCP.BRep import BRep_Builder
+from OCP.BRep import BRep_Builder, BRep_Tool
+from OCP.GeomLib import GeomLib_IsPlanarSurface
 from OCP.TopoDS import TopoDS_Compound
 
 from ..regions import FUZZY, ProfileError, entity_edge, find_regions
@@ -222,7 +223,8 @@ def _face_plane(plane_ref, ctx) -> Plane:
     if len(faces) != 1:
         raise SelectorError(f"sketch plane face selector matched {len(faces)} faces, expected exactly 1")
     face = faces[0]
-    if face.geom_type != GeomType.PLANE:
+    # A ruled loft's flat sides are B-spline surfaces, so ask whether it is flat, not what type it is.
+    if face.geom_type != GeomType.PLANE and not GeomLib_IsPlanarSurface(BRep_Tool.Surface_s(face.wrapped), 1e-7).IsPlanar():
         raise ValueError(f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face")
     normal = face.normal_at(face.center()).normalized()
     origin = normal * normal.dot(face.center())

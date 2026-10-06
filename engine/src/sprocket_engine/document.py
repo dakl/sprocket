@@ -837,6 +837,8 @@ def _referenced_ids(feature: dict) -> list[str]:
     for profile in feature.get("profiles") or []:
         if isinstance(profile, dict) and isinstance(profile.get("sketch"), str):
             referenced.append(profile["sketch"])
+    # A loft names its sections as a list of ids.
+    referenced.extend(section for section in feature.get("sections") or [] if isinstance(section, str))
     return referenced
 
 
