@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10}},
+    {"id": "box", "type": "extrude", "profile": "bs", "distance": 10},
+    {"id": "tapered", "type": "draft", "base": "box", "angle": 5, "neutral": "XY",
+     "faces": {"select": [{"op": "faces"}, {"op": "within", "box": [-11, -6, 1, 11, 6, 9]}], "expected_count": 4}}
+  ]
+}
