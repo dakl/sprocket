@@ -768,6 +768,9 @@
       <button data-tool="dimension" title="Dimension (D). Between two points, press H, V or A in the box to measure across, up or straight">Dimension</button>
       <button data-tool="fillet" title="Fillet (F): round a corner where two lines meet with an arc of the radius you type">Fillet</button>
       <button data-tool="project" title="Project (P): click an edge of another sketch or of the part to bring it into this sketch as a locked reference">Project</button>
+      <button data-tool="trim" title="Trim (T): click the piece of a line, arc or circle between the shapes that cross it to remove it">Trim</button>
+      <button data-tool="extend" title="Extend (E): click near the end of a line or arc to run it on to the next shape in its way">Extend</button>
+      <button data-tool="offset" title="Offset (O): click a shape, move to the side you want, type a distance. Lines and arcs that join move together">Offset</button>
     </div>
     <div class="sketch-panel-group">
       <button data-constraint="coincident" title="Two points meet">Coincident</button>
@@ -813,6 +816,7 @@
   <script src="vendor/planegcs.js"></script>
   <script src="sketch-solver.js"></script>
   <script src="sketch-model.js"></script>
+  <script src="sketch-tools.js"></script>
   <script src="sketcher.js"></script>
   <script>
     // M2 scope: a static viewport for one exported STL. No picking, no
