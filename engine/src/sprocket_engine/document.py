@@ -31,7 +31,7 @@ import jsonschema
 from .materials import PRESETS
 from .ops import REGISTRY
 from .sketch_edit import assign_constraint_ids, edit_sketch
-from .sketch_reference import has_references, projector
+from .sketch_reference import has_references, projector, with_references_updated
 
 FORMAT_VERSION = 2
 
@@ -667,11 +667,67 @@ class Document:
         # Resolve the whole table, not just this entry: a new value can break
         # another parameter that references it, and every feature expression
         # has to still evaluate afterwards.
+        before = self.resolved_parameters()
         resolved = resolve_parameters(candidate)
         self.parameters = candidate
         for feature in self.features:
             validate_feature(feature, resolved)
-        return {"name": name, "value": value}
+        detail = {"name": name, "value": value}
+        detail.update(self._resolve_sketches(before, resolved))
+        return detail
+
+    def _resolve_sketches(self, before: dict, after: dict) -> dict:
+        """Solves again each sketch whose numbers a parameter change moved.
+
+        Replay trusts the stored entities and does not solve, so a dimension
+        written as `"=width"` would otherwise move nothing but its own number.
+        A sketch counts when its constraints or entities, with the expressions
+        worked out, differ between the old parameters and the new. Its solved
+        entities go back into the feature, `"=param"` strings kept where their
+        value held. The sketches that project from it are brought up to date
+        when the part is built, as for any edit to their source.
+
+        A sketch the new numbers make unsolvable refuses the whole edit, naming
+        the conflicting constraints. Without the solver nothing can move: the
+        reply lists such sketches as `unsolved`, so nobody trusts stale geometry.
+        """
+        unsolved, unlinked = [], []
+        solver = False  # not imported until a sketch needs it: planegcs is slow to load
+        for index, stored in enumerate(self.features):
+            if stored.get("type") != "sketch" or "entities" not in stored:
+                continue
+            old, new = resolve_value(stored, before), resolve_value(stored, after)
+            if old["entities"] == new["entities"] and old.get("constraints") == new.get("constraints"):
+                continue
+            if solver is False:
+                try:
+                    from . import solver
+                except ImportError:
+                    solver = None
+            if solver is None:
+                unsolved.append(stored["id"])
+                continue
+            if has_references(new):
+                try:
+                    new = with_references_updated(new, self._projector(index, after))
+                except Exception as exc:
+                    # A reference that does not resolve is that feature's own failure to report, not this edit's.
+                    unsolved.append(stored["id"])
+                    continue
+            constraints = new.get("constraints", [])
+            result = solver.solve({"entities": new["entities"], "constraints": constraints})
+            if not result["ok"]:
+                names = ", ".join(f"{constraints[i].get('id', i)} ({constraints[i]['kind']})" for i in result["conflicting"])
+                raise DocumentError(
+                    f"that value leaves sketch {stored['id']!r} with no solution" + (f". These constraints conflict: {names}" if names else "")
+                )
+            self.features[index] = keep_expressions(stored, {**stored, "entities": result["sketch"]["entities"]}, after, unlinked)
+        detail = {}
+        if unsolved:
+            detail["unsolved"] = unsolved
+        if unlinked:
+            detail["unlinked"] = unlinked
+        return detail
 
     def _edit_sketch(self, edit: dict) -> dict:
         feature_id = edit.get("id")

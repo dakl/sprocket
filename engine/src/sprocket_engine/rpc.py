@@ -684,6 +684,10 @@ def _edit(daemon: Daemon, edits, params: dict) -> dict:
     unlinked = [item for entry in document.log[-len(edits):] for item in entry.get("unlinked", [])]
     if unlinked:
         result["unlinked"] = unlinked
+    # Sketches a parameter moved that could not be solved again, because the solver is not installed.
+    unsolved = [item for entry in document.log[-len(edits):] for item in entry.get("unsolved", [])]
+    if unsolved:
+        result["unsolved"] = unsolved
     return result
 
 
