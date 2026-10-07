@@ -59,3 +59,22 @@ test("revolve sweeps the sketch about an axis, a full turn by default", () => {
   assert.equal(featureFor("revolve", { axis: "X", angle: "90" }, { profile: "f1" }).angle, 90);
   assert.match(featureFor("revolve", { axis: "X", angle: "400" }, { profile: "f1" }).error, /360/);
 });
+
+test("starting values scale with the part and fall back to fixed ones", () => {
+  const { nice } = require("../modify.js");
+  const box = [40, 30, 10];
+  assert.equal(defaults("fillet", { box }).radius, 0.5);
+  assert.equal(defaults("chamfer", { box }).length, 0.5);
+  assert.equal(defaults("shell", { box }).thickness, 0.8);
+  assert.equal(defaults("fillet", { box: [400, 300, 200] }).radius, 10);
+  assert.equal(defaults("fillet").radius, 1);
+  assert.equal(defaults("shell").thickness, 2);
+  const hole = defaults("hole", { box, face: [40, 30] });
+  assert.deepEqual([hole.diameter, hole.depth, hole.head_diameter, hole.head_depth], [4.5, 5.5, 9, 3.5]);
+  assert.ok(hole.head_diameter > hole.diameter);
+  assert.equal(defaults("hole").diameter, 4);
+  // A flat plate keeps a usable radius; a zero side does not collapse it.
+  assert.equal(defaults("fillet", { box: [40, 30, 0] }).radius, 1.5);
+  assert.equal(nice(0.04, 1), 0.1);
+  assert.equal(nice(NaN, 7), 7);
+});

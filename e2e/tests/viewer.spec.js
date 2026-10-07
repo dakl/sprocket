@@ -651,7 +651,8 @@ test("shell: the picked face is left open, and with none the part becomes a clos
   await expect(page.locator("#tool-shell")).toBeEnabled();
   await page.locator("#tool-shell").click();
   await expect(page.locator("#modify-closed")).toHaveCount(0);
-  await previewReady(page);
+  await page.locator("#modify-thickness").fill("2");
+  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.thickness === 2 && window.__tcad.modifying.ok, null, SLOW);
   await page.locator("#modify-ok").click();
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
@@ -809,6 +810,25 @@ test("Shell with several bodies and nothing picked asks for a face", async ({ pa
   await page.locator("#tool-shell").click();
   await expect(page.locator("#modify-panel")).toBeHidden();
   await expect(page.locator("#status")).toContainText("Pick a face");
+});
+
+test("starting values scale with the part: fillet, chamfer, shell and hole", async ({ page, request }) => {
+  // The box is 40 x 30 x 10: 5% of 10, 8% of 10, and 15% of the top face's 30.
+  const [edge] = await topEdgePoints(page, request, 1);
+  await page.mouse.click(edge.x, edge.y);
+  await page.keyboard.press("f");
+  await expect(page.locator("#modify-radius")).toHaveValue("0.5");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("c");
+  await expect(page.locator("#modify-length")).toHaveValue("0.5");
+  await page.keyboard.press("Escape");
+  await clickTopFace(page, request);
+  await page.keyboard.press("h");
+  await expect(page.locator("#modify-diameter")).toHaveValue("4.5");
+  await page.keyboard.press("Escape");
+  await page.locator("#tool-shell").click();
+  await expect(page.locator("#modify-thickness")).toHaveValue("0.8");
+  await page.keyboard.press("Escape");
 });
 
 test("revolve: a selected sketch turns about an axis, previews, applies, and undo removes it", async ({ page, request }) => {

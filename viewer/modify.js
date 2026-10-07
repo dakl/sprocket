@@ -60,8 +60,34 @@
     return cleaned === "" ? NaN : Number(cleaned);
   }
 
-  function defaults(kind) {
-    return Object.fromEntries(TOOLS[kind].fields.map((field) => [field.name, field.value]));
+  /// A size rounded to a figure a person would type: a tenth below 2 mm, half
+  /// a millimetre below 20, a millimetre above. `fallback` when it is not a size.
+  function nice(value, fallback) {
+    if (!POSITIVE(value)) return fallback;
+    const step = value < 2 ? 0.1 : value < 20 ? 0.5 : 1;
+    return Math.max(step, Math.round(Math.round(value / step) * step * 100) / 100);
+  }
+
+  /// Starting values that fit the part. `scale` is {box: [x, y, z]} for the
+  /// body's bounding box and, for a hole, {face: [a, b]} for the picked face's
+  /// two sides. Without it the values are the fixed ones below.
+  /// Fillet and chamfer: 5% of the smallest box side. Shell: 8%. Hole: 15% of
+  /// the face's smaller side, with its depth and head sized from the diameter
+  /// in the proportions of the fixed 4 / 5 / 8 / 3.
+  function defaults(kind, scale) {
+    const values = Object.fromEntries(TOOLS[kind].fields.map((field) => [field.name, field.value]));
+    const smallest = scale && scale.box ? Math.min(...scale.box.filter(POSITIVE)) : NaN;
+    if (kind === "fillet") values.radius = nice(smallest * 0.05, values.radius);
+    if (kind === "chamfer") values.length = nice(smallest * 0.05, values.length);
+    if (kind === "shell") values.thickness = nice(smallest * 0.08, values.thickness);
+    if (kind === "hole" && scale && scale.face) {
+      const diameter = nice(Math.min(...scale.face) * 0.15, values.diameter);
+      values.diameter = diameter;
+      values.depth = nice(diameter * 1.25, values.depth);
+      values.head_diameter = nice(diameter * 2, values.head_diameter);
+      values.head_depth = nice(diameter * 0.75, values.head_depth);
+    }
+    return values;
   }
 
   /// The feature (without an id) for `kind` from the panel's `values`, or
@@ -109,7 +135,7 @@
     return { error: "unknown tool " + kind };
   }
 
-  const api = { TOOLS, defaults, featureFor, parseNumber, visible };
+  const api = { TOOLS, defaults, featureFor, nice, parseNumber, visible };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ViewerModify = api;
 })(typeof window !== "undefined" ? window : globalThis);

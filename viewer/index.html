@@ -3494,10 +3494,63 @@
       return { body };
     }
 
+    /// Triangle index ranges (start, count) of faces first..first+count-1.
+    /// The mesh groups are one per face, in body order.
+    function faceTriangleRange(first, count) {
+      const groups = mesh.geometry.groups;
+      const last = groups[first + count - 1];
+      return { start: groups[first].start, count: last.start + last.count - groups[first].start };
+    }
+
+    /// The vertices of the triangles in `range`, passed to `visit(x, y, z)`.
+    function visitVertices(range, visit) {
+      const index = mesh.geometry.index;
+      const position = mesh.geometry.attributes.position;
+      for (let i = range.start; i < range.start + range.count; i++) {
+        const corner = index.getX(i);
+        visit(position.getX(corner), position.getY(corner), position.getZ(corner));
+      }
+    }
+
+    /// What a Modify tool sizes its starting values by: `body`'s bounding box,
+    /// and for a hole the two sides of the picked face.
+    function modifyScale(kind, body) {
+      const bodies = mesh.geometry.userData.bodies;
+      let firstFace = 0;
+      for (const other of bodies) {
+        if (other === body) break;
+        firstFace += other.faces;
+      }
+      const range = bodies.length ? faceTriangleRange(firstFace, body.faces) : { start: 0, count: mesh.geometry.index.count };
+      const box = new THREE.Box3();
+      visitVertices(range, (x, y, z) => box.expandByPoint(new THREE.Vector3(x, y, z)));
+      const size = box.getSize(new THREE.Vector3());
+      const scale = { box: [size.x, size.y, size.z] };
+      if (kind === "hole" && selectedPatch) {
+        const normal = selectedPatch.normal;
+        const across = Math.abs(normal.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const u = across.sub(normal.clone().multiplyScalar(across.dot(normal))).normalize();
+        const v = normal.clone().cross(u);
+        const low = [Infinity, Infinity];
+        const high = [-Infinity, -Infinity];
+        const point = new THREE.Vector3();
+        visitVertices(faceTriangleRange(selectedPatch.faceIndex, 1), (x, y, z) => {
+          point.set(x, y, z);
+          [point.dot(u), point.dot(v)].forEach((value, axis) => {
+            low[axis] = Math.min(low[axis], value);
+            high[axis] = Math.max(high[axis], value);
+          });
+        });
+        scale.face = [high[0] - low[0], high[1] - low[1]];
+      }
+      return scale;
+    }
+
     async function armModify(kind) {
       if (modifyTool || extrudeArmed || sketchStage) return;
       if (kind !== "revolve" && !mesh) return;
       let base = null;
+      let scale = null;
       if (kind !== "revolve") {
         if (!mesh.geometry.userData.bodies.length) base = tipFeatureId(); // an engine that sends no body list
         else {
@@ -3506,6 +3559,7 @@
           const found = modifyBody(kind);
           if (found.error) return showNotice(found.error);
           base = found.body.tip;
+          scale = modifyScale(kind, found.body);
         }
         if (!base) return;
       }
@@ -3524,7 +3578,7 @@
       } else if (kind === "shell" && selectedPatch) {
         handles = ["f" + selectedPatch.faceIndex];
       }
-      const tool = { kind, target, values: ViewerModify.defaults(kind), seq: 0, ok: false, dirty: false, timer: null, inflight: null, feature: null };
+      const tool = { kind, target, values: ViewerModify.defaults(kind, scale), seq: 0, ok: false, dirty: false, timer: null, inflight: null, feature: null };
       modifyTool = tool; // claims the tool before the first await, so a second key press does nothing
       updateToolbarState();
       if (handles.length) {
