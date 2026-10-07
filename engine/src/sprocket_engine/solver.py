@@ -188,6 +188,9 @@ class _Build:
             })]
         if kind == "fix":
             return self._fix(constraint)
+        if kind == "symmetric":
+            _require(sketch, constraint["e"], "line")
+            return [s.symmetric_line(points[constraint["a"]], points[constraint["b"]], shapes[constraint["e"]])]
         if kind == "distance":
             return [s.set_p2p_distance(points[constraint["a"]], points[constraint["b"]], constraint["value"])]
         if kind in ("distance_x", "distance_y"):

@@ -17,6 +17,7 @@
     "update_sketch_entities",
     "update_feature",
     "set_body",
+    "set_parameter",
     "new_document",
   ];
 
@@ -59,7 +60,29 @@
     return null;
   }
 
+  const NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i;
+
+  /// What a parameter box holds, as the document stores it: a number, or an
+  /// "=expression" over the other parameters. A bare expression such as
+  /// "width * 2" is taken as one, so the "=" is optional to type.
+  function parameterValue(text) {
+    const trimmed = String(text).trim();
+    if (!trimmed || trimmed === "=") fail("a parameter needs a number or an expression");
+    if (NUMBER.test(trimmed)) return Number(trimmed);
+    return trimmed.startsWith("=") ? trimmed : "=" + trimmed;
+  }
+
   const RULES = {
+    /// Sets a named parameter, or removes it when `value` is null. `value` is
+    /// what was typed: a number, or an expression with or without its "=".
+    set_parameter(state, message) {
+      require_(message, "name");
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(message.name)) fail("a parameter name is letters, digits and underscores, and does not start with a digit");
+      if (message.value === null) return [{ op: "set_parameter", name: message.name, value: null }];
+      require_(message, "value");
+      return [{ op: "set_parameter", name: message.name, value: typeof message.value === "number" ? message.value : parameterValue(message.value) }];
+    },
+
     /// Names, colours or finishes one body. Only the fields given change. Showing and
     /// hiding is view state, sent as the daemon's set_visibility instead.
     set_body(state, message) {
@@ -183,7 +206,7 @@
     return RULES[message.type](state, message);
   }
 
-  const api = { editsFor, GESTURES };
+  const api = { editsFor, GESTURES, parameterValue };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ViewerEdits = api;
 })(typeof window !== "undefined" ? window : globalThis);

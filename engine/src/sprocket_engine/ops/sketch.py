@@ -101,6 +101,8 @@ CONSTRAINT_FIELDS = {
     "tangent": ("a", "b"),
     "equal": ("a", "b"),
     "fix": ("e",),
+    # Points a and b are mirror images across the line e.
+    "symmetric": ("a", "b", "e"),
     "distance": ("a", "b", "value"),
     # b's u (distance_x) or v (distance_y) minus a's. Signed, so a before b gives a positive value.
     "distance_x": ("a", "b", "value"),
@@ -116,8 +118,8 @@ CONSTRAINT_SCHEMA = {
     "properties": {
         "id": {"type": "string", "description": "c<n>. Stable for the life of the sketch. Filled in when missing."},
         "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
-        "e": {"type": "string", "description": "the one entity or point a constraint acts on"},
-        "a": {"type": "string", "description": "first entity or point. For point_on, the point"},
+        "e": {"type": "string", "description": "the one entity or point a constraint acts on. For symmetric, the line the points mirror across"},
+        "a": {"type": "string", "description": "first entity or point. For point_on, the point. For symmetric, a point"},
         "b": {"type": "string", "description": "second entity or point. For point_on, the line, circle or arc it lies on"},
         "value": {"type": "number", "description": "mm for distance, distance_x, distance_y, radius and diameter; degrees for angle"},
     },

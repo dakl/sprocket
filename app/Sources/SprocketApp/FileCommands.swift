@@ -34,6 +34,7 @@ struct FileCommands: Commands {
             Menu("Export") {
                 Button("STEP\u{2026}") { store.export("step") }
                 Button("STL\u{2026}") { store.export("stl") }
+                Button("3MF\u{2026}") { store.export("3mf") }
             }
             .disabled(!store.ready)
         }

@@ -129,3 +129,19 @@ test("add_feature inserts a tool panel's feature with a fresh id", () => {
   assert.throws(() => editsFor({ features: [sketch], rollbackIndex: 0 }, { type: "add_feature", feature: fillet }), /no part/);
   assert.throws(() => editsFor(box, { type: "add_feature", feature: {} }), /type/);
 });
+
+test("set_parameter takes a number, a typed number, or an expression with or without its =", () => {
+  const one = (value) => editsFor(box, { type: "set_parameter", name: "width", value })[0];
+  assert.deepEqual(one(12.5), { op: "set_parameter", name: "width", value: 12.5 });
+  assert.equal(one(" 40 ").value, 40);
+  assert.equal(one("1e2").value, 100);
+  assert.equal(one("depth * 2").value, "=depth * 2");
+  assert.equal(one("=depth*2").value, "=depth*2");
+  assert.deepEqual(editsFor(box, { type: "set_parameter", name: "width", value: null })[0], { op: "set_parameter", name: "width", value: null });
+});
+
+test("set_parameter refuses an empty value and a name that is not an identifier", () => {
+  assert.throws(() => editsFor(box, { type: "set_parameter", name: "width", value: "  " }), /number or an expression/);
+  assert.throws(() => editsFor(box, { type: "set_parameter", name: "2wide", value: 3 }), /does not start with a digit/);
+  assert.throws(() => editsFor(box, { type: "set_parameter", name: "my width", value: 3 }), /letters, digits/);
+});

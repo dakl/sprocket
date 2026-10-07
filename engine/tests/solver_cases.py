@@ -145,6 +145,26 @@ PROJECTED_EDGE = {
     ],
 }
 
+# A line and a circle mirrored across a held vertical line, as the viewer's Mirror makes them.
+MIRRORED = {
+    "entities": [
+        {"id": "e1", "kind": "line", "p0": [0, -20], "p1": [0, 20]},
+        {"id": "e2", "kind": "line", "p0": [5, 0], "p1": [15, 10]},
+        {"id": "e3", "kind": "line", "p0": [-4, 1], "p1": [-16, 9]},
+        {"id": "e4", "kind": "circle", "c": [20, -5], "r": 3},
+        {"id": "e5", "kind": "circle", "c": [-19, -4], "r": 2.5},
+    ],
+    "constraints": [
+        {"kind": "fix", "e": "e1"},
+        {"kind": "fix", "e": "e2"},
+        {"kind": "fix", "e": "e4"},
+        {"kind": "symmetric", "a": "e2.p0", "b": "e3.p0", "e": "e1"},
+        {"kind": "symmetric", "a": "e2.p1", "b": "e3.p1", "e": "e1"},
+        {"kind": "symmetric", "a": "e4.c", "b": "e5.c", "e": "e1"},
+        {"kind": "equal", "a": "e4", "b": "e5"},
+    ],
+}
+
 CASES = {
     "rectangle_dimensioned": {
         "sketch": rough_rectangle([
@@ -171,5 +191,6 @@ CASES = {
     "slot": {"sketch": SLOT, "drag": {"ref": "l2.p1", "delta": [0, -0.5]}},
     "angles_and_circles": {"sketch": ANGLES_AND_CIRCLES, "drag": {"ref": "c2.c", "delta": [1, 0]}},
     "projected_edge_and_axis_distances": {"sketch": PROJECTED_EDGE, "drag": {"ref": "e3.p0", "delta": [2, 1]}},
+    "mirrored_pair": {"sketch": MIRRORED, "drag": None},
     "sprocket_plate_52_entities": {"sketch": sprocket_plate(), "drag": {"ref": "up3.p1", "delta": [0.4, 0.2]}},
 }

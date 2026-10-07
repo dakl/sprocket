@@ -166,6 +166,9 @@
         if (whole && whole.kind === "circle") pins.push({ type: "circle_radius", c_id: whole.id, radius: whole.r });
         return pins;
       }
+      case "symmetric":
+        requireKind(sketch, constraint.e, "line");
+        return [{ type: "p2p_symmetric_ppl", p1_id: constraint.a, p2_id: constraint.b, l_id: constraint.e }];
       case "distance":
         return [{ type: "p2p_distance", p1_id: constraint.a, p2_id: constraint.b, distance: constraint.value }];
       case "distance_x":

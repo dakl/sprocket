@@ -330,3 +330,136 @@ test("construction flips on the entities picked, and a projected reference is le
   assert.equal(model.toggleConstruction(sketch, [reference]), null);
   assert.equal(model.toggleConstruction(sketch, []), null);
 });
+
+// --- Rounding a corner ------------------------------------------------------------
+
+test("a corner of two lines is rounded with an arc that touches both and has the radius asked for", () => {
+  // A square corner at the origin: one line up the v axis, one along the u axis.
+  let sketch = model.addLine(model.emptySketch(), [0, 30], [0, 0]).sketch;
+  sketch = model.addLine(sketch, [0, 0], [40, 0]).sketch;
+  sketch = model.connect(sketch, "e1.p1", "e2.p0");
+  const rounded = model.addFillet(sketch, "e1.p1", 5);
+  const solved = solve(gcs, rounded.sketch);
+  assert.ok(solved.ok, "the arc, two tangents and a radius leave a sketch that solves");
+  const [up, along, arc] = ["e1", "e2", rounded.id].map((id) => solved.sketch.entities.find((entity) => entity.id === id));
+  // A quarter circle of radius 5 in a square corner has its centre 5 in from both lines and touches them 5 from the corner.
+  near(arc.c[0], 5);
+  near(arc.c[1], 5);
+  near(arc.r, 5);
+  near(up.p1[1], 5, "the upright line stops 5 short of the corner");
+  near(along.p0[0], 5, "and so does the level one");
+  near(up.p1[0], 0);
+  near(along.p0[1], 0);
+  // A quarter turn, counter-clockwise from the touch point on the level line to the one on the upright line.
+  near(arc.a1 - arc.a0, Math.PI / 2);
+  assert.equal(rounded.sketch.constraints.some((constraint) => constraint.kind === "coincident" && constraint.a === "e1.p1" && constraint.b === "e2.p0"), false, "the old corner joint is gone");
+});
+
+test("rounding works for a corner at any angle, and the arc ends where the tangent length says", () => {
+  // 60 degrees between the lines. The tangent length is radius / tan(30 degrees).
+  const apex = [10, 10];
+  const second = [10 + 50 * Math.cos(Math.PI / 3), 10 + 50 * Math.sin(Math.PI / 3)];
+  let sketch = model.addLine(model.emptySketch(), apex, [60, 10]).sketch;
+  sketch = model.addLine(sketch, apex, second).sketch;
+  sketch = model.connect(sketch, "e1.p0", "e2.p0");
+  const rounded = model.addFillet(sketch, "e1.p0", 4);
+  const reach = 4 / Math.tan(Math.PI / 6);
+  near(reach, rounded.reach);
+  const solved = solve(gcs, rounded.sketch);
+  assert.ok(solved.ok);
+  const [first, other] = ["e1", "e2"].map((id) => solved.sketch.entities.find((entity) => entity.id === id));
+  near(Math.hypot(first.p0[0] - apex[0], first.p0[1] - apex[1]), reach);
+  near(Math.hypot(other.p0[0] - apex[0], other.p0[1] - apex[1]), reach);
+});
+
+test("a corner that cannot be rounded says why", () => {
+  let sketch = model.addLine(model.emptySketch(), [0, 3], [0, 0]).sketch;
+  sketch = model.addLine(sketch, [0, 0], [40, 0]).sketch;
+  sketch = model.connect(sketch, "e1.p1", "e2.p0");
+  assert.throws(() => model.addFillet(sketch, "e1.p1", 5), /too big/);
+  assert.throws(() => model.addFillet(sketch, "e1.p0", 1), /exactly two lines/);
+  assert.throws(() => model.addFillet(sketch, "e1.p1", 0), /above zero/);
+  assert.equal(model.suggestFilletRadius(sketch, "e1.p0"), null);
+  assert.equal(model.suggestFilletRadius(sketch, "e1.p1"), 0.75, "a quarter of the shorter line, 3");
+});
+
+test("rounding a corner that sits on the origin lets the lines come off it", () => {
+  let sketch = model.addLine(model.emptySketch(), [0, 30], [0, 0]).sketch;
+  sketch = model.addLine(sketch, [0, 0], [40, 0]).sketch;
+  sketch = model.connect(sketch, "e1.p1", "origin");
+  sketch = model.connect(sketch, "e2.p0", "origin");
+  const rounded = model.addFillet(sketch, "e1.p1", 5);
+  assert.ok(solve(gcs, rounded.sketch).ok);
+  assert.equal(rounded.sketch.constraints.some((constraint) => constraint.kind === "coincident" && [constraint.a, constraint.b].includes("origin")), false);
+});
+
+// --- Mirror ---------------------------------------------------------------------------
+
+/// A slanted line, a circle and an arc to the right of a vertical mirror line at u = 0.
+function mirrorFixture() {
+  let sketch = model.addLine(model.emptySketch(), [0, -20], [0, 20]).sketch; // e1: the mirror line
+  sketch = model.addLine(sketch, [5, 0], [15, 10]).sketch; // e2
+  sketch = model.addCircle(sketch, [20, -5], 3).sketch; // e3
+  sketch = model.addArc(sketch, [10, -10], [14, -14], [14, -10]).sketch; // e4, a quarter-ish arc
+  return sketch;
+}
+
+test("mirroring across a vertical line puts each copy at its reflection, and ties it to the original", () => {
+  const sketch = mirrorFixture();
+  const done = model.mirrorEntities(sketch, ["e2", "e3", "e4"], "e1");
+  assert.deepEqual(done.ids, ["e5", "e6", "e7"]);
+  const solved = solve(gcs, done.sketch);
+  assert.ok(solved.ok, "the symmetric constraints agree with the geometry they were made from");
+  const by = (id) => solved.sketch.entities.find((entity) => entity.id === id);
+  // Reflection across u = 0 negates u. Checked from the numbers, not from the function.
+  assert.deepEqual([by("e5").p0.map((v) => Math.round(v * 1e6) / 1e6), by("e5").p1.map((v) => Math.round(v * 1e6) / 1e6)], [[-5, 0], [-15, 10]]);
+  near(by("e6").c[0], -20);
+  near(by("e6").c[1], -5);
+  near(by("e6").r, 3);
+  const original = solver_endpoints(by("e4"));
+  const copy = solver_endpoints(by("e7"));
+  // The copy's start is the reflection of the original's end, and the other way round.
+  near(copy.p0[0], -original.p1[0]);
+  near(copy.p0[1], original.p1[1]);
+  near(copy.p1[0], -original.p0[0]);
+  near(copy.p1[1], original.p0[1]);
+  assert.equal(done.sketch.constraints.filter((constraint) => constraint.kind === "symmetric").length, 2 + 1 + 3);
+});
+
+function solver_endpoints(arc) {
+  const at = (angle) => [arc.c[0] + arc.r * Math.cos(angle), arc.c[1] + arc.r * Math.sin(angle)];
+  return { p0: at(arc.a0), p1: at(arc.a1) };
+}
+
+test("the mirrored copy follows when the original is dragged", () => {
+  // With the mirror line held, as a drawn one usually is.
+  const sketch = model.withConstraint(mirrorFixture(), { kind: "fix", e: "e1" });
+  const done = model.mirrorEntities(sketch, ["e2"], "e1");
+  const solved = solve(gcs, done.sketch, { drag: { ref: "e2.p1", delta: [0, 6] } });
+  assert.ok(solved.ok);
+  const copyEnd = solved.sketch.entities.find((entity) => entity.id === "e5").p1;
+  near(copyEnd[0], -15);
+  near(copyEnd[1], 16, "the original's end rose 6, so the copy's did too");
+});
+
+test("mirroring across a slanted line reflects across that line", () => {
+  // The line v = u. Reflecting (4, 1) across it gives (1, 4).
+  let sketch = model.addLine(model.emptySketch(), [-10, -10], [10, 10]).sketch;
+  sketch = model.addLine(sketch, [4, 1], [9, 2]).sketch;
+  const done = model.mirrorEntities(sketch, ["e2"], "e1");
+  const copy = done.sketch.entities.find((entity) => entity.id === "e3");
+  near(copy.p0[0], 1);
+  near(copy.p0[1], 4);
+  near(copy.p1[0], 2);
+  near(copy.p1[1], 9);
+  assert.ok(solve(gcs, done.sketch).ok);
+});
+
+test("mirror refuses a pick that is not shapes plus a line, and the symmetric constraint wants two points and a line", () => {
+  const sketch = mirrorFixture();
+  assert.throws(() => model.mirrorEntities(sketch, ["e3"], "e3"), /across a line/);
+  assert.throws(() => model.mirrorEntities(sketch, ["e1"], "e1"), /Select the shapes/);
+  const made = model.constraintFor(sketch, "symmetric", ["e2.p0", "e1", "e2.p1"]);
+  assert.deepEqual(made, { kind: "symmetric", a: "e2.p0", b: "e2.p1", e: "e1" });
+  assert.throws(() => model.constraintFor(sketch, "symmetric", ["e2.p0", "e2.p1"]), /two points and a line/);
+});

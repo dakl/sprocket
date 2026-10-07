@@ -21,22 +21,28 @@ Routes:
     GET  /part.mesh       the built part, in the viewer's mesh format; 404 if empty
     GET  /features.json   the timeline, each entry carrying its full feature
     GET  /schemas.json    every op's JSON Schema, which the parameter form is built from
+    GET  /export?format=stl|3mf|step   the built part as a download; 409 with the reason if there is none
     GET  /events          server-sent events: document_changed, selection_changed, highlight
     POST /rpc             one JSON-RPC request, the same methods the socket takes
     GET  anything else    a static file from the viewer directory
 """
 
 import json
+import tempfile
 import threading
 import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
-from .rpc import Daemon, _handle_line
+from .document import DocumentError
+from .rpc import METHODS, Daemon, _handle_line
 from .viewer_files import features_summary, mesh_bytes, schemas
 
 HEARTBEAT_SECONDS = 15
+# The `export` method's parameter names, which are also the file extensions.
+EXPORT_TYPES = {"stl": "model/stl", "3mf": "model/3mf", "step": "model/step"}
 
 
 class WebApp:
@@ -66,6 +72,17 @@ class WebApp:
                 shape, _ = self.daemon.session.shape()
                 self._mesh = (key, mesh_bytes(shape, self.document.appearances, self.daemon.session.bodies()))
             return self._mesh[1]
+
+
+    def export_bytes(self, kind: str) -> tuple[bytes, str]:
+        """The part as `kind` ("stl", "3mf" or "step"), and the file name to offer it under.
+        Raises DocumentError when there is nothing to export."""
+        with self.daemon.lock:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / f"part.{kind}"
+                METHODS["export"](self.daemon, {kind: str(path)})
+                data = path.read_bytes()
+            return data, f"{self.document.path.stem if self.document.path else 'part'}.{kind}"
 
 
 class _EventStream:
@@ -125,6 +142,8 @@ def make_handler(app: WebApp):
                     self._send_json(app.features_json())
                 elif route == "/schemas.json":
                     self._send_json(schemas())
+                elif route == "/export":
+                    self._send_export()
                 elif route == "/events":
                     if self._is_local_request():
                         self._stream_events()
@@ -136,6 +155,25 @@ def make_handler(app: WebApp):
                 pass
             except Exception as exc:
                 self._send_json({"error": f"{type(exc).__name__}: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        def _send_export(self):
+            kind = parse_qs(urlsplit(self.path).query).get("format", [""])[0]
+            if not self._is_local_request():
+                self._send_json({"error": "requests from other origins are refused"}, HTTPStatus.FORBIDDEN)
+            elif kind not in EXPORT_TYPES:
+                self._send_json({"error": f"format must be one of {', '.join(EXPORT_TYPES)}"}, HTTPStatus.BAD_REQUEST)
+            else:
+                try:
+                    data, name = app.export_bytes(kind)
+                except DocumentError as exc:
+                    self._send_json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                    return
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", EXPORT_TYPES[kind])
+                self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
 
         def _is_local_request(self) -> bool:
             """Refuses requests from other web pages.

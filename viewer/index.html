@@ -505,6 +505,11 @@
     .browser-eye.off { color: #555; }
     .browser-eye:hover { color: #5be0a0; }
 
+    .browser-param { flex: 0 0 74px; min-width: 0; padding: 1px 4px; font: 12px ui-monospace, monospace; color: #eee; background: #262626; border: 1px solid #444; border-radius: 3px; }
+    .browser-param:focus { outline: none; border-color: #5be0a0; }
+    .browser-param.name { flex: 1 1 auto; }
+    .browser-button { flex: 0 0 auto; padding: 0 5px; color: #999; cursor: pointer; }
+    .browser-button:hover { color: #5be0a0; }
     .browser-label {
       flex: 1;
       overflow: hidden;
@@ -534,6 +539,7 @@
     #sketch-draw-panel { flex-wrap: wrap; justify-content: center; width: max-content; max-width: 92vw; white-space: normal; }
     #sketch-plane-panel > *, #sketch-draw-panel > * { flex-shrink: 0; }
 
+    #sketch-plane-offset { width: 5em; padding: 3px 5px; font: 13px -apple-system, sans-serif; color: #eee; background: #262626; border: 1px solid #555; border-radius: 4px; }
     #sketch-plane-panel button, #sketch-draw-panel button {
       font: 13px -apple-system, sans-serif;
       padding: 4px 12px;
@@ -689,7 +695,7 @@
       <div class="tool-group">
         <div class="tool-group-buttons">
           <button class="tool-button" id="tool-new" title="New document (clears every feature, Cmd+Z restores)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" /><path d="M14 2v5h5" /><path d="M12 11v6" /><path d="M9 14h6" /></svg></button>
-          <button class="tool-button" disabled title="Export STL, 3MF or STEP - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12" /><path d="m8 7 4-4 4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /></svg></button>
+          <button class="tool-button" id="tool-export" title="Export the part as STL, 3MF or STEP"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12" /><path d="m8 7 4-4 4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /></svg></button>
         </div>
         <div class="tool-group-label">FILE</div>
       </div>
@@ -723,7 +729,7 @@
       </div>
       <div class="tool-group">
         <div class="tool-group-buttons">
-          <button class="tool-button" disabled title="Offset plane - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 6-4 12 4-6 4z" /><path d="m3 16 6-4 12 4-6 4z" stroke-dasharray="2 2" /></svg></button>
+          <button class="tool-button" id="tool-offset-plane" title="Offset plane: sketch on a plane moved along its normal. Type the offset, then pick XY, XZ, YZ or a face"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 6-4 12 4-6 4z" /><path d="m3 16 6-4 12 4-6 4z" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" disabled title="Axis - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4" stroke-dasharray="3 3" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></svg></button>
           <button class="tool-button" disabled title="Point - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2" /><path d="M12 3v4" /><path d="M12 17v4" /><path d="M3 12h4" /><path d="M17 12h4" /></svg></button>
         </div>
@@ -747,6 +753,8 @@
     <button data-plane="XY">XY</button>
     <button data-plane="XZ">XZ</button>
     <button data-plane="YZ">YZ</button>
+    <label class="sketch-hint-inline" title="Move the plane along its normal. Negative goes the other way">Offset <input id="sketch-plane-offset" type="number" step="any" value="0" /> mm</label>
+    <button id="sketch-plane-face" hidden title="Sketch on the face you picked, moved by the offset">Picked face</button>
     <span class="sketch-hint-inline">or click a face</span>
     <button id="sketch-plane-cancel">Cancel</button>
   </div>
@@ -758,6 +766,7 @@
       <button data-tool="circle" title="Circle (C)">Circle</button>
       <button data-tool="arc" title="Three-point arc (A)">Arc</button>
       <button data-tool="dimension" title="Dimension (D). Between two points, press H, V or A in the box to measure across, up or straight">Dimension</button>
+      <button data-tool="fillet" title="Fillet (F): round a corner where two lines meet with an arc of the radius you type">Fillet</button>
       <button data-tool="project" title="Project (P): click an edge of another sketch or of the part to bring it into this sketch as a locked reference">Project</button>
     </div>
     <div class="sketch-panel-group">
@@ -770,8 +779,10 @@
       <button data-constraint="tangent" title="A curve touches a line or curve">Tangent</button>
       <button data-constraint="equal" title="Equal length or radius">Equal</button>
       <button data-constraint="fix" title="Lock a point or shape in place">Fix</button>
+      <button data-constraint="symmetric" title="Two points are mirror images across a line: select the two points and the line">Symmetric</button>
     </div>
     <div class="sketch-panel-group">
+      <button id="sketch-mirror" title="Mirror (M): copy the selected shapes across a line. Pick the shapes, then shift-click the line last" disabled>Mirror</button>
       <button id="sketch-construction" title="Construction (X): turn the selected shapes into dashed guides that bound no region, or back" disabled>Construction</button>
       <button id="sketch-constraints-toggle" title="Show or hide the constraint glyphs">Constraints</button>
     </div>
@@ -1347,6 +1358,7 @@
           renderProperties();
           renderSketchOutlines(features);
           renderThreads(features);
+          refreshParameters();
           const stillThere = features.find(
             (feature) => feature.id === selectedSketchID && feature.type === "sketch" && feature.active
           );
@@ -2212,6 +2224,39 @@
 
     toolExtrudeEl.addEventListener("click", armCurrentSelection);
 
+    // Export: STL, 3MF or STEP. In a browser the engine serves the file and the
+    // page saves it. In the app the file lives where the person chooses, so the
+    // message goes to Swift, which opens its own save panel.
+    const toolExportEl = document.getElementById("tool-export");
+    const EXPORT_FORMATS = [["STL", "stl"], ["3MF", "3mf"], ["STEP", "step"]];
+    async function exportPart(format) {
+      if (!mesh) return showNotice("There is no part to export yet");
+      if (hasSwiftBridge()) {
+        window.webkit.messageHandlers.sprocket.postMessage({ type: "export", format });
+        return;
+      }
+      try {
+        const response = await fetch("/export?format=" + format);
+        if (!response.ok) throw new Error((await response.json()).error);
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(await response.blob());
+        link.download = (/filename="([^"]+)"/.exec(disposition) || [])[1] || "part." + format;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+        showNotice("Exported " + link.download, 3000);
+      } catch (error) {
+        showNotice("Export failed: " + error.message);
+      }
+    }
+    toolExportEl.addEventListener("click", () => {
+      if (sketchStage || extrudeArmed) return;
+      const box = toolExportEl.getBoundingClientRect();
+      openMenu(box.left, box.bottom + 6, "Export part as", EXPORT_FORMATS.map(([label, format]) => ({ label, action: () => exportPart(format) })));
+    });
+
     // Clears the document to zero features. No confirmation, because Swift
     // snapshots box.sprocket into the same undo stack every other edit uses, so
     // Cmd+Z brings the whole part back (see ContentView.performMutation).
@@ -2229,6 +2274,7 @@
     let bodyVisible = true;
     let gridVisible = true;
     let browserFeatures = [];
+    let documentParameters = {}; // the document's named parameters, as stored: numbers and "=expressions"
 
     const EYE_ON =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></svg>';
@@ -2306,9 +2352,10 @@
 
         const eye = document.createElement("span");
         eye.className = "browser-eye" + (options.visible ? "" : " off");
-        eye.innerHTML = options.visible ? EYE_ON : EYE_OFF;
-        eye.title = options.visible ? "Hide" : "Show";
-        eye.addEventListener("click", options.onToggle);
+        eye.innerHTML = options.noEye ? "" : options.visible ? EYE_ON : EYE_OFF;
+        eye.title = options.noEye ? "" : options.visible ? "Hide" : "Show";
+        if (options.noEye) eye.style.width = "14px";
+        else eye.addEventListener("click", options.onToggle);
         row.appendChild(eye);
 
         const label = document.createElement("span");
@@ -2424,6 +2471,9 @@
         }
       }
 
+      addRow({ depth: 1, group: "parameters", label: "Parameters", noEye: true, dim: !Object.keys(documentParameters).length });
+      if (!collapsedGroups.has("parameters")) renderParameterRows(tree);
+
       addRow({
         depth: 1,
         group: "sketches",
@@ -2450,6 +2500,94 @@
           onClick: feature.active && !hidden ? () => selectSketchForExtrude(feature) : null,
         });
       });
+    }
+
+    /// The document's named parameters, one row each: a box that takes a number
+    /// or an expression over the others, and a way to remove it. A last row adds
+    /// one. A change goes through the same set_parameter edit an agent makes,
+    /// so it is undoable and logged, and a refused one (a cycle, a name in use
+    /// by an expression) leaves the box as it was.
+    function renderParameterRows(tree) {
+      const row = (build) => {
+        const element = document.createElement("div");
+        element.className = "browser-row parameter-row";
+        element.style.paddingLeft = 6 + 2 * 14 + "px";
+        build(element);
+        tree.appendChild(element);
+      };
+      const field = (className, value, placeholder, title) => {
+        const input = document.createElement("input");
+        input.className = "browser-param " + className;
+        input.spellcheck = false;
+        input.autocomplete = "off";
+        input.value = value;
+        input.placeholder = placeholder;
+        input.title = title;
+        // Typing here must not reach the viewer's own key shortcuts.
+        input.addEventListener("keydown", (event) => event.stopPropagation());
+        return input;
+      };
+      const apply = (name, value, restore) =>
+        sendCommand({ type: "set_parameter", name, value }).catch((error) => {
+          showNotice("Parameter " + name + ": " + error.message);
+          if (restore) restore();
+        });
+      for (const [name, raw] of Object.entries(documentParameters)) {
+        row((element) => {
+          const label = document.createElement("span");
+          label.className = "browser-label";
+          label.textContent = name;
+          label.title = name + ": use it in a field as =" + name;
+          const input = field("", String(raw), "value", "A number, or an expression such as =width * 2");
+          const commit = () => {
+            if (input.value.trim() === String(raw)) return;
+            apply(name, input.value, () => (input.value = String(raw)));
+          };
+          input.addEventListener("change", commit);
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") input.blur();
+            if (event.key === "Escape") { input.value = String(raw); input.blur(); }
+          });
+          const remove = document.createElement("span");
+          remove.className = "browser-button";
+          remove.textContent = "×";
+          remove.title = "Remove " + name;
+          remove.addEventListener("click", () => apply(name, null));
+          element.append(label, input, remove);
+        });
+      }
+      row((element) => {
+        const name = field("name", "", "new name", "A name: letters, digits and underscores");
+        const value = field("", "", "value", "A number, or an expression such as =width * 2");
+        const add = document.createElement("span");
+        add.className = "browser-button";
+        add.textContent = "+";
+        add.title = "Add the parameter";
+        const commit = () => {
+          if (!name.value.trim() && !value.value.trim()) return;
+          apply(name.value.trim(), value.value, null).then(() => {});
+        };
+        for (const input of [name, value]) {
+          input.addEventListener("keydown", (event) => { if (event.key === "Enter") commit(); });
+        }
+        add.addEventListener("click", commit);
+        element.append(name, value, add);
+      });
+    }
+
+    /// Reads the document's parameters, which features.json does not carry.
+    function refreshParameters() {
+      if (!canCallDaemon()) return Promise.resolve();
+      return rpcCall("get_document", {})
+        .then((document) => {
+          sawRevision(document.revision);
+          const next = document.parameters || {};
+          if (JSON.stringify(next) === JSON.stringify(documentParameters)) return;
+          // A box being typed in keeps its text: the rebuild that follows an add repaints around it.
+          documentParameters = next;
+          renderBrowser();
+        })
+        .catch(() => {});
     }
 
     function showHint(text) { hintEl.textContent = text; hintEl.style.display = "block"; }
@@ -3639,6 +3777,13 @@
     let dimmedMeshState = null; // { transparent, opacity } to restore on exit
 
     const sketchPlanePanelEl = document.getElementById("sketch-plane-panel");
+    const sketchPlaneOffsetEl = document.getElementById("sketch-plane-offset");
+    const sketchPlaneFaceEl = document.getElementById("sketch-plane-face");
+    /// The offset typed in the plane panel, in mm. Anything that is not a number is no offset.
+    const typedPlaneOffset = () => {
+      const value = parseFloat(sketchPlaneOffsetEl.value);
+      return Number.isFinite(value) ? value : 0;
+    };
     const sketchDrawPanelEl = document.getElementById("sketch-draw-panel");
     const sketcher = createSketcher({
       THREE,
@@ -3695,6 +3840,7 @@
         finish: document.getElementById("sketch-finish"),
         toggle: document.getElementById("sketch-constraints-toggle"),
         construction: document.getElementById("sketch-construction"),
+        mirror: document.getElementById("sketch-mirror"),
         cancel: document.getElementById("sketch-cancel"),
         labels: document.getElementById("sketch-labels"),
         dimension: document.getElementById("sketch-dimension"),
@@ -3975,7 +4121,19 @@
  
  
  
-    function startSketchPickPlane() {
+    function startSketchPickPlane(options) {
+      sketchPlaneOffsetEl.value = "0";
+      // Offset plane keeps a picked face for the panel's own button, because the offset is typed after.
+      if (options && options.offset) {
+        sketchStage = "pick-plane";
+        sketchPlaneFaceEl.hidden = !(selectedPatch && mesh);
+        sketchPlanePanelEl.style.display = "flex";
+        updateToolbarState();
+        sketchPlaneOffsetEl.focus();
+        sketchPlaneOffsetEl.select();
+        return;
+      }
+      sketchPlaneFaceEl.hidden = true;
       // A face picked first is the plane: pick, then press Sketch.
       if (selectedPatch && mesh) {
         const patch = selectedPatch;
@@ -4008,12 +4166,14 @@
           .then((found) => {
             if (sketchStage !== "resolving-plane") return;
             const resolved = found.resolved;
+            const offset = typedPlaneOffset();
+            const normal = new THREE.Vector3(...resolved.normal);
             sketchPlane = makeSketchPlane(
-              new THREE.Vector3(...resolved.origin),
-              new THREE.Vector3(...resolved.normal),
+              new THREE.Vector3(...resolved.origin).addScaledVector(normal.clone().normalize(), offset),
+              normal,
               new THREE.Vector3(...resolved.x_dir)
             );
-            sketchPlane.payload = found.plane;
+            sketchPlane.payload = offset ? { ...found.plane, offset } : found.plane;
             enterSketchDrawStage();
           })
           .catch((error) => {
@@ -4044,7 +4204,7 @@
       // camera the nearest roll is a coin toss, and a sketch that opens turned
       // on its side or upside down is harder to draw in.
       const up = screenUp();
-      const canonical = Boolean(sketchPlane.ref);
+      const canonical = Boolean(sketchPlane.ref || sketchPlane.canonical);
       const side = canonical ? 1 : camera.position.clone().sub(sketchPlane.origin).dot(sketchPlane.normal) < 0 ? -1 : 1;
       const rolls = [sketchPlane.yDir, sketchPlane.xDir];
       const nearestRoll = canonical
@@ -4108,6 +4268,7 @@
       // A face or offset plane stays a reference when the sketch is redrawn.
       const raw = entry.feature && entry.feature.plane;
       if (raw && typeof raw === "object" && (raw.feature || raw.name)) sketchPlane.payload = raw;
+      if (raw && typeof raw === "object" && raw.name) sketchPlane.canonical = true;
       // The sketcher draws it now, and the saved outline would sit under it.
       editedSketchId = entry.id;
       hiddenSketchIDs.add(entry.id);
@@ -4157,13 +4318,34 @@
       document.querySelector('#sketch-plane-panel button[data-plane="' + name + '"]').addEventListener("click", () => {
         if (sketchStage !== "pick-plane") return;
         const def = SKETCH_PRINCIPAL_PLANES[name];
-        sketchPlane = makeSketchPlane(def.origin, def.normal, def.xDir);
-        sketchPlane.ref = name;
+        const offset = typedPlaneOffset();
+        sketchPlane = makeSketchPlane(def.origin.clone().addScaledVector(def.normal, offset), def.normal, def.xDir);
+        if (offset === 0) {
+          sketchPlane.ref = name;
+        } else {
+          // Stored as the engine's own {name, offset}, and opened like a principal plane.
+          sketchPlane.payload = { name, offset };
+          sketchPlane.canonical = true;
+        }
         enterSketchDrawStage();
       });
     });
 
     document.getElementById("sketch-plane-cancel").addEventListener("click", cancelSketch);
+    sketchPlaneOffsetEl.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Escape") cancelSketch();
+    });
+    sketchPlaneFaceEl.addEventListener("click", () => {
+      if (sketchStage !== "pick-plane" || !selectedPatch || !mesh) return;
+      const patch = selectedPatch;
+      clearSelection();
+      sketchOnFace(patch, patch.anchorPoint);
+    });
+    document.getElementById("tool-offset-plane").addEventListener("click", () => {
+      if (sketchStage || extrudeArmed) return;
+      startSketchPickPlane({ offset: true });
+    });
 
     // --- View cube ---------------------------------------------------
     // A small always-on gizmo showing the main camera's orientation. Its

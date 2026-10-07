@@ -119,3 +119,28 @@ def test_the_mcp_tools_reach_the_daemon(sketch_client):
     assert {tool.name for tool in sketch_tools()} >= {"sketch_add_constraint", "sketch_add_entity"}
     result = call(sketch_client, "sketch_add_constraint", {"feature": "s1", "constraint": LENGTH})
     assert "c9" in result[0].text
+
+
+def test_symmetric_puts_two_points_at_mirror_images_across_a_line(tmp_path):
+    from sprocket_engine.rpc import Client
+
+    sketch = {
+        "id": "s1", "type": "sketch", "plane": "XY",
+        "entities": [
+            {"id": "e1", "kind": "line", "p0": [0, -20], "p1": [0, 20]},
+            {"id": "e2", "kind": "line", "p0": [5, 0], "p1": [15, 10]},
+            {"id": "e3", "kind": "line", "p0": [-7, 3], "p1": [-12, 9]},
+            {"id": "e4", "kind": "circle", "c": [30, 30], "r": 2},
+        ],
+        "constraints": [{"kind": "fix", "e": "e1"}, {"kind": "fix", "e": "e2"}],
+    }
+    with running({"features": [sketch], "rollback_index": 1}, tmp_path) as daemon, Client(daemon.socket_path) as client:
+        client.call("add_constraint", feature="s1", constraint={"kind": "symmetric", "a": "e2.p0", "b": "e3.p0", "e": "e1"})
+        result = client.call("add_constraint", feature="s1", constraint={"kind": "symmetric", "a": "e2.p1", "b": "e3.p1", "e": "e1"})
+        copy = next(item for item in result["sketch"]["entities"] if item["id"] == "e3")
+        # The line u = 0 negates u, so (5, 0) and (15, 10) land at (-5, 0) and (-15, 10).
+        assert copy["p0"] == pytest.approx([-5, 0])
+        assert copy["p1"] == pytest.approx([-15, 10])
+        # The mirror needs a line: a circle is refused with a reason.
+        with pytest.raises(RpcError, match="expected line"):
+            client.call("add_constraint", feature="s1", constraint={"kind": "symmetric", "a": "e2.p0", "b": "e3.p0", "e": "e4"})
