@@ -647,6 +647,8 @@
     sameSketch,
     deleteEntities,
     snapTarget,
+    snapToCurve,
+    distanceToEntity,
     hit,
     alignment,
     constraintFor,
