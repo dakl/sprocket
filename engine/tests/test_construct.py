@@ -138,3 +138,26 @@ def test_preview_says_where_a_construct_feature_lands_even_with_no_part(tmp_path
             flat = {"id": "a", "type": "axis", "axis": {"base": "box", "face": {"select": [{"op": "faces"}, {"op": "first"}]}}}
             broken = client.call("preview_feature", feature=flat)
             assert not broken["would_build"] and "cylindrical" in broken["reason"]
+
+
+def test_pick_axis_names_a_cylindrical_face_and_a_circular_edge_by_the_body_they_are_on(tmp_path):
+    post = [
+        {"id": "hs", "type": "sketch", "plane": "XY", "circle": {"radius": 3, "center": [10, 0]}},
+        {"id": "post", "type": "extrude", "profile": "hs", "distance": 8},
+    ]
+    with running({"features": BOX + post, "rollback_index": 4}, tmp_path) as daemon:
+        with Client(daemon.socket_path) as client:
+            geometry = client.call("describe_geometry")
+            round_face = next(face["handle"] for face in geometry["faces"] if face["kind"] == "CYLINDER")
+            axis = client.call("pick_axis", handle=round_face)
+            assert axis["axis"]["base"] == "post" and "face" in axis["axis"]
+            assert axis["resolved"]["origin"][:2] == pytest.approx([10, 0]) and abs(axis["resolved"]["direction"][2]) == pytest.approx(1)
+            circle = next(edge["handle"] for edge in geometry["edges"] if edge["kind"] == "CIRCLE")
+            around = client.call("pick_axis", handle=circle)
+            assert around["axis"]["base"] == "post" and "edge" in around["axis"]
+            assert around["resolved"]["origin"][:2] == pytest.approx([10, 0])
+            line = next(edge["handle"] for edge in geometry["edges"] if edge["kind"] == "LINE")
+            assert client.call("pick_axis", handle=line)["resolved"]["direction"] is not None
+            flat = next(face["handle"] for face in geometry["faces"] if face["kind"] == "PLANE")
+            with pytest.raises(Exception, match="no axis"):
+                client.call("pick_axis", handle=flat)

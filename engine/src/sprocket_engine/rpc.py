@@ -1277,6 +1277,50 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
     return {"plane": reference, "resolved": plane_json(plane), "strategy": found["strategy"]}
 
 
+def _pick_axis(daemon: Daemon, params: dict) -> dict:
+    """An axis reference for a picked edge (`e7`) or cylindrical face (`f3`), and where it lands now.
+
+    The reference is `{"base": <the body's tip>, "edge" or "face": <selector>}`, so a
+    construct axis, a revolve or a pattern that holds it follows the geometry when an
+    upstream dimension moves it. `resolved` is the origin and direction it gives today."""
+    from .ops.construct import resolve_axis
+
+    handle = params.get("handle")
+    if not isinstance(handle, str) or not _HANDLE.fullmatch(handle):
+        raise DocumentError("'handle' must be a face or edge handle like 'f3' or 'e7'")
+    shape = daemon.session.require_shape()
+    try:
+        picked = _resolve_handle(shape, handle)
+    except ValueError as exc:
+        raise DocumentError(str(exc)) from None
+    ctx = daemon.session.context()
+    kind = "face" if handle[0] == "f" else "edge"
+    for body in daemon.session.bodies():
+        items = body["shape"].faces() if kind == "face" else body["shape"].edges()
+        local = next((index for index, item in enumerate(items) if item.is_same(picked)), None)
+        if local is not None:
+            break
+    else:
+        raise DocumentError(f"{handle} is not on a body")
+    features = daemon.session.document.for_replay()["features"]
+    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
+    try:
+        found = synthesize(body["shape"], ctx, [f"{handle[0]}{local}"], candidates)
+    except SelectorError as exc:
+        raise DocumentError(str(exc)) from None
+    reference = {"base": body["tip"], kind: found["selector"]}
+    try:
+        axis = resolve_axis(reference, ctx)
+    except (KeyError, ValueError, SelectorError) as exc:
+        raise DocumentError(f"{handle} has no axis: {exc}") from None
+    return {
+        "axis": reference,
+        "resolved": {"origin": [round(v, 9) for v in axis.position], "direction": [round(v, 9) for v in axis.direction]},
+        "strategy": found["strategy"],
+    }
+
+
 def _edge_source(daemon: Daemon, handle: str) -> dict:
     """A reference source for the body edge `handle` (`e7`) of the current build: the
     body's tip feature and a selector that finds the edge again on every rebuild."""
@@ -1499,6 +1543,7 @@ METHODS = {
     "get_file_status": _get_file_status,
     "resolve_selection": _resolve_selection,
     "face_sketch_plane": _face_sketch_plane,
+    "pick_axis": _pick_axis,
     "highlight": _highlight,
     "measure": _measure,
     "render_view": _render_view,
