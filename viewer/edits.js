@@ -53,9 +53,12 @@
   /// The newest feature that is not a sketch: what a new extrude fuses into. A
   /// sketch makes no solid, and searching back from the sketch instead would
   /// name a solid that later features have already consumed.
+  // A plane, an axis and a point build no solid either.
+  const NOT_SOLIDS = ["sketch", "plane", "axis", "point"];
+
   function lastSolidId(features) {
     for (let index = features.length - 1; index >= 0; index--) {
-      if (features[index].type !== "sketch") return features[index].id;
+      if (!NOT_SOLIDS.includes(features[index].type)) return features[index].id;
     }
     return null;
   }
@@ -155,7 +158,8 @@
       require_(message, "feature");
       if (!message.feature.type) fail("add_feature needs a feature with a type");
       const { deletes, kept } = dropRolledBackTail(state);
-      if (!kept.length) fail("there is no part yet");
+      // A construct feature needs no part: a plane can come first.
+      if (!kept.length && !["plane", "axis", "point"].includes(message.feature.type)) fail("there is no part yet");
       return [...deletes, { op: "insert", feature: { ...message.feature, id: newId(kept) } }];
     },
 
