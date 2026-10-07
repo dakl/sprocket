@@ -1,5 +1,6 @@
 // Toolbar and browser controls that used to be placeholders: Export, the
-// Parameters rows in the browser tree, and Offset plane.
+// Parameters rows in the browser tree, and the sketch tools. (Offset plane, as a
+// feature, is in construct.spec.js.)
 const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
 const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
@@ -90,12 +91,11 @@ test("a parameter used in a feature moves the part when it changes", async ({ pa
   await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(40 * 30 * 25, 3);
 });
 
-test("Offset plane: type the offset, pick XY, sketch, and the part sits on that plane", async ({ page, request }, info) => {
+test("the sketch panel's offset box: type the offset, pick XY, and the part sits on that plane", async ({ page, request }, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);
-  await page.locator("#tool-offset-plane").click();
-  await expect(page.locator("#sketch-plane-offset")).toBeFocused();
-  await page.keyboard.type("12");
+  await page.locator("#tool-sketch").click();
+  await page.locator("#sketch-plane-offset").fill("12");
   await page.screenshot({ path: info.outputPath("offset-plane-panel.png") });
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(() => window.__tcad.sketch.active);
@@ -123,36 +123,6 @@ test("Offset plane: type the offset, pick XY, sketch, and the part sits on that 
   await settled(page);
   const box = (await rpc(request, "measure")).bounding_box;
   expect([box.min[2], box.max[2]]).toEqual([12, 17]);
-});
-
-test("Offset plane on a picked face: the sketch rides the offset above the face", async ({ page, request }) => {
-  const { faces } = await rpc(request, "describe_geometry");
-  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
-  await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
-  await page.locator("#tool-offset-plane").click();
-  await expect(page.locator("#sketch-plane-face")).toBeVisible();
-  await page.keyboard.type("3");
-  await page.locator("#sketch-plane-face").click();
-  await page.waitForFunction(() => window.__tcad.sketch.active);
-  await cameraStill(page);
-  const plane = await rpc(request, "resolve_plane", { plane: { feature: "f2", face: { select: [{ op: "faces" }, { op: "nearest_to", point: [0, 0, 10], normal: [0, 0, 1] }] }, offset: 3 } });
-  expect(plane.plane.origin[2]).toBeCloseTo(13, 6);
-  // Draw and finish: the stored plane carries the offset beside the face selector.
-  await page.locator('#sketch-draw-panel [data-tool="rectangle"]').click();
-  for (const uv of [[-5, -5], [5, 5]]) {
-    const at = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
-    await page.mouse.click(at.x, at.y);
-  }
-  await expect.poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length).toBe(4);
-  await page.locator("#sketch-finish").click();
-  await page.waitForFunction(() => !window.__tcad.sketch.active && window.__tcad.timeline.length === 3);
-  const stored = (await rpc(request, "get_document")).features[2].plane;
-  expect(stored.offset).toBe(3);
-  expect(stored.feature).toBe("f2");
-  const resolved = (await page.evaluate(() => window.__tcad.timeline)).every((entry) => !entry.failed);
-  expect(resolved).toBe(true);
 });
 
 test("the Fillet tool rounds a corner of two lines with an arc of the radius typed", async ({ page, request }, info) => {
