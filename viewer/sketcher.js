@@ -17,7 +17,7 @@
   const ALIGN_DEGREES = 4;
   const DRAG_PIXELS = 4;
   const COLOURS = { free: 0x4da3ff, fixed: 0xe8e8e8, selected: 0xffaa00, hover: 0xffdd55, preview: 0x5be0a0, origin: 0xff6b6b, reference: 0xc77dff };
-  const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension", p: "project", f: "fillet" };
+  const TOOL_KEYS = { s: "select", l: "line", r: "rectangle", c: "circle", a: "arc", d: "dimension", p: "project", f: "fillet", t: "trim", e: "extend", o: "offset" };
   const HINTS = {
     select: "Click to select, drag to move. Delete removes.",
     line: "Click to start a line, click again to place its end. Esc ends the chain.",
@@ -27,6 +27,9 @@
     dimension: "Click a line, a circle, two points or two lines",
     fillet: "Click a corner where two lines meet, then type the radius",
     project: "Click an edge of another sketch or of the part to project it here as a locked reference",
+    trim: "Click the piece of a line, arc or circle to remove, between the shapes that cross it",
+    extend: "Click near the end of a line or arc to run it on to the next shape",
+    offset: "Click a line, arc or circle, move to the side, then type a distance and press Enter",
   };
   // In the dimension box, between two points: which way to measure.
   const ORIENTATIONS = { a: "aligned", h: "horizontal", v: "vertical" };
@@ -67,6 +70,7 @@
     let press = null; // a pointer that went down in the select tool: {x, y, hit, uv, dragging}
     let dimension = null; // the open dimension box: {constraint, anchor, index}
     let message = "";
+    let offsetPreview = null; // polylines of the offset the open box would make
     let active = false;
     let dirty = false;
     let selectedConstraint = null; // id of the glyph or dimension label that is selected
@@ -172,6 +176,7 @@
 
       const preview = previewShape();
       if (preview) group.add(line(preview, COLOURS.preview));
+      if (offsetPreview) offsetPreview.forEach((shape) => group.add(line(shape, COLOURS.preview)));
       if (hover && hover.project) group.add(segments(hover.project.segments, COLOURS.hover));
       renderLabels();
       renderSnap();
@@ -330,6 +335,7 @@
 
     function closeDimension() {
       dimension = null;
+      offsetPreview = null;
       selection = [];
       ui.dimension.style.display = "none";
       ui.dimension.blur();
@@ -340,6 +346,20 @@
       const value = parseFloat(ui.dimension.value);
       if (!Number.isFinite(value) || value <= 0 && dimension.constraint.kind !== "angle") {
         setMessage("Type a number above zero");
+        return;
+      }
+      if (dimension.offset) {
+        try {
+          const made = root.SketchTools.offsetChain(sketch, dimension.offset.id, dimension.offset.side * value);
+          if (change(made.sketch)) {
+            closeDimension();
+            selection = made.ids;
+            setMessage("Offset " + made.ids.length + (made.ids.length === 1 ? " shape" : " shapes") + " by " + value);
+            render();
+          }
+        } catch (error) {
+          setMessage(error.message);
+        }
         return;
       }
       if (dimension.fillet) {
@@ -739,6 +759,63 @@
       setMessage("Fillet radius: type a value and press Enter");
     }
 
+    /// A click with Trim, Extend or Offset. Trim and Extend edit at once; Offset
+    /// opens the distance box and waits for the side and the number.
+    function cutClick(under) {
+      // The nearest curve, not what is under a point: the origin or a corner is no use here.
+      const curve = under && model.snapToCurve(sketch, under.uv, radius(SNAP_PIXELS, under.uv));
+      const id = curve && curve.entity;
+      if (!id) {
+        setMessage("Click a line, arc or circle");
+        return;
+      }
+      try {
+        if (tool === "offset") {
+          const side = root.SketchTools.sideOf(sketch, id, under.uv) || 1;
+          openDimension({ constraint: { kind: "distance", value: 5 }, anchor: under.uv, index: null, offset: { id, side, edited: false } });
+          setMessage("Move to the side to offset to, type a distance, press Enter");
+          updateOffsetPreview();
+          return;
+        }
+        const edit = tool === "trim" ? root.SketchTools.trimEntity(sketch, id, under.uv) : root.SketchTools.extendEntity(sketch, id, under.uv);
+        if (change(edit.sketch)) {
+          selection = [];
+          setMessage(tool === "trim" ? "Trimmed " + id : "Extended " + id);
+        }
+      } catch (error) {
+        setMessage(error.message);
+      }
+    }
+
+    /// The pointer moved with the offset box open: the side it is on, and the
+    /// distance to the shape until a number has been typed.
+    function moveOffset(uv) {
+      const open = dimension.offset;
+      const entity = sketch.entities.find((item) => item.id === open.id);
+      const side = root.SketchTools.sideOf(sketch, open.id, uv);
+      if (side) open.side = side;
+      if (!open.edited) {
+        ui.dimension.value = String(Math.max(0.1, Math.round(model.distanceToEntity(entity, uv) * 10) / 10));
+        ui.dimension.select(); // the next key replaces it
+      }
+      updateOffsetPreview();
+    }
+
+    function updateOffsetPreview() {
+      const open = dimension && dimension.offset;
+      offsetPreview = null;
+      const value = parseFloat(ui.dimension.value);
+      if (open && value > 0) {
+        try {
+          const made = root.SketchTools.offsetChain(sketch, open.id, open.side * value);
+          offsetPreview = made.ids.map((id) => polyline(made.sketch.entities.find((entity) => entity.id === id)));
+        } catch (error) {
+          setMessage(error.message);
+        }
+      }
+      render();
+    }
+
     let projecting = false;
 
     /// Asks the engine to project what the pointer is over into this sketch,
@@ -779,7 +856,11 @@
         if (change(sketch, { drag: { ref: press.hit.reference, delta } })) press.uv = uv;
         return;
       }
-      const under = tool === "line" || tool === "select" || tool === "dimension" || tool === "fillet" ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) : null;
+      if (dimension && dimension.offset) {
+        moveOffset(uv);
+        return;
+      }
+      const under = ["line", "select", "dimension", "fillet", "trim", "extend", "offset"].includes(tool) ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) : null;
       const snapped = tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc" ? target(uv) : { uv };
       hover = { uv: snapped.uv, hit: under, snap: snapped.reference || snapped.curve ? snapped : null };
       if (tool === "line" && pending.length && !snapped.reference && !snapped.curve) {
@@ -795,8 +876,16 @@
 
     function pointerDown(event) {
       if (event.button !== 0) return;
+      if (dimension && dimension.offset) {
+        acceptDimension();
+        return;
+      }
       if (dimension) {
         addSecondPick(event);
+        return;
+      }
+      if (tool === "trim" || tool === "extend" || tool === "offset") {
+        cutClick(selectionUnder(event));
         return;
       }
       if (tool === "select") {
@@ -1046,6 +1135,11 @@
     }
 
     ui.tools.forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
+    ui.dimension.addEventListener("input", () => {
+      if (!dimension || !dimension.offset) return;
+      dimension.offset.edited = true;
+      updateOffsetPreview();
+    });
     ui.constraints.forEach((button) => button.addEventListener("click", () => applyConstraint(button.dataset.constraint)));
     ui.finish.addEventListener("click", finish);
     ui.cancel.addEventListener("click", cancel);
