@@ -865,6 +865,12 @@ def _referenced_ids(feature: dict) -> list[str]:
     plane = feature.get("plane")
     if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
         referenced.append(plane["feature"])
+    # A plane, an axis or a pattern direction may name a construct feature, or the body an axis is found on.
+    named = [plane, feature.get("axis"), (feature.get("circular") or {}).get("axis")]
+    named += [(feature.get(key) or {}).get("direction") for key in ("linear", "linear2")]
+    for item in named:
+        if isinstance(item, dict):
+            referenced.extend(item[key] for key in ("construct", "base") if isinstance(item.get(key), str))
     # A projected reference names the sketch or body it was projected from.
     for entity in feature.get("entities") or []:
         source = entity.get("reference") if isinstance(entity, dict) else None

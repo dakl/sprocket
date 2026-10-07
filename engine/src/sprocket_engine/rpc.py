@@ -36,7 +36,8 @@ from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 from .render import render_png
-from .replay import build_shape, last_solid_index, replay, with_settings
+from .ops.construct import CONSTRUCT_TYPES, construct_geometry
+from .replay import NOT_SOLIDS, build_shape, last_solid_index, replay, with_settings
 from .selectors import SelectorError, resolve_selector
 from .synthesis import synthesize
 from .viewer_files import write_viewer_files
@@ -905,13 +906,20 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
     )
 
     try:
-        shape = replay(trial.for_replay(), cache_dir=daemon.session.cache_dir)
+        shape, ctx = replay(trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True)
     except Exception as exc:
         return {
             "would_build": False,
             "failed_feature": getattr(exc, "feature_id", None),
             "reason": f"{type(exc).__name__}: {exc}",
         }
+    feature = params.get("feature") or {}
+    if feature.get("type") in CONSTRUCT_TYPES:
+        # No solid to measure: the answer is where the construct feature lands.
+        try:
+            return {"would_build": True, "construct": construct_geometry(feature, ctx)}
+        except Exception as exc:
+            return {"would_build": False, "reason": f"{type(exc).__name__}: {exc}"}
     if shape is None:
         return {"would_build": False, "reason": "the previewed feature built nothing"}
     built = {
@@ -1218,7 +1226,7 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
     tip = last_solid_index(features, replayable["rollback_index"])
     _, ctx = replay({"features": features, "rollback_index": tip}, cache_dir=daemon.session.cache_dir, return_context=True)
     try:
-        return synthesize(shape, ctx, handles, [feature["id"] for feature in features[:tip] if feature.get("type") != "sketch"])
+        return synthesize(shape, ctx, handles, [feature["id"] for feature in features[:tip] if feature.get("type") not in NOT_SOLIDS])
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
 
@@ -1253,7 +1261,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"{handle} is not on a part body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") != "sketch"]
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
     try:
         found = synthesize(body["shape"], ctx, [f"f{local}"], candidates)
     except SelectorError as exc:
@@ -1287,7 +1295,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
         raise DocumentError(f"{handle} is not an edge of a body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") != "sketch"]
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
     try:
         found = synthesize(body["shape"], ctx, [f"e{local}"], candidates)
     except SelectorError as exc:

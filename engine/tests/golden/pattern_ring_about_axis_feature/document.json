@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "units": {"length": "mm"},
+  "features": [
+    {"id": "ds", "type": "sketch", "plane": "XY", "circle": {"radius": 20, "center": [0, 0]}},
+    {"id": "disc", "type": "extrude", "profile": "ds", "distance": 3},
+    {"id": "ps", "type": "sketch", "plane": {"name": "XY", "offset": 3}, "circle": {"radius": 2, "center": [12, 0]}},
+    {"id": "pin", "type": "extrude", "profile": "ps", "distance": 5},
+    {"id": "spin", "type": "axis", "axis": {"origin": [0, 0, 0], "direction": [0, 0, 1]}},
+    {"id": "ring", "type": "pattern", "tool": "pin", "base": "disc", "circular": {"axis": {"construct": "spin"}, "count": 4}}
+  ]
+}

@@ -14,6 +14,7 @@ from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
 from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
+from .ops.construct import CONSTRUCT_TYPES, construct_geometry
 from .ops.thread import thread_geometry
 from .sketch_reference import has_references
 
@@ -69,6 +70,12 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             # the feature's own failure says why.
             try:
                 entry["thread"] = thread_geometry(feature, ctx)
+            except Exception:
+                pass
+        if feature.get("type") in CONSTRUCT_TYPES and entry["active"] and ctx is not None:
+            # Where to draw a plane, an axis or a point.
+            try:
+                entry["construct"] = construct_geometry(feature, ctx)
             except Exception:
                 pass
         if feature.get("id") == failed_feature:

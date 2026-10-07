@@ -14,6 +14,7 @@ from build123d import Compound
 
 from .cache import BrepCache, feature_cache_key
 from .ops import REGISTRY
+from .ops.construct import CONSTRUCT_TYPES
 from .sketch_reference import has_references, refresh_references
 
 
@@ -41,6 +42,9 @@ class Context:
     bodies: list = field(default_factory=list)
 
 
+# A sketch is a flat profile and a construct feature a reference: neither makes a solid.
+NOT_SOLIDS = ("sketch", *CONSTRUCT_TYPES)
+
 # Ops whose `tool` ends the tool's body: its solid went into another body.
 CONSUMES_TOOL = {"boolean", "pattern", "mirror"}
 
@@ -57,7 +61,7 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
     root_of, tip_of, order, consumed = {}, {}, [], set()
     for feature in features:
         feature_id = feature["id"]
-        if feature.get("type") == "sketch" or feature_id not in ctx.results:
+        if feature.get("type") in NOT_SOLIDS or feature_id not in ctx.results:
             continue
         base = feature.get("base")
         root = root_of.get(base, feature_id) if base else feature_id
@@ -169,7 +173,7 @@ def last_solid_index(features: list[dict], rollback_index: int) -> int:
     and blank out whatever solid came before it. Walk back past any trailing
     sketch features to the last one that actually produced a solid."""
     index = rollback_index
-    while index > 0 and features[index - 1].get("type") == "sketch":
+    while index > 0 and features[index - 1].get("type") in NOT_SOLIDS:
         index -= 1
     return index
 
@@ -213,6 +217,9 @@ def _trailing_sketches(features: list[dict], start: int, stop: int, ctx: Context
     one that cannot be, as a failed feature.
     """
     for feature in features[start:stop]:
+        if feature.get("type") in CONSTRUCT_TYPES:
+            ctx.features[feature["id"]] = feature
+            continue
         if feature.get("type") != "sketch":
             continue
         try:
