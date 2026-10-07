@@ -3460,17 +3460,55 @@
     let modifyPreview = null; // { mesh, lines }: the previewed part, drawn over the real one
     const PREVIEW_DELAY_MS = 200;
 
-    /// The newest feature that makes a solid, which is what a modify tool works on.
+    /// The newest feature that makes a solid: the base when the mesh header lists no bodies.
     function tipFeatureId() {
       const solids = browserFeatures.filter((entry) => entry.active && entry.type !== "sketch");
       return solids.length ? solids[solids.length - 1].id : null;
     }
 
+    /// The body that owns edge `edgeIndex`, from the mesh header's edge counts.
+    function bodyOfEdge(edgeIndex) {
+      let start = 0;
+      for (const body of mesh.geometry.userData.bodies) {
+        if (edgeIndex < start + body.edges) return body;
+        start += body.edges;
+      }
+      return null;
+    }
+
+    /// The body a Modify tool works on, from what is picked: the body of the
+    /// selected edges or of the selected face. With nothing picked and one
+    /// body, that body. {body} or {error}.
+    function modifyBody(kind) {
+      const bodies = mesh.geometry.userData.bodies;
+      let owners = [];
+      if (kind === "fillet" || kind === "chamfer") owners = selectedEdges.map(bodyOfEdge);
+      else if (selectedPatch) owners = [bodyOfFace(selectedPatch.faceIndex)];
+      else if (bodies.filter((body) => !body.reference).length === 1) owners = [bodies.find((body) => !body.reference)];
+      else return { error: "Pick a face of the body to shell first." };
+      const ids = new Set(owners.map((body) => body && body.id));
+      if (ids.size !== 1) return { error: "Pick edges of one body." };
+      const body = owners[0];
+      if (!body) return { error: "That pick is not on a body." };
+      if (body.reference) return { error: body.name + " is a reference body." };
+      return { body };
+    }
+
     async function armModify(kind) {
       if (modifyTool || extrudeArmed || sketchStage) return;
       if (kind !== "revolve" && !mesh) return;
-      const base = tipFeatureId();
-      if (!base && kind !== "revolve") return;
+      let base = null;
+      if (kind !== "revolve") {
+        if (!mesh.geometry.userData.bodies.length) base = tipFeatureId(); // an engine that sends no body list
+        else {
+          if ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length) return showNotice("Select an edge first. Shift-click adds more.");
+          if (kind === "hole" && !selectedPatch) return showNotice("Click the face to drill first.");
+          const found = modifyBody(kind);
+          if (found.error) return showNotice(found.error);
+          base = found.body.tip;
+        }
+        if (!base) return;
+      }
       const target = { base };
       let handles = [];
       if (kind === "revolve") {

@@ -725,6 +725,92 @@ test("hole: a picked face, diameter and depth, then a counterbore", async ({ pag
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
 });
 
+// Two separate boxes: f2 (x -20..20) and f4 (x 50..90), both 30 deep and 10 tall.
+const TWO_BODIES = {
+  features: [
+    { id: "f1", type: "sketch", plane: "XY", polygon: [[-20, -15], [20, -15], [20, 15], [-20, 15]] },
+    { id: "f2", type: "extrude", profile: "f1", distance: 10 },
+    { id: "f3", type: "sketch", plane: "XY", polygon: [[50, -15], [90, -15], [90, 15], [50, 15]] },
+    { id: "f4", type: "extrude", profile: "f3", distance: 10 },
+  ],
+  rollback_index: 4,
+};
+
+async function openTwoBodies(page, request) {
+  await resetDocument(request, TWO_BODIES);
+  await page.goto("/index.html");
+  await page.waitForFunction(() => window.__tcad && window.__tcad.bodies.length === 2);
+  await settled(page);
+}
+
+/// A screen point on the top edge or top face of one body: `first` is the box left of x = 30.
+async function pointOnBody(page, request, { first, what }) {
+  const geometry = await rpc(request, "describe_geometry");
+  const wanted = (centre) => centre[2] === 10 && (centre[0] < 30) === first;
+  const candidates = what === "edge"
+    ? geometry.edges.flatMap((edge, index) => (wanted(edge.centre) ? [index] : []))
+    : geometry.faces.flatMap((face, index) => (face.normal && face.normal[2] === 1 && wanted(face.centre) ? [index] : []));
+  const found = await page.evaluate(
+    ([list, kind]) => {
+      for (const index of list) {
+        const point = window.__tcad.screenPointOf({ [kind]: index });
+        if (point && point.visible) return { index, x: point.x, y: point.y };
+      }
+      return null;
+    },
+    [candidates, what]
+  );
+  expect(found).not.toBeNull();
+  return found;
+}
+
+test("modify tools build on the body that was picked, not the newest one", async ({ page, request }) => {
+  await openTwoBodies(page, request);
+
+  // Fillet an edge of the first body: the base is f2, though f4 is the newest solid.
+  const edge = await pointOnBody(page, request, { first: true, what: "edge" });
+  await page.mouse.click(edge.x, edge.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(edge.index);
+  await page.keyboard.press("f");
+  await previewReady(page);
+  expect((await modifying(page)).feature.base).toBe("f2");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 5, null, SLOW);
+  await settled(page);
+  const fillet = (await rpc(request, "get_document")).features[4];
+  expect([fillet.type, fillet.base]).toEqual(["fillet", "f2"]);
+  const bodies = (await rpc(request, "get_bodies")).bodies;
+  expect(bodies.map((body) => body.id)).toEqual(["f2", "f4"]);
+  expect(bodies[0].volume).toBeLessThan(12000 - 0.5);
+  expect(bodies[1].volume).toBeCloseTo(12000, 3);
+
+  // A hole in the second body names f4.
+  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  const face = await pointOnBody(page, request, { first: false, what: "face" });
+  await page.mouse.click(face.x, face.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(face.index);
+  await page.keyboard.press("h");
+  await previewReady(page);
+  expect((await modifying(page)).feature.base).toBe("f4");
+  await page.keyboard.press("Escape");
+
+  // Shell with a face of the first body picked: its base is the fillet, the first body's tip.
+  const firstFace = await pointOnBody(page, request, { first: true, what: "face" });
+  await page.mouse.click(firstFace.x, firstFace.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(firstFace.index);
+  await page.locator("#tool-shell").click();
+  await previewReady(page);
+  expect((await modifying(page)).feature.base).toBe(fillet.id);
+  await page.keyboard.press("Escape");
+});
+
+test("Shell with several bodies and nothing picked asks for a face", async ({ page, request }) => {
+  await openTwoBodies(page, request);
+  await page.locator("#tool-shell").click();
+  await expect(page.locator("#modify-panel")).toBeHidden();
+  await expect(page.locator("#status")).toContainText("Pick a face");
+});
+
 test("revolve: a selected sketch turns about an axis, previews, applies, and undo removes it", async ({ page, request }) => {
   // A rectangle off the Y axis, with no extrude: the sketch is all there is.
   await resetDocument(request, {

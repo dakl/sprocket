@@ -69,6 +69,7 @@ def test_the_mesh_lists_bodies_in_face_order_with_colours(tmp_path):
     lid_top = {"color": "#00ff00", "select": {"select": [{"op": "faces"}, {"op": "within", "box": [27, -3, 1.9, 33, 3, 2.1]}]}}
     header, colours = read_mesh_after(export_mesh, part, bodies, [lid_top], tmp_path)
     assert [(body["name"], body["faces"], body["visible"]) for body in header["bodies"]] == [("Case", 6, True), ("Lid", 3, False)]
+    assert [body["tip"] for body in header["bodies"]] == ["case", "lid"]
     assert colours[:6].tolist() == [0xFF0000] * 6
     # The appearance indexes the part's faces, so it must land on the lid's top.
     top = next(index for index, face in enumerate(part.faces()) if face.center().Z == pytest.approx(2) and face.center().X == pytest.approx(30))

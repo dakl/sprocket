@@ -215,6 +215,8 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
         for body, item, count in zip(ordered, instances, face_counts):
             body_entries.append({
                 "id": body["id"],
+                # The newest feature of the body: what a Modify tool names as its base.
+                "tip": body.get("tip", body["id"]),
                 "name": body.get("name", body["id"]),
                 "color": body.get("color"),
                 "visible": body.get("visible", True),
