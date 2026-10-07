@@ -368,3 +368,15 @@ def test_preview_can_return_a_mesh_for_the_viewer(client):
     mesh = client.call("preview_feature", feature=good, mesh=True)["mesh"]
     assert len(mesh["vertices"]) % 3 == 0 and len(mesh["triangles"]) % 3 == 0 and mesh["edges"]
     assert max(mesh["triangles"]) < len(mesh["vertices"]) // 3
+
+
+def test_face_edges_lists_the_edges_that_bound_a_face(client):
+    """Every face of the 40 x 30 x 10 box has four edges, and the top face's sit at z = 10."""
+    geometry = client.call("describe_geometry")
+    top = next(face["handle"] for face in geometry["faces"] if face.get("normal", [0, 0, 0])[2] == 1)
+    edges = client.call("face_edges", handle=top)["edges"]
+    assert len(edges) == 4
+    by_handle = {edge["handle"]: edge for edge in geometry["edges"]}
+    assert [by_handle[handle]["centre"][2] for handle in edges] == [10.0] * 4
+    with pytest.raises(RpcError, match="face handle"):
+        client.call("face_edges", handle="e1")

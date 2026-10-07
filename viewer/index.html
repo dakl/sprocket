@@ -711,8 +711,8 @@
       <div class="tool-group">
         <div class="tool-group-buttons">
           <button class="tool-button" disabled title="Press pull - click a face in the viewport"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20" /><path d="m8 6 4-4 4 4" /><path d="m8 18 4 4 4-4" /></svg></button>
-          <button class="tool-button" id="tool-fillet" disabled title="Fillet (F): round the selected edges, Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg></button>
-          <button class="tool-button" id="tool-chamfer" disabled title="Chamfer (C): bevel the selected edges, Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg></button>
+          <button class="tool-button" id="tool-fillet" disabled title="Fillet (F): round the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg></button>
+          <button class="tool-button" id="tool-chamfer" disabled title="Chamfer (C): bevel the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" id="tool-shell" disabled title="Shell: hollow the part, the picked face is left open"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg></button>
           <button class="tool-button" disabled title="Combine join, cut or intersect - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg></button>
           <button class="tool-button" disabled title="Parameters - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7" /><path d="M4 10V3" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M20 21v-5" /><path d="M20 12V3" /><path d="M1 14h6" /><path d="M9 8h6" /><path d="M17 16h6" /></svg></button>
@@ -1318,6 +1318,8 @@
           applyVisibility();
           renderBrowser();
           applySection();
+          // Shell, Fillet and Hole enable on `mesh`, which was null until now.
+          updateToolbarState();
         })
         .catch((error) => {
           // Also fires for a genuinely empty document (rolled back before the
@@ -1328,6 +1330,7 @@
           console.log("no mesh to load (empty document, or a real load failure)", path, error);
           disposePart();
           renderBrowser();
+          updateToolbarState();
         }));
     }
 
@@ -2208,7 +2211,8 @@
     function updateToolbarState() {
       const idle = !extrudeArmed && !modifyTool;
       toolExtrudeEl.disabled = !idle || !(selectedPatch || selectedSketch);
-      toolFilletEl.disabled = !idle || !mesh || !selectedEdges.length;
+      // Edges, or a face: a face rounds every edge it has.
+      toolFilletEl.disabled = !idle || !mesh || !(selectedEdges.length || selectedPatch);
       toolChamferEl.disabled = toolFilletEl.disabled;
       toolHoleEl.disabled = !idle || !mesh || !selectedPatch;
       toolRevolveEl.disabled = !idle || !selectedSketch;
@@ -3457,25 +3461,119 @@
     let modifyPreview = null; // { mesh, lines }: the previewed part, drawn over the real one
     const PREVIEW_DELAY_MS = 200;
 
-    /// The newest feature that makes a solid, which is what a modify tool works on.
+    /// The newest feature that makes a solid: the base when the mesh header lists no bodies.
     function tipFeatureId() {
       const solids = browserFeatures.filter((entry) => entry.active && entry.type !== "sketch");
       return solids.length ? solids[solids.length - 1].id : null;
     }
 
+    /// The body that owns edge `edgeIndex`, from the mesh header's edge counts.
+    function bodyOfEdge(edgeIndex) {
+      let start = 0;
+      for (const body of mesh.geometry.userData.bodies) {
+        if (edgeIndex < start + body.edges) return body;
+        start += body.edges;
+      }
+      return null;
+    }
+
+    /// The body a Modify tool works on, from what is picked: the body of the
+    /// selected edges or of the selected face. With nothing picked and one
+    /// body, that body. {body} or {error}.
+    function modifyBody(kind) {
+      const bodies = mesh.geometry.userData.bodies;
+      let owners = [];
+      if ((kind === "fillet" || kind === "chamfer") && selectedEdges.length) owners = selectedEdges.map(bodyOfEdge);
+      else if (selectedPatch) owners = [bodyOfFace(selectedPatch.faceIndex)];
+      else if (bodies.filter((body) => !body.reference).length === 1) owners = [bodies.find((body) => !body.reference)];
+      else return { error: "Pick a face of the body to shell first." };
+      const ids = new Set(owners.map((body) => body && body.id));
+      if (ids.size !== 1) return { error: "Pick edges of one body." };
+      const body = owners[0];
+      if (!body) return { error: "That pick is not on a body." };
+      if (body.reference) return { error: body.name + " is a reference body." };
+      return { body };
+    }
+
+    /// Triangle index ranges (start, count) of faces first..first+count-1.
+    /// The mesh groups are one per face, in body order.
+    function faceTriangleRange(first, count) {
+      const groups = mesh.geometry.groups;
+      const last = groups[first + count - 1];
+      return { start: groups[first].start, count: last.start + last.count - groups[first].start };
+    }
+
+    /// The vertices of the triangles in `range`, passed to `visit(x, y, z)`.
+    function visitVertices(range, visit) {
+      const index = mesh.geometry.index;
+      const position = mesh.geometry.attributes.position;
+      for (let i = range.start; i < range.start + range.count; i++) {
+        const corner = index.getX(i);
+        visit(position.getX(corner), position.getY(corner), position.getZ(corner));
+      }
+    }
+
+    /// What a Modify tool sizes its starting values by: `body`'s bounding box,
+    /// and for a hole the two sides of the picked face.
+    function modifyScale(kind, body) {
+      const bodies = mesh.geometry.userData.bodies;
+      let firstFace = 0;
+      for (const other of bodies) {
+        if (other === body) break;
+        firstFace += other.faces;
+      }
+      const range = bodies.length ? faceTriangleRange(firstFace, body.faces) : { start: 0, count: mesh.geometry.index.count };
+      const box = new THREE.Box3();
+      visitVertices(range, (x, y, z) => box.expandByPoint(new THREE.Vector3(x, y, z)));
+      const size = box.getSize(new THREE.Vector3());
+      const scale = { box: [size.x, size.y, size.z] };
+      if (kind === "hole" && selectedPatch) {
+        const normal = selectedPatch.normal;
+        const across = Math.abs(normal.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const u = across.sub(normal.clone().multiplyScalar(across.dot(normal))).normalize();
+        const v = normal.clone().cross(u);
+        const low = [Infinity, Infinity];
+        const high = [-Infinity, -Infinity];
+        const point = new THREE.Vector3();
+        visitVertices(faceTriangleRange(selectedPatch.faceIndex, 1), (x, y, z) => {
+          point.set(x, y, z);
+          [point.dot(u), point.dot(v)].forEach((value, axis) => {
+            low[axis] = Math.min(low[axis], value);
+            high[axis] = Math.max(high[axis], value);
+          });
+        });
+        scale.face = [high[0] - low[0], high[1] - low[1]];
+      }
+      return scale;
+    }
+
     async function armModify(kind) {
       if (modifyTool || extrudeArmed || sketchStage) return;
       if (kind !== "revolve" && !mesh) return;
-      const base = tipFeatureId();
-      if (!base && kind !== "revolve") return;
+      let base = null;
+      let scale = null;
+      if (kind !== "revolve") {
+        if (!mesh.geometry.userData.bodies.length) base = tipFeatureId(); // an engine that sends no body list
+        else {
+          if ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length && !selectedPatch) return showNotice("Select an edge or a face first. Shift-click adds more edges.");
+          if (kind === "hole" && !selectedPatch) return showNotice("Click the face to drill first.");
+          const found = modifyBody(kind);
+          if (found.error) return showNotice(found.error);
+          base = found.body.tip;
+          scale = modifyScale(kind, found.body);
+        }
+        if (!base) return;
+      }
       const target = { base };
       let handles = [];
+      let faceToRound = null; // with no edge picked, Fillet and Chamfer take every edge of this face
       if (kind === "revolve") {
         if (!selectedSketch) return showNotice("Select a sketch first.");
         target.profile = selectedSketch.id;
       } else if (kind === "fillet" || kind === "chamfer") {
-        if (!selectedEdges.length) return showNotice("Select an edge first. Shift-click adds more.");
+        if (!selectedEdges.length && !selectedPatch) return showNotice("Select an edge or a face first. Shift-click adds more edges.");
         handles = selectedEdges.map((index) => "e" + index);
+        if (!handles.length) faceToRound = "f" + selectedPatch.faceIndex;
       } else if (kind === "hole") {
         if (!selectedPatch) return showNotice("Click the face to drill first.");
         target.point = selectedPatch.anchorPoint.toArray();
@@ -3483,11 +3581,12 @@
       } else if (kind === "shell" && selectedPatch) {
         handles = ["f" + selectedPatch.faceIndex];
       }
-      const tool = { kind, target, values: ViewerModify.defaults(kind), seq: 0, ok: false, dirty: false, timer: null, inflight: null, feature: null };
+      const tool = { kind, target, values: ViewerModify.defaults(kind, scale), seq: 0, ok: false, dirty: false, timer: null, inflight: null, feature: null };
       modifyTool = tool; // claims the tool before the first await, so a second key press does nothing
       updateToolbarState();
-      if (handles.length) {
+      if (handles.length || faceToRound) {
         try {
+          if (faceToRound) handles = (await trackPending(rpcCall("face_edges", { handle: faceToRound }))).edges;
           const answer = await trackPending(rpcCall("resolve_selection", { handles }));
           if (kind === "shell") target.open = answer.selector;
           else target.edges = answer.selector;
