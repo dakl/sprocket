@@ -711,8 +711,8 @@
       <div class="tool-group">
         <div class="tool-group-buttons">
           <button class="tool-button" disabled title="Press pull - click a face in the viewport"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20" /><path d="m8 6 4-4 4 4" /><path d="m8 18 4 4 4-4" /></svg></button>
-          <button class="tool-button" id="tool-fillet" disabled title="Fillet (F): round the selected edges, Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg></button>
-          <button class="tool-button" id="tool-chamfer" disabled title="Chamfer (C): bevel the selected edges, Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg></button>
+          <button class="tool-button" id="tool-fillet" disabled title="Fillet (F): round the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg></button>
+          <button class="tool-button" id="tool-chamfer" disabled title="Chamfer (C): bevel the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" id="tool-shell" disabled title="Shell: hollow the part, the picked face is left open"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg></button>
           <button class="tool-button" disabled title="Combine join, cut or intersect - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg></button>
           <button class="tool-button" disabled title="Parameters - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7" /><path d="M4 10V3" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M20 21v-5" /><path d="M20 12V3" /><path d="M1 14h6" /><path d="M9 8h6" /><path d="M17 16h6" /></svg></button>
@@ -2211,7 +2211,8 @@
     function updateToolbarState() {
       const idle = !extrudeArmed && !modifyTool;
       toolExtrudeEl.disabled = !idle || !(selectedPatch || selectedSketch);
-      toolFilletEl.disabled = !idle || !mesh || !selectedEdges.length;
+      // Edges, or a face: a face rounds every edge it has.
+      toolFilletEl.disabled = !idle || !mesh || !(selectedEdges.length || selectedPatch);
       toolChamferEl.disabled = toolFilletEl.disabled;
       toolHoleEl.disabled = !idle || !mesh || !selectedPatch;
       toolRevolveEl.disabled = !idle || !selectedSketch;
@@ -3482,7 +3483,7 @@
     function modifyBody(kind) {
       const bodies = mesh.geometry.userData.bodies;
       let owners = [];
-      if (kind === "fillet" || kind === "chamfer") owners = selectedEdges.map(bodyOfEdge);
+      if ((kind === "fillet" || kind === "chamfer") && selectedEdges.length) owners = selectedEdges.map(bodyOfEdge);
       else if (selectedPatch) owners = [bodyOfFace(selectedPatch.faceIndex)];
       else if (bodies.filter((body) => !body.reference).length === 1) owners = [bodies.find((body) => !body.reference)];
       else return { error: "Pick a face of the body to shell first." };
@@ -3554,7 +3555,7 @@
       if (kind !== "revolve") {
         if (!mesh.geometry.userData.bodies.length) base = tipFeatureId(); // an engine that sends no body list
         else {
-          if ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length) return showNotice("Select an edge first. Shift-click adds more.");
+          if ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length && !selectedPatch) return showNotice("Select an edge or a face first. Shift-click adds more edges.");
           if (kind === "hole" && !selectedPatch) return showNotice("Click the face to drill first.");
           const found = modifyBody(kind);
           if (found.error) return showNotice(found.error);
@@ -3565,12 +3566,14 @@
       }
       const target = { base };
       let handles = [];
+      let faceToRound = null; // with no edge picked, Fillet and Chamfer take every edge of this face
       if (kind === "revolve") {
         if (!selectedSketch) return showNotice("Select a sketch first.");
         target.profile = selectedSketch.id;
       } else if (kind === "fillet" || kind === "chamfer") {
-        if (!selectedEdges.length) return showNotice("Select an edge first. Shift-click adds more.");
+        if (!selectedEdges.length && !selectedPatch) return showNotice("Select an edge or a face first. Shift-click adds more edges.");
         handles = selectedEdges.map((index) => "e" + index);
+        if (!handles.length) faceToRound = "f" + selectedPatch.faceIndex;
       } else if (kind === "hole") {
         if (!selectedPatch) return showNotice("Click the face to drill first.");
         target.point = selectedPatch.anchorPoint.toArray();
@@ -3581,8 +3584,9 @@
       const tool = { kind, target, values: ViewerModify.defaults(kind, scale), seq: 0, ok: false, dirty: false, timer: null, inflight: null, feature: null };
       modifyTool = tool; // claims the tool before the first await, so a second key press does nothing
       updateToolbarState();
-      if (handles.length) {
+      if (handles.length || faceToRound) {
         try {
+          if (faceToRound) handles = (await trackPending(rpcCall("face_edges", { handle: faceToRound }))).edges;
           const answer = await trackPending(rpcCall("resolve_selection", { handles }));
           if (kind === "shell") target.open = answer.selector;
           else target.edges = answer.selector;

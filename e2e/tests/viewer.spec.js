@@ -614,6 +614,23 @@ test("fillet: a radius the part cannot take shows the reason and cannot be appli
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
 });
 
+test("fillet: a selected face rounds all its edges", async ({ page, request }) => {
+  await clickTopFace(page, request);
+  await expect(page.locator("#tool-fillet")).toBeEnabled();
+  await page.keyboard.press("f");
+  await previewReady(page);
+  await page.locator("#modify-radius").fill("1");
+  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === 1 && window.__tcad.modifying.ok, null, SLOW);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await settled(page);
+  const feature = (await rpc(request, "get_document")).features[2];
+  expect(feature.edges.expected_count).toBe(4);
+  // A 1 mm round along the 140 mm perimeter removes 1 * (1 - pi/4) of cross section.
+  expect(12000 - (await rpc(request, "measure")).volume).toBeCloseTo(140 * (1 - Math.PI / 4), 0); // the four corners overlap a little: 0.38 less
+  await undoOnce(page);
+});
+
 test("chamfer: C on a selected edge previews and applies a distance", async ({ page, request }) => {
   const [edge] = await topEdgePoints(page, request, 1);
   await page.mouse.click(edge.x, edge.y);
@@ -785,14 +802,29 @@ test("modify tools build on the body that was picked, not the newest one", async
   expect(bodies[0].volume).toBeLessThan(12000 - 0.5);
   expect(bodies[1].volume).toBeCloseTo(12000, 3);
 
-  // A hole in the second body names f4.
+  // The same on the second body: a fillet of its edge builds on f4 and leaves the first alone.
+  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  const second = await pointOnBody(page, request, { first: false, what: "edge" });
+  await page.mouse.click(second.x, second.y);
+  await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(second.index);
+  await page.keyboard.press("f");
+  await previewReady(page);
+  expect((await modifying(page)).feature.base).toBe("f4");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__tcad.timeline.length === 6, null, SLOW);
+  await settled(page);
+  const after = (await rpc(request, "get_bodies")).bodies;
+  expect(after.map((body) => body.tip)).toEqual(["f5", "f6"]);
+  expect(after[1].volume).toBeLessThan(12000 - 0.5);
+
+  // A hole in the second body names its tip, the new fillet f6.
   await page.evaluate(() => document.activeElement && document.activeElement.blur());
   const face = await pointOnBody(page, request, { first: false, what: "face" });
   await page.mouse.click(face.x, face.y);
   await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(face.index);
   await page.keyboard.press("h");
   await previewReady(page);
-  expect((await modifying(page)).feature.base).toBe("f4");
+  expect((await modifying(page)).feature.base).toBe("f6");
   await page.keyboard.press("Escape");
 
   // Shell with a face of the first body picked: its base is the fillet, the first body's tip.

@@ -977,6 +977,21 @@ def _describe_geometry(daemon: Daemon, params: dict) -> dict:
     return {**describe(daemon.session.require_shape()), "selection": _selection_view(daemon)}
 
 
+def _face_edges(daemon: Daemon, params: dict) -> dict:
+    """The edge handles that bound face `handle`, in the order the part numbers them.
+    The viewer's Fillet and Chamfer use it to round every edge of a picked face."""
+    handle = params.get("handle")
+    if not isinstance(handle, str) or not handle.startswith("f"):
+        raise DocumentError("'handle' must be a face handle like 'f3'")
+    shape = daemon.session.require_shape()
+    try:
+        face = _resolve_handle(shape, handle)
+    except ValueError as exc:
+        raise DocumentError(str(exc)) from None
+    bounding = face.edges()
+    return {"edges": [f"e{index}" for index, edge in enumerate(shape.edges()) if any(edge.is_same(other) for other in bounding)]}
+
+
 # ---- selection -------------------------------------------------------------
 #
 # The person's selection lives here, not in the viewer, so an agent can read it:
@@ -1461,6 +1476,7 @@ METHODS = {
     "preview_feature": _preview_feature,
     "get_profiles": _get_profiles,
     "describe_geometry": _describe_geometry,
+    "face_edges": _face_edges,
     "resolve_plane": _resolve_plane,
     "project_reference": _project_reference,
     "get_bodies": _get_bodies,
