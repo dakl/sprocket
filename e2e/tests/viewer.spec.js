@@ -632,6 +632,20 @@ test("chamfer: C on a selected edge previews and applies a distance", async ({ p
   await undoOnce(page);
 });
 
+test("Shell and Hole enable when the part arrives after the timeline", async ({ page, request }) => {
+  // The mesh file is the slow one here, so the timeline lands first. The
+  // toolbar has to follow the mesh, not just the timeline and the selection.
+  await page.route(/part\.mesh/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  await page.goto("/index.html");
+  await page.waitForFunction(() => window.__tcad && window.__tcad.timeline.length > 0);
+  await page.waitForFunction(() => window.__tcad.mesh !== null);
+  await settled(page);
+  await expect(page.locator("#tool-shell")).toBeEnabled({ timeout: 2000 });
+});
+
 test("shell: the picked face is left open, and with none the part becomes a closed hollow", async ({ page, request }) => {
   // No selection: Shell is live and hollows the part with no opening.
   await expect(page.locator("#tool-shell")).toBeEnabled();

@@ -1318,6 +1318,8 @@
           applyVisibility();
           renderBrowser();
           applySection();
+          // Shell, Fillet and Hole enable on `mesh`, which was null until now.
+          updateToolbarState();
         })
         .catch((error) => {
           // Also fires for a genuinely empty document (rolled back before the
@@ -1328,6 +1330,7 @@
           console.log("no mesh to load (empty document, or a real load failure)", path, error);
           disposePart();
           renderBrowser();
+          updateToolbarState();
         }));
     }
 
