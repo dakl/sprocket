@@ -145,3 +145,19 @@ test("set_parameter refuses an empty value and a name that is not an identifier"
   assert.throws(() => editsFor(box, { type: "set_parameter", name: "2wide", value: 3 }), /does not start with a digit/);
   assert.throws(() => editsFor(box, { type: "set_parameter", name: "my width", value: 3 }), /letters, digits/);
 });
+
+test("a construct feature can be the first feature, and a later extrude does not build on it", () => {
+  const { editsFor } = require("../edits.js");
+  const plane = { type: "plane", plane: "XY", offset: 5 };
+  const [insert] = editsFor({ features: [], rollbackIndex: 0 }, { type: "add_feature", feature: plane });
+  assert.equal(insert.feature.id, "f1");
+  assert.throws(() => editsFor({ features: [], rollbackIndex: 0 }, { type: "add_feature", feature: { type: "fillet" } }), /no part yet/);
+  const features = [
+    { id: "f1", type: "sketch", plane: "XY", polygon: [[0, 0], [1, 0], [1, 1]] },
+    { id: "f2", type: "extrude", profile: "f1", distance: 1 },
+    { id: "f3", type: "plane", plane: "XY" },
+    { id: "f4", type: "sketch", plane: { construct: "f3" }, polygon: [[0, 0], [1, 0], [1, 1]] },
+  ];
+  const edits = editsFor({ features, rollbackIndex: 4 }, { type: "extrude_sketch", profile: "f4", distance: 2 });
+  assert.equal(edits[0].feature.base, "f2");
+});

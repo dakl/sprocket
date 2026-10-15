@@ -1,7 +1,7 @@
 from build123d import Part, Pos, ShapeList, Vector
 
 from .registry import register
-from .revolve import AXIS_SCHEMA, _resolve_axis
+from .construct import AXIS_SCHEMA, resolve_axis
 
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 COUNT = {"type": "integer", "minimum": 1, "description": "copies along this direction, the original included"}
@@ -10,7 +10,10 @@ LINEAR = {
     "type": "object",
     "required": ["direction", "count", "spacing"],
     "properties": {
-        "direction": {**VECTOR3, "description": "world direction, normalised by the engine"},
+        "direction": {
+            "oneOf": [VECTOR3, AXIS_SCHEMA],
+            "description": "a world direction [x, y, z], normalised by the engine, or an axis (X, Y, Z, an axis feature) whose direction it takes",
+        },
         "count": COUNT,
         "spacing": {"type": "number", "description": "mm between neighbouring copies"},
     },
@@ -46,23 +49,29 @@ SCHEMA = {
 }
 
 
-def _linear_offsets(spec):
+def _direction(direction, ctx) -> Vector:
+    if isinstance(direction, list):
+        return Vector(*direction).normalized()
+    return resolve_axis(direction, ctx).direction.normalized()
+
+
+def _linear_offsets(spec, ctx):
     if spec is None:
         return [Vector(0, 0, 0)]
-    step = Vector(*spec["direction"]).normalized() * spec["spacing"]
+    step = _direction(spec["direction"], ctx) * spec["spacing"]
     return [step * index for index in range(spec["count"])]
 
 
-def pattern_copies(feature: dict, tool) -> list:
+def pattern_copies(feature: dict, tool, ctx=None) -> list:
     """The tool's solid at every place in the pattern, the original first."""
     if "linear" in feature:
         return [
             tool.moved(Pos(*(first + second)))
-            for first in _linear_offsets(feature["linear"])
-            for second in _linear_offsets(feature.get("linear2"))
+            for first in _linear_offsets(feature["linear"], ctx)
+            for second in _linear_offsets(feature.get("linear2"), ctx)
         ]
     circular = feature["circular"]
-    axis = _resolve_axis(circular["axis"])
+    axis = resolve_axis(circular["axis"], ctx)
     angle = circular.get("angle", 360)
     count = circular["count"]
     # A full turn would put the last copy on the first, so 360 divides by count
@@ -76,7 +85,7 @@ def apply(feature: dict, ctx):
     tool = ctx.results[feature["tool"]]
     if not tool.solids():
         raise ValueError(f"pattern tool {feature['tool']!r} is not a solid")
-    placed = pattern_copies(feature, tool)
+    placed = pattern_copies(feature, tool, ctx)
     base_id = feature.get("base")
     if base_id is None:
         result = placed[0].fuse(*placed[1:]) if len(placed) > 1 else placed[0]

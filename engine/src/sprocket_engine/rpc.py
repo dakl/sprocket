@@ -36,7 +36,8 @@ from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
 from .render import render_png
-from .replay import build_shape, last_solid_index, replay, with_settings
+from .ops.construct import CONSTRUCT_TYPES, construct_geometry
+from .replay import NOT_SOLIDS, build_shape, last_solid_index, replay, with_settings
 from .selectors import SelectorError, resolve_selector
 from .synthesis import synthesize
 from .viewer_files import write_viewer_files
@@ -977,13 +978,20 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
     )
 
     try:
-        shape = replay(trial.for_replay(), cache_dir=daemon.session.cache_dir)
+        shape, ctx = replay(trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True)
     except Exception as exc:
         return {
             "would_build": False,
             "failed_feature": getattr(exc, "feature_id", None),
             "reason": f"{type(exc).__name__}: {exc}",
         }
+    feature = params.get("feature") or {}
+    if feature.get("type") in CONSTRUCT_TYPES:
+        # No solid to measure: the answer is where the construct feature lands.
+        try:
+            return {"would_build": True, "construct": construct_geometry(feature, ctx)}
+        except Exception as exc:
+            return {"would_build": False, "reason": f"{type(exc).__name__}: {exc}"}
     if shape is None:
         return {"would_build": False, "reason": "the previewed feature built nothing"}
     built = {
@@ -1290,7 +1298,7 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
     tip = last_solid_index(features, replayable["rollback_index"])
     _, ctx = replay({"features": features, "rollback_index": tip}, cache_dir=daemon.session.cache_dir, return_context=True)
     try:
-        return synthesize(shape, ctx, handles, [feature["id"] for feature in features[:tip] if feature.get("type") != "sketch"])
+        return synthesize(shape, ctx, handles, [feature["id"] for feature in features[:tip] if feature.get("type") not in NOT_SOLIDS])
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
 
@@ -1325,7 +1333,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"{handle} is not on a part body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") != "sketch"]
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
     try:
         found = synthesize(body["shape"], ctx, [f"f{local}"], candidates)
     except SelectorError as exc:
@@ -1339,6 +1347,50 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
     if abs((face.center() - plane.origin).dot(plane.z_dir)) > 1e-6:
         raise DocumentError(f"the selector for {handle} lands on another face")
     return {"plane": reference, "resolved": plane_json(plane), "strategy": found["strategy"]}
+
+
+def _pick_axis(daemon: Daemon, params: dict) -> dict:
+    """An axis reference for a picked edge (`e7`) or cylindrical face (`f3`), and where it lands now.
+
+    The reference is `{"base": <the body's tip>, "edge" or "face": <selector>}`, so a
+    construct axis, a revolve or a pattern that holds it follows the geometry when an
+    upstream dimension moves it. `resolved` is the origin and direction it gives today."""
+    from .ops.construct import resolve_axis
+
+    handle = params.get("handle")
+    if not isinstance(handle, str) or not _HANDLE.fullmatch(handle):
+        raise DocumentError("'handle' must be a face or edge handle like 'f3' or 'e7'")
+    shape = daemon.session.require_shape()
+    try:
+        picked = _resolve_handle(shape, handle)
+    except ValueError as exc:
+        raise DocumentError(str(exc)) from None
+    ctx = daemon.session.context()
+    kind = "face" if handle[0] == "f" else "edge"
+    for body in daemon.session.bodies():
+        items = body["shape"].faces() if kind == "face" else body["shape"].edges()
+        local = next((index for index, item in enumerate(items) if item.is_same(picked)), None)
+        if local is not None:
+            break
+    else:
+        raise DocumentError(f"{handle} is not on a body")
+    features = daemon.session.document.for_replay()["features"]
+    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
+    try:
+        found = synthesize(body["shape"], ctx, [f"{handle[0]}{local}"], candidates)
+    except SelectorError as exc:
+        raise DocumentError(str(exc)) from None
+    reference = {"base": body["tip"], kind: found["selector"]}
+    try:
+        axis = resolve_axis(reference, ctx)
+    except (KeyError, ValueError, SelectorError) as exc:
+        raise DocumentError(f"{handle} has no axis: {exc}") from None
+    return {
+        "axis": reference,
+        "resolved": {"origin": [round(v, 9) for v in axis.position], "direction": [round(v, 9) for v in axis.direction]},
+        "strategy": found["strategy"],
+    }
 
 
 def _edge_source(daemon: Daemon, handle: str) -> dict:
@@ -1359,7 +1411,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
         raise DocumentError(f"{handle} is not an edge of a body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") != "sketch"]
+    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
     try:
         found = synthesize(body["shape"], ctx, [f"e{local}"], candidates)
     except SelectorError as exc:
@@ -1566,6 +1618,7 @@ METHODS = {
     "get_file_status": _get_file_status,
     "resolve_selection": _resolve_selection,
     "face_sketch_plane": _face_sketch_plane,
+    "pick_axis": _pick_axis,
     "highlight": _highlight,
     "measure": _measure,
     "render_view": _render_view,
