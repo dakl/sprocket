@@ -94,3 +94,51 @@ def test_autosave_still_saves_every_edit(daemon, client, listener):
     client.call("apply_edit", edits=[TALLER])
     assert last_change(listener)["unsaved"] is False
     assert Document.load(daemon.session.document.path).features[1]["distance"] == 12
+
+
+def test_document_moved_follows_the_file_without_saving(manual, client, tmp_path):
+    client.call("apply_edit", edits=[TALLER])
+    old = manual.session.document.path
+    new = tmp_path / "renamed.sprocket"
+    old.rename(new)  # what NSDocument's Rename does before it tells the engine
+    before = new.read_bytes()
+
+    client.call("document_moved", path=str(new))
+    status = client.call("get_file_status")
+    assert status["path"] == str(new)
+    assert status["unsaved"] is True
+    assert new.read_bytes() == before
+
+    client.call("save")
+    assert Document.load(new).features[1]["distance"] == 12
+    assert not old.exists()
+
+
+def test_document_moved_refuses_a_path_that_does_not_exist(manual, client, tmp_path):
+    with pytest.raises(RpcError, match="does not exist"):
+        client.call("document_moved", path=str(tmp_path / "missing.sprocket"))
+    assert client.call("get_file_status")["path"] == str(manual.session.document.path)
+
+
+def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(manual, client, listener):
+    path = manual.session.document.path
+    rewritten = json.loads(path.read_text())
+    rewritten["features"][1]["distance"] = 30
+    path.write_text(json.dumps(rewritten))
+    assert manual.check_file() == "reloaded"
+    assert last_change(listener)["unsaved"] is False
+    assert not manual.recovery_path.exists()
+    # Undoing the reload puts back what the file no longer holds.
+    client.call("undo")
+    assert last_change(listener)["unsaved"] is True
+
+
+@pytest.mark.parametrize("content", [None, "not json", '{"path": null}'])
+def test_restore_recovery_refuses_a_missing_or_broken_file(manual, client, tmp_path, content):
+    file = tmp_path / "recovery.bad.json"
+    if content is not None:
+        file.write_text(content)
+    revision = client.call("get_document")["revision"]
+    with pytest.raises(RpcError, match="cannot read the recovery file"):
+        client.call("restore_recovery", file=str(file))
+    assert client.call("get_document")["revision"] == revision
