@@ -8,6 +8,13 @@ let package = Package(
         .executableTarget(
             name: "SprocketApp",
             path: "Sources/SprocketApp"
-        )
+        ),
+        // `swift test`. Swift Testing, not XCTest: the Command Line Tools ship
+        // without XCTest, and a full Xcode is not assumed.
+        .testTarget(
+            name: "SprocketAppTests",
+            dependencies: ["SprocketApp"],
+            path: "Tests/SprocketAppTests"
+        ),
     ]
 )

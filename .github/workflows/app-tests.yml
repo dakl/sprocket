@@ -1,0 +1,21 @@
+name: app tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "app/**"
+      - "Makefile"
+      - ".github/workflows/app-tests.yml"
+
+jobs:
+  swift:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      # The runner has a full Xcode, so `swift test` finds Swift Testing's
+      # macros without the Command Line Tools flag the Makefile adds locally.
+      - run: swift build
+        working-directory: app
+      - run: make test-app
