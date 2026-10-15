@@ -278,6 +278,10 @@ class Document:
         # The hash of the bytes last read from or written to `path`. The daemon
         # compares the file against it to tell its own save from someone else's.
         self.saved_sha256: str | None = None
+        # The editable state as the file holds it, for `has_unsaved_changes`. The
+        # file's bytes cannot tell: they carry the revision and the log, so an
+        # undo back to the saved state still writes different bytes.
+        self.saved_snapshot: dict | None = None
 
     # ---- loading and saving ------------------------------------------------
 
@@ -357,6 +361,7 @@ class Document:
         document = cls(features, rollback_index, parameters, revision, log, path, appearances, bodies)
         resolve_parameters(document.parameters)  # fail at open, not at first build
         document.saved_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        document.saved_snapshot = document.snapshot()
         return document
 
     def to_json(self) -> dict:
@@ -388,7 +393,12 @@ class Document:
         temporary.replace(target)
         self.path = target
         self.saved_sha256 = hashlib.sha256(data).hexdigest()
+        self.saved_snapshot = self.snapshot()
         return target
+
+    def has_unsaved_changes(self) -> bool:
+        """Whether the editable state differs from what was last loaded or saved."""
+        return self.snapshot() != self.saved_snapshot
 
     def file_sha256(self) -> str | None:
         """The hash of what is on disk at `path` now, or None if nothing is."""

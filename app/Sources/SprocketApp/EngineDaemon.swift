@@ -17,14 +17,21 @@ struct EngineError: LocalizedError {
 ///
 /// Subprocess isolation stays, for the reason the spec calls out: OCCT can
 /// segfault on bad geometry, and a crash should cost one failed edit, not the
-/// app. `shutdown()` runs on app exit so the engine does not outlive the window.
+/// app. Each open document has its own daemon (see SprocketDocument), so a
+/// crash costs one window, not all of them. `shutdown()` runs when the document
+/// closes and on app exit, so the engine does not outlive the window.
 final class EngineDaemon {
-    static let shared = EngineDaemon()
+    /// Numbers the sockets of one app run: `sprocket-<pid>-<n>.sock`.
+    private static var started = 0
+    private static let startedLock = NSLock()
 
     /// Called on the main queue with the new revision after any client's edit.
     /// `opened` is true when the engine swapped in another document. The last
     /// argument is the whole notification's params as JSON (author, changes).
     var onDocumentChanged: ((Int, Bool, String?, String) -> Void)?
+    /// Called on the main queue with every `document_changed`'s `unsaved` flag
+    /// and author (`file` when the engine reloaded the file from disk).
+    var onSaveStateChanged: ((Bool, String?) -> Void)?
     /// Called on the main queue with any other notification the viewer acts
     /// on, such as `document_conflict`: the method and its params as JSON.
     var onNotification: ((String, String) -> Void)?
@@ -35,20 +42,24 @@ final class EngineDaemon {
     var onExit: (() -> Void)?
 
     private var process: Process?
-    private var socketPath: String?
+    private(set) var socketPath: String?
     private var descriptor: Int32 = -1
     private let lock = NSLock()
     private var nextID = 1
     private var pending: [Int: (Result<[String: Any], EngineError>) -> Void] = [:]
 
-    private init() {}
+    init() {}
 
     /// Starts the daemon and blocks until it accepts a connection. The daemon
     /// writes the viewer's files before it opens the socket, so a connection
     /// means the viewer has something to load. Call off the main thread: the
     /// first start imports build123d, which takes a few seconds.
-    func start(document: URL, viewerDir: URL) throws {
-        let path = NSTemporaryDirectory() + "sprocket-\(ProcessInfo.processInfo.processIdentifier).sock"
+    func start(document: URL, viewerDir: URL, recovery: URL) throws {
+        Self.startedLock.lock()
+        Self.started += 1
+        let number = Self.started
+        Self.startedLock.unlock()
+        let path = NSTemporaryDirectory() + "sprocket-\(ProcessInfo.processInfo.processIdentifier)-\(number).sock"
         // The kernel caps a Unix socket path at about 100 bytes.
         guard path.utf8.count < 100 else {
             throw EngineError(message: "socket path is too long: \(path)")
@@ -62,6 +73,9 @@ final class EngineDaemon {
         process.arguments = launch.arguments + [
             "daemon", document.path,
             "--socket", path, "--viewer-dir", viewerDir.path,
+            // The window's Save writes the file, not every edit. Unsaved edits
+            // are copied to `recovery` so a crash loses nothing.
+            "--no-autosave", "--recovery", recovery.path,
         ]
         // Both streams go to our own log, and both must be drained: a full
         // pipe would block the engine mid-print.
@@ -127,18 +141,30 @@ final class EngineDaemon {
         }
     }
 
-    /// Deletes `sprocket-<pid>.sock` files left by a run that was killed, so
-    /// they do not pile up. A socket whose pid is still alive is kept.
+    /// Deletes `sprocket-<pid>-<n>.sock` files (and the older `sprocket-<pid>.sock`)
+    /// left by a run that was killed, so they do not pile up. A socket whose pid
+    /// is still alive is kept.
     static func removeStaleSockets() {
         let directory = NSTemporaryDirectory()
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
         for name in names where name.hasPrefix("sprocket-") && name.hasSuffix(".sock") {
-            let digits = name.dropFirst("sprocket-".count).dropLast(".sock".count)
-            guard let pid = Int32(digits) else { continue }
-            // kill(pid, 0) sends nothing. EPERM means the pid exists but is not ours.
-            if kill(pid, 0) == 0 || errno == EPERM { continue }
+            let digits = name.dropFirst("sprocket-".count).dropLast(".sock".count).prefix { $0 != "-" }
+            guard let pid = Int32(digits), !isAlive(pid) else { continue }
             try? FileManager.default.removeItem(atPath: directory + name)
         }
+    }
+
+    /// kill(pid, 0) sends nothing. EPERM means the pid exists but is not ours.
+    static func isAlive(_ pid: Int32) -> Bool {
+        kill(pid, 0) == 0 || errno == EPERM
+    }
+
+    /// Marks this document's socket as the newest. The MCP server connects to the
+    /// newest live socket (`find_socket` in mcp_server.py), so an agent started
+    /// now works on the window in front.
+    func markFrontmost() {
+        guard let socketPath else { return }
+        utimes(socketPath, nil)
     }
 
     func shutdown() {
@@ -189,8 +215,13 @@ final class EngineDaemon {
            let revision = params["revision"] as? Int {
             let opened = params["opened"] as? Bool ?? false
             let viewerError = params["viewer_error"] as? String
+            let unsaved = params["unsaved"] as? Bool ?? false
+            let author = params["author"] as? String
             let json = (try? JSONSerialization.data(withJSONObject: params)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-            DispatchQueue.main.async { self.onDocumentChanged?(revision, opened, viewerError, json) }
+            DispatchQueue.main.async {
+                self.onSaveStateChanged?(unsaved, author)
+                self.onDocumentChanged?(revision, opened, viewerError, json)
+            }
         }
         if let method = message["method"] as? String, method == "document_conflict",
            let params = message["params"] as? [String: Any],
@@ -242,5 +273,28 @@ final class EngineDaemon {
         if result == 0 { return fd }
         close(fd)
         return nil
+    }
+}
+
+extension EngineDaemon {
+    func call(_ method: String, _ params: [String: Any]) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { continuation in
+            call(method: method, params: params) { result in
+                continuation.resume(with: result.mapError { $0 as Error })
+            }
+        }
+    }
+
+    /// For NSDocument's synchronous save and revert, which run on the main
+    /// thread. The reply arrives on the read thread, so waiting here is safe.
+    func callAndWait(_ method: String, _ params: [String: Any]) throws -> [String: Any] {
+        let done = DispatchSemaphore(value: 0)
+        var outcome: Result<[String: Any], EngineError> = .failure(EngineError(message: "no reply"))
+        call(method: method, params: params) { result in
+            outcome = result
+            done.signal()
+        }
+        done.wait()
+        return try outcome.get()
     }
 }
