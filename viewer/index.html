@@ -714,24 +714,24 @@
           <button class="tool-button" id="tool-fillet" disabled title="Fillet (F): round the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" id="tool-chamfer" disabled title="Chamfer (C): bevel the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" id="tool-shell" disabled title="Shell: hollow the part, the picked face is left open"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg></button>
-          <button class="tool-button" disabled title="Combine join, cut or intersect - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg></button>
+          <button class="tool-button" id="tool-combine" disabled title="Combine: join, cut or intersect two bodies"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg></button>
           <button class="tool-button" disabled title="Parameters - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7" /><path d="M4 10V3" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M20 21v-5" /><path d="M20 12V3" /><path d="M1 14h6" /><path d="M9 8h6" /><path d="M17 16h6" /></svg></button>
         </div>
         <div class="tool-group-label">MODIFY</div>
       </div>
       <div class="tool-group">
         <div class="tool-group-buttons">
-          <button class="tool-button" disabled title="Mirror - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" stroke-dasharray="2 2" /><path d="M8 7 3 12l5 5z" /><path d="m16 7 5 5-5 5z" /></svg></button>
-          <button class="tool-button" disabled title="Linear pattern - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /><rect x="16" y="9" width="6" height="6" rx="1" /></svg></button>
-          <button class="tool-button" disabled title="Circular pattern - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5" /><rect x="9.5" y="2" width="5" height="5" rx="1" /><rect x="16" y="14" width="5" height="5" rx="1" /><rect x="3" y="14" width="5" height="5" rx="1" /></svg></button>
+          <button class="tool-button" id="tool-mirror" disabled title="Mirror: pick a body in the browser, then the plane to copy it across"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" stroke-dasharray="2 2" /><path d="M8 7 3 12l5 5z" /><path d="m16 7 5 5-5 5z" /></svg></button>
+          <button class="tool-button" id="tool-linear" disabled title="Linear pattern: pick a body in the browser, then a direction, a count and a spacing"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /><rect x="16" y="9" width="6" height="6" rx="1" /></svg></button>
+          <button class="tool-button" id="tool-circular" disabled title="Circular pattern: pick a body in the browser, then an axis, a count and an angle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5" /><rect x="9.5" y="2" width="5" height="5" rx="1" /><rect x="16" y="14" width="5" height="5" rx="1" /><rect x="3" y="14" width="5" height="5" rx="1" /></svg></button>
         </div>
         <div class="tool-group-label">PATTERN</div>
       </div>
       <div class="tool-group">
         <div class="tool-group-buttons">
-          <button class="tool-button" id="tool-offset-plane" title="Offset plane: sketch on a plane moved along its normal. Type the offset, then pick XY, XZ, YZ or a face"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 6-4 12 4-6 4z" /><path d="m3 16 6-4 12 4-6 4z" stroke-dasharray="2 2" /></svg></button>
-          <button class="tool-button" disabled title="Axis - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4" stroke-dasharray="3 3" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></svg></button>
-          <button class="tool-button" disabled title="Point - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2" /><path d="M12 3v4" /><path d="M12 17v4" /><path d="M3 12h4" /><path d="M17 12h4" /></svg></button>
+          <button class="tool-button" id="tool-offset-plane" title="Offset plane: a named plane moved along its normal from XY, XZ, YZ, a face or another plane"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 6-4 12 4-6 4z" /><path d="m3 16 6-4 12 4-6 4z" stroke-dasharray="2 2" /></svg></button>
+          <button class="tool-button" id="tool-axis" disabled title="Axis: pick a round face or an edge, and name its axis"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4" stroke-dasharray="3 3" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></svg></button>
+          <button class="tool-button" id="tool-point" title="Point: a named point. A picked face or edge fills in its centre"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2" /><path d="M12 3v4" /><path d="M12 17v4" /><path d="M3 12h4" /><path d="M17 12h4" /></svg></button>
         </div>
         <div class="tool-group-label">CONSTRUCT</div>
       </div>
@@ -753,8 +753,8 @@
     <button data-plane="XY">XY</button>
     <button data-plane="XZ">XZ</button>
     <button data-plane="YZ">YZ</button>
+    <span id="sketch-plane-constructs"></span>
     <label class="sketch-hint-inline" title="Move the plane along its normal. Negative goes the other way">Offset <input id="sketch-plane-offset" type="number" step="any" value="0" /> mm</label>
-    <button id="sketch-plane-face" hidden title="Sketch on the face you picked, moved by the offset">Picked face</button>
     <span class="sketch-hint-inline">or click a face</span>
     <button id="sketch-plane-cancel">Cancel</button>
   </div>
@@ -935,6 +935,14 @@
     // an invisible mesh over the polygon, so a click inside the sketch picks
     // it. handles are the corner markers, shown only while it is selected.
     let sketchOutlines = [];
+
+    // Planes, axes and points the document names: one object each, drawn from
+    // features.json's `construct` data. Rebuilt on every load, like the sketches.
+    const constructGroup = new THREE.Group();
+    scene.add(constructGroup);
+    let constructObjects = []; // { id, object }
+    let constructFramed = false; // a document of construct features alone is framed once, since there is no part to frame on
+    const hiddenConstructIDs = new Set();
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
     camera.up.set(0, 0, 1); // Z-up, matching the engine's convention
@@ -1324,6 +1332,8 @@
           applySection();
           // Shell, Fillet and Hole enable on `mesh`, which was null until now.
           updateToolbarState();
+          // Planes and axes are drawn to the part's size.
+          renderConstructs(browserFeatures);
         })
         .catch((error) => {
           // Also fires for a genuinely empty document (rolled back before the
@@ -1364,6 +1374,7 @@
           renderTimeline(features);
           renderProperties();
           renderSketchOutlines(features);
+          renderConstructs(features);
           renderThreads(features);
           refreshParameters();
           const stillThere = features.find(
@@ -1535,6 +1546,12 @@
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18" /><path d="M6 20 9 5h6l3 15" /></svg>',
       thread:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v18" /><path d="M16 3v18" /><path d="m8 6 8 3" /><path d="m8 11 8 3" /><path d="m8 16 8 3" /></svg>',
+      plane:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 6-4 12 4-6 4z" /><path d="m3 16 6-4 12 4-6 4z" stroke-dasharray="2 2" /></svg>',
+      axis:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4" stroke-dasharray="3 3" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></svg>',
+      point:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2" /><path d="M12 3v4" /><path d="M12 17v4" /><path d="M3 12h4" /><path d="M17 12h4" /></svg>',
       reference:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1" stroke-dasharray="3 3" /></svg>',
       // The same drawings as the toolbar buttons for these ops.
@@ -2212,6 +2229,13 @@
     const toolHoleEl = document.getElementById("tool-hole");
     const toolRevolveEl = document.getElementById("tool-revolve");
     const toolShellEl = document.getElementById("tool-shell");
+    const toolCombineEl = document.getElementById("tool-combine");
+    const toolMirrorEl = document.getElementById("tool-mirror");
+    const toolLinearEl = document.getElementById("tool-linear");
+    const toolCircularEl = document.getElementById("tool-circular");
+    const toolAxisEl = document.getElementById("tool-axis");
+    const toolPointEl = document.getElementById("tool-point");
+    const toolOffsetPlaneEl = document.getElementById("tool-offset-plane");
 
     /// Extrude acts on the current selection, so it is live only while there
     /// is one. Called from every place a selection or a mode changes.
@@ -2225,6 +2249,13 @@
       toolRevolveEl.disabled = !idle || !selectedSketch;
       // Shell works with no selection at all: with no open face it hollows the part.
       toolShellEl.disabled = !idle || !mesh;
+      // Bodies: Mirror and the patterns act on the picked one, Combine needs two.
+      const free = idle && !sketchStage;
+      const bodyPicked = Boolean(free && mesh && pickedBody());
+      toolMirrorEl.disabled = toolLinearEl.disabled = toolCircularEl.disabled = !bodyPicked;
+      toolCombineEl.disabled = !(free && mesh && partBodies().length >= 2);
+      toolAxisEl.disabled = !(free && mesh && (selectedPatch || selectedEdges.length));
+      toolPointEl.disabled = toolOffsetPlaneEl.disabled = !free;
       toolSketchEl.classList.toggle("active", Boolean(sketchStage));
     }
 
@@ -2300,6 +2331,7 @@
       for (const key of Object.keys(AXES)) axisLines[key].visible = axesVisible[key];
       if (mesh) mesh.visible = bodyVisible;
       if (edgeLines) edgeLines.visible = bodyVisible;
+      constructObjects.forEach(({ id, object }) => (object.visible = !hiddenConstructIDs.has(id)));
       sketchOutlines.forEach((entry) => {
         const visible = !hiddenSketchIDs.has(entry.feature.id);
         entry.line.visible = visible;
@@ -2475,6 +2507,8 @@
             visible: body.visible !== false,
             dim: body.reference,
             onToggle: () => sendCommand({ type: "set_visibility", id: body.id, visible: body.visible === false }),
+            selected: !body.reference && selectedBodyId === body.id,
+            onClick: body.reference ? null : () => selectBody(body.id),
             color: body.color,
             onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
             onContextMenu: (event) => openBodyMenu(event.clientX, event.clientY, body),
@@ -2484,6 +2518,38 @@
 
       addRow({ depth: 1, group: "parameters", label: "Parameters", noEye: true, dim: !Object.keys(documentParameters).length });
       if (!collapsedGroups.has("parameters")) renderParameterRows(tree);
+
+      const constructs = browserFeatures.filter((feature) => feature.construct);
+      if (constructs.length) {
+        addRow({
+          depth: 1,
+          group: "construction",
+          label: "Construction",
+          visible: constructs.some((feature) => !hiddenConstructIDs.has(feature.id)),
+          onToggle: () => {
+            const showing = constructs.some((feature) => !hiddenConstructIDs.has(feature.id));
+            constructs.forEach((feature) => (showing ? hiddenConstructIDs.add(feature.id) : hiddenConstructIDs.delete(feature.id)));
+            applyVisibility();
+            renderBrowser();
+          },
+        });
+        if (!collapsedGroups.has("construction")) {
+          constructs.forEach((feature) =>
+            addRow({
+              depth: 2,
+              label: feature.id + " (" + feature.type + ")",
+              dim: !feature.active,
+              visible: !hiddenConstructIDs.has(feature.id),
+              onToggle: () => {
+                if (hiddenConstructIDs.has(feature.id)) hiddenConstructIDs.delete(feature.id);
+                else hiddenConstructIDs.add(feature.id);
+                applyVisibility();
+                renderBrowser();
+              },
+            })
+          );
+        }
+      }
 
       addRow({
         depth: 1,
@@ -2715,6 +2781,7 @@
       setTimeout(hideStatus, shown + 100);
     }
 
+    let selectedBodyId = null; // a body row picked in the browser tree: what Mirror, the patterns and Combine act on
     let selectedPatch = null; // facePatchAt()'s result, plus anchorPoint
     let selectedEdges = []; // B-rep edge indices, in shape.edges() order; Shift adds to them
     let selectedRegions = []; // indices into selectedSketch.regions that Extrude will push
@@ -3465,12 +3532,38 @@
     const modifyInfoEl = document.getElementById("modify-info");
     const modifyOkEl = document.getElementById("modify-ok");
     let modifyPress = null; // where a press landed while a tool is open, so a drag (orbit) is not a click
-    let modifyPreview = null; // { mesh, lines }: the previewed part, drawn over the real one
+    let modifyPreview = null; // { mesh, lines }: the previewed part, drawn over the real one. A construct tool's is {mesh: group, lines: null}
+    const NOT_SOLIDS = ["sketch", "plane", "axis", "point"]; // features that build no body
     const PREVIEW_DELAY_MS = 200;
+
+    /// The bodies of the part on screen, reference bodies left out.
+    function partBodies() {
+      return mesh ? mesh.geometry.userData.bodies.filter((body) => !body.reference) : [];
+    }
+
+    /// The body Mirror, a pattern or Combine acts on: the one picked in the
+    /// browser tree, else the one owning the picked edges or face, else the only
+    /// body there is. Null when it is not clear.
+    function pickedBody() {
+      const bodies = partBodies();
+      const named = bodies.find((body) => body.id === selectedBodyId);
+      if (named) return named;
+      let owner = null;
+      if (selectedEdges.length) owner = bodyOfEdge(selectedEdges[0]);
+      else if (selectedPatch) owner = bodyOfFace(selectedPatch.faceIndex);
+      if (owner && !owner.reference) return owner;
+      return bodies.length === 1 ? bodies[0] : null;
+    }
+
+    function selectBody(id) {
+      selectedBodyId = id;
+      updateToolbarState();
+      renderBrowser();
+    }
 
     /// The newest feature that makes a solid: the base when the mesh header lists no bodies.
     function tipFeatureId() {
-      const solids = browserFeatures.filter((entry) => entry.active && entry.type !== "sketch");
+      const solids = browserFeatures.filter((entry) => entry.active && !NOT_SOLIDS.includes(entry.type));
       return solids.length ? solids[solids.length - 1].id : null;
     }
 
@@ -3630,7 +3723,8 @@
         let input;
         if (field.type === "select") {
           input = document.createElement("select");
-          for (const option of field.options) input.add(new Option(option, option));
+          const offered = field.dynamic ? tool.target.options[field.name] || [] : field.options.map((option) => ({ value: option, label: option }));
+          for (const option of offered) input.add(new Option(option.label, option.value));
           input.value = tool.values[field.name];
         } else {
           input = document.createElement("input");
@@ -3695,12 +3789,17 @@
       tool.inflight = (async () => {
         let result;
         try {
-          result = await trackPending(rpcCall("preview_feature", { feature: { id: "preview", ...built }, mesh: true }));
+          result = await trackPending(rpcCall("preview_feature", { feature: { id: "preview", ...built }, mesh: !ViewerModify.CONSTRUCT_KINDS.includes(tool.kind) }));
         } catch (error) {
           result = { would_build: false, reason: error.message };
         }
         if (modifyTool !== tool || seq !== tool.seq) return;
-        if (result.would_build) {
+        if (result.would_build && result.construct) {
+          showConstructPreview(result.construct);
+          tool.ok = true;
+          modifyOkEl.disabled = false;
+          setModifyInfo("Preview: " + describeConstruct(result.construct) + ". Enter applies.");
+        } else if (result.would_build) {
           showModifyPreview(result.mesh);
           tool.ok = true;
           modifyOkEl.disabled = false;
@@ -3739,12 +3838,35 @@
       clearHighlight(); // the picked face's tint would cover a hole or an opening
     }
 
+    /// A construct feature's preview: the plane, axis or point, drawn bright.
+    function showConstructPreview(info) {
+      clearModifyPreview();
+      const object = makeConstructObject(info, true);
+      scene.add(object);
+      modifyPreview = { mesh: object, lines: null };
+      if (!mesh && modifyTool && !modifyTool.framed) {
+        modifyTool.framed = true;
+        frameCameraOn(object);
+      }
+    }
+
+    const roundedNumbers = (values) => values.map((value) => Math.round(value * 100) / 100).join(", ");
+
+    function describeConstruct(info) {
+      if (info.kind === "plane") return "plane through (" + roundedNumbers(info.origin) + "), normal (" + roundedNumbers(info.normal) + ")";
+      if (info.kind === "axis") return "axis through (" + roundedNumbers(info.origin) + "), along (" + roundedNumbers(info.direction) + ")";
+      return "point at (" + roundedNumbers(info.at) + ")";
+    }
+
     function clearModifyPreview() {
       if (modifyPreview) {
         for (const item of [modifyPreview.mesh, modifyPreview.lines]) {
+          if (!item) continue;
           scene.remove(item);
-          item.geometry.dispose();
-          item.material.dispose();
+          item.traverse((part) => {
+            if (part.geometry) part.geometry.dispose();
+            if (part.material) part.material.dispose();
+          });
         }
         modifyPreview = null;
       }
@@ -3781,6 +3903,140 @@
     toolHoleEl.addEventListener("click", () => armModify("hole"));
     toolRevolveEl.addEventListener("click", () => armModify("revolve"));
     toolShellEl.addEventListener("click", () => armModify("shell"));
+
+    // --- Construct features and the body tools --------------------------------
+    // Offset plane, Axis and Point add a plane, axis or point feature. Mirror,
+    // the two patterns and Combine act on a body picked in the browser tree. They
+    // share the Modify panel: the fields come from modify.js, and the choices that
+    // depend on the document (planes, axes, bodies) are made here when the tool opens.
+
+    const BODY_KINDS = ["mirror", "linear", "circular"];
+    const ORIGIN_PLANES = ["XY", "XZ", "YZ"];
+
+    /// The planes a tool may start from or mirror across. A picked face comes first, so it is the default.
+    async function planeChoices(target) {
+      const options = [];
+      const choices = {};
+      if (selectedPatch && canCallDaemon() && loadedRevision === daemonRevision) {
+        try {
+          const found = await trackPending(rpcCall("face_sketch_plane", { handle: "f" + selectedPatch.faceIndex }));
+          options.push({ value: "face", label: "Picked face" });
+          choices.face = found.plane;
+        } catch (error) {
+          showNotice("The picked face is not flat, so it is not offered as a plane");
+        }
+      }
+      for (const name of ORIGIN_PLANES) {
+        options.push({ value: name, label: name + " plane" });
+        choices[name] = name;
+      }
+      for (const feature of browserFeatures.filter((entry) => entry.active && entry.type === "plane")) {
+        options.push({ value: feature.id, label: feature.id + " (plane)" });
+        choices[feature.id] = { construct: feature.id };
+      }
+      target.options.plane = options;
+      target.choices.plane = choices;
+    }
+
+    /// The axes a tool may use: a picked round face or edge first, then X, Y, Z and the axis features.
+    async function axisChoices(target, name) {
+      const options = [];
+      const choices = {};
+      const handle = selectedEdges.length ? "e" + selectedEdges[selectedEdges.length - 1] : selectedPatch ? "f" + selectedPatch.faceIndex : null;
+      if (handle && canCallDaemon() && loadedRevision === daemonRevision) {
+        try {
+          const found = await trackPending(rpcCall("pick_axis", { handle }));
+          options.push({ value: "picked", label: handle[0] === "e" ? "Picked edge" : "Picked face" });
+          choices.picked = found.axis;
+        } catch (error) {
+          // A flat face or a curved edge has no axis: the list is only the others.
+        }
+      }
+      for (const axis of ["X", "Y", "Z"]) {
+        options.push({ value: axis, label: axis + " axis" });
+        choices[axis] = axis;
+      }
+      for (const feature of browserFeatures.filter((entry) => entry.active && entry.type === "axis")) {
+        options.push({ value: feature.id, label: feature.id + " (axis)" });
+        choices[feature.id] = { construct: feature.id };
+      }
+      target.options[name] = options;
+      target.choices[name] = choices;
+    }
+
+    async function armConstruct(kind) {
+      if (modifyTool || extrudeArmed || sketchStage) return;
+      const target = { options: {}, choices: {} };
+      const bodies = partBodies();
+      let body = null;
+      if (BODY_KINDS.includes(kind)) {
+        body = pickedBody();
+        if (!body) return showNotice("Pick a body in the browser first.");
+        target.tool = body.tip;
+      }
+      const tool = { kind, target, values: {}, seq: 0, ok: false, dirty: false, timer: null, inflight: null, feature: null };
+      modifyTool = tool; // claims the tool before the first await
+      updateToolbarState();
+      const scale = { options: target.options };
+      try {
+        if (kind === "plane" || kind === "mirror") await planeChoices(target);
+        if (kind === "linear") await axisChoices(target, "direction");
+        if (kind === "circular") await axisChoices(target, "axis");
+        if (BODY_KINDS.includes(kind) && kind !== "plane") {
+          target.options.into = [ViewerModify.SAME, ...bodies.filter((other) => other.id !== body.id).map((other) => ({ value: other.tip, label: other.name }))];
+        }
+        if (kind === "combine") {
+          const offered = bodies.map((other) => ({ value: other.tip, label: other.name }));
+          target.options.target = offered;
+          target.options.tool = offered;
+        }
+        if (kind === "axis") {
+          const handle = selectedEdges.length ? "e" + selectedEdges[selectedEdges.length - 1] : "f" + selectedPatch.faceIndex;
+          const found = await trackPending(rpcCall("pick_axis", { handle }));
+          target.axis = found.axis;
+        }
+        if (kind === "point" && mesh && (selectedEdges.length || selectedPatch) && canCallDaemon() && loadedRevision === daemonRevision) {
+          const described = await trackPending(rpcCall("describe_geometry", {}));
+          const picked = selectedEdges.length ? described.edges[selectedEdges[selectedEdges.length - 1]] : described.faces[selectedPatch.faceIndex];
+          if (picked) scale.at = picked.centre.map((value) => Math.round(value * 100) / 100);
+        }
+        if (kind === "plane" && mesh) {
+          const size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+          scale.box = [size.x, size.y, size.z];
+        }
+      } catch (error) {
+        if (modifyTool === tool) {
+          modifyTool = null;
+          updateToolbarState();
+        }
+        showNotice(kind === "axis" ? "That has no axis. Pick a round face, or a straight or circular edge." : error.message);
+        return;
+      }
+      if (modifyTool !== tool) return; // cancelled while the choices were made
+      tool.values = ViewerModify.defaults(kind, scale);
+      if (kind === "combine") {
+        const picked = pickedBody() || bodies[0];
+        tool.values.target = picked.tip;
+        tool.values.tool = (bodies.find((other) => other.tip !== picked.tip) || picked).tip;
+      }
+      document.getElementById("modify-title").textContent = ViewerModify.TOOLS[kind].title;
+      modifyPanelEl.style.display = "flex";
+      renderModifyFields();
+      const first = modifyFieldsEl.querySelector("input[type=text]");
+      if (first) {
+        first.focus();
+        first.select();
+      }
+      runPreview();
+    }
+
+    toolOffsetPlaneEl.addEventListener("click", () => armConstruct("plane"));
+    toolAxisEl.addEventListener("click", () => armConstruct("axis"));
+    toolPointEl.addEventListener("click", () => armConstruct("point"));
+    toolMirrorEl.addEventListener("click", () => armConstruct("mirror"));
+    toolLinearEl.addEventListener("click", () => armConstruct("linear"));
+    toolCircularEl.addEventListener("click", () => armConstruct("circular"));
+    toolCombineEl.addEventListener("click", () => armConstruct("combine"));
 
     // With the hole tool open, a click on a face moves the hole there.
     renderer.domElement.addEventListener("pointerup", (event) => {
@@ -3884,7 +4140,6 @@
 
     const sketchPlanePanelEl = document.getElementById("sketch-plane-panel");
     const sketchPlaneOffsetEl = document.getElementById("sketch-plane-offset");
-    const sketchPlaneFaceEl = document.getElementById("sketch-plane-face");
     /// The offset typed in the plane panel, in mm. Anything that is not a number is no offset.
     const typedPlaneOffset = () => {
       const value = parseFloat(sketchPlaneOffsetEl.value);
@@ -4112,6 +4367,86 @@
       if (section) applySection();
     }
 
+    const CONSTRUCT_COLOUR = 0x4dd0e1;
+
+    /// How big to draw a plane or an axis: a little more than the part, and not
+    /// tiny when there is no part yet.
+    function sceneExtent() {
+      if (!mesh) return 60;
+      const size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+      return Math.max(40, Math.max(size.x, size.y, size.z) * 1.6);
+    }
+
+    /// A plane, an axis or a point as three.js objects. `info` is the engine's
+    /// `construct` data. A preview is drawn brighter.
+    function makeConstructObject(info, preview) {
+      const group = new THREE.Group();
+      const colour = srgb(preview ? 0x5be0a0 : CONSTRUCT_COLOUR);
+      const extent = sceneExtent();
+      if (info.kind === "plane") {
+        const normal = new THREE.Vector3(...info.normal).normalize();
+        const xDir = new THREE.Vector3(...info.x_dir).normalize();
+        const yDir = new THREE.Vector3().crossVectors(normal, xDir).normalize();
+        // Centred under the part, not at the plane's own origin, which can be far from it.
+        const centre = new THREE.Vector3(...info.origin);
+        if (mesh) {
+          const middle = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
+          centre.add(middle.sub(centre).projectOnPlane(normal));
+        }
+        const fill = new THREE.Mesh(
+          new THREE.PlaneGeometry(extent, extent),
+          new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: preview ? 0.25 : 0.12, side: THREE.DoubleSide, depthWrite: false })
+        );
+        const outline = new THREE.LineLoop(
+          new THREE.BufferGeometry().setFromPoints([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => new THREE.Vector3(u * extent / 2, v * extent / 2, 0))),
+          new THREE.LineBasicMaterial({ color: colour })
+        );
+        for (const item of [fill, outline]) {
+          item.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xDir, yDir, normal));
+          item.position.copy(centre);
+          group.add(item);
+        }
+      } else if (info.kind === "axis") {
+        const origin = new THREE.Vector3(...info.origin);
+        const direction = new THREE.Vector3(...info.direction).normalize();
+        // The axis runs through the part's middle, however far its origin is.
+        let along = 0;
+        if (mesh) along = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3()).sub(origin).dot(direction);
+        const middle = origin.clone().addScaledVector(direction, along);
+        group.add(
+          new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([middle.clone().addScaledVector(direction, -extent / 2), middle.clone().addScaledVector(direction, extent / 2)]),
+            new THREE.LineDashedMaterial({ color: colour, dashSize: 3, gapSize: 2 })
+          )
+        );
+        group.children[0].computeLineDistances();
+      } else {
+        const points = new THREE.Points(
+          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...info.at)]),
+          new THREE.PointsMaterial({ color: colour, size: 10, sizeAttenuation: false, depthTest: false })
+        );
+        points.renderOrder = 1002;
+        group.add(points);
+      }
+      group.userData.construct = info;
+      return group;
+    }
+
+    function renderConstructs(features) {
+      constructGroup.clear();
+      constructObjects = [];
+      for (const feature of features.filter((entry) => entry.construct && entry.active)) {
+        const object = makeConstructObject(feature.construct, false);
+        constructGroup.add(object);
+        constructObjects.push({ id: feature.id, object, info: feature.construct });
+      }
+      if (!mesh && !constructFramed && constructObjects.length) {
+        constructFramed = true;
+        frameCameraOn(constructGroup);
+      }
+      applyVisibility();
+    }
+
     // Draws every sketch feature in the timeline, since a bare sketch has no
     // solid of its own to show. A drawn sketch shows its entities and one fill
     // per closed region, which is what a click picks and Extrude pushes. A
@@ -4229,17 +4564,6 @@
  
     function startSketchPickPlane(options) {
       sketchPlaneOffsetEl.value = "0";
-      // Offset plane keeps a picked face for the panel's own button, because the offset is typed after.
-      if (options && options.offset) {
-        sketchStage = "pick-plane";
-        sketchPlaneFaceEl.hidden = !(selectedPatch && mesh);
-        sketchPlanePanelEl.style.display = "flex";
-        updateToolbarState();
-        sketchPlaneOffsetEl.focus();
-        sketchPlaneOffsetEl.select();
-        return;
-      }
-      sketchPlaneFaceEl.hidden = true;
       // A face picked first is the plane: pick, then press Sketch.
       if (selectedPatch && mesh) {
         const patch = selectedPatch;
@@ -4250,8 +4574,32 @@
         return;
       }
       sketchStage = "pick-plane";
+      renderConstructPlaneButtons();
       sketchPlanePanelEl.style.display = "flex";
       updateToolbarState();
+    }
+
+    /// A button for each plane feature, so a sketch can start on one. Its offset
+    /// box moves the sketch further along the plane's normal, as for XY.
+    function renderConstructPlaneButtons() {
+      const holder = document.getElementById("sketch-plane-constructs");
+      holder.replaceChildren();
+      for (const entry of constructObjects.filter(({ info }) => info.kind === "plane")) {
+        const button = document.createElement("button");
+        button.textContent = entry.id;
+        button.dataset.construct = entry.id;
+        button.title = "Sketch on the plane feature " + entry.id;
+        button.addEventListener("click", () => {
+          if (sketchStage !== "pick-plane") return;
+          const normal = new THREE.Vector3(...entry.info.normal).normalize();
+          const offset = typedPlaneOffset();
+          sketchPlane = makeSketchPlane(new THREE.Vector3(...entry.info.origin).addScaledVector(normal, offset), normal, new THREE.Vector3(...entry.info.x_dir));
+          sketchPlane.payload = offset ? { construct: entry.id, offset } : { construct: entry.id };
+          sketchPlane.canonical = true; // opened square on, v up, as a principal plane is
+          enterSketchDrawStage();
+        });
+        holder.appendChild(button);
+      }
     }
 
     /// Starts a sketch on a picked face. The daemon turns the face into a
@@ -4373,8 +4721,8 @@
       sketchPlane.ref = typeof entry.plane === "string" ? entry.plane : null;
       // A face or offset plane stays a reference when the sketch is redrawn.
       const raw = entry.feature && entry.feature.plane;
-      if (raw && typeof raw === "object" && (raw.feature || raw.name)) sketchPlane.payload = raw;
-      if (raw && typeof raw === "object" && raw.name) sketchPlane.canonical = true;
+      if (raw && typeof raw === "object" && (raw.feature || raw.name || raw.construct)) sketchPlane.payload = raw;
+      if (raw && typeof raw === "object" && (raw.name || raw.construct)) sketchPlane.canonical = true;
       // The sketcher draws it now, and the saved outline would sit under it.
       editedSketchId = entry.id;
       hiddenSketchIDs.add(entry.id);
@@ -4441,16 +4789,6 @@
     sketchPlaneOffsetEl.addEventListener("keydown", (event) => {
       event.stopPropagation();
       if (event.key === "Escape") cancelSketch();
-    });
-    sketchPlaneFaceEl.addEventListener("click", () => {
-      if (sketchStage !== "pick-plane" || !selectedPatch || !mesh) return;
-      const patch = selectedPatch;
-      clearSelection();
-      sketchOnFace(patch, patch.anchorPoint);
-    });
-    document.getElementById("tool-offset-plane").addEventListener("click", () => {
-      if (sketchStage || extrudeArmed) return;
-      startSketchPickPlane({ offset: true });
     });
 
     // --- View cube ---------------------------------------------------
@@ -4830,6 +5168,14 @@
       /// whether the preview built. Null when none is open.
       get modifying() {
         return modifyTool ? { kind: modifyTool.kind, feature: modifyTool.feature, ok: modifyTool.ok, preview: Boolean(modifyPreview), info: modifyInfoEl.textContent } : null;
+      },
+      /// The plane, axis and point features drawn: id, what they are, and whether they show.
+      get constructs() {
+        return constructObjects.map(({ id, info, object }) => ({ id, kind: info.kind, visible: object.visible, info }));
+      },
+      /// The body picked in the browser tree, if any.
+      get selectedBody() {
+        return selectedBodyId;
       },
       get selectedEdges() {
         return [...selectedEdges];

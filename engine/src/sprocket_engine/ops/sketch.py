@@ -37,6 +37,12 @@ PLANE_SCHEMA = {
         },
         {
             "type": "object",
+            "required": ["construct"],
+            "description": "A construct plane feature (type `plane`), optionally moved along its normal: {\"construct\": \"f3\", \"offset\": 2}.",
+            "properties": {"construct": {"type": "string", "description": "id of a plane feature"}, "offset": OFFSET},
+        },
+        {
+            "type": "object",
             "required": ["feature", "face"],
             "description": (
                 "On a planar face of an earlier feature, found again on every rebuild, so the sketch moves with "
@@ -221,6 +227,10 @@ def resolve_plane(plane_ref, ctx=None):
         return ORIGIN_PLANES[plane_ref]
     if "name" in plane_ref:
         plane = ORIGIN_PLANES[plane_ref["name"]]
+    elif "construct" in plane_ref:
+        from .construct import construct_plane
+
+        plane = construct_plane(plane_ref["construct"], ctx)
     elif "feature" in plane_ref:
         plane = _face_plane(plane_ref, ctx)
     else:

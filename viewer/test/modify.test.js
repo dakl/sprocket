@@ -78,3 +78,65 @@ test("starting values scale with the part and fall back to fixed ones", () => {
   assert.equal(nice(0.04, 1), 0.1);
   assert.equal(nice(NaN, 7), 7);
 });
+
+const choices = (names) => Object.fromEntries(Object.entries(names).map(([field, map]) => [field, map]));
+
+test("a construct plane starts from the chosen plane and moves by a signed offset", () => {
+  const target = { choices: choices({ plane: { XY: "XY", c1: { construct: "f3" } } }) };
+  assert.deepEqual(featureFor("plane", { plane: "XY", offset: "12" }, target), { type: "plane", plane: "XY", offset: 12 });
+  assert.deepEqual(featureFor("plane", { plane: "c1", offset: "-2.5" }, target), { type: "plane", plane: { construct: "f3" }, offset: -2.5 });
+  assert.match(featureFor("plane", { plane: "XY", offset: "0" }, target).error, /not 0/);
+  assert.match(featureFor("plane", { plane: "nope", offset: "1" }, target).error, /Pick the plane/);
+});
+
+test("an axis needs a pick, and a point takes its numbers", () => {
+  assert.match(featureFor("axis", {}, {}).error, /Pick/);
+  const axis = { base: "f2", face: { select: [{ op: "faces" }] } };
+  assert.deepEqual(featureFor("axis", {}, { axis }), { type: "axis", axis });
+  assert.deepEqual(featureFor("point", { x: "1", y: "-2.00004", z: "0" }, {}), { type: "point", at: [1, -2, 0] });
+  assert.match(featureFor("point", { x: "a", y: "0", z: "0" }, {}).error, /X must be a number/);
+  assert.deepEqual(defaults("point", { at: [3, 4, 5] }), { x: 3, y: 4, z: 5 });
+});
+
+test("mirror joins its own body by default and cuts from another one when asked", () => {
+  const target = { tool: "f4", choices: { plane: { YZ: "YZ", wall: { construct: "f7" } } } };
+  assert.deepEqual(featureFor("mirror", { plane: "YZ", into: "same", mode: "cut" }, target), { type: "mirror", tool: "f4", base: "f4", plane: "YZ" });
+  assert.deepEqual(featureFor("mirror", { plane: "wall", into: "f2", mode: "cut" }, target), { type: "mirror", tool: "f4", base: "f2", plane: { construct: "f7" }, mode: "cut" });
+  assert.deepEqual(featureFor("mirror", { plane: "wall", into: "f2", mode: "join" }, target).mode, undefined);
+});
+
+test("linear and circular patterns carry their direction or axis, count and spacing", () => {
+  const target = { tool: "f4", choices: { direction: { X: "X", edge: { base: "f2", edge: { select: [{ op: "edges" }] } } }, axis: { Z: "Z" } } };
+  assert.deepEqual(featureFor("linear", { direction: "X", count: "4", spacing: "-8", into: "same" }, target), {
+    type: "pattern",
+    tool: "f4",
+    base: "f4",
+    linear: { direction: "X", count: 4, spacing: -8 },
+  });
+  assert.match(featureFor("linear", { direction: "X", count: "1", spacing: "8", into: "same" }, target).error, /whole number, at least 2/);
+  assert.match(featureFor("linear", { direction: "X", count: "2.5", spacing: "8", into: "same" }, target).error, /whole number/);
+  assert.match(featureFor("linear", { direction: "X", count: "3", spacing: "0", into: "same" }, target).error, /not 0/);
+  assert.deepEqual(featureFor("circular", { axis: "Z", count: "6", angle: "360", into: "f2", mode: "cut" }, target), {
+    type: "pattern",
+    tool: "f4",
+    base: "f2",
+    circular: { axis: "Z", count: 6 },
+    mode: "cut",
+  });
+  assert.equal(featureFor("circular", { axis: "Z", count: "3", angle: "90", into: "same" }, target).circular.angle, 90);
+  assert.match(featureFor("circular", { axis: "Z", count: "3", angle: "400", into: "same" }, target).error, /at most 360/);
+});
+
+test("combine maps its mode to a boolean and refuses one body twice", () => {
+  assert.deepEqual(featureFor("combine", { target: "f2", tool: "f4", mode: "join" }, {}), { type: "boolean", operation: "union", base: "f2", tool: "f4" });
+  assert.equal(featureFor("combine", { target: "f2", tool: "f4", mode: "cut" }, {}).operation, "subtract");
+  assert.equal(featureFor("combine", { target: "f2", tool: "f4", mode: "intersect" }, {}).operation, "intersect");
+  assert.match(featureFor("combine", { target: "f2", tool: "f2", mode: "join" }, {}).error, /different bodies/);
+});
+
+test("a dynamic choice starts on the first one offered", () => {
+  const options = { plane: [{ value: "XY", label: "XY" }, { value: "YZ", label: "YZ" }], into: [{ value: "same", label: "This body" }, { value: "f2", label: "Body" }] };
+  const values = defaults("mirror", { options });
+  assert.equal(values.plane, "XY");
+  assert.equal(values.into, "same");
+});
