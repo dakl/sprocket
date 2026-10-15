@@ -5,12 +5,22 @@ name: release
 # Gatekeeper blocks it on other Macs.
 #
 # Run the workflow by hand ("Run workflow") to try the DMG build with no tag. It
-# then skips the release and keeps the DMG as a build artifact.
+# then skips the release and keeps the DMG as a build artifact. Give it a
+# `release` (such as v0.10.0) to build the DMG and add it to that existing
+# release instead, for when a tag's DMG job failed.
+#
+# A tag's DMG goes to the release only, not to artifact storage as well: a full
+# artifact quota failed the v0.10.0 DMG job before it reached the release.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Existing release to add the DMG to (e.g. v0.10.0). Empty keeps it as an artifact."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -67,15 +77,19 @@ jobs:
         run: app/make_dmg.sh
 
       - name: Name the DMG after the version
-        run: cp app/.build/Sprocket.dmg "Sprocket-${GITHUB_REF_NAME//\//-}.dmg"
+        env:
+          NAME: ${{ inputs.release || github.ref_name }}
+        run: cp app/.build/Sprocket.dmg "Sprocket-${NAME//\//-}.dmg"
 
       - uses: actions/upload-artifact@v4
+        if: github.ref_type != 'tag' && inputs.release == ''
         with:
           name: dmg
           path: Sprocket-*.dmg
 
       - name: Add the DMG to the release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.release != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" Sprocket-*.dmg
+          RELEASE: ${{ inputs.release || github.ref_name }}
+        run: gh release upload "$RELEASE" Sprocket-*.dmg --clobber
