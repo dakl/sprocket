@@ -15,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 
+from .cache import default_cache_dir
 from .document import Document, DocumentError
 from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
 from .mesh import export_mesh
@@ -40,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         "--cache-dir",
         type=Path,
         default=None,
-        help="BREP cache directory (default: <document dir>/cache)",
+        help="BREP cache directory (default: the user cache folder, see cache.default_cache_dir)",
     )
 
     sub.add_parser(
@@ -127,7 +128,7 @@ def _build_document(
         document = Document.load(document_path)
     except DocumentError as exc:
         return False, f"error: {exc}", None
-    resolved_cache_dir = Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
+    resolved_cache_dir = Path(cache_dir) if cache_dir else default_cache_dir()
 
     replayable = document.for_replay()
     features = replayable["features"]

@@ -95,7 +95,7 @@ Two logs define a document: the feature list (what the model is) and the edit lo
 - Cache value = the BREP of the model after that feature, stored as a `.brep` file, plus tessellation for the viewport.
 - An edit invalidates that feature and everything downstream. Scrubbing the rollback bar is a cache lookup.
 
-**Document file.** A document is one `.sprocket` file, which is the JSON above. The open and save panels offer only that extension, and the daemon's file methods refuse any other. Until M7, the edit log and BREP cache are not part of the file: the cache sits beside it in `cache/`.
+**Document file.** A document is one `.sprocket` file, which is the JSON above. The open and save panels offer only that extension, and the daemon's file methods refuse any other. Until M7, the edit log and BREP cache are not part of the file. As built (2026-10-15), the cache is one content-addressed folder for every document, in the user cache folder (`~/Library/Caches/sprocket/brep` on macOS, `$SPROCKET_CACHE_DIR` overrides it). Each process prunes it once on first use: files unused for 30 days go, then the oldest until it is under 1 GB.
 
 **Document folder** (git-friendly, planned for M7 as `.tcad`)
 
