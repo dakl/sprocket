@@ -91,6 +91,48 @@ test("a parameter used in a feature moves the part when it changes", async ({ pa
   await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(40 * 30 * 25, 3);
 });
 
+test("a parameter that drives a sketch dimension moves the sketch itself, not only the extrude", async ({ page, request }, info) => {
+  await resetDocument(request, { features: [], rollback_index: 0 });
+  await page.waitForFunction(() => window.__tcad.mesh === null);
+  const lines = [
+    ["e1", [0, 0], [40, 0]],
+    ["e2", [40, 0], [40, 20]],
+    ["e3", [40, 20], [0, 20]],
+    ["e4", [0, 20], [0, 0]],
+  ].map(([id, p0, p1]) => ({ id, kind: "line", p0, p1 }));
+  const constraints = [
+    { kind: "coincident", a: "e1.p1", b: "e2.p0" },
+    { kind: "coincident", a: "e2.p1", b: "e3.p0" },
+    { kind: "coincident", a: "e3.p1", b: "e4.p0" },
+    { kind: "coincident", a: "e4.p1", b: "e1.p0" },
+    { kind: "horizontal", e: "e1" },
+    { kind: "horizontal", e: "e3" },
+    { kind: "vertical", e: "e2" },
+    { kind: "vertical", e: "e4" },
+    { kind: "coincident", a: "e1.p0", b: "origin" },
+    { kind: "distance", a: "e1.p0", b: "e1.p1", value: "=w" },
+    { kind: "distance", a: "e2.p0", b: "e2.p1", value: 20 },
+  ];
+  await rpc(request, "apply_edit", {
+    edits: [
+      { op: "set_parameter", name: "w", value: 40 },
+      { op: "insert", feature: { id: "f1", type: "sketch", plane: "XY", entities: lines, constraints } },
+      { op: "insert", feature: { id: "f2", type: "extrude", profile: "f1", distance: 10 } },
+    ],
+  });
+  await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(8000, 3);
+  await expect(page.locator(".parameter-row .browser-param").first()).toHaveValue("40", REBUILD);
+
+  await page.locator(".parameter-row .browser-param").first().fill("60");
+  await page.locator(".parameter-row .browser-param").first().press("Enter");
+  await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(12000, 3);
+  const sketch = (await rpc(request, "get_document")).features[0];
+  expect(sketch.entities.find((item) => item.id === "e1").p1).toEqual([60, 0]);
+  expect(sketch.constraints.find((item) => typeof item.value === "string").value).toBe("=w");
+  await settled(page);
+  await page.screenshot({ path: info.outputPath("parameter-moves-sketch.png") });
+});
+
 test("the sketch panel's offset box: type the offset, pick XY, and the part sits on that plane", async ({ page, request }, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);

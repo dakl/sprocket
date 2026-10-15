@@ -1841,6 +1841,9 @@
             else hideStatus();
             // The engine keeps every "=param" field the edit left alone. A field
             // the edit changed now holds a number, so say which links went.
+            if (result.unsolved && result.unsolved.length) {
+              showNotice("Sketch " + result.unsolved.join(", ") + " was not solved again: the engine has no constraint solver, so its geometry did not follow the parameter");
+            }
             if (result.unlinked && result.unlinked.length) {
               const fields = result.unlinked.map((item) => item.field + " (" + item.was + ")").join(", ");
               showNotice("Replaced parameter link: " + fields);
