@@ -165,16 +165,23 @@ final class ViewerSchemeHandler: NSObject, WKURLSchemeHandler {
 
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else { return }
-        let relative = String(url.path.drop(while: { $0 == "/" }))
-        let file: URL
-        if Self.perDocument.contains(relative) {
-            file = dataDir.appendingPathComponent(relative)
-        } else {
-            file = viewerDir.appendingPathComponent(relative).standardizedFileURL
-            // Nothing outside the viewer folder, whatever the path says.
-            guard file.path.hasPrefix(viewerDir.path + "/") else { return respond(task, url, nil) }
+        guard let file = Self.file(forPath: url.path, viewerDir: viewerDir, dataDir: dataDir) else {
+            return respond(task, url, nil)
         }
         respond(task, url, try? Data(contentsOf: file), type: Self.mimeType(of: file))
+    }
+
+    /// The file a request path names: one of the three per-document files from
+    /// `dataDir`, anything else from `viewerDir`. Nil for a path that climbs out
+    /// of the viewer folder, whatever it says.
+    static func file(forPath path: String, viewerDir: URL, dataDir: URL) -> URL? {
+        let viewerDir = viewerDir.standardizedFileURL
+        let relative = String(path.drop(while: { $0 == "/" }))
+        if perDocument.contains(relative) {
+            return dataDir.appendingPathComponent(relative)
+        }
+        let file = viewerDir.appendingPathComponent(relative).standardizedFileURL
+        return file.path.hasPrefix(viewerDir.path + "/") ? file : nil
     }
 
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
@@ -191,7 +198,7 @@ final class ViewerSchemeHandler: NSObject, WKURLSchemeHandler {
         task.didFinish()
     }
 
-    private static func mimeType(of file: URL) -> String {
+    static func mimeType(of file: URL) -> String {
         switch file.pathExtension {
         case "mesh": return "application/octet-stream"
         case "js", "mjs": return "text/javascript"

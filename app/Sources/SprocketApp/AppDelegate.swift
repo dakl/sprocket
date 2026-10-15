@@ -69,11 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the files reopened that way, so startup does not open them twice.
     private func offerRecovery() -> [URL] {
         let manager = FileManager.default
-        let names = (try? manager.contentsOfDirectory(atPath: AppPaths.recoveryDir.path)) ?? []
-        let orphans = names.filter { name in
-            guard name.hasSuffix(".json"), let pid = Int32(name.prefix { $0 != "-" }) else { return false }
-            return !EngineDaemon.isAlive(pid)
-        }.map { AppPaths.recoveryDir.appendingPathComponent($0) }
+        let orphans = Recovery.orphans(in: AppPaths.recoveryDir)
         guard !orphans.isEmpty else { return [] }
 
         let alert = NSAlert()
@@ -90,21 +86,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         var reopened: [URL] = []
         for file in orphans {
-            let original = (try? Data(contentsOf: file))
-                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-                .flatMap { $0["path"] as? String }
-                .map { URL(fileURLWithPath: $0) }
-            // An untitled document's file was only a holding place: restore into a new one.
-            if let original, manager.fileExists(atPath: original.path),
-               original.deletingLastPathComponent().standardizedFileURL != AppPaths.untitledDir.standardizedFileURL,
-               let document = try? NSDocumentController.shared.makeDocument(withContentsOf: original, ofType: SprocketDocument.typeName) as? SprocketDocument {
+            if let target = Recovery.restoreTarget(for: file, untitledDir: AppPaths.untitledDir),
+               let document = try? NSDocumentController.shared.makeDocument(withContentsOf: target, ofType: SprocketDocument.typeName) as? SprocketDocument {
                 open(document, restoring: file)
-                reopened.append(original)
+                reopened.append(target)
             } else if let document = try? NSDocumentController.shared.makeUntitledDocument(ofType: SprocketDocument.typeName) as? SprocketDocument {
                 open(document, restoring: file)
             }
-            if let original, original.deletingLastPathComponent().standardizedFileURL == AppPaths.untitledDir.standardizedFileURL {
-                try? manager.removeItem(at: original)
+            // The crashed run's holding file for an untitled document is no use now.
+            if let path = Recovery.documentPath(in: file), Recovery.isHoldingFile(path, untitledDir: AppPaths.untitledDir) {
+                try? manager.removeItem(at: path)
             }
         }
         return reopened

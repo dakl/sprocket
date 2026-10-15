@@ -147,11 +147,19 @@ final class EngineDaemon {
     static func removeStaleSockets() {
         let directory = NSTemporaryDirectory()
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
-        for name in names where name.hasPrefix("sprocket-") && name.hasSuffix(".sock") {
-            let digits = name.dropFirst("sprocket-".count).dropLast(".sock".count).prefix { $0 != "-" }
-            guard let pid = Int32(digits), !isAlive(pid) else { continue }
+        for name in names {
+            guard let pid = pid(fromSocketName: name), !isAlive(pid) else { continue }
             try? FileManager.default.removeItem(atPath: directory + name)
         }
+    }
+
+    /// The process id in `sprocket-<pid>-<n>.sock`, or in the single-window
+    /// app's `sprocket-<pid>.sock`. Nil for any other name.
+    static func pid(fromSocketName name: String) -> Int32? {
+        guard name.hasPrefix("sprocket-"), name.hasSuffix(".sock") else { return nil }
+        let parts = name.dropFirst("sprocket-".count).dropLast(".sock".count).split(separator: "-", omittingEmptySubsequences: false)
+        guard (1...2).contains(parts.count), parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }) else { return nil }
+        return Int32(parts[0])
     }
 
     /// kill(pid, 0) sends nothing. EPERM means the pid exists but is not ours.
