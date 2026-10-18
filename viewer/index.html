@@ -2267,9 +2267,10 @@
     // time. A tool describes its handle with showLinearHandle or
     // showAngularHandle and gets each new value through onChange. The math is
     // in handles.js.
-    const HANDLE_PIXELS = 70; // the arrow's length, and a ring's radius when it has none of its own
+    const HANDLE_PIXELS = 46; // the arrow's length
+    const RING_PIXELS = 70; // a ring's radius when it has none of its own
     const KNOB_PIXELS = 7;
-    // { kind: "linear", origin, direction, value, rule, unit, onChange, object }, or
+    // { kind: "linear", origin, direction, value, rule, unit, onChange, object, pointAt? }, or
     // { kind: "angular", centre, axis, reference, radius, value, rule, unit, onChange, object }.
     // Vectors are THREE.Vector3; `rule` is {min?, max?} as ViewerHandles.clamp takes it.
     let handle = null;
@@ -2327,15 +2328,18 @@
       if (!handleTyped) distanceEl.value = ViewerHandles.format(value, handle.unit);
     }
 
-    /// Where the arrow starts: it rides on the value, so it sits on the face
-    /// being pushed, the far side of a fillet, the bottom of a hole.
+    /// Where the arrow starts. The value point rides on the value, so it sits
+    /// on the face being pushed or the bottom of a hole, and the arrow starts
+    /// there. With `pointAt` the arrow ends there instead, pointing at what it
+    /// acts on: a fillet or chamfer arrow points at its edge.
     function arrowBase() {
-      return handle.origin.clone().addScaledVector(handle.direction, handle.value);
+      const at = handle.origin.clone().addScaledVector(handle.direction, handle.value);
+      return handle.pointAt ? at.addScaledVector(handle.direction, -worldRadius(HANDLE_PIXELS, at)) : at;
     }
 
     /// The ring's radius in mm: its own, or a fixed size on screen.
     function ringRadius() {
-      return handle.radius || worldRadius(HANDLE_PIXELS, handle.centre);
+      return handle.radius || worldRadius(RING_PIXELS, handle.centre);
     }
 
     function ringPoint(degrees) {
@@ -2346,11 +2350,11 @@
         .addScaledVector(side, Math.sin(radians) * ringRadius());
     }
 
-    /// The point the value box sits beside: the arrow's tip, or the ring's knob.
+    /// The point the value box sits beside: the arrow's free end, or the ring's knob.
     function handleTip() {
       if (handle.kind === "angular") return ringPoint(handle.value);
       const base = arrowBase();
-      return base.addScaledVector(handle.direction, worldRadius(HANDLE_PIXELS, base));
+      return handle.pointAt ? base : base.addScaledVector(handle.direction, worldRadius(HANDLE_PIXELS, base));
     }
 
     /// Puts the handle where its value says, at a fixed size on screen, and the
@@ -2488,8 +2492,8 @@
     // reselect; Shift adds edges, faces or regions where the tool takes many.
     const PICKS = {
       extrude: { accepts: ["region", "face"], prompt: "Extrude: pick a face or a sketch region" },
-      fillet: { accepts: ["edge", "face"], prompt: "Fillet: pick an edge or a face. Shift adds more edges" },
-      chamfer: { accepts: ["edge", "face"], prompt: "Chamfer: pick an edge or a face. Shift adds more edges" },
+      fillet: { accepts: ["edge"], prompt: "Fillet: pick an edge. Shift adds more" },
+      chamfer: { accepts: ["edge"], prompt: "Chamfer: pick an edge. Shift adds more" },
       hole: { accepts: ["face"], prompt: "Hole: pick the face to drill" },
       shell: { accepts: ["face"], prompt: "" },
       revolve: { accepts: ["region"], prompt: "Revolve: pick a sketch region" },
@@ -4047,7 +4051,7 @@
       if (kind !== "revolve" && !mesh) return;
       // Nothing picked yet: ask for it, and open the tool on the first pick.
       const needsPick =
-        ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length && !selectedPatch) ||
+        ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length) ||
         (kind === "hole" && !selectedPatch) ||
         (kind === "revolve" && !selectedSketch);
       if (needsPick && !(kind === "revolve" && toolRevolveEl.disabled)) return startPick(kind);
@@ -4056,7 +4060,6 @@
       if (kind !== "revolve") {
         if (!mesh.geometry.userData.bodies.length) base = tipFeatureId(); // an engine that sends no body list
         else {
-          if ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length && !selectedPatch) return showNotice("Select an edge or a face first. Shift-click adds more edges.");
           if (kind === "hole" && !selectedPatch) return showNotice("Click the face to drill first.");
           const found = modifyBody(kind);
           if (found.error) return showNotice(found.error);
@@ -4067,14 +4070,11 @@
       }
       const target = { base };
       let handles = [];
-      let faceToRound = null; // with no edge picked, Fillet and Chamfer take every edge of this face
       if (kind === "revolve") {
         if (!selectedSketch) return showNotice("Select a sketch first.");
         target.profile = selectedSketch.id;
       } else if (kind === "fillet" || kind === "chamfer") {
-        if (!selectedEdges.length && !selectedPatch) return showNotice("Select an edge or a face first. Shift-click adds more edges.");
         handles = selectedEdges.map((index) => "e" + index);
-        if (!handles.length) faceToRound = "f" + selectedPatch.faceIndex;
       } else if (kind === "hole") {
         if (!selectedPatch) return showNotice("Click the face to drill first.");
         target.point = selectedPatch.anchorPoint.toArray();
@@ -4091,9 +4091,8 @@
       }
       modifyTool = tool; // claims the tool before the first await, so a second key press does nothing
       updateToolbarState();
-      if (handles.length || faceToRound) {
+      if (handles.length) {
         try {
-          if (faceToRound) handles = (await trackPending(rpcCall("face_edges", { handle: faceToRound }))).edges;
           const answer = await trackPending(rpcCall("resolve_selection", { handles }));
           if (kind === "shell") target.open = answer.selector;
           else target.edges = answer.selector;
@@ -4201,12 +4200,11 @@
       const positive = { min: 0.01 };
       const { kind, target, values } = tool;
       if (kind === "fillet" || kind === "chamfer") {
-        if (selectedEdges.length) {
-          const edge = selectedEdges[selectedEdges.length - 1];
-          return { origin: edgeMidpoint(edge), direction: edgeOutward(edge), rule: positive };
-        }
-        if (selectedPatch) return { origin: faceCentre(selectedPatch.faceIndex), direction: selectedPatch.normal.clone(), rule: positive };
-        return null;
+        if (!selectedEdges.length) return null;
+        // From outside the corner, pointing at the last picked edge and into the
+        // material: dragging toward the edge rounds or cuts more.
+        const edge = selectedEdges[selectedEdges.length - 1];
+        return { origin: edgeMidpoint(edge), direction: edgeOutward(edge).negate(), rule: positive, pointAt: true };
       }
       if (kind === "shell") {
         const sign = values.outward ? 1 : -1;

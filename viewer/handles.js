@@ -84,11 +84,11 @@
   function createArrow(THREE) {
     const group = new THREE.Group();
     const material = handleMaterial(THREE);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 12), material);
-    shaft.position.y = 0.35;
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 20), material);
-    head.position.y = 0.85;
-    const grab = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1, 8), new THREE.MeshBasicMaterial({ visible: false }));
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.6, 16), material);
+    shaft.position.y = 0.3;
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 24), material);
+    head.position.y = 0.8;
+    const grab = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 1, 8), new THREE.MeshBasicMaterial({ visible: false }));
     grab.position.y = 0.5;
     for (const part of [shaft, head]) part.renderOrder = 1001;
     group.add(shaft, head, grab);
