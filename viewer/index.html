@@ -813,6 +813,7 @@
   <script src="modify.js"></script>
   <script src="live.js"></script>
   <script src="colours.js"></script>
+  <script src="wheel-zoom.js"></script>
   <script src="vendor/planegcs.js"></script>
   <script src="sketch-solver.js"></script>
   <script src="sketch-model.js"></script>
@@ -2846,7 +2847,32 @@
       if (controls.enableRotate) cameraMove = null;
     }
     renderer.domElement.addEventListener("pointerdown", cancelCameraMove);
-    renderer.domElement.addEventListener("wheel", cancelCameraMove, { passive: true });
+
+    // Wheel zoom, in place of OrbitControls' own (see wheel-zoom.js for why).
+    // It listens on window in the capture phase and stops the event there, so
+    // the controls' wheel listener on the canvas never runs. Middle-drag dolly
+    // is still the controls'. The app sets window.__sprocketSettings before the
+    // page loads and calls window.__applySettings when Settings change.
+    let zoomSensitivity = WheelZoom.clampSensitivity(window.__sprocketSettings && window.__sprocketSettings.zoomSensitivity);
+    window.__applySettings = (settings) => {
+      if (settings && "zoomSensitivity" in settings) zoomSensitivity = WheelZoom.clampSensitivity(settings.zoomSensitivity);
+    };
+    window.addEventListener(
+      "wheel",
+      (event) => {
+        if (event.target !== renderer.domElement) return;
+        event.stopPropagation();
+        event.preventDefault();
+        if (!controls.enabled || !controls.enableZoom) return;
+        cancelCameraMove();
+        const scale = WheelZoom.distanceScale(event.deltaY, event.deltaMode, renderer.domElement.clientHeight, zoomSensitivity);
+        const offset = camera.position.clone().sub(controls.target).multiplyScalar(scale);
+        offset.setLength(Math.min(controls.maxDistance, Math.max(controls.minDistance, offset.length())));
+        camera.position.copy(controls.target).add(offset);
+        controls.update();
+      },
+      { capture: true, passive: false }
+    );
 
     renderer.domElement.addEventListener("pointerdown", (event) => {
       // The right button pans the camera, and a right click without a drag
@@ -5207,6 +5233,9 @@
       },
       get camera() {
         return { position: camera.position.toArray(), target: controls.target.toArray() };
+      },
+      get zoomSensitivity() {
+        return zoomSensitivity;
       },
       get mesh() {
         return mesh ? { ...mesh.userData.counts } : null;

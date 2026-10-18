@@ -21,6 +21,8 @@ enum MainMenu {
         let menu = NSMenu(title: "Sprocket")
         menu.addItem(withTitle: "About Sprocket", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Settings\u{2026}", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
+        menu.addItem(.separator())
         let services = NSMenu(title: "Services")
         menu.addItem(withTitle: "Services", action: nil, keyEquivalent: "").submenu = services
         NSApp.servicesMenu = services
