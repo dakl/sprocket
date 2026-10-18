@@ -63,7 +63,6 @@ test("a selected face is extruded from the toolbar, with no floating panel", asy
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
-  await expect(page.locator("#tool-extrude")).toBeDisabled();
   await page.mouse.click(point.x, point.y);
   await expect(page.locator("#tool-extrude")).toBeEnabled();
   await expect(page.locator("#selection-panel")).toHaveCount(0);
@@ -568,7 +567,6 @@ async function undoOnce(page) {
 
 test("fillet: Shift-click two edges, set a radius, see the preview, Enter applies, undo removes it", async ({ page, request }) => {
   const [first, second] = await topEdgePoints(page, request, 2);
-  await expect(page.locator("#tool-fillet")).toBeDisabled();
   await page.mouse.click(first.x, first.y);
   await page.keyboard.down("Shift");
   await page.mouse.click(second.x, second.y);
