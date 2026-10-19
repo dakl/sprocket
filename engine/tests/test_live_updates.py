@@ -8,7 +8,7 @@ import time
 import pytest
 
 from conftest import BOX_DOCUMENT, running
-from sprocket_engine.rpc import Client
+from sprocket_engine.rpc import Client, FileWatcher
 
 TALLER = {"op": "update", "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12}}
 
@@ -198,6 +198,27 @@ def test_a_referenced_file_rewritten_on_disk_rebuilds_the_document_that_uses_it(
         assert change["refresh"] is True
         assert change["changes"] == [{"action": "reference_changed", "feature_id": "board", "file": "board.sprocket"}]
         assert daemon.check_references() is None  # already up to date
+
+
+def test_a_file_that_changed_before_the_watcher_first_saw_it_is_still_checked(tmp_path):
+    # A reference added, then its file rewritten before the watcher's next
+    # poll: the watcher's first stat is of the new file, so it must not be
+    # taken as the starting point and dropped.
+    board = tmp_path / "board.sprocket"
+    board.write_text(json.dumps(BOARD))
+    watched, checked = [], []
+    watcher = FileWatcher(lambda: list(watched), checked.append, interval=0.02)
+    watcher.start()
+    try:
+        time.sleep(0.1)
+        write_atomically(board, taller_board(5))
+        watched.append(board)
+        deadline = time.monotonic() + 1
+        while not checked and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert checked == [board]
+    finally:
+        watcher.stop()
 
 
 def test_a_change_two_references_deep_reaches_the_top_document(tmp_path):
