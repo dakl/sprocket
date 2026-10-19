@@ -1226,10 +1226,11 @@ class FileWatcher:
     read after it finishes. Polling, not FSEvents: stdlib only, it survives an
     atomic rename (a new inode), and a few stat calls a second cost nothing.
     `paths_of()` is asked every interval, so the set can change: Save As,
-    Open, or a reference added. A path that joins the set is checked at once:
-    it may have changed between the daemon noting it and this thread's first
-    stat, and a stat taken after the change would hide it for good. The
-    callbacks compare content hashes, so a check of an unchanged file is a no-op."""
+    Open, or a reference added. Each path is checked the first time it is
+    polled, the ones there at start included: it may have changed between the
+    daemon noting it and this thread's first stat, and a stat taken after the
+    change would hide it for good. The callbacks compare content hashes, so a
+    check of an unchanged file is a no-op."""
 
     def __init__(self, paths_of, on_change, interval: float = 0.25):
         self.paths_of = paths_of
@@ -1253,7 +1254,7 @@ class FileWatcher:
         self._stop.set()
 
     def _run(self) -> None:
-        seen = {path: self._stat(path) for path in self.paths_of()}
+        seen: dict = {}  # empty, so the first poll checks every path
         pending: dict = {}
         while not self._stop.wait(self.interval):
             paths = list(self.paths_of())

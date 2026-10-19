@@ -221,6 +221,24 @@ def test_a_file_that_changed_before_the_watcher_first_saw_it_is_still_checked(tm
         watcher.stop()
 
 
+def test_a_file_rewritten_before_the_watcher_thread_runs_is_still_checked(tmp_path):
+    # start_watching returns before the thread's first stat, so a rewrite
+    # right after it must not become that stat's starting point.
+    board = tmp_path / "board.sprocket"
+    board.write_text(json.dumps(BOARD))
+    checked = []
+    watcher = FileWatcher(lambda: [board], checked.append, interval=0.02)
+    write_atomically(board, taller_board(5))
+    watcher.start()
+    try:
+        deadline = time.monotonic() + 1
+        while not checked and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert checked == [board]
+    finally:
+        watcher.stop()
+
+
 def test_a_change_two_references_deep_reaches_the_top_document(tmp_path):
     board = tmp_path / "board.sprocket"
     board.write_text(json.dumps(BOARD))
@@ -238,5 +256,6 @@ def test_a_change_two_references_deep_reaches_the_top_document(tmp_path):
         assert board in daemon.watched_files()
         assert board_height(client) == pytest.approx(2.01)
         write_atomically(board, taller_board(7))
-        assert daemon.check_references() == "rebuilt"
+        # The watcher may get there first, and then this check finds nothing to do.
+        daemon.check_references()
         assert board_height(client) == pytest.approx(7.01)
