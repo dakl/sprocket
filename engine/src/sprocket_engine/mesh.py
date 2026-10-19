@@ -82,14 +82,62 @@ def tessellate(shape) -> dict:
     order of those against `shape.faces()` is not known, so export_mesh
     tessellates each body on its own instead.
     """
-    instances, _shapes, _states = tessellate_convert.tessellate_group(
+    instances, shapes, _states = tessellate_convert.tessellate_group(
         *tessellate_convert.to_ocpgroup(shape)
     )
     if len(instances) != 1:
         raise ValueError(f"expected one tessellated instance, got {len(instances)}")
     instance = instances[0]
+    _place(instance, _location_of(shapes, 0))
     _drop_degenerate_edges(shape, instance)
     return instance
+
+
+def _location_of(node, ref: int):
+    """The placement of instance `ref` in world coordinates, as (rotation 3x3,
+    translation), or None when the tree does not hold it.
+
+    The instance's buffers are in the shape's own frame. Each node on the way
+    down carries a `loc` of ((x, y, z), (qx, qy, qz, qw)), and the placement
+    is their product. A body made by sketches and extrudes has none, but a
+    `reference` is placed by giving its shape a location, and without this
+    the mesh draws it at its file position.
+    """
+    rotation, translation = _loc_matrix(node.get("loc"))
+    if node.get("shape") == {"ref": ref}:
+        return rotation, translation
+    for child in node.get("parts", ()):
+        found = _location_of(child, ref)
+        if found is not None:
+            child_rotation, child_translation = found
+            return rotation @ child_rotation, rotation @ child_translation + translation
+    return None
+
+
+def _loc_matrix(loc):
+    if not loc:
+        return np.eye(3), np.zeros(3)
+    (x, y, z), (qx, qy, qz, qw) = loc
+    rotation = np.array([
+        [1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * qw), 2 * (qx * qz + qy * qw)],
+        [2 * (qx * qy + qz * qw), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * qw)],
+        [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx * qx + qy * qy)],
+    ])
+    return rotation, np.array([x, y, z])
+
+
+def _place(instance: dict, location) -> None:
+    """Moves the instance's points and turns its normals by `location`."""
+    if location is None:
+        return
+    rotation, translation = location
+    if np.allclose(rotation, np.eye(3)) and np.allclose(translation, 0):
+        return
+    for key in ("vertices", "edges"):
+        points = instance[key].reshape(-1, 3).astype(np.float64)
+        instance[key] = (points @ rotation.T + translation).astype(instance[key].dtype).reshape(instance[key].shape)
+    normals = instance["normals"].reshape(-1, 3).astype(np.float64)
+    instance["normals"] = (normals @ rotation.T).astype(instance["normals"].dtype).reshape(instance["normals"].shape)
 
 
 def _concatenate(instances: list[dict]) -> dict:

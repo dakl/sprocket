@@ -2,6 +2,7 @@
 
 import json
 
+import numpy as np
 import pytest
 from build123d import Box, export_step, import_step
 
@@ -135,3 +136,35 @@ def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
     assert tuple(face.center()) == pytest.approx((23.61, 0.15, 2.45), abs=0.01)
     assert tuple(face.normal_at()) == pytest.approx((0, -1, 0))
     assert face.area == pytest.approx(5.6)
+
+
+def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
+    # The op places a reference by giving it a location, and ocp-tessellate
+    # returns a mesh in the shape's own frame plus that location. A mesh that
+    # drops the location draws every reference at its file position, so a
+    # moved part looks misplaced while its geometry is right.
+    from test_mesh import read_mesh
+
+    write(tmp_path, "board.sprocket", BOARD)
+    reference = {"id": "ref", "type": "reference", "file": "board.sprocket",
+                 "rotate": [90, 0, 30], "translate": [40, -10, 25]}
+    _, part, ctx = build(tmp_path, [reference] + TRAY)
+    bodies = with_settings(ctx.bodies, {})
+    export_mesh(part, tmp_path / "part.mesh", None, bodies)
+    header, buffers = read_mesh(tmp_path / "part.mesh")
+
+    faces_before = sum(body["faces"] for body in header["bodies"] if not body["reference"])
+    per_face = buffers["triangles_per_face"].astype(int)
+    first = per_face[:faces_before].sum()
+    triangles = buffers["indices"].reshape(-1, 3)[first:]
+    used = np.unique(triangles)
+    vertices = buffers["vertices"].reshape(-1, 3)[used]
+    normals = buffers["normals"].reshape(-1, 3)[used]
+
+    box = ctx.bodies[0]["shape"].bounding_box()
+    assert vertices.min(axis=0) == pytest.approx([box.min.X, box.min.Y, box.min.Z], abs=1e-3)
+    assert vertices.max(axis=0) == pytest.approx([box.max.X, box.max.Y, box.max.Z], abs=1e-3)
+    # Normals turn with the part: each one is the normal of a face of the moved board.
+    face_normals = np.array([tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()])
+    nearest = np.abs(normals @ face_normals.T).max(axis=1)
+    assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)
