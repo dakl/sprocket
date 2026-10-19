@@ -63,7 +63,6 @@ test("a selected face is extruded from the toolbar, with no floating panel", asy
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
-  await expect(page.locator("#tool-extrude")).toBeDisabled();
   await page.mouse.click(point.x, point.y);
   await expect(page.locator("#tool-extrude")).toBeEnabled();
   await expect(page.locator("#selection-panel")).toHaveCount(0);
@@ -568,7 +567,6 @@ async function undoOnce(page) {
 
 test("fillet: Shift-click two edges, set a radius, see the preview, Enter applies, undo removes it", async ({ page, request }) => {
   const [first, second] = await topEdgePoints(page, request, 2);
-  await expect(page.locator("#tool-fillet")).toBeDisabled();
   await page.mouse.click(first.x, first.y);
   await page.keyboard.down("Shift");
   await page.mouse.click(second.x, second.y);
@@ -614,21 +612,14 @@ test("fillet: a radius the part cannot take shows the reason and cannot be appli
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
 });
 
-test("fillet: a selected face rounds all its edges", async ({ page, request }) => {
+test("fillet: a selected face is not an input, so F asks for an edge", async ({ page, request }) => {
   await clickTopFace(page, request);
-  await expect(page.locator("#tool-fillet")).toBeEnabled();
   await page.keyboard.press("f");
-  await previewReady(page);
-  await page.locator("#modify-radius").fill("1");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === 1 && window.__tcad.modifying.ok, null, SLOW);
-  await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
-  await settled(page);
-  const feature = (await rpc(request, "get_document")).features[2];
-  expect(feature.edges.expected_count).toBe(4);
-  // A 1 mm round along the 140 mm perimeter removes 1 * (1 - pi/4) of cross section.
-  expect(12000 - (await rpc(request, "measure")).volume).toBeCloseTo(140 * (1 - Math.PI / 4), 0); // the four corners overlap a little: 0.38 less
-  await undoOnce(page);
+  await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("fillet");
+  expect(await page.evaluate(() => window.__tcad.selection.face)).toBeNull();
+  await expect(page.locator("#modify-panel")).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBeNull();
 });
 
 test("chamfer: C on a selected edge previews and applies a distance", async ({ page, request }) => {
