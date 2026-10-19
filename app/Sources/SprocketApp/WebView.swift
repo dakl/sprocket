@@ -15,6 +15,8 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
     let webView: WKWebView
     private let engine: EngineDaemon
     private let onExport: (String) -> Void
+    private var settingsObserver: NSObjectProtocol?
+    private let debugScript: WKUserScript
 
     init(engine: EngineDaemon, dataDir: URL, onExport: @escaping (String) -> Void) {
         self.engine = engine
@@ -52,14 +54,14 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
           };
         })();
         """
-        configuration.userContentController.addUserScript(
-            WKUserScript(source: debugScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
-        )
+        self.debugScript = WKUserScript(source: debugScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
         // The content controller holds its handler strongly, so it gets a weak proxy.
         configuration.userContentController.add(WeakMessageHandler(self), name: "sprocket")
         bindEngine()
+        installUserScripts()
+        watchSettings()
         webView.load(URLRequest(url: URL(string: "\(ViewerSchemeHandler.scheme)://viewer/index.html")!))
     }
 
@@ -81,6 +83,35 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
                   let json = String(data: data, encoding: .utf8)
             else { return }
             self?.run("window.__highlight && window.__highlight(JSON.parse(\(Self.literal(json))));", "highlight")
+        }
+    }
+
+    deinit {
+        if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
+    }
+
+    /// The debug script, and the settings as window.__sprocketSettings. A user
+    /// script's source is fixed once added, so a settings change installs them
+    /// again: a reload of the page then reads the new values.
+    private func installUserScripts() {
+        let controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        controller.addUserScript(debugScript)
+        controller.addUserScript(
+            WKUserScript(source: "window.__sprocketSettings = \(AppSettings.viewerJSON());", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        )
+    }
+
+    /// The open page gets a change through window.__applySettings. UserDefaults
+    /// posts this for any default that changes, not only settings, and sending
+    /// the same settings again is harmless.
+    private func watchSettings() {
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            installUserScripts()
+            run("window.__applySettings && window.__applySettings(\(AppSettings.viewerJSON()));", "applySettings")
         }
     }
 

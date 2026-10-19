@@ -32,6 +32,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Sprocket > Settings…, Cmd+,.
+    @objc func showSettings(_ sender: Any?) {
+        SettingsWindowController.shared.showWindow(sender)
+        SettingsWindowController.shared.window?.makeKeyAndOrderFront(sender)
+    }
+
     /// Launch opens what was open at the last quit, not a blank window.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
 

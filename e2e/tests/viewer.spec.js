@@ -5,7 +5,7 @@
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
 
-const { rpc, resetDocument, settled } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, fixture);
@@ -880,4 +880,33 @@ test("revolve: a selected sketch turns about an axis, previews, applies, and und
   expect((await rpc(request, "measure")).volume).toBeCloseTo(Math.PI * 300 * 10, 1);
   await page.keyboard.press("Meta+z");
   await page.waitForFunction(() => window.__tcad.timeline.length === 1, null, SLOW);
+});
+
+test("wheel zoom follows the distance scrolled, and the zoom setting scales it", async ({ page }) => {
+  await cameraStill(page);
+  const distance = () =>
+    page.evaluate(() => {
+      const { position, target } = window.__tcad.camera;
+      return Math.hypot(...position.map((value, i) => value - target[i]));
+    });
+  // Away from the timeline and the toolbar, so the wheel lands on the canvas.
+  await page.mouse.move(640, 300);
+  const zoomBy = async (deltas) => {
+    const before = await distance();
+    for (const delta of deltas) await page.mouse.wheel(0, delta);
+    await expect.poll(async () => (await distance()) !== before).toBe(true);
+    return Math.log((await distance()) / before);
+  };
+
+  // One 100 px event, then twenty of 5 px: the same zoom. OrbitControls' own
+  // fixed step made the twenty zoom twenty times as far.
+  const one = await zoomBy([100]);
+  const twenty = await zoomBy(Array(20).fill(5));
+  expect(twenty).toBeCloseTo(one, 3);
+  expect(one).toBeCloseTo(0.05, 3);
+
+  // What the app's Settings window sends.
+  await page.evaluate(() => window.__applySettings({ zoomSensitivity: 2 }));
+  expect(await page.evaluate(() => window.__tcad.zoomSensitivity)).toBe(2);
+  expect(await zoomBy([-100])).toBeCloseTo(-0.1, 3);
 });
