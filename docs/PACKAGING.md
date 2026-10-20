@@ -69,11 +69,22 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 - **Size.** Unpruned: 607 MB installed and a 356 MB DMG. Pruned: 435 MB and 211 MB. Large for a CAD tool download but not blocking. The next cut is a patched build123d without scipy and sklearn (about 85 MB). It is not planned.
 - **Orphan engine.** `kill` on the app (SIGTERM) leaves the engine running, because `shutdown()` only runs on a normal quit. This predates packaging.
 
+## Auto-update
+
+Sparkle 2 (SwiftPM, `app/Sources/SprocketApp/Updater.swift`), tracked in #52.
+
+- Only a release bundle (`package.sh --bundle`) has `SUFeedURL` and `SUPublicEDKey` in its `Info.plist`. A source build (`make app`, `package.sh` without `--bundle`) has neither, so it never checks and never replaces itself.
+- The feed is `appcast.xml` on the latest release of the public repo `dakl/sprocket-releases`, which holds only DMGs and the feed. The source stays private.
+- Each update is a DMG signed with an EdDSA key. The private key is in the login keychain of the Mac that made it (account `sprocket`). `generate_keys --account sprocket -x <file>` exports it.
+- `CFBundleVersion` is the release version too. Sparkle compares that field.
+- `package.sh` copies `Sparkle.framework` into `Contents/Frameworks` and signs it ad hoc with `--deep`, which reaches its XPC services and `Autoupdate`.
+
+Checked on 2026-10-20 with a localhost feed: an ad-hoc signed release bundle found a newer one, downloaded it, installed it on quit and left no engine running. The new app started. The installed copy had no quarantine attribute. The real feed and `release.yml` are not tested yet.
+
 ## Out of scope
 
 - Intel and universal builds.
 - Mac App Store.
-- Auto-update (Sparkle can follow).
 - `.tcad` packages (M7) and Quick Look (M8). Both need this bundle first.
 
 ## Open questions
