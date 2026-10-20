@@ -211,7 +211,14 @@ def report(head, base=None):
             else:
                 cells.append(f"{value} ({value - before:+d})")
         lines.append(f"| {label} | " + " | ".join(cells) + " |")
-    note = "Change against the base branch in brackets. " if base else ""
+    if base:
+        moved = sum(
+            head[n].get(key) != base.get(n, {}).get(key)
+            for n in names for key, _ in ROWS if head[n].get(key) is not None
+        )
+        note = f"{moved} numbers moved against the base, shown in brackets. " if moved else "No number moved against the base. "
+    else:
+        note = ""
     lines.append("")
     lines.append(
         f"{note}Counts, not targets: a number that moves the wrong way gets a sentence "

@@ -7,6 +7,10 @@ on:
 
 # Reports only. A number that moves the wrong way is explained in the PR, never
 # gated: tools/metrics.py says why.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   metrics:
     runs-on: ubuntu-latest
@@ -27,14 +31,25 @@ jobs:
           uv run --script tools/metrics.py --root ../base --out base.json
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-      - name: Write the job summary
+      - name: Write the report
         run: |
           if [ -f base.json ]; then base="--base base.json"; fi
-          uv run --script tools/metrics.py report metrics.json $base >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: metrics
-          path: |
-            metrics.json
-            base.json
-          if-no-files-found: ignore
+          uv run --script tools/metrics.py report metrics.json $base > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      # One comment per PR, found by its marker and edited on every push.
+      - name: Comment on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker="<!-- sprocket-metrics -->"
+          { echo "$marker"; echo "### Code metrics at ${SHA:0:7}"; echo; cat report.md; } > comment.md
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            -q ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else
+            gh pr comment "$PR" --body-file comment.md
+          fi
