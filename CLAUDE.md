@@ -22,3 +22,5 @@ Send output to a file and check `$?`. A pipe into `tail` hides a failure.
 - Browser tests: `make test-ui` (all), or `cd e2e && npx playwright test -g "<name>"`
 - A test that waits on a rebuild uses a 15 s timeout. The CI runner is slow.
 - Look at the page once in a browser before you call a UI change done.
+- `make metrics` counts complexity, duplication and unused code per part. The
+  numbers are sensors, not targets: never restructure code to move one.
