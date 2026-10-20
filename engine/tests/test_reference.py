@@ -13,12 +13,24 @@ from sprocket_engine.mesh import export_mesh
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
 
-BOARD = {"features": [
-    {"id": "s", "type": "sketch", "plane": "XY", "rect": {"width": 10, "height": 10}},
-    {"id": "b", "type": "extrude", "profile": "s", "distance": 2},
-]}
+BOARD = {
+    "features": [
+        {
+            "id": "s",
+            "type": "sketch",
+            "plane": "XY",
+            "rect": {"width": 10, "height": 10},
+        },
+        {"id": "b", "type": "extrude", "profile": "s", "distance": 2},
+    ]
+}
 TRAY = [
-    {"id": "ts", "type": "sketch", "plane": {"name": "XY", "offset": -3}, "rect": {"width": 20, "height": 20}},
+    {
+        "id": "ts",
+        "type": "sketch",
+        "plane": {"name": "XY", "offset": -3},
+        "rect": {"width": 20, "height": 20},
+    },
     {"id": "tray", "type": "extrude", "profile": "ts", "distance": 4},
 ]
 
@@ -37,18 +49,30 @@ def build(tmp_path, features):
 
 def test_a_referenced_document_is_a_reference_body_left_out_of_the_part(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
-    _, part, ctx = build(tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY)
-    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [("ref", True), ("tray", False)]
+    _, part, ctx = build(
+        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
+    )
+    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
+        ("ref", True),
+        ("tray", False),
+    ]
     assert part.volume == pytest.approx(20 * 20 * 4)
     assert ctx.bodies[0]["shape"].volume == pytest.approx(200)
 
 
-def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(tmp_path):
+def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
+    tmp_path,
+):
     write(tmp_path, "board.sprocket", BOARD)
-    _, part, ctx = build(tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY)
+    _, part, ctx = build(
+        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
+    )
     bodies = with_settings(ctx.bodies, {})
     header = export_mesh(part, tmp_path / "part.mesh", None, bodies)
-    assert [(body["id"], body["reference"]) for body in header["bodies"]] == [("tray", False), ("ref", True)]
+    assert [(body["id"], body["reference"]) for body in header["bodies"]] == [
+        ("tray", False),
+        ("ref", True),
+    ]
     assert header["counts"]["faces"] == 12
     write_step(part, tmp_path / "part.step", bodies)
     assert import_step(tmp_path / "part.step").volume == pytest.approx(1600)
@@ -56,27 +80,62 @@ def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
 
 def test_a_step_reference_moves_by_translate(tmp_path):
     export_step(Box(2, 2, 2), tmp_path / "cube.step")
-    _, _, ctx = build(tmp_path, [{"id": "ref", "type": "reference", "file": "cube.step", "translate": [5, 0, 0]}])
+    _, _, ctx = build(
+        tmp_path,
+        [
+            {
+                "id": "ref",
+                "type": "reference",
+                "file": "cube.step",
+                "translate": [5, 0, 0],
+            }
+        ],
+    )
     assert ctx.bodies[0]["shape"].center().X == pytest.approx(5)
 
 
 def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
-    cut = {"id": "fit", "type": "boolean", "operation": "subtract", "base": "tray", "tool": "ref"}
-    _, part, ctx = build(tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY + [cut])
+    cut = {
+        "id": "fit",
+        "type": "boolean",
+        "operation": "subtract",
+        "base": "tray",
+        "tool": "ref",
+    }
+    _, part, ctx = build(
+        tmp_path,
+        [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY + [cut],
+    )
     assert [body["id"] for body in ctx.bodies] == ["ref", "tray"]
-    assert part.volume == pytest.approx(1600 - 10 * 10 * 1)  # the board's lower 1 mm is inside the tray
+    assert part.volume == pytest.approx(
+        1600 - 10 * 10 * 1
+    )  # the board's lower 1 mm is inside the tray
 
 
 def test_a_document_that_references_itself_fails_with_a_message(tmp_path):
-    path = write(tmp_path, "loop.sprocket", {"features": [{"id": "ref", "type": "reference", "file": "loop.sprocket"}]})
+    path = write(
+        tmp_path,
+        "loop.sprocket",
+        {"features": [{"id": "ref", "type": "reference", "file": "loop.sprocket"}]},
+    )
     with pytest.raises(ValueError, match="includes itself"):
         replay(Document.load(path).for_replay())
 
 
 def test_the_cache_key_follows_the_referenced_file(tmp_path):
     board = write(tmp_path, "board.sprocket", BOARD)
-    document = Document.load(write(tmp_path, "case.sprocket", {"features": [{"id": "ref", "type": "reference", "file": "board.sprocket"}]}))
+    document = Document.load(
+        write(
+            tmp_path,
+            "case.sprocket",
+            {
+                "features": [
+                    {"id": "ref", "type": "reference", "file": "board.sprocket"}
+                ]
+            },
+        )
+    )
     before = document.for_replay()["features"][0]["source_sha256"]
     board.write_text(json.dumps(BOARD).replace('"distance": 2', '"distance": 3'))
     assert document.for_replay()["features"][0]["source_sha256"] != before
@@ -84,15 +143,22 @@ def test_the_cache_key_follows_the_referenced_file(tmp_path):
 
 def test_check_clearance_reports_distance_and_overlap(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
-    features = [{"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")}] + TRAY
-    with running({"features": features}, tmp_path) as daemon, Client(daemon.socket_path) as client:
+    features = [
+        {"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")}
+    ] + TRAY
+    with (
+        running({"features": features}, tmp_path) as daemon,
+        Client(daemon.socket_path) as client,
+    ):
         (pair,) = client.call("check_clearance")["pairs"]
     assert pair["body"] == "tray" and pair["reference"] == "ref"
     assert pair["distance"] == 0
     assert pair["overlap_volume"] == pytest.approx(100)
 
 
-def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(tmp_path):
+def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
+    tmp_path,
+):
     """examples/orangepi-case.sprocket: the board is a reference body, the base
     and the lid are the exported bodies, one solid each, and neither shares
     volume with the board. The base touches it only from below (the posts), so
@@ -102,12 +168,24 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(t
     from build123d import Align, Box, Pos, ShapeList
 
     def volume(shared):
-        pieces = list(shared) if isinstance(shared, ShapeList) else [shared] if shared is not None else []
+        pieces = (
+            list(shared)
+            if isinstance(shared, ShapeList)
+            else [shared]
+            if shared is not None
+            else []
+        )
         return sum(piece.volume for piece in pieces)
 
-    document = Document.load(Path(__file__).parents[2] / "examples" / "orangepi-case.sprocket")
+    document = Document.load(
+        Path(__file__).parents[2] / "examples" / "orangepi-case.sprocket"
+    )
     part, ctx = replay(document.for_replay(), return_context=True)
-    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [("board", True), ("block", False), ("lid_block", False)]
+    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
+        ("board", True),
+        ("block", False),
+        ("lid_block", False),
+    ]
     board, base, lid = (body["shape"] for body in ctx.bodies)
     assert part.volume == pytest.approx(base.volume + lid.volume)
     for case in (base, lid):
@@ -115,10 +193,17 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(t
         assert volume(case.intersect(board)) == pytest.approx(0, abs=1e-6)
     assert base.distance_to(Pos(0, 0, 0.05) * board) == pytest.approx(0.05, abs=1e-6)
     assert volume(base.intersect(lid)) == pytest.approx(0, abs=1e-6)
-    (lip,) = base.intersect(Pos(32.5, 16, 7.001) * Box(200, 200, 10, align=(Align.CENTER, Align.CENTER, Align.MIN))).solids()
-    assert lip.distance_to(lid) == pytest.approx(document.parameters["lip_fit"], abs=1e-6)
+    (lip,) = base.intersect(
+        Pos(32.5, 16, 7.001)
+        * Box(200, 200, 10, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    ).solids()
+    assert lip.distance_to(lid) == pytest.approx(
+        document.parameters["lip_fit"], abs=1e-6
+    )
     box = base.bounding_box()
-    assert (box.min.X, box.min.Y, box.max.X, box.max.Y) == pytest.approx((-3, -3, 68, 35))
+    assert (box.min.X, box.min.Y, box.max.X, box.max.Y) == pytest.approx(
+        (-3, -3, 68, 35)
+    )
 
 
 def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
@@ -128,7 +213,9 @@ def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
 
     from sprocket_engine.selectors import resolve_selector
 
-    document = Document.load(Path(__file__).parents[2] / "examples" / "orangepi-zero-3w.sprocket")
+    document = Document.load(
+        Path(__file__).parents[2] / "examples" / "orangepi-zero-3w.sprocket"
+    )
     shape, ctx = replay(document.for_replay(), return_context=True)
     entry = document.appearances[-1]
     assert entry["color"] == "#2f9e44"
@@ -146,14 +233,21 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     from test_mesh import read_mesh
 
     write(tmp_path, "board.sprocket", BOARD)
-    reference = {"id": "ref", "type": "reference", "file": "board.sprocket",
-                 "rotate": [90, 0, 30], "translate": [40, -10, 25]}
+    reference = {
+        "id": "ref",
+        "type": "reference",
+        "file": "board.sprocket",
+        "rotate": [90, 0, 30],
+        "translate": [40, -10, 25],
+    }
     _, part, ctx = build(tmp_path, [reference] + TRAY)
     bodies = with_settings(ctx.bodies, {})
     export_mesh(part, tmp_path / "part.mesh", None, bodies)
     header, buffers = read_mesh(tmp_path / "part.mesh")
 
-    faces_before = sum(body["faces"] for body in header["bodies"] if not body["reference"])
+    faces_before = sum(
+        body["faces"] for body in header["bodies"] if not body["reference"]
+    )
     per_face = buffers["triangles_per_face"].astype(int)
     first = per_face[:faces_before].sum()
     triangles = buffers["indices"].reshape(-1, 3)[first:]
@@ -162,9 +256,15 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     normals = buffers["normals"].reshape(-1, 3)[used]
 
     box = ctx.bodies[0]["shape"].bounding_box()
-    assert vertices.min(axis=0) == pytest.approx([box.min.X, box.min.Y, box.min.Z], abs=1e-3)
-    assert vertices.max(axis=0) == pytest.approx([box.max.X, box.max.Y, box.max.Z], abs=1e-3)
+    assert vertices.min(axis=0) == pytest.approx(
+        [box.min.X, box.min.Y, box.min.Z], abs=1e-3
+    )
+    assert vertices.max(axis=0) == pytest.approx(
+        [box.max.X, box.max.Y, box.max.Z], abs=1e-3
+    )
     # Normals turn with the part: each one is the normal of a face of the moved board.
-    face_normals = np.array([tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()])
+    face_normals = np.array(
+        [tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()]
+    )
     nearest = np.abs(normals @ face_normals.T).max(axis=1)
     assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)

@@ -56,7 +56,14 @@ def _position_word(centre, box, normal_axis: str | None) -> str | None:
     step, and has no useful one-word position, so this returns None rather
     than inventing one. Saying nothing beats saying "middle".
     """
-    words = {"+Z": "top", "-Z": "bottom", "+X": "right", "-X": "left", "+Y": "back", "-Y": "front"}
+    words = {
+        "+Z": "top",
+        "-Z": "bottom",
+        "+X": "right",
+        "-X": "left",
+        "+Y": "back",
+        "-Y": "front",
+    }
     if normal_axis not in words:
         return None
     axis = normal_axis[1]
@@ -92,7 +99,9 @@ def describe_faces(shape) -> list[dict]:
     return described
 
 
-def _face_sentence(kind: str, axis: str | None, area: float, position: str | None) -> str:
+def _face_sentence(
+    kind: str, axis: str | None, area: float, position: str | None
+) -> str:
     words = [f"{kind.lower()} face"]
     if axis:
         words.append(f"normal {axis}")
@@ -137,7 +146,9 @@ def _resolve_handle(shape, handle: str):
         raise ValueError(f"handle {handle!r} must look like 'f0' or 'e3'") from None
     items = shape.faces() if handle[0] == "f" else shape.edges()
     if not 0 <= index < len(items):
-        raise ValueError(f"handle {handle!r} is out of range, this shape has {len(items)}")
+        raise ValueError(
+            f"handle {handle!r} is out of range, this shape has {len(items)}"
+        )
     return items[index]
 
 
@@ -155,7 +166,11 @@ def measure(shape, handles: list[str] | None = None) -> dict:
         return {
             "volume": round(shape.volume, 9),
             "area": round(shape.area, 9),
-            "bounding_box": {"min": _xyz(box.min), "max": _xyz(box.max), "size": _xyz(box.size)},
+            "bounding_box": {
+                "min": _xyz(box.min),
+                "max": _xyz(box.max),
+                "size": _xyz(box.size),
+            },
             "centre_of_mass": _xyz(shape.center()),
         }
 

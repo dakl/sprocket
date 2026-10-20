@@ -14,10 +14,19 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "mirror"},
-        "tool": {"type": "string", "description": "id of the feature whose solid is mirrored"},
+        "tool": {
+            "type": "string",
+            "description": "id of the feature whose solid is mirrored",
+        },
         "plane": PLANE_SCHEMA,
-        "base": {"type": "string", "description": "id of the feature the original and the mirror combine with. Without it, they are a new body."},
-        "mode": {"enum": ["join", "cut"], "description": "default join. cut removes the original and the mirror from base"},
+        "base": {
+            "type": "string",
+            "description": "id of the feature the original and the mirror combine with. Without it, they are a new body.",
+        },
+        "mode": {
+            "enum": ["join", "cut"],
+            "description": "default join. cut removes the original and the mirror from base",
+        },
     },
 }
 

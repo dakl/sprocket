@@ -72,7 +72,11 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
                 entry["thread"] = thread_geometry(feature, ctx)
             except Exception:
                 pass
-        if feature.get("type") in CONSTRUCT_TYPES and entry["active"] and ctx is not None:
+        if (
+            feature.get("type") in CONSTRUCT_TYPES
+            and entry["active"]
+            and ctx is not None
+        ):
             # Where to draw a plane, an axis or a point.
             try:
                 entry["construct"] = construct_geometry(feature, ctx)
@@ -136,7 +140,10 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
     else:
         _write_atomically(mesh_path, data)
     _write_atomically(
-        viewer_dir / "features.json", json.dumps(features_summary(session.document, failed, session.context())).encode()
+        viewer_dir / "features.json",
+        json.dumps(
+            features_summary(session.document, failed, session.context())
+        ).encode(),
     )
     _write_atomically(viewer_dir / "schemas.json", json.dumps(schemas()).encode())
     return mesh_error

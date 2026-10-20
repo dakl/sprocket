@@ -11,8 +11,14 @@ BOX = [
     {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10}},
     {"id": "box", "type": "extrude", "profile": "bs", "distance": 10},
 ]
-SIDES = {"select": [{"op": "faces"}, {"op": "within", "box": [-11, -6, 1, 11, 6, 9]}], "expected_count": 4}
-TOP = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
+SIDES = {
+    "select": [{"op": "faces"}, {"op": "within", "box": [-11, -6, 1, 11, 6, 9]}],
+    "expected_count": 4,
+}
+TOP = {
+    "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
+    "expected_count": 1,
+}
 
 
 def build(features):
@@ -26,18 +32,56 @@ def top_size(part):
 
 
 def test_a_negative_angle_leans_the_walls_outward():
-    part, _ = build(BOX + [{"id": "d", "type": "draft", "base": "box", "faces": SIDES, "angle": -5, "neutral": "XY"}])
+    part, _ = build(
+        BOX
+        + [
+            {
+                "id": "d",
+                "type": "draft",
+                "base": "box",
+                "faces": SIDES,
+                "angle": -5,
+                "neutral": "XY",
+            }
+        ]
+    )
     grow = 20 * math.tan(math.radians(5))
     assert top_size(part) == pytest.approx((20 + grow, 10 + grow))
 
 
 def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
     neutral = {"feature": "box", "face": TOP}
-    part, _ = build(BOX + [{"id": "d", "type": "draft", "base": "box", "faces": SIDES, "angle": 5, "neutral": neutral}])
+    part, _ = build(
+        BOX
+        + [
+            {
+                "id": "d",
+                "type": "draft",
+                "base": "box",
+                "faces": SIDES,
+                "angle": 5,
+                "neutral": neutral,
+            }
+        ]
+    )
     assert top_size(part) == pytest.approx((20, 10))
-    assert part.bounding_box().size.X == pytest.approx(20 + 20 * math.tan(math.radians(5)))
+    assert part.bounding_box().size.X == pytest.approx(
+        20 + 20 * math.tan(math.radians(5))
+    )
 
 
 def test_drafting_a_face_that_lies_in_the_pull_plane_fails_with_a_reason():
     with pytest.raises(ValueError, match="draft d failed"):
-        build(BOX + [{"id": "d", "type": "draft", "base": "box", "faces": TOP, "angle": 5, "neutral": "XY"}])
+        build(
+            BOX
+            + [
+                {
+                    "id": "d",
+                    "type": "draft",
+                    "base": "box",
+                    "faces": TOP,
+                    "angle": 5,
+                    "neutral": "XY",
+                }
+            ]
+        )

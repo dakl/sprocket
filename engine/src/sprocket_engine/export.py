@@ -10,7 +10,17 @@ import copy
 import re
 from pathlib import Path
 
-from build123d import Color, Compound, ExportDXF, ExportSVG, Face, Mesher, ShapeList, export_step, export_stl
+from build123d import (
+    Color,
+    Compound,
+    ExportDXF,
+    ExportSVG,
+    Face,
+    Mesher,
+    ShapeList,
+    export_step,
+    export_stl,
+)
 
 
 class ExportError(Exception):
@@ -19,14 +29,20 @@ class ExportError(Exception):
 
 def _check_writable(path: Path, kind: str) -> None:
     if not path.parent.is_dir():
-        raise ExportError(f"cannot write {kind} file {path}: the directory {path.parent} does not exist")
+        raise ExportError(
+            f"cannot write {kind} file {path}: the directory {path.parent} does not exist"
+        )
     try:
         with path.open("ab"):
             pass
     except PermissionError:
-        raise ExportError(f"cannot write {kind} file {path}: permission denied") from None
+        raise ExportError(
+            f"cannot write {kind} file {path}: permission denied"
+        ) from None
     except OSError as exc:
-        raise ExportError(f"cannot write {kind} file {path}: {exc.strerror or exc}") from None
+        raise ExportError(
+            f"cannot write {kind} file {path}: {exc.strerror or exc}"
+        ) from None
 
 
 def _made(bodies) -> list[dict]:
@@ -51,7 +67,9 @@ def write_step(shape, path, bodies=None) -> None:
     path = Path(path)
     _check_writable(path, "STEP")
     made = _made(bodies)
-    if len(made) > 1 or any(body.get("color") or body.get("name", body["id"]) != body["id"] for body in made):
+    if len(made) > 1 or any(
+        body.get("color") or body.get("name", body["id"]) != body["id"] for body in made
+    ):
         shape = Compound(children=[_labelled(body) for body in made])
     try:
         written = export_step(shape, path)
@@ -80,7 +98,9 @@ def write_stl_dir(bodies, directory) -> list[Path]:
     """One STL per body, named after the body, in an existing directory."""
     directory = Path(directory)
     if not directory.is_dir():
-        raise ExportError(f"cannot write STL files to {directory}: the directory does not exist")
+        raise ExportError(
+            f"cannot write STL files to {directory}: the directory does not exist"
+        )
     written = []
     for body in _made(bodies):
         target = directory / f"{_file_name(body.get('name') or body['id'])}.stl"
@@ -102,7 +122,9 @@ def write_3mf(bodies, path) -> None:
             try:
                 mesher.add_shape(_labelled({**body, "shape": solid}))
             except Exception as exc:
-                raise ExportError(f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}") from None
+                raise ExportError(
+                    f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}"
+                ) from None
     try:
         mesher.write(str(path))
     except Exception as exc:
@@ -117,7 +139,13 @@ def section_of(shape, plane):
     # origin projected onto it), so the cutting face reaches past the whole box.
     reach = (box.center() - plane.origin).length + box.diagonal + 1
     cut = shape.intersect(Face.make_rect(2 * reach, 2 * reach, plane))
-    faces = [] if cut is None else (cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else [])
+    faces = (
+        []
+        if cut is None
+        else (
+            cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else []
+        )
+    )
     return plane.to_local_coords(Compound(list(faces))) if faces else None
 
 
@@ -126,7 +154,9 @@ def write_section(section, path) -> None:
     path = Path(path)
     kind = path.suffix.lower().lstrip(".")
     if kind not in ("dxf", "svg"):
-        raise ExportError(f"cannot write a section to {path}: the file must end in .dxf or .svg")
+        raise ExportError(
+            f"cannot write a section to {path}: the file must end in .dxf or .svg"
+        )
     _check_writable(path, kind.upper())
     if kind == "dxf":
         drawing = ExportDXF()

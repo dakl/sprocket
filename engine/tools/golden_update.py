@@ -57,7 +57,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.case not in CASES:
-        print(f"no such golden case: {args.case}\nknown cases: {', '.join(CASES)}", file=sys.stderr)
+        print(
+            f"no such golden case: {args.case}\nknown cases: {', '.join(CASES)}",
+            file=sys.stderr,
+        )
         return 2
 
     directory = case_dir(args.case)

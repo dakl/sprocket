@@ -71,7 +71,9 @@ def capture_identity(case: str) -> dict | None:
 
 
 def write_capture_identity(path: Path) -> None:
-    Path(path).write_text(json.dumps(engine_identity(), indent=2, sort_keys=True) + "\n")
+    Path(path).write_text(
+        json.dumps(engine_identity(), indent=2, sort_keys=True) + "\n"
+    )
 
 
 def build(case: str, cache_dir: Path):

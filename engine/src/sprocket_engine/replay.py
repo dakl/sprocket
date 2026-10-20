@@ -70,12 +70,23 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
             order.append(root)
         tip_of[root] = feature_id
         tool = feature.get("tool")
-        if feature.get("type") in CONSUMES_TOOL and tool in root_of and root_of[tool] != root:
+        if (
+            feature.get("type") in CONSUMES_TOOL
+            and tool in root_of
+            and root_of[tool] != root
+        ):
             consumed.add(root_of[tool])
     # A reference body is never consumed: cutting with it keeps it on screen.
-    reference = {root for root in order if ctx.features[root].get("type") == "reference"}
+    reference = {
+        root for root in order if ctx.features[root].get("type") == "reference"
+    }
     return [
-        {"id": root, "tip": tip_of[root], "shape": ctx.results[tip_of[root]], "reference": root in reference}
+        {
+            "id": root,
+            "tip": tip_of[root],
+            "shape": ctx.results[tip_of[root]],
+            "reference": root in reference,
+        }
         for root in order
         if root not in consumed or root in reference
     ]
@@ -86,10 +97,15 @@ def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
     merged = []
     for body in bodies:
         own = settings.get(body["id"], {})
-        merged.append({
-            **body, "name": own.get("name", body["id"]), "color": own.get("color"),
-            "material": own.get("material"), "visible": own.get("visible", True),
-        })
+        merged.append(
+            {
+                **body,
+                "name": own.get("name", body["id"]),
+                "color": own.get("color"),
+                "material": own.get("material"),
+                "visible": own.get("visible", True),
+            }
+        )
     return merged
 
 
@@ -125,12 +141,20 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         op_type = feature.get("type")
         op = REGISTRY.get(op_type)
         if op is None:
-            raise _tagged(ReplayError(f"unknown op type {op_type!r} in feature {feature.get('id')!r}"), feature, index)
+            raise _tagged(
+                ReplayError(
+                    f"unknown op type {op_type!r} in feature {feature.get('id')!r}"
+                ),
+                feature,
+                index,
+            )
 
         try:
             jsonschema.validate(feature, op.schema)
         except jsonschema.ValidationError as exc:
-            error = ReplayError(f"feature {feature.get('id')!r} failed validation: {exc.message}")
+            error = ReplayError(
+                f"feature {feature.get('id')!r} failed validation: {exc.message}"
+            )
             raise _tagged(error, feature, index) from exc
 
         key = feature_cache_key(feature, upstream_key)
@@ -195,20 +219,34 @@ def build_shape(
     """
     export_index = last_solid_index(features, rollback_index)
     try:
-        shape, ctx = replay({"features": features, "rollback_index": export_index}, cache_dir=cache_dir, return_context=True)
-        return shape, _trailing_sketches(features, export_index, rollback_index, ctx), ctx
+        shape, ctx = replay(
+            {"features": features, "rollback_index": export_index},
+            cache_dir=cache_dir,
+            return_context=True,
+        )
+        return (
+            shape,
+            _trailing_sketches(features, export_index, rollback_index, ctx),
+            ctx,
+        )
     except Exception as exc:
         failed_index = getattr(exc, "feature_index", None)
         failed_id = getattr(exc, "feature_id", None)
         if failed_index is None:
             raise
         good_index = last_solid_index(features, failed_index)
-        shape, ctx = replay({"features": features, "rollback_index": good_index}, cache_dir=cache_dir, return_context=True)
+        shape, ctx = replay(
+            {"features": features, "rollback_index": good_index},
+            cache_dir=cache_dir,
+            return_context=True,
+        )
         _trailing_sketches(features, good_index, failed_index, ctx)
         return shape, failed_id, ctx
 
 
-def _trailing_sketches(features: list[dict], start: int, stop: int, ctx: Context) -> str | None:
+def _trailing_sketches(
+    features: list[dict], start: int, stop: int, ctx: Context
+) -> str | None:
     """Puts the sketches between the last solid and `stop` into `ctx.features`.
 
     Replay stops at the last solid, because a sketch makes no part. But a sketch

@@ -80,10 +80,19 @@
     /// what was typed: a number, or an expression with or without its "=".
     set_parameter(state, message) {
       require_(message, "name");
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(message.name)) fail("a parameter name is letters, digits and underscores, and does not start with a digit");
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(message.name))
+        fail(
+          "a parameter name is letters, digits and underscores, and does not start with a digit",
+        );
       if (message.value === null) return [{ op: "set_parameter", name: message.name, value: null }];
       require_(message, "value");
-      return [{ op: "set_parameter", name: message.name, value: typeof message.value === "number" ? message.value : parameterValue(message.value) }];
+      return [
+        {
+          op: "set_parameter",
+          name: message.name,
+          value: typeof message.value === "number" ? message.value : parameterValue(message.value),
+        },
+      ];
     },
 
     /// Names, colours or finishes one body. Only the fields given change. Showing and
@@ -91,7 +100,8 @@
     set_body(state, message) {
       require_(message, "id");
       const edit = { op: "set_body", id: message.id };
-      for (const name of ["name", "color", "material"]) if (name in message) edit[name] = message[name];
+      for (const name of ["name", "color", "material"])
+        if (name in message) edit[name] = message[name];
       if (Object.keys(edit).length === 2) fail("set_body needs name, color or material");
       return [edit];
     },
@@ -99,7 +109,9 @@
     set_rollback(state, message) {
       require_(message, "index");
       if (!Number.isInteger(message.index)) fail("'index' must be an integer");
-      return [{ op: "set_rollback", index: Math.max(0, Math.min(message.index, state.features.length)) }];
+      return [
+        { op: "set_rollback", index: Math.max(0, Math.min(message.index, state.features.length)) },
+      ];
     },
 
     extrude_face(state, message) {
@@ -115,7 +127,10 @@
         base: kept[kept.length - 1].id,
         face: message.face || {
           from: "part",
-          select: [{ op: "faces" }, { op: "nearest_to", point: message.point, normal: message.normal }],
+          select: [
+            { op: "faces" },
+            { op: "nearest_to", point: message.point, normal: message.normal },
+          ],
         },
         distance: message.distance,
       };
@@ -140,9 +155,12 @@
       require_(message, "distance");
       if (!message.profile && !message.profiles) fail("extrude_sketch needs profile or profiles");
       const { deletes, kept } = dropRolledBackTail(state);
-      const named = message.profiles ? message.profiles.map((profile) => profile.sketch) : [message.profile];
+      const named = message.profiles
+        ? message.profiles.map((profile) => profile.sketch)
+        : [message.profile];
       for (const id of named) {
-        if (!kept.some((feature) => feature.id === id && feature.type === "sketch")) fail("unknown sketch id '" + id + "'");
+        if (!kept.some((feature) => feature.id === id && feature.type === "sketch"))
+          fail("unknown sketch id '" + id + "'");
       }
       const feature = { id: newId(kept), type: "extrude", distance: message.distance };
       if (message.profiles) feature.profiles = message.profiles;
@@ -159,7 +177,8 @@
       if (!message.feature.type) fail("add_feature needs a feature with a type");
       const { deletes, kept } = dropRolledBackTail(state);
       // A construct feature needs no part: a plane can come first.
-      if (!kept.length && !["plane", "axis", "point"].includes(message.feature.type)) fail("there is no part yet");
+      if (!kept.length && !["plane", "axis", "point"].includes(message.feature.type))
+        fail("there is no part yet");
       return [...deletes, { op: "insert", feature: { ...message.feature, id: newId(kept) } }];
     },
 

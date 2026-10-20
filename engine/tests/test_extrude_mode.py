@@ -46,7 +46,20 @@ def test_no_mode_keeps_the_sign_rule_for_old_documents():
 
 
 def test_symmetric_extrudes_both_ways():
-    part = replay({"features": [BOX[0], {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5, "symmetric": True}]})
+    part = replay(
+        {
+            "features": [
+                BOX[0],
+                {
+                    "id": "f2",
+                    "type": "extrude",
+                    "profile": "f1",
+                    "distance": 5,
+                    "symmetric": True,
+                },
+            ]
+        }
+    )
     box = part.bounding_box()
     assert (box.min.Z, box.max.Z) == pytest.approx((-5, 5))
 
@@ -55,13 +68,38 @@ def test_new_takes_no_base_and_combines_need_one():
     with pytest.raises(ValueError, match="takes no base"):
         build(distance=4, mode="new")
     with pytest.raises(ValueError, match="needs a base"):
-        replay({"features": [BOX[0], {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5, "mode": "join"}]})
+        replay(
+            {
+                "features": [
+                    BOX[0],
+                    {
+                        "id": "f2",
+                        "type": "extrude",
+                        "profile": "f1",
+                        "distance": 5,
+                        "mode": "join",
+                    },
+                ]
+            }
+        )
 
 
 def test_a_plane_facing_down_has_v_along_world_minus_y():
     """Documented in the sketch schema: v = normal x x_dir."""
     down = {"origin": [0, 0, 0], "normal": [0, 0, -1], "x_dir": [1, 0, 0]}
-    sketch = {"id": "s", "type": "sketch", "plane": down, "rect": {"width": 2, "height": 2, "center": [0, 5]}}
-    part = replay({"features": [sketch, {"id": "e", "type": "extrude", "profile": "s", "distance": 1}]})
+    sketch = {
+        "id": "s",
+        "type": "sketch",
+        "plane": down,
+        "rect": {"width": 2, "height": 2, "center": [0, 5]},
+    }
+    part = replay(
+        {
+            "features": [
+                sketch,
+                {"id": "e", "type": "extrude", "profile": "s", "distance": 1},
+            ]
+        }
+    )
     assert part.center().Y == pytest.approx(-5)
     assert part.bounding_box().min.Z == pytest.approx(-1)

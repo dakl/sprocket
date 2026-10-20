@@ -30,7 +30,12 @@ BOX_DOCUMENT = {
     "schema_version": 1,
     "units": {"length": "mm"},
     "features": [
-        {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+        {
+            "id": "f1",
+            "type": "sketch",
+            "plane": "XY",
+            "rect": {"width": 40, "height": 20, "center": [0, 0]},
+        },
         {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
     ],
 }
@@ -66,7 +71,9 @@ def box_mesh(tmp_path_factory):
 def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh):
     _part, written_header, (header, buffers) = box_mesh
 
-    assert header == written_header, "export_mesh returned a header the file does not contain"
+    assert header == written_header, (
+        "export_mesh returned a header the file does not contain"
+    )
     assert header["format"] == "sprocket-mesh"
     counts = header["counts"]
 
@@ -97,7 +104,9 @@ def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
     previous_max = -1
     for face_index, triangle_count in enumerate(per_face):
         face_indices = indices[offset * 3 : (offset + triangle_count) * 3]
-        assert face_indices.min() > previous_max, f"face {face_index} shares vertices with an earlier face"
+        assert face_indices.min() > previous_max, (
+            f"face {face_index} shares vertices with an earlier face"
+        )
         previous_max = int(face_indices.max())
         offset += triangle_count
     assert previous_max == header["counts"]["vertices"] - 1
@@ -145,7 +154,9 @@ def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
     first_face_triangles = int(buffers["triangles_per_face"][0])
     first_face_vertices = buffers["indices"][: first_face_triangles * 3]
     face_normals = normals[np.unique(first_face_vertices)]
-    assert np.allclose(face_normals, face_normals[0], atol=1e-5), "face 0 of a box should be planar"
+    assert np.allclose(face_normals, face_normals[0], atol=1e-5), (
+        "face 0 of a box should be planar"
+    )
 
 
 def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh):
@@ -171,10 +182,16 @@ def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh)
 
         uses = Counter()
         for corner_a, corner_b, corner_c in triangles:
-            for a, b in ((corner_a, corner_b), (corner_b, corner_c), (corner_c, corner_a)):
+            for a, b in (
+                (corner_a, corner_b),
+                (corner_b, corner_c),
+                (corner_c, corner_a),
+            ):
                 uses[(min(a, b), max(a, b))] += 1
 
-        assert max(uses.values()) <= 2, f"face {face_index} has an edge used by three triangles"
+        assert max(uses.values()) <= 2, (
+            f"face {face_index} has an edge used by three triangles"
+        )
         if any(count == 2 for count in uses.values()):
             faces_sharing_an_interior_edge += 1
 
@@ -187,7 +204,9 @@ def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh)
             degree[b] += 1
         assert set(degree.values()) == {2}, f"face {face_index} has an open boundary"
 
-    assert faces_sharing_an_interior_edge == len(part.faces()), "a face split its interior edges"
+    assert faces_sharing_an_interior_edge == len(part.faces()), (
+        "a face split its interior edges"
+    )
 
 
 def test_node_normals_agree_with_the_triangle_winding(box_mesh):
@@ -203,11 +222,17 @@ def test_node_normals_agree_with_the_triangle_winding(box_mesh):
     normals = buffers["normals"].reshape(-1, 3)
     triangles = buffers["indices"].reshape(-1, 3)
 
-    a, b, c = vertices[triangles[:, 0]], vertices[triangles[:, 1]], vertices[triangles[:, 2]]
+    a, b, c = (
+        vertices[triangles[:, 0]],
+        vertices[triangles[:, 1]],
+        vertices[triangles[:, 2]],
+    )
     winding = np.cross(b - a, c - a)
     winding /= np.linalg.norm(winding, axis=1, keepdims=True)
     agreement = np.einsum("ij,ij->i", winding, normals[triangles[:, 0]])
-    assert np.allclose(agreement, 1.0, atol=1e-5), "a node normal points against its triangle's winding"
+    assert np.allclose(agreement, 1.0, atol=1e-5), (
+        "a node normal points against its triangle's winding"
+    )
 
     signed_volume = np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6.0
     assert signed_volume > 0, "the winding faces into the solid, so the normals do too"

@@ -70,9 +70,13 @@ def op_tool_schema(schema: dict) -> dict:
     daemon can name a feature perfectly well.
     """
     properties = {
-        name: value for name, value in schema.get("properties", {}).items() if name != "type"
+        name: value
+        for name, value in schema.get("properties", {}).items()
+        if name != "type"
     }
-    required = [name for name in schema.get("required", []) if name not in ("type", "id")]
+    required = [
+        name for name in schema.get("required", []) if name not in ("type", "id")
+    ]
     # `description` goes too: it is already the tool's own description, and an
     # agent pays for every copy of it in the listing.
     dropped = ("properties", "required", "type", "description")
@@ -87,7 +91,9 @@ def op_tool_schema(schema: dict) -> dict:
     return tool_schema
 
 
-def _tool(name: str, description: str, properties: dict, required: list[str] | None = None):
+def _tool(
+    name: str, description: str, properties: dict, required: list[str] | None = None
+):
     return types.Tool(
         name=name,
         description=description,
@@ -108,7 +114,11 @@ HANDLES = {
 
 def document_tools() -> list[types.Tool]:
     return [
-        _tool("get_document", "The whole document: features, parameters, rollback index, revision.", {}),
+        _tool(
+            "get_document",
+            "The whole document: features, parameters, rollback index, revision.",
+            {},
+        ),
         _tool(
             "get_timeline",
             "The feature list in order, with which features are built and who added each one. Start here.",
@@ -154,7 +164,11 @@ def document_tools() -> list[types.Tool]:
             "An empty list clears it. It does not change their selection.",
             {
                 "handles": HANDLES,
-                "sketches": {"type": "array", "items": {"type": "string"}, "description": "sketch feature ids"},
+                "sketches": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "sketch feature ids",
+                },
             },
         ),
         _tool(
@@ -163,7 +177,13 @@ def document_tools() -> list[types.Tool]:
             "(`body`); or of the handles you name. One handle gives a face's area or an edge's length. Two give "
             "`distance` (the closest they come), `centre_distance`, and `angle` in degrees when both are flat "
             "faces (between normals, 0 to 180) or straight edges (0 to 90), or one of each (line to plane, 0 to 90).",
-            {"handles": HANDLES, "body": {"type": "string", "description": "a body id, as get_bodies lists them"}},
+            {
+                "handles": HANDLES,
+                "body": {
+                    "type": "string",
+                    "description": "a body id, as get_bodies lists them",
+                },
+            },
         ),
         _tool(
             "render_view",
@@ -188,7 +208,10 @@ def document_tools() -> list[types.Tool]:
             "Builds a feature without committing it, and reports whether it would work. "
             "Use this before adding anything you are not sure about.",
             {
-                "feature": {"type": "object", "description": "a complete feature, including its type"},
+                "feature": {
+                    "type": "object",
+                    "description": "a complete feature, including its type",
+                },
                 "index": EDIT_PROPERTIES["index"],
             },
             ["feature"],
@@ -196,7 +219,10 @@ def document_tools() -> list[types.Tool]:
         _tool(
             "set_rollback",
             "Moves the rollback bar. Features at or after this index stop being built.",
-            {"index": {"type": "integer"}, "base_revision": EDIT_PROPERTIES["base_revision"]},
+            {
+                "index": {"type": "integer"},
+                "base_revision": EDIT_PROPERTIES["base_revision"],
+            },
             ["index"],
         ),
         _tool(
@@ -212,7 +238,17 @@ def document_tools() -> list[types.Tool]:
             {
                 "appearances": {
                     "type": "array",
-                    "items": {"type": "object", "properties": {"color": {"type": "string", "description": "#rrggbb"}, "select": {"type": "object"}, "material": {"enum": list(PRESETS), "description": "optional surface finish"}}},
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "color": {"type": "string", "description": "#rrggbb"},
+                            "select": {"type": "object"},
+                            "material": {
+                                "enum": list(PRESETS),
+                                "description": "optional surface finish",
+                            },
+                        },
+                    },
                 },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },
@@ -222,14 +258,24 @@ def document_tools() -> list[types.Tool]:
             "get_face_appearance",
             "Which appearance entries colour one face (with how many faces each colours), and a within-box "
             "selector that matches that face alone. Append {color, select: selector} with set_appearances to colour it.",
-            {"handle": {"type": "string", "description": "a face handle from describe_geometry, like 'f3'"}},
+            {
+                "handle": {
+                    "type": "string",
+                    "description": "a face handle from describe_geometry, like 'f3'",
+                }
+            },
             ["handle"],
         ),
         _tool(
             "face_sketch_plane",
             "A sketch plane that follows a face: {feature, face selector} to use as a new sketch's `plane`, "
             "and where it lands now (origin, normal, x_dir). Sketch coordinates are in that plane's u, v.",
-            {"handle": {"type": "string", "description": "a planar face handle from describe_geometry, like 'f3'"}},
+            {
+                "handle": {
+                    "type": "string",
+                    "description": "a planar face handle from describe_geometry, like 'f3'",
+                }
+            },
             ["handle"],
         ),
         _tool(
@@ -252,8 +298,14 @@ def document_tools() -> list[types.Tool]:
                 "id": {"type": "string", "description": "the body id from get_bodies"},
                 "name": {"type": ["string", "null"]},
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
-                "material": {"enum": [*PRESETS, None], "description": "surface finish preset; null goes back to the default"},
-                "visible": {"type": "boolean", "description": "false hides the body in the viewer; it still exports"},
+                "material": {
+                    "enum": [*PRESETS, None],
+                    "description": "surface finish preset; null goes back to the default",
+                },
+                "visible": {
+                    "type": "boolean",
+                    "description": "false hides the body in the viewer; it still exports",
+                },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },
             ["id"],
@@ -287,10 +339,22 @@ def document_tools() -> list[types.Tool]:
             "Writes the built part to STEP, STL, 3MF, or the viewer's mesh format. STEP and 3MF carry body names and colours.",
             {
                 "step": {"type": "string", "description": "path to write STEP to"},
-                "stl": {"type": "string", "description": "path to write STL to, every body in one file"},
-                "stl_dir": {"type": "string", "description": "existing directory to write one STL per body into"},
-                "3mf": {"type": "string", "description": "path to write a 3MF with one object per body"},
-                "mesh": {"type": "string", "description": "path to write the viewer mesh to"},
+                "stl": {
+                    "type": "string",
+                    "description": "path to write STL to, every body in one file",
+                },
+                "stl_dir": {
+                    "type": "string",
+                    "description": "existing directory to write one STL per body into",
+                },
+                "3mf": {
+                    "type": "string",
+                    "description": "path to write a 3MF with one object per body",
+                },
+                "mesh": {
+                    "type": "string",
+                    "description": "path to write the viewer mesh to",
+                },
             },
         ),
         _tool(
@@ -300,7 +364,10 @@ def document_tools() -> list[types.Tool]:
             "sketch's `plane` takes, such as {'name': 'XZ', 'offset': 5}.",
             {
                 "plane": {"description": "a sketch plane reference"},
-                "path": {"type": "string", "description": "a .dxf or .svg file to write the section to"},
+                "path": {
+                    "type": "string",
+                    "description": "a .dxf or .svg file to write the section to",
+                },
             },
             ["plane"],
         ),
@@ -308,12 +375,24 @@ def document_tools() -> list[types.Tool]:
 
 
 SKETCH_TOOL_PROPERTIES = {
-    "feature": {"type": "string", "description": "id of a sketch feature made of lines, arcs and circles"},
+    "feature": {
+        "type": "string",
+        "description": "id of a sketch feature made of lines, arcs and circles",
+    },
     "base_revision": EDIT_PROPERTIES["base_revision"],
 }
-CONSTRAINT_ID = {"type": "string", "description": "a constraint id from the sketch, such as 'c3'"}
-ENTITY_ID = {"type": "string", "description": "an entity id from the sketch, such as 'e2'"}
-CHANGES = {"type": "object", "description": "the fields to set. The id and the kind cannot change."}
+CONSTRAINT_ID = {
+    "type": "string",
+    "description": "a constraint id from the sketch, such as 'c3'",
+}
+ENTITY_ID = {
+    "type": "string",
+    "description": "an entity id from the sketch, such as 'e2'",
+}
+CHANGES = {
+    "type": "object",
+    "description": "the fields to set. The id and the kind cannot change.",
+}
 
 
 def sketch_tools() -> list[types.Tool]:
@@ -323,14 +402,25 @@ def sketch_tools() -> list[types.Tool]:
     return [
         _tool(
             "sketch_add_constraint",
-            common + "A constraint with no solution is refused, and the reply names the ones that conflict.",
-            {**SKETCH_TOOL_PROPERTIES, "constraint": {"type": "object", "description": "{kind, and a, b or e, and value for a dimension}. distance_x and distance_y measure from a to b along the sketch's u or v axis, signed"}},
+            common
+            + "A constraint with no solution is refused, and the reply names the ones that conflict.",
+            {
+                **SKETCH_TOOL_PROPERTIES,
+                "constraint": {
+                    "type": "object",
+                    "description": "{kind, and a, b or e, and value for a dimension}. distance_x and distance_y measure from a to b along the sketch's u or v axis, signed",
+                },
+            },
             ["feature", "constraint"],
         ),
         _tool(
             "sketch_update_constraint",
             common + "Use it to change a dimension's value.",
-            {**SKETCH_TOOL_PROPERTIES, "constraint_id": CONSTRAINT_ID, "changes": CHANGES},
+            {
+                **SKETCH_TOOL_PROPERTIES,
+                "constraint_id": CONSTRAINT_ID,
+                "changes": CHANGES,
+            },
             ["feature", "constraint_id", "changes"],
         ),
         _tool(
@@ -342,12 +432,19 @@ def sketch_tools() -> list[types.Tool]:
         _tool(
             "sketch_add_entity",
             common + "Join it to the rest with sketch_add_constraint.",
-            {**SKETCH_TOOL_PROPERTIES, "entity": {"type": "object", "description": "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind"}},
+            {
+                **SKETCH_TOOL_PROPERTIES,
+                "entity": {
+                    "type": "object",
+                    "description": "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind",
+                },
+            },
             ["feature", "entity"],
         ),
         _tool(
             "sketch_add_reference",
-            common + "Projects an edge of an earlier sketch or body into this sketch as a locked reference entity, "
+            common
+            + "Projects an edge of an earlier sketch or body into this sketch as a locked reference entity, "
             "drawn dashed and left out of profiles. A constraint or dimension may then name it, such as "
             "distance_x between its end and a point of this sketch. It is projected again on every rebuild, so the "
             "dimension holds when the source changes. A source is {sketch, entity} for an entity of an earlier sketch, "
@@ -363,7 +460,8 @@ def sketch_tools() -> list[types.Tool]:
         ),
         _tool(
             "sketch_update_entity",
-            common + "The solver moves the entity to the nearest place that obeys the constraints.",
+            common
+            + "The solver moves the entity to the nearest place that obeys the constraints.",
             {**SKETCH_TOOL_PROPERTIES, "entity_id": ENTITY_ID, "changes": CHANGES},
             ["feature", "entity_id", "changes"],
         ),
@@ -387,7 +485,9 @@ def op_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name=f"add_{name}",
-            description=op.schema.get("description", f"Adds a {name} feature to the timeline."),
+            description=op.schema.get(
+                "description", f"Adds a {name} feature to the timeline."
+            ),
             input_schema=op_tool_schema(op.schema),
         )
         for name, op in sorted(REGISTRY.items())
@@ -396,7 +496,9 @@ def op_tools() -> list[types.Tool]:
 
 def _next_id(client: Client, op_name: str) -> str:
     """A short id the agent did not have to invent, unique in this document."""
-    existing = {feature.get("id") for feature in client.call("get_document")["features"]}
+    existing = {
+        feature.get("id") for feature in client.call("get_document")["features"]
+    }
     index = 1
     while f"{op_name}{index}" in existing:
         index += 1
@@ -409,13 +511,17 @@ SKETCH_TOOL_NAMES = {tool.name for tool in sketch_tools()}
 def call(client: Client, name: str, arguments: dict) -> list:
     """Runs one tool against the daemon and returns MCP content."""
     if name in SKETCH_TOOL_NAMES:
-        return _json_content(client.call(name[len("sketch_"):], author=AUTHOR, **arguments))
+        return _json_content(
+            client.call(name[len("sketch_") :], author=AUTHOR, **arguments)
+        )
 
     if name.startswith("add_"):
-        op_name = name[len("add_"):]
+        op_name = name[len("add_") :]
         if op_name not in REGISTRY:
             raise ValueError(f"no op named {op_name!r}")
-        feature = {key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES}
+        feature = {
+            key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES
+        }
         feature["type"] = op_name
         feature.setdefault("id", _next_id(client, op_name))
         edit = {"op": "insert", "feature": feature}
@@ -433,10 +539,34 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name == "render_view":
         return _render(client, arguments)
 
-    if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
+    if name in (
+        "apply_edit",
+        "set_rollback",
+        "set_parameter",
+        "set_body",
+        "set_appearances",
+    ):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
-    if name in ("get_document", "get_timeline", "get_profiles", "describe_geometry", "get_selection", "resolve_selection", "highlight", "measure", "preview_feature", "export", "resolve_plane", "get_bodies", "check_clearance", "get_face_appearance", "get_file_status", "face_sketch_plane", "section"):
+    if name in (
+        "get_document",
+        "get_timeline",
+        "get_profiles",
+        "describe_geometry",
+        "get_selection",
+        "resolve_selection",
+        "highlight",
+        "measure",
+        "preview_feature",
+        "export",
+        "resolve_plane",
+        "get_bodies",
+        "check_clearance",
+        "get_face_appearance",
+        "get_file_status",
+        "face_sketch_plane",
+        "section",
+    ):
         return _json_content(client.call(name, **arguments))
 
     raise ValueError(f"no tool named {name!r}")
@@ -462,18 +592,24 @@ def _render(client: Client, arguments: dict) -> list:
 
 
 def _json_content(result) -> list:
-    return [types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))]
+    return [
+        types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))
+    ]
 
 
 def build_server(client: Client) -> Server:
     async def on_list_tools(ctx, params):
-        return types.ListToolsResult(tools=document_tools() + sketch_tools() + op_tools())
+        return types.ListToolsResult(
+            tools=document_tools() + sketch_tools() + op_tools()
+        )
 
     async def on_call_tool(ctx, params):
         try:
             # The client is blocking, and blocking the event loop would stall
             # the stdio transport for the whole of a replay.
-            content = await asyncio.to_thread(call, client, params.name, params.arguments or {})
+            content = await asyncio.to_thread(
+                call, client, params.name, params.arguments or {}
+            )
             return types.CallToolResult(content=content)
         except RpcError as exc:
             # A refused edit is the agent's to fix, not a transport failure, so
@@ -483,12 +619,18 @@ def build_server(client: Client) -> Server:
             if exc.data:
                 payload["data"] = exc.data
             return types.CallToolResult(
-                content=[types.TextContent(type="text", text=json.dumps(payload, indent=1, default=str))],
+                content=[
+                    types.TextContent(
+                        type="text", text=json.dumps(payload, indent=1, default=str)
+                    )
+                ],
                 is_error=True,
             )
         except Exception as exc:
             return types.CallToolResult(
-                content=[types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")],
+                content=[
+                    types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")
+                ],
                 is_error=True,
             )
 
@@ -513,15 +655,21 @@ def find_socket(extra_folder: Path | None = None) -> Path:
         candidates = list(extra_folder.glob("sprocket-*.sock"))
     else:
         folders = {Path(tempfile.gettempdir()), Path("/tmp")}
-        candidates = [path for folder in folders for path in folder.glob("sprocket-*.sock")]
+        candidates = [
+            path for folder in folders for path in folder.glob("sprocket-*.sock")
+        ]
         candidates += Path("/var/folders").glob("*/*/T/sprocket-*.sock")
-    for path in sorted(candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True):
+    for path in sorted(
+        candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True
+    ):
         try:
             Client(path).close()
         except OSError:
             continue
         return path
-    raise RpcError(INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket")
+    raise RpcError(
+        INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket"
+    )
 
 
 class LazyClient:
@@ -531,7 +679,9 @@ class LazyClient:
     for the socket again, which is the new app's.
     """
 
-    def __init__(self, socket_path: Path | None = None, search_folder: Path | None = None):
+    def __init__(
+        self, socket_path: Path | None = None, search_folder: Path | None = None
+    ):
         self._socket_path = socket_path
         self._search_folder = search_folder
         self._client: Client | None = None
@@ -539,11 +689,15 @@ class LazyClient:
     def call(self, method: str, **params):
         for attempt in (1, 2):
             if self._client is None:
-                self._client = Client(self._socket_path or find_socket(self._search_folder))
+                self._client = Client(
+                    self._socket_path or find_socket(self._search_folder)
+                )
             try:
                 return self._client.call(method, **params)
             except (OSError, RpcError) as error:
-                if isinstance(error, RpcError) and "closed the connection" not in str(error):
+                if isinstance(error, RpcError) and "closed the connection" not in str(
+                    error
+                ):
                     raise
                 self.close()
                 if attempt == 2:
@@ -561,7 +715,9 @@ def run(socket_path: Path | None = None) -> int:
 
     async def main():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream, server.create_initialization_options())
+            await server.run(
+                read_stream, write_stream, server.create_initialization_options()
+            )
 
     try:
         asyncio.run(main())

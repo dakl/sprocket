@@ -21,7 +21,12 @@ RING_AND_DISC = [
 DOCUMENT = {
     "features": [
         {"id": "f1", "type": "sketch", "plane": "XY", "entities": RING_AND_DISC},
-        {"id": "f2", "type": "sketch", "plane": "XY", "rect": {"width": 10, "height": 6}},
+        {
+            "id": "f2",
+            "type": "sketch",
+            "plane": "XY",
+            "rect": {"width": 10, "height": 6},
+        },
     ],
     "rollback_index": 2,
 }
@@ -35,7 +40,10 @@ def client(tmp_path):
 
 def test_get_profiles_names_each_region_by_the_entities_that_bound_it(client):
     profiles = client.call("get_profiles", feature="f1")["profiles"]
-    assert sorted(profile["bounded_by"] for profile in profiles) == [["e1", "e2", "e3", "e4", "e5"], ["e5"]]
+    assert sorted(profile["bounded_by"] for profile in profiles) == [
+        ["e1", "e2", "e3", "e4", "e5"],
+        ["e5"],
+    ]
     disc = next(profile for profile in profiles if profile["bounded_by"] == ["e5"])
     assert disc["area"] == pytest.approx(50.265482, abs=1e-5)
     assert len(disc["outline"]) > 20
@@ -49,7 +57,12 @@ def test_a_sketch_of_one_shape_is_one_profile_with_no_boundary_ids(client):
 
 
 def test_get_profiles_refuses_a_feature_that_is_not_a_sketch(tmp_path):
-    document = {"features": [*DOCUMENT["features"], {"id": "f3", "type": "extrude", "profile": "f2", "distance": 4}]}
+    document = {
+        "features": [
+            *DOCUMENT["features"],
+            {"id": "f3", "type": "extrude", "profile": "f2", "distance": 4},
+        ]
+    }
     with running(document, tmp_path) as daemon, Client(daemon.socket_path) as client:
         with pytest.raises(RpcError, match="not a sketch"):
             client.call("get_profiles", feature="f3")
@@ -64,9 +77,20 @@ def test_the_viewer_gets_regions_for_every_sketch(tmp_path):
     assert [len(entry["regions"]) for entry in entries] == [2, 1]
 
 
-def test_a_parametric_sketch_reaches_the_viewer_as_numbers_and_keeps_its_expressions(tmp_path):
-    entities = json.loads(json.dumps(RING_AND_DISC).replace("[40, 0]", '["=w", 0]').replace('"r": 4', '"r": "=w/10"'))
-    document = {"parameters": {"w": 40}, "features": [{"id": "f1", "type": "sketch", "plane": "XY", "entities": entities}]}
+def test_a_parametric_sketch_reaches_the_viewer_as_numbers_and_keeps_its_expressions(
+    tmp_path,
+):
+    entities = json.loads(
+        json.dumps(RING_AND_DISC)
+        .replace("[40, 0]", '["=w", 0]')
+        .replace('"r": 4', '"r": "=w/10"')
+    )
+    document = {
+        "parameters": {"w": 40},
+        "features": [
+            {"id": "f1", "type": "sketch", "plane": "XY", "entities": entities}
+        ],
+    }
     path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(document))
     (entry,) = features_summary(Document.load(path), None)
@@ -79,7 +103,16 @@ def test_a_parametric_sketch_reaches_the_viewer_as_numbers_and_keeps_its_express
 
 
 def test_a_sketch_the_engine_cannot_read_still_lists_with_no_regions(tmp_path):
-    broken = {"features": [{"id": "f1", "type": "sketch", "plane": "XY", "entities": [{"id": "e1", "kind": "arc", "c": [0, 0], "r": 1}]}]}
+    broken = {
+        "features": [
+            {
+                "id": "f1",
+                "type": "sketch",
+                "plane": "XY",
+                "entities": [{"id": "e1", "kind": "arc", "c": [0, 0], "r": 1}],
+            }
+        ]
+    }
     path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(broken))
     (entry,) = features_summary(Document.load(path), None)
@@ -93,11 +126,16 @@ def test_an_agent_reads_profiles_through_mcp_and_extrudes_one(tmp_path):
         disc = next(profile for profile in profiles if profile["bounded_by"] == ["e5"])
         added = await session.call_tool(
             "add_extrude",
-            {"profiles": [{"sketch": "f1", "bounded_by": disc["bounded_by"]}], "distance": 5},
+            {
+                "profiles": [{"sketch": "f1", "bounded_by": disc["bounded_by"]}],
+                "distance": 5,
+            },
         )
         return added, await session.call_tool("measure", {})
 
     with running(DOCUMENT, tmp_path) as daemon:
         added, measured = drive(daemon, work)
     assert not added.is_error, added.content
-    assert json.loads(measured.content[0].text)["volume"] == pytest.approx(3.141592653589793 * 16 * 5, rel=1e-6)
+    assert json.loads(measured.content[0].text)["volume"] == pytest.approx(
+        3.141592653589793 * 16 * 5, rel=1e-6
+    )

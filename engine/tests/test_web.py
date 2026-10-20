@@ -19,7 +19,12 @@ from sprocket_engine.mesh import FORMAT
 from sprocket_engine.rpc import Daemon, Session
 from sprocket_engine.web import WebApp, make_server
 
-SKETCH = {"id": "s1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 30}}
+SKETCH = {
+    "id": "s1",
+    "type": "sketch",
+    "plane": "XY",
+    "rect": {"width": 40, "height": 30},
+}
 EXTRUDE = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
 
 
@@ -32,7 +37,10 @@ def server(tmp_path: Path):
     (viewer_dir / "index.html").write_text("<title>viewer</title>")
 
     socket_dir = Path(tempfile.mkdtemp())
-    daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock")
+    daemon = Daemon(
+        Session(Document.load(path), cache_dir=tmp_path / "cache"),
+        socket_dir / "d.sock",
+    )
     http = make_server(WebApp(daemon, viewer_dir), 0)
     threading.Thread(target=http.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{http.server_address[1]}"
@@ -48,7 +56,10 @@ def get(base: str, route: str) -> bytes:
 
 def post(base: str, route: str, body: dict, headers: dict | None = None) -> dict:
     request = urllib.request.Request(
-        base + route, data=json.dumps(body).encode(), method="POST", headers=headers or {}
+        base + route,
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers=headers or {},
     )
     try:
         with urllib.request.urlopen(request) as response:
@@ -80,13 +91,19 @@ def test_the_mesh_route_serves_the_built_part(server):
 
 
 def rpc(base: str, method: str, **params) -> dict:
-    reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    reply = post(
+        base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    )
     return reply["result"]
 
 
 def test_an_empty_document_has_no_mesh_and_the_viewer_sees_a_404(server):
     base, _ = server
-    rpc(base, "apply_edit", edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}])
+    rpc(
+        base,
+        "apply_edit",
+        edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}],
+    )
     with pytest.raises(urllib.error.HTTPError) as caught:
         get(base, "/part.mesh")
     assert caught.value.code == 404
@@ -101,7 +118,9 @@ def test_the_timeline_carries_each_full_feature_for_the_parameter_form(server):
 
 def test_the_schemas_route_lists_every_op(server):
     base, _ = server
-    assert {"sketch", "extrude", "fillet"} <= set(json.loads(get(base, "/schemas.json")))
+    assert {"sketch", "extrude", "fillet"} <= set(
+        json.loads(get(base, "/schemas.json"))
+    )
 
 
 def test_rpc_route_takes_the_daemons_methods(server):
@@ -112,8 +131,19 @@ def test_rpc_route_takes_the_daemons_methods(server):
 
 def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server):
     base, _ = server
-    feature = {"id": "f3", "type": "extrude_face", "base": "e1", "distance": 5,
-               "face": {"from": "part", "select": [{"op": "faces"}, {"op": "nearest_to", "point": [0, 0, 10], "normal": [0, 0, 1]}]}}
+    feature = {
+        "id": "f3",
+        "type": "extrude_face",
+        "base": "e1",
+        "distance": 5,
+        "face": {
+            "from": "part",
+            "select": [
+                {"op": "faces"},
+                {"op": "nearest_to", "point": [0, 0, 10], "normal": [0, 0, 1]},
+            ],
+        },
+    }
     result = rpc(base, "apply_edit", edits=[{"op": "insert", "feature": feature}])
     assert result["built"]["ok"] is True
     assert feature_ids(base) == ["s1", "e1", "f3"]
@@ -136,7 +166,9 @@ def test_a_page_on_another_origin_cannot_edit_the_document(server):
     assert "result" in allowed
 
 
-def test_opening_another_document_at_the_same_revision_serves_its_mesh(server, tmp_path):
+def test_opening_another_document_at_the_same_revision_serves_its_mesh(
+    server, tmp_path
+):
     """Both documents are at revision 0. A mesh cached by revision alone would
     keep serving the box."""
     base, _ = server
@@ -146,18 +178,34 @@ def test_opening_another_document_at_the_same_revision_serves_its_mesh(server, t
         json.dumps(
             {
                 "features": [
-                    {"id": "s1", "type": "sketch", "plane": "XY", "circle": {"radius": 5}},
+                    {
+                        "id": "s1",
+                        "type": "sketch",
+                        "plane": "XY",
+                        "circle": {"radius": 5},
+                    },
                     {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10},
                 ]
             }
         )
     )
-    post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": "open_document", "params": {"path": str(cylinder)}})
+    post(
+        base,
+        "/rpc",
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "open_document",
+            "params": {"path": str(cylinder)},
+        },
+    )
     assert mesh_header(base)["counts"]["faces"] == 3
     assert feature_ids(base) == ["s1", "e1"]
 
 
-def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(tmp_path: Path):
+def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(
+    tmp_path: Path,
+):
     """A page load opens several connections at once.
 
     The stdlib's listen backlog of 5 made the kernel reset the extras while the
@@ -170,7 +218,9 @@ def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(tmp_pa
     clients = []
     try:
         port = http.server_address[1]
-        clients = [socket.create_connection(("127.0.0.1", port), timeout=1) for _ in range(20)]
+        clients = [
+            socket.create_connection(("127.0.0.1", port), timeout=1) for _ in range(20)
+        ]
         threading.Thread(target=http.serve_forever, daemon=True).start()
         for client in clients:
             client.sendall(b"GET /index.html HTTP/1.0\r\n\r\n")
@@ -222,8 +272,17 @@ def test_the_export_route_refuses_what_it_cannot_serve(server):
     base, _ = server
     assert get_with_headers(base, "/export?format=obj")[0] == 400
     assert get_with_headers(base, "/export")[0] == 400
-    assert get_with_headers(base, "/export?format=stl", {"Origin": "https://evil.example"})[0] == 403
-    rpc(base, "apply_edit", edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}])
+    assert (
+        get_with_headers(
+            base, "/export?format=stl", {"Origin": "https://evil.example"}
+        )[0]
+        == 403
+    )
+    rpc(
+        base,
+        "apply_edit",
+        edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}],
+    )
     status, _, body = get_with_headers(base, "/export?format=stl")
     assert status == 409
     assert "no geometry" in json.loads(body)["error"]

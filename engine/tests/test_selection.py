@@ -12,7 +12,10 @@ from sprocket_engine.rpc import Client, RpcError
 @pytest.fixture
 def listener(daemon):
     seen = []
-    with Client(daemon.socket_path, on_notification=lambda method, params: seen.append((method, params))) as connected:
+    with Client(
+        daemon.socket_path,
+        on_notification=lambda method, params: seen.append((method, params)),
+    ) as connected:
         # The daemon registers a connection on its own thread, after connect()
         # returns. A reply proves it has, so nothing sent next is missed.
         connected.call("ping")
@@ -36,7 +39,9 @@ def test_what_the_viewer_picks_is_what_an_agent_reads(client):
     assert all(len(item["centre"]) == 3 for item in selection["descriptions"])
 
 
-def test_a_selection_taken_at_an_older_revision_is_stale_and_drops_the_sentences(client):
+def test_a_selection_taken_at_an_older_revision_is_stale_and_drops_the_sentences(
+    client,
+):
     """f2 may be another face by now, so a sentence about it would mislead."""
     client.call("set_parameter", name="width", value=40)
     client.call("set_selection", handles=["f2"], revision=0)
@@ -48,11 +53,27 @@ def test_a_selection_taken_at_an_older_revision_is_stale_and_drops_the_sentences
 
 def taller(client):
     """Moves the top face up; the bottom face stays where it was."""
-    client.call("apply_edit", edits=[{"op": "update", "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12}}])
+    client.call(
+        "apply_edit",
+        edits=[
+            {
+                "op": "update",
+                "feature": {
+                    "id": "e1",
+                    "type": "extrude",
+                    "profile": "s1",
+                    "distance": 12,
+                },
+            }
+        ],
+    )
 
 
 def _faces(client):
-    return {item["handle"]: (tuple(item["centre"]), item["area"]) for item in client.call("describe_geometry")["faces"]}
+    return {
+        item["handle"]: (tuple(item["centre"]), item["area"])
+        for item in client.call("describe_geometry")["faces"]
+    }
 
 
 def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(client):
@@ -62,10 +83,14 @@ def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(cl
     taller(client)
     after = _faces(client)
     unchanged = [handle for handle, key in before.items() if key in after.values()]
-    assert unchanged and len(unchanged) < len(before)  # the edit moved some faces and not others
+    assert unchanged and len(unchanged) < len(
+        before
+    )  # the edit moved some faces and not others
     selection = client.call("get_selection")
     assert selection["stale"] is False
-    assert sorted(after[handle] for handle in selection["handles"]) == sorted(before[handle] for handle in unchanged)
+    assert sorted(after[handle] for handle in selection["handles"]) == sorted(
+        before[handle] for handle in unchanged
+    )
     assert len(selection["descriptions"]) == len(unchanged)
 
 
@@ -75,7 +100,11 @@ def test_a_face_the_rebuild_moved_drops_out_of_the_selection(client):
     after = _faces(client)
     client.call("undo")
     moved = next(handle for handle, key in before.items() if key not in after.values())
-    client.call("set_selection", handles=[moved], revision=client.call("get_document")["revision"])
+    client.call(
+        "set_selection",
+        handles=[moved],
+        revision=client.call("get_document")["revision"],
+    )
     taller(client)
     assert client.call("get_selection")["handles"] == []
 
@@ -138,7 +167,11 @@ def test_opening_another_document_clears_the_selection(client, listener, tmp_pat
 
 def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
     """M4.5's done-when: the person picks an edge, the agent reads it and fillets it."""
-    edge = next(item for item in client.call("describe_geometry")["edges"] if item["centre"][2] == 10)
+    edge = next(
+        item
+        for item in client.call("describe_geometry")["edges"]
+        if item["centre"][2] == 10
+    )
     client.call("set_selection", handles=[edge["handle"]], revision=0)
 
     picked = client.call("get_selection")["descriptions"][0]
@@ -147,7 +180,9 @@ def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
         "type": "fillet",
         "base": "e1",
         "radius": 1,
-        "edges": {"select": [{"op": "edges"}, {"op": "nearest_to", "point": picked["centre"]}]},
+        "edges": {
+            "select": [{"op": "edges"}, {"op": "nearest_to", "point": picked["centre"]}]
+        },
     }
     result = client.call("apply_edit", edits=[{"op": "insert", "feature": fillet}])
     assert result["built"]["ok"] is True

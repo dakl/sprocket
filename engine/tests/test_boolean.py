@@ -11,7 +11,12 @@ import pytest
 from sprocket_engine.replay import replay
 
 BASE_BOX = [
-    {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+    {
+        "id": "f1",
+        "type": "sketch",
+        "plane": "XY",
+        "rect": {"width": 40, "height": 20, "center": [0, 0]},
+    },
     {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
 ]
 
@@ -23,9 +28,20 @@ def document_with(operation: str, tool_center, tool_size=(20, 10)) -> dict:
         "units": {"length": "mm"},
         "features": [
             *BASE_BOX,
-            {"id": "f3", "type": "sketch", "plane": "XY", "rect": {"width": width, "height": height, "center": tool_center}},
+            {
+                "id": "f3",
+                "type": "sketch",
+                "plane": "XY",
+                "rect": {"width": width, "height": height, "center": tool_center},
+            },
             {"id": "f4", "type": "extrude", "profile": "f3", "distance": 10},
-            {"id": "f5", "type": "boolean", "operation": operation, "base": "f2", "tool": "f4"},
+            {
+                "id": "f5",
+                "type": "boolean",
+                "operation": operation,
+                "base": "f2",
+                "tool": "f4",
+            },
         ],
     }
 

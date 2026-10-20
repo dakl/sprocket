@@ -12,7 +12,12 @@ from sprocket_engine.replay import replay
 from sprocket_engine.selectors import SelectorError
 
 BOX = [
-    {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+    {
+        "id": "f1",
+        "type": "sketch",
+        "plane": "XY",
+        "rect": {"width": 40, "height": 20, "center": [0, 0]},
+    },
     {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
 ]
 
@@ -23,7 +28,10 @@ def document_with(op: str, selector: dict) -> dict:
     return {
         "schema_version": 1,
         "units": {"length": "mm"},
-        "features": [*BOX, {"id": "f3", "type": op, "base": "f2", "edges": selector, **SIZES[op]}],
+        "features": [
+            *BOX,
+            {"id": "f3", "type": op, "base": "f2", "edges": selector, **SIZES[op]},
+        ],
     }
 
 
@@ -32,7 +40,10 @@ def test_a_selector_matching_no_edges_fails_rather_than_doing_nothing(op):
     """An upstream edit can leave a stored selector matching nothing. Replaying
     it as a no-op gives back the part before the feature, which looks like the
     edit was never made rather than like it broke."""
-    selector = {"from": "part", "select": [{"op": "edges"}, {"op": "slice", "start": 99}]}
+    selector = {
+        "from": "part",
+        "select": [{"op": "edges"}, {"op": "slice", "start": 99}],
+    }
     with pytest.raises(SelectorError, match="no edges"):
         replay(document_with(op, selector))
 

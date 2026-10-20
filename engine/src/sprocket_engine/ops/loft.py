@@ -20,9 +20,18 @@ SCHEMA = {
             "minItems": 2,
             "description": "ids of the sketch features to pass through, in order",
         },
-        "ruled": {"type": "boolean", "description": "straight sides between sections instead of a smooth skin. Default false."},
-        "base": {"type": "string", "description": "id of a solid feature to combine with, if any"},
-        "mode": {"enum": ["join", "cut", "intersect"], "description": "How the loft combines with `base`. Default join."},
+        "ruled": {
+            "type": "boolean",
+            "description": "straight sides between sections instead of a smooth skin. Default false.",
+        },
+        "base": {
+            "type": "string",
+            "description": "id of a solid feature to combine with, if any",
+        },
+        "mode": {
+            "enum": ["join", "cut", "intersect"],
+            "description": "How the loft combines with `base`. Default join.",
+        },
     },
 }
 
@@ -33,10 +42,14 @@ def apply(feature: dict, ctx):
     for sketch_id in feature["sections"]:
         sketch = ctx.features.get(sketch_id)
         if sketch is None or sketch["type"] != "sketch":
-            raise ProfileError(f"loft section {sketch_id!r} is not a sketch earlier in the document")
+            raise ProfileError(
+                f"loft section {sketch_id!r} is not a sketch earlier in the document"
+            )
         found = ctx.results[sketch_id].faces()
         if len(found) != 1:
-            raise ProfileError(f"loft section {sketch_id!r} has {len(found)} closed regions; a section needs exactly one")
+            raise ProfileError(
+                f"loft section {sketch_id!r} has {len(found)} closed regions; a section needs exactly one"
+            )
         faces.append(found[0])
     tool = b3d_loft(faces, ruled=feature.get("ruled", False))
     return combine(feature, tool, ctx)

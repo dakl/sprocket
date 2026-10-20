@@ -25,7 +25,13 @@
       fields: [
         { name: "thickness", label: "Thickness", type: "number", value: 2 },
         { name: "outward", label: "Outward", type: "checkbox", value: false },
-        { name: "closed", label: "No open face", type: "checkbox", value: false, onlyWithFace: true },
+        {
+          name: "closed",
+          label: "No open face",
+          type: "checkbox",
+          value: false,
+          onlyWithFace: true,
+        },
       ],
     },
     revolve: {
@@ -38,13 +44,37 @@
     hole: {
       title: "Hole",
       fields: [
-        { name: "kind", label: "Kind", type: "select", options: ["simple", "counterbore", "countersink"], value: "simple" },
+        {
+          name: "kind",
+          label: "Kind",
+          type: "select",
+          options: ["simple", "counterbore", "countersink"],
+          value: "simple",
+        },
         { name: "diameter", label: "Diameter", type: "number", value: 4 },
         { name: "depth", label: "Depth", type: "number", value: 5, hideWhen: { through: true } },
         { name: "through", label: "Through", type: "checkbox", value: false },
-        { name: "head_diameter", label: "Head dia", type: "number", value: 8, showWhen: { kind: ["counterbore", "countersink"] } },
-        { name: "head_depth", label: "Head depth", type: "number", value: 3, showWhen: { kind: ["counterbore"] } },
-        { name: "head_angle", label: "Angle", type: "number", value: 90, showWhen: { kind: ["countersink"] } },
+        {
+          name: "head_diameter",
+          label: "Head dia",
+          type: "number",
+          value: 8,
+          showWhen: { kind: ["counterbore", "countersink"] },
+        },
+        {
+          name: "head_depth",
+          label: "Head depth",
+          type: "number",
+          value: 3,
+          showWhen: { kind: ["counterbore"] },
+        },
+        {
+          name: "head_angle",
+          label: "Angle",
+          type: "number",
+          value: 90,
+          showWhen: { kind: ["countersink"] },
+        },
       ],
     },
     plane: {
@@ -68,7 +98,14 @@
       fields: [
         { name: "plane", label: "Plane", type: "select", dynamic: true, value: "" },
         { name: "into", label: "Into", type: "select", dynamic: true, value: "same" },
-        { name: "mode", label: "Mode", type: "select", options: ["join", "cut"], value: "join", hideWhen: { into: "same" } },
+        {
+          name: "mode",
+          label: "Mode",
+          type: "select",
+          options: ["join", "cut"],
+          value: "join",
+          hideWhen: { into: "same" },
+        },
       ],
     },
     linear: {
@@ -78,7 +115,14 @@
         { name: "count", label: "Count", type: "number", integer: true, min: 2, value: 3 },
         { name: "spacing", label: "Spacing", type: "number", signed: true, value: 10 },
         { name: "into", label: "Into", type: "select", dynamic: true, value: "same" },
-        { name: "mode", label: "Mode", type: "select", options: ["join", "cut"], value: "join", hideWhen: { into: "same" } },
+        {
+          name: "mode",
+          label: "Mode",
+          type: "select",
+          options: ["join", "cut"],
+          value: "join",
+          hideWhen: { into: "same" },
+        },
       ],
     },
     circular: {
@@ -88,7 +132,14 @@
         { name: "count", label: "Count", type: "number", integer: true, min: 2, value: 6 },
         { name: "angle", label: "Angle", type: "number", value: 360 },
         { name: "into", label: "Into", type: "select", dynamic: true, value: "same" },
-        { name: "mode", label: "Mode", type: "select", options: ["join", "cut"], value: "join", hideWhen: { into: "same" } },
+        {
+          name: "mode",
+          label: "Mode",
+          type: "select",
+          options: ["join", "cut"],
+          value: "join",
+          hideWhen: { into: "same" },
+        },
       ],
     },
     combine: {
@@ -96,7 +147,13 @@
       fields: [
         { name: "target", label: "Target", type: "select", dynamic: true, value: "" },
         { name: "tool", label: "Tool", type: "select", dynamic: true, value: "" },
-        { name: "mode", label: "Mode", type: "select", options: ["join", "cut", "intersect"], value: "join" },
+        {
+          name: "mode",
+          label: "Mode",
+          type: "select",
+          options: ["join", "cut", "intersect"],
+          value: "join",
+        },
       ],
     },
   };
@@ -107,17 +164,21 @@
   /// Whether `field` is on the panel for `values`.
   function visible(field, values) {
     if (field.showWhen) {
-      for (const [name, allowed] of Object.entries(field.showWhen)) if (!allowed.includes(values[name])) return false;
+      for (const [name, allowed] of Object.entries(field.showWhen))
+        if (!allowed.includes(values[name])) return false;
     }
     if (field.hideWhen) {
-      for (const [name, hidden] of Object.entries(field.hideWhen)) if (values[name] === hidden) return false;
+      for (const [name, hidden] of Object.entries(field.hideWhen))
+        if (values[name] === hidden) return false;
     }
     return true;
   }
 
   /// "2", "2.5" or "2.5 mm" as a number, NaN for anything else.
   function parseNumber(text) {
-    const cleaned = String(text).trim().replace(/\s*mm$/i, "");
+    const cleaned = String(text)
+      .trim()
+      .replace(/\s*mm$/i, "");
     return cleaned === "" ? NaN : Number(cleaned);
   }
 
@@ -140,10 +201,18 @@
     // A dynamic choice starts on the first one offered, unless it names its own default.
     for (const field of TOOLS[kind].fields) {
       const offered = scale && scale.options && scale.options[field.name];
-      if (field.dynamic && offered && offered.length && !offered.some((item) => item.value === values[field.name])) values[field.name] = offered[0].value;
+      if (
+        field.dynamic &&
+        offered &&
+        offered.length &&
+        !offered.some((item) => item.value === values[field.name])
+      )
+        values[field.name] = offered[0].value;
     }
-    if (kind === "point" && scale && scale.at) Object.assign(values, { x: scale.at[0], y: scale.at[1], z: scale.at[2] });
-    if (kind === "plane" && scale && scale.box) values.offset = nice(Math.max(...scale.box) * 0.25, values.offset);
+    if (kind === "point" && scale && scale.at)
+      Object.assign(values, { x: scale.at[0], y: scale.at[1], z: scale.at[2] });
+    if (kind === "plane" && scale && scale.box)
+      values.offset = nice(Math.max(...scale.box) * 0.25, values.offset);
     const smallest = scale && scale.box ? Math.min(...scale.box.filter(POSITIVE)) : NaN;
     if (kind === "fillet") values.radius = nice(smallest * 0.05, values.radius);
     if (kind === "chamfer") values.length = nice(smallest * 0.05, values.length);
@@ -165,11 +234,14 @@
     for (const field of TOOLS[kind].fields) {
       if (field.type !== "number" || !visible(field, values)) continue;
       const value = parseNumber(values[field.name]);
-      if (field.integer && !(Number.isInteger(value) && value >= field.min)) return { error: field.label + " must be a whole number, at least " + field.min };
+      if (field.integer && !(Number.isInteger(value) && value >= field.min))
+        return { error: field.label + " must be a whole number, at least " + field.min };
       if (field.integer) continue;
-      if (field.anyNumber && !Number.isFinite(value)) return { error: field.label + " must be a number" };
+      if (field.anyNumber && !Number.isFinite(value))
+        return { error: field.label + " must be a number" };
       if (field.anyNumber) continue;
-      if (field.signed && !(Number.isFinite(value) && value !== 0)) return { error: field.label + " must be a number, not 0" };
+      if (field.signed && !(Number.isFinite(value) && value !== 0))
+        return { error: field.label + " must be a number, not 0" };
       if (field.signed) continue;
       if (!POSITIVE(value)) return { error: field.label + " must be a number above 0" };
     }
@@ -178,12 +250,19 @@
       const found = target.choices && target.choices[name] && target.choices[name][values[name]];
       return found === undefined ? null : found;
     };
-    if (kind === "fillet") return { type: "fillet", base: target.base, edges: target.edges, radius: number("radius") };
-    if (kind === "chamfer") return { type: "chamfer", base: target.base, edges: target.edges, length: number("length") };
+    if (kind === "fillet")
+      return { type: "fillet", base: target.base, edges: target.edges, radius: number("radius") };
+    if (kind === "chamfer")
+      return { type: "chamfer", base: target.base, edges: target.edges, length: number("length") };
     if (kind === "revolve") {
       const angle = number("angle");
       if (angle > 360) return { error: "Angle must be 360 or less" };
-      return { type: "revolve", profile: target.profile, axis: values.axis, ...(angle === 360 ? {} : { angle }) };
+      return {
+        type: "revolve",
+        profile: target.profile,
+        axis: values.axis,
+        ...(angle === 360 ? {} : { angle }),
+      };
     }
     if (kind === "shell") {
       const feature = { type: "shell", base: target.base, thickness: number("thickness") };
@@ -204,7 +283,8 @@
       else feature.depth = number("depth");
       if (values.kind !== "simple") {
         feature.head_diameter = number("head_diameter");
-        if (feature.head_diameter <= feature.diameter) return { error: "Head dia must be larger than Diameter" };
+        if (feature.head_diameter <= feature.diameter)
+          return { error: "Head dia must be larger than Diameter" };
         if (values.kind === "counterbore") feature.head_depth = number("head_depth");
         else feature.head_angle = number("head_angle");
       }
@@ -220,9 +300,14 @@
       if (!target.axis) return { error: "Pick a round face or an edge first" };
       return { type: "axis", axis: target.axis };
     }
-    if (kind === "point") return { type: "point", at: [rounded(number("x")), rounded(number("y")), rounded(number("z"))] };
+    if (kind === "point")
+      return {
+        type: "point",
+        at: [rounded(number("x")), rounded(number("y")), rounded(number("z"))],
+      };
     if (kind === "combine") {
-      if (values.target === values.tool) return { error: "Target and tool must be different bodies" };
+      if (values.target === values.tool)
+        return { error: "Target and tool must be different bodies" };
       const operation = { join: "union", cut: "subtract", intersect: "intersect" }[values.mode];
       return { type: "boolean", operation, base: values.target, tool: values.tool };
     }
@@ -237,14 +322,26 @@
     if (kind === "linear") {
       const direction = choice("direction");
       if (direction === null) return { error: "Pick the direction" };
-      return { type: "pattern", tool: target.tool, base: into, linear: { direction, count: number("count"), spacing: number("spacing") }, ...mode };
+      return {
+        type: "pattern",
+        tool: target.tool,
+        base: into,
+        linear: { direction, count: number("count"), spacing: number("spacing") },
+        ...mode,
+      };
     }
     if (kind === "circular") {
       const axis = choice("axis");
       if (axis === null) return { error: "Pick the axis" };
       const angle = number("angle");
       if (!(angle > 0 && angle <= 360)) return { error: "Angle must be above 0 and at most 360" };
-      return { type: "pattern", tool: target.tool, base: into, circular: { axis, count: number("count"), ...(angle === 360 ? {} : { angle }) }, ...mode };
+      return {
+        type: "pattern",
+        tool: target.tool,
+        base: into,
+        circular: { axis, count: number("count"), ...(angle === 360 ? {} : { angle }) },
+        ...mode,
+      };
     }
     return { error: "unknown tool " + kind };
   }

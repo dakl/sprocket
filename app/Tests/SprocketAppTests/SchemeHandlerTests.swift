@@ -41,8 +41,13 @@ struct SchemeHandlerTests {
     }
 
     @Test func meshAndScriptTypes() {
-        #expect(ViewerSchemeHandler.mimeType(of: URL(fileURLWithPath: "/x/part.mesh")) == "application/octet-stream")
-        #expect(ViewerSchemeHandler.mimeType(of: URL(fileURLWithPath: "/x/app.js")) == "text/javascript")
-        #expect(ViewerSchemeHandler.mimeType(of: URL(fileURLWithPath: "/x/index.html")) == "text/html")
+        #expect(
+            ViewerSchemeHandler.mimeType(of: URL(fileURLWithPath: "/x/part.mesh"))
+                == "application/octet-stream")
+        #expect(
+            ViewerSchemeHandler.mimeType(of: URL(fileURLWithPath: "/x/app.js")) == "text/javascript"
+        )
+        #expect(
+            ViewerSchemeHandler.mimeType(of: URL(fileURLWithPath: "/x/index.html")) == "text/html")
     }
 }

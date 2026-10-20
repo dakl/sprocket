@@ -60,19 +60,29 @@ class WebApp:
     def features_json(self) -> list[dict]:
         with self.daemon.lock:
             _, failed = self.daemon.session.shape()
-            return features_summary(self.document, failed, self.daemon.session.context())
+            return features_summary(
+                self.document, failed, self.daemon.session.context()
+            )
 
     def mesh_bytes(self) -> bytes | None:
         """The mesh for the current revision, or None for an empty document."""
         with self.daemon.lock:
             # Two documents can sit at the same revision, so the revision alone
             # would serve one document's mesh for the other.
-            key = (self.daemon.session.generation, self.document.revision, self.daemon.session.reference_rebuilds)
+            key = (
+                self.daemon.session.generation,
+                self.document.revision,
+                self.daemon.session.reference_rebuilds,
+            )
             if self._mesh is None or self._mesh[0] != key:
                 shape, _ = self.daemon.session.shape()
-                self._mesh = (key, mesh_bytes(shape, self.document.appearances, self.daemon.session.bodies()))
+                self._mesh = (
+                    key,
+                    mesh_bytes(
+                        shape, self.document.appearances, self.daemon.session.bodies()
+                    ),
+                )
             return self._mesh[1]
-
 
     def export_bytes(self, kind: str) -> tuple[bytes, str]:
         """The part as `kind` ("stl", "3mf" or "step"), and the file name to offer it under.
@@ -82,7 +92,10 @@ class WebApp:
                 path = Path(directory) / f"part.{kind}"
                 METHODS["export"](self.daemon, {kind: str(path)})
                 data = path.read_bytes()
-            return data, f"{self.document.path.stem if self.document.path else 'part'}.{kind}"
+            return (
+                data,
+                f"{self.document.path.stem if self.document.path else 'part'}.{kind}",
+            )
 
 
 class _EventStream:
@@ -131,7 +144,9 @@ def make_handler(app: WebApp):
                 if route == "/part.mesh":
                     data = app.mesh_bytes()
                     if data is None:
-                        self.send_error(HTTPStatus.NOT_FOUND, "the document builds to nothing")
+                        self.send_error(
+                            HTTPStatus.NOT_FOUND, "the document builds to nothing"
+                        )
                         return
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "application/octet-stream")
@@ -148,20 +163,32 @@ def make_handler(app: WebApp):
                     if self._is_local_request():
                         self._stream_events()
                     else:
-                        self._send_json({"error": "requests from other origins are refused"}, HTTPStatus.FORBIDDEN)
+                        self._send_json(
+                            {"error": "requests from other origins are refused"},
+                            HTTPStatus.FORBIDDEN,
+                        )
                 else:
                     super().do_GET()
             except (BrokenPipeError, ConnectionResetError):
                 pass
             except Exception as exc:
-                self._send_json({"error": f"{type(exc).__name__}: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                self._send_json(
+                    {"error": f"{type(exc).__name__}: {exc}"},
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
 
         def _send_export(self):
             kind = parse_qs(urlsplit(self.path).query).get("format", [""])[0]
             if not self._is_local_request():
-                self._send_json({"error": "requests from other origins are refused"}, HTTPStatus.FORBIDDEN)
+                self._send_json(
+                    {"error": "requests from other origins are refused"},
+                    HTTPStatus.FORBIDDEN,
+                )
             elif kind not in EXPORT_TYPES:
-                self._send_json({"error": f"format must be one of {', '.join(EXPORT_TYPES)}"}, HTTPStatus.BAD_REQUEST)
+                self._send_json(
+                    {"error": f"format must be one of {', '.join(EXPORT_TYPES)}"},
+                    HTTPStatus.BAD_REQUEST,
+                )
             else:
                 try:
                     data, name = app.export_bytes(kind)
@@ -170,7 +197,9 @@ def make_handler(app: WebApp):
                     return
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", EXPORT_TYPES[kind])
-                self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+                self.send_header(
+                    "Content-Disposition", f'attachment; filename="{name}"'
+                )
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -193,23 +222,33 @@ def make_handler(app: WebApp):
 
         def do_POST(self):
             if not self._is_local_request():
-                self._send_json({"error": "requests from other origins are refused"}, HTTPStatus.FORBIDDEN)
+                self._send_json(
+                    {"error": "requests from other origins are refused"},
+                    HTTPStatus.FORBIDDEN,
+                )
                 return
             route = self.path.split("?", 1)[0]
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError as exc:
-                self._send_json({"error": f"not valid JSON: {exc}"}, HTTPStatus.BAD_REQUEST)
+                self._send_json(
+                    {"error": f"not valid JSON: {exc}"}, HTTPStatus.BAD_REQUEST
+                )
                 return
             try:
                 if route == "/rpc":
                     response = _handle_line(app.daemon, json.dumps(body).encode())
                     self._send_json(response if response is not None else {})
                 else:
-                    self._send_json({"error": f"no route {route}"}, HTTPStatus.NOT_FOUND)
+                    self._send_json(
+                        {"error": f"no route {route}"}, HTTPStatus.NOT_FOUND
+                    )
             except Exception as exc:
-                self._send_json({"error": f"{type(exc).__name__}: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                self._send_json(
+                    {"error": f"{type(exc).__name__}: {exc}"},
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
 
         def _stream_events(self):
             self.send_response(HTTPStatus.OK)

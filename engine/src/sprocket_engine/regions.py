@@ -36,7 +36,9 @@ class ProfileError(Exception):
 class Region:
     face: Face  # in the sketch frame, normal +Z
     bounded_by: list[str]  # sorted entity ids
-    inside: tuple[float, float]  # a point strictly inside, to tell equal bounded_by apart
+    inside: tuple[
+        float, float
+    ]  # a point strictly inside, to tell equal bounded_by apart
     outline: list[tuple[float, float]]  # tessellated outer boundary, counter-clockwise
     holes: list[list[tuple[float, float]]]
     area: float
@@ -54,7 +56,9 @@ def entity_edge(entity: dict) -> Edge:
     end = entity["a1"]
     while end <= start:
         end += TWO_PI
-    return Edge.make_circle(entity["r"], frame, start_angle=math.degrees(start), end_angle=math.degrees(end))
+    return Edge.make_circle(
+        entity["r"], frame, start_angle=math.degrees(start), end_angle=math.degrees(end)
+    )
 
 
 def _split(edges: list[Edge]):
@@ -62,7 +66,11 @@ def _split(edges: list[Edge]):
     box = Compound(edges).bounding_box()
     margin = max(box.size.X, box.size.Y) * 0.25 + 1
     centre = box.center()
-    frame = Face.make_rect(box.size.X + 2 * margin, box.size.Y + 2 * margin, Plane(origin=(centre.X, centre.Y, 0)))
+    frame = Face.make_rect(
+        box.size.X + 2 * margin,
+        box.size.Y + 2 * margin,
+        Plane(origin=(centre.X, centre.Y, 0)),
+    )
     frame_arguments, tools = ShapeList(), ShapeList()
     frame_arguments.Append(frame.wrapped)
     for edge in edges:
@@ -93,8 +101,14 @@ def _clean(cell: Face) -> Face:
     """Drops what the splitter leaves inside a cell. A line that ends inside a
     region stays behind as a wire that is not closed, and a face carrying it
     extrudes to an invalid solid."""
-    face = Face(cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed])
-    return face if face.normal_at().Z > 0 else Face(Wire(face.outer_wire().edges()).reversed(), face.inner_wires())
+    face = Face(
+        cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed]
+    )
+    return (
+        face
+        if face.normal_at().Z > 0
+        else Face(Wire(face.outer_wire().edges()).reversed(), face.inner_wires())
+    )
 
 
 def _points(wire: Wire) -> list[tuple[float, float]]:
@@ -122,12 +136,18 @@ def _points(wire: Wire) -> list[tuple[float, float]]:
             start_gap = min((along[0] - point).length for point in following)
             if start_gap < end_gap:
                 along.reverse()
-        points.extend((point.X, point.Y) for point in along[1 if points else 0:])
+        points.extend((point.X, point.Y) for point in along[1 if points else 0 :])
     return points
 
 
 def _signed_area(points) -> float:
-    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])) / 2
+    return (
+        sum(
+            x1 * y2 - x2 * y1
+            for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])
+        )
+        / 2
+    )
 
 
 def _counter_clockwise(points):
@@ -140,8 +160,10 @@ def _interior_point(face: Face) -> tuple[float, float]:
     vertices, triangles = face.tessellate(0.01)
     best, best_area = None, -1.0
     for a, b, c in triangles:
-        area = abs((vertices[b].X - vertices[a].X) * (vertices[c].Y - vertices[a].Y)
-                   - (vertices[c].X - vertices[a].X) * (vertices[b].Y - vertices[a].Y))
+        area = abs(
+            (vertices[b].X - vertices[a].X) * (vertices[c].Y - vertices[a].Y)
+            - (vertices[c].X - vertices[a].X) * (vertices[b].Y - vertices[a].Y)
+        )
         if area > best_area:
             best_area = area
             best = (
@@ -168,7 +190,11 @@ def find_regions(entities: list[dict]) -> list[Region]:
     Ordered by bounding ids then position, so two runs agree. The order is for
     display only. A region is named by `bounded_by` and `inside`.
     """
-    source = [(entity["id"], entity_edge(entity)) for entity in entities if not entity.get("construction")]
+    source = [
+        (entity["id"], entity_edge(entity))
+        for entity in entities
+        if not entity.get("construction")
+    ]
     if not source:
         return []
     cells, frame_box = _split([edge for _, edge in source])
@@ -189,12 +215,20 @@ def find_regions(entities: list[dict]) -> list[Region]:
                 area=face.area,
             )
         )
-    regions.sort(key=lambda region: (region.bounded_by, round(region.inside[0], 6), round(region.inside[1], 6)))
+    regions.sort(
+        key=lambda region: (
+            region.bounded_by,
+            round(region.inside[0], 6),
+            round(region.inside[1], 6),
+        )
+    )
     return regions
 
 
 def _contains(region: Region, point: tuple[float, float]) -> bool:
-    classifier = BRepClass_FaceClassifier(region.face.wrapped, gp_Pnt(point[0], point[1], 0), FUZZY)
+    classifier = BRepClass_FaceClassifier(
+        region.face.wrapped, gp_Pnt(point[0], point[1], 0), FUZZY
+    )
     return classifier.State() == TopAbs_IN
 
 
@@ -212,8 +246,12 @@ def pick_region(regions: list[Region], reference: dict) -> Region:
     if len(matches) > 1:
         point = reference.get("inside")
         if point is None:
-            raise ProfileError(f"profile bounded by {wanted} matches {len(matches)} regions, and gives no 'inside' point to choose one")
+            raise ProfileError(
+                f"profile bounded by {wanted} matches {len(matches)} regions, and gives no 'inside' point to choose one"
+            )
         matches = [region for region in matches if _contains(region, tuple(point))]
     if len(matches) != 1:
-        raise ProfileError(f"profile bounded by {wanted} matches {len(matches)} regions, expected exactly 1")
+        raise ProfileError(
+            f"profile bounded by {wanted} matches {len(matches)} regions, expected exactly 1"
+        )
     return matches[0]

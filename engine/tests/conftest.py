@@ -11,7 +11,12 @@ import pytest
 from sprocket_engine.document import Document
 from sprocket_engine.rpc import Client, Daemon, Session
 
-SKETCH = {"id": "s1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 30}}
+SKETCH = {
+    "id": "s1",
+    "type": "sketch",
+    "plane": "XY",
+    "rect": {"width": 40, "height": 30},
+}
 EXTRUDE = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
 ALL_EDGES = {"select": [{"op": "edges"}]}
 BOX_DOCUMENT = {"features": [SKETCH, EXTRUDE], "rollback_index": 2}
@@ -27,7 +32,10 @@ def running(document: dict, tmp_path: Path):
     path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(document))
     socket_dir = Path(tempfile.mkdtemp())
-    daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock")
+    daemon = Daemon(
+        Session(Document.load(path), cache_dir=tmp_path / "cache"),
+        socket_dir / "d.sock",
+    )
     daemon.start_in_background()
     try:
         yield daemon

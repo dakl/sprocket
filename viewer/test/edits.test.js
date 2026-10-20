@@ -12,11 +12,26 @@ test("extrude_face appends a feature based on the newest one, with a fresh id", 
   assert.equal(insert.op, "insert");
   assert.equal(insert.feature.id, "f3");
   assert.equal(insert.feature.base, "e1");
-  assert.deepEqual(insert.feature.face.select[1], { op: "nearest_to", point: [0, 0, 10], normal: [0, 0, 1] });
+  assert.deepEqual(insert.feature.face.select[1], {
+    op: "nearest_to",
+    point: [0, 0, 10],
+    normal: [0, 0, 1],
+  });
 });
 
 test("building after a rollback deletes the tail from the end, then inserts", () => {
-  const edits = editsFor({ ...box, rollbackIndex: 1 }, { type: "add_sketch", plane: "XY", polygon: [[0, 0], [5, 0], [5, 5]] });
+  const edits = editsFor(
+    { ...box, rollbackIndex: 1 },
+    {
+      type: "add_sketch",
+      plane: "XY",
+      polygon: [
+        [0, 0],
+        [5, 0],
+        [5, 5],
+      ],
+    },
+  );
   assert.deepEqual(edits.slice(0, 1), [{ op: "delete", id: "e1" }]);
   assert.equal(edits[1].feature.id, "f2");
 });
@@ -29,18 +44,31 @@ test("an id already in use is skipped", () => {
 });
 
 test("extrude_sketch fuses into the newest solid, skipping sketches", () => {
-  const withSecondSketch = { features: [sketch, extrude, { id: "s2", type: "sketch", plane: "XY", polygon: [] }], rollbackIndex: 3 };
-  const [insert] = editsFor(withSecondSketch, { type: "extrude_sketch", profile: "s2", distance: 4 });
+  const withSecondSketch = {
+    features: [sketch, extrude, { id: "s2", type: "sketch", plane: "XY", polygon: [] }],
+    rollbackIndex: 3,
+  };
+  const [insert] = editsFor(withSecondSketch, {
+    type: "extrude_sketch",
+    profile: "s2",
+    distance: 4,
+  });
   assert.equal(insert.feature.base, "e1");
 });
 
 test("the first extrude has no base", () => {
-  const [insert] = editsFor({ features: [sketch], rollbackIndex: 1 }, { type: "extrude_sketch", profile: "s1", distance: 4 });
+  const [insert] = editsFor(
+    { features: [sketch], rollbackIndex: 1 },
+    { type: "extrude_sketch", profile: "s1", distance: 4 },
+  );
   assert.equal("base" in insert.feature, false);
 });
 
 test("extrude_sketch refuses a sketch that is not there", () => {
-  assert.throws(() => editsFor(box, { type: "extrude_sketch", profile: "nope", distance: 4 }), /unknown sketch id/);
+  assert.throws(
+    () => editsFor(box, { type: "extrude_sketch", profile: "nope", distance: 4 }),
+    /unknown sketch id/,
+  );
 });
 
 test("extrude_face refuses an empty document", () => {
@@ -48,9 +76,21 @@ test("extrude_face refuses an empty document", () => {
 });
 
 test("dragging a corner turns a rect sketch into a polygon and leaves the input alone", () => {
-  const [update] = editsFor(box, { type: "update_sketch", id: "s1", polygon: [[0, 0], [1, 0], [1, 1]] });
+  const [update] = editsFor(box, {
+    type: "update_sketch",
+    id: "s1",
+    polygon: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ],
+  });
   assert.equal("rect" in update.feature, false);
-  assert.deepEqual(update.feature.polygon, [[0, 0], [1, 0], [1, 1]]);
+  assert.deepEqual(update.feature.polygon, [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+  ]);
   assert.ok(sketch.rect, "the state's own feature is not mutated");
 });
 
@@ -59,16 +99,30 @@ test("update_sketch refuses a feature that is not a sketch", () => {
 });
 
 test("set_body passes only the fields given", () => {
-  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000" }), [{ op: "set_body", id: "f2", color: "#ff0000" }]);
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000" }), [
+    { op: "set_body", id: "f2", color: "#ff0000" },
+  ]);
   // Visibility is view state, so it never becomes an edit.
-  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000", visible: false }), [{ op: "set_body", id: "f2", color: "#ff0000" }]);
-  assert.throws(() => editsFor(box, { type: "set_body", id: "f2" }), /needs name, color or material/);
-  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", material: "bare_metal" }), [{ op: "set_body", id: "f2", material: "bare_metal" }]);
+  assert.deepEqual(
+    editsFor(box, { type: "set_body", id: "f2", color: "#ff0000", visible: false }),
+    [{ op: "set_body", id: "f2", color: "#ff0000" }],
+  );
+  assert.throws(
+    () => editsFor(box, { type: "set_body", id: "f2" }),
+    /needs name, color or material/,
+  );
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", material: "bare_metal" }), [
+    { op: "set_body", id: "f2", material: "bare_metal" },
+  ]);
 });
 
 test("set_rollback clamps to the feature count", () => {
-  assert.deepEqual(editsFor(box, { type: "set_rollback", index: 99 }), [{ op: "set_rollback", index: 2 }]);
-  assert.deepEqual(editsFor(box, { type: "set_rollback", index: -3 }), [{ op: "set_rollback", index: 0 }]);
+  assert.deepEqual(editsFor(box, { type: "set_rollback", index: 99 }), [
+    { op: "set_rollback", index: 2 },
+  ]);
+  assert.deepEqual(editsFor(box, { type: "set_rollback", index: -3 }), [
+    { op: "set_rollback", index: 0 },
+  ]);
 });
 
 test("new_document deletes every feature newest first, then rolls back to zero", () => {
@@ -86,8 +140,22 @@ test("an unknown gesture is an error, not a silent no-op", () => {
 const drawn = [{ id: "e1", kind: "line", p0: [0, 0], p1: [1, 0] }];
 
 test("add_sketch takes entities and constraints as well as a polygon", () => {
-  const [insert] = editsFor({ features: [], rollbackIndex: 0 }, { type: "add_sketch", plane: "XY", entities: drawn, constraints: [{ kind: "horizontal", e: "e1" }] });
-  assert.deepEqual(insert.feature, { id: "f1", type: "sketch", plane: "XY", entities: drawn, constraints: [{ kind: "horizontal", e: "e1" }] });
+  const [insert] = editsFor(
+    { features: [], rollbackIndex: 0 },
+    {
+      type: "add_sketch",
+      plane: "XY",
+      entities: drawn,
+      constraints: [{ kind: "horizontal", e: "e1" }],
+    },
+  );
+  assert.deepEqual(insert.feature, {
+    id: "f1",
+    type: "sketch",
+    plane: "XY",
+    entities: drawn,
+    constraints: [{ kind: "horizontal", e: "e1" }],
+  });
   assert.throws(() => editsFor(box, { type: "add_sketch", plane: "XY" }), /entities or polygon/);
 });
 
@@ -97,8 +165,19 @@ test("extrude_sketch with profiles keeps the region names and checks every sketc
   assert.deepEqual(insert.feature.profiles, profiles);
   assert.equal("profile" in insert.feature, false);
   assert.equal(insert.feature.base, "e1");
-  assert.throws(() => editsFor(box, { type: "extrude_sketch", profiles: [{ sketch: "e1", bounded_by: [] }], distance: 3 }), /unknown sketch id 'e1'/);
-  assert.throws(() => editsFor(box, { type: "extrude_sketch", distance: 3 }), /profile or profiles/);
+  assert.throws(
+    () =>
+      editsFor(box, {
+        type: "extrude_sketch",
+        profiles: [{ sketch: "e1", bounded_by: [] }],
+        distance: 3,
+      }),
+    /unknown sketch id 'e1'/,
+  );
+  assert.throws(
+    () => editsFor(box, { type: "extrude_sketch", distance: 3 }),
+    /profile or profiles/,
+  );
 });
 
 test("update_sketch_entities redraws a sketch and drops its old single shape", () => {
@@ -107,11 +186,18 @@ test("update_sketch_entities redraws a sketch and drops its old single shape", (
   assert.deepEqual(update.feature.entities, drawn);
   assert.deepEqual(update.feature.constraints, []);
   assert.equal(update.feature.plane, "XY");
-  assert.throws(() => editsFor(box, { type: "update_sketch_entities", id: "e1", entities: drawn }), /no sketch/);
+  assert.throws(
+    () => editsFor(box, { type: "update_sketch_entities", id: "e1", entities: drawn }),
+    /no sketch/,
+  );
 });
 
 test("extrude_face uses the selector the engine made from the pick, when there is one", () => {
-  const face = { from: "part", select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }], expected_count: 1 };
+  const face = {
+    from: "part",
+    select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }],
+    expected_count: 1,
+  };
   const edits = editsFor(box, { type: "extrude_face", face, distance: 5 });
   assert.deepEqual(edits.at(-1).feature.face, face);
 });
@@ -124,9 +210,16 @@ test("add_feature inserts a tool panel's feature with a fresh id", () => {
   const fillet = { type: "fillet", base: "e1", radius: 2, edges: { select: [{ op: "edges" }] } };
   const [insert] = editsFor(box, { type: "add_feature", feature: fillet });
   assert.deepEqual(insert, { op: "insert", feature: { ...fillet, id: "f3" } });
-  const rolledBack = editsFor({ ...box, rollbackIndex: 1 }, { type: "add_feature", feature: fillet });
+  const rolledBack = editsFor(
+    { ...box, rollbackIndex: 1 },
+    { type: "add_feature", feature: fillet },
+  );
   assert.deepEqual(rolledBack[0], { op: "delete", id: "e1" });
-  assert.throws(() => editsFor({ features: [sketch], rollbackIndex: 0 }, { type: "add_feature", feature: fillet }), /no part/);
+  assert.throws(
+    () =>
+      editsFor({ features: [sketch], rollbackIndex: 0 }, { type: "add_feature", feature: fillet }),
+    /no part/,
+  );
   assert.throws(() => editsFor(box, { type: "add_feature", feature: {} }), /type/);
 });
 
@@ -137,27 +230,71 @@ test("set_parameter takes a number, a typed number, or an expression with or wit
   assert.equal(one("1e2").value, 100);
   assert.equal(one("depth * 2").value, "=depth * 2");
   assert.equal(one("=depth*2").value, "=depth*2");
-  assert.deepEqual(editsFor(box, { type: "set_parameter", name: "width", value: null })[0], { op: "set_parameter", name: "width", value: null });
+  assert.deepEqual(editsFor(box, { type: "set_parameter", name: "width", value: null })[0], {
+    op: "set_parameter",
+    name: "width",
+    value: null,
+  });
 });
 
 test("set_parameter refuses an empty value and a name that is not an identifier", () => {
-  assert.throws(() => editsFor(box, { type: "set_parameter", name: "width", value: "  " }), /number or an expression/);
-  assert.throws(() => editsFor(box, { type: "set_parameter", name: "2wide", value: 3 }), /does not start with a digit/);
-  assert.throws(() => editsFor(box, { type: "set_parameter", name: "my width", value: 3 }), /letters, digits/);
+  assert.throws(
+    () => editsFor(box, { type: "set_parameter", name: "width", value: "  " }),
+    /number or an expression/,
+  );
+  assert.throws(
+    () => editsFor(box, { type: "set_parameter", name: "2wide", value: 3 }),
+    /does not start with a digit/,
+  );
+  assert.throws(
+    () => editsFor(box, { type: "set_parameter", name: "my width", value: 3 }),
+    /letters, digits/,
+  );
 });
 
 test("a construct feature can be the first feature, and a later extrude does not build on it", () => {
   const { editsFor } = require("../edits.js");
   const plane = { type: "plane", plane: "XY", offset: 5 };
-  const [insert] = editsFor({ features: [], rollbackIndex: 0 }, { type: "add_feature", feature: plane });
+  const [insert] = editsFor(
+    { features: [], rollbackIndex: 0 },
+    { type: "add_feature", feature: plane },
+  );
   assert.equal(insert.feature.id, "f1");
-  assert.throws(() => editsFor({ features: [], rollbackIndex: 0 }, { type: "add_feature", feature: { type: "fillet" } }), /no part yet/);
+  assert.throws(
+    () =>
+      editsFor(
+        { features: [], rollbackIndex: 0 },
+        { type: "add_feature", feature: { type: "fillet" } },
+      ),
+    /no part yet/,
+  );
   const features = [
-    { id: "f1", type: "sketch", plane: "XY", polygon: [[0, 0], [1, 0], [1, 1]] },
+    {
+      id: "f1",
+      type: "sketch",
+      plane: "XY",
+      polygon: [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+      ],
+    },
     { id: "f2", type: "extrude", profile: "f1", distance: 1 },
     { id: "f3", type: "plane", plane: "XY" },
-    { id: "f4", type: "sketch", plane: { construct: "f3" }, polygon: [[0, 0], [1, 0], [1, 1]] },
+    {
+      id: "f4",
+      type: "sketch",
+      plane: { construct: "f3" },
+      polygon: [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+      ],
+    },
   ];
-  const edits = editsFor({ features, rollbackIndex: 4 }, { type: "extrude_sketch", profile: "f4", distance: 2 });
+  const edits = editsFor(
+    { features, rollbackIndex: 4 },
+    { type: "extrude_sketch", profile: "f4", distance: 2 },
+  );
   assert.equal(edits[0].feature.base, "f2");
 });

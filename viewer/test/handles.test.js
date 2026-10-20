@@ -1,8 +1,19 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { axisParameter, angleAbout, unwrapAngle, snapStep, snap, clamp, format, anyPerpendicular, arcPoints } = require("../handles.js");
+const {
+  axisParameter,
+  angleAbout,
+  unwrapAngle,
+  snapStep,
+  snap,
+  clamp,
+  format,
+  anyPerpendicular,
+  arcPoints,
+} = require("../handles.js");
 
-const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, actual + " is not " + expected);
+const close = (actual, expected) =>
+  assert.ok(Math.abs(actual - expected) < 1e-9, actual + " is not " + expected);
 
 test("axisParameter finds where a ray passes the axis closest", () => {
   // A ray along -Y at height z = 7 crosses the Z axis line at t = 7.
@@ -56,7 +67,11 @@ test("format shows at most two decimals and the unit", () => {
 });
 
 test("anyPerpendicular is a unit vector square to the axis", () => {
-  for (const axis of [[0, 0, 1], [1, 0, 0], [0.6, 0.8, 0]]) {
+  for (const axis of [
+    [0, 0, 1],
+    [1, 0, 0],
+    [0.6, 0.8, 0],
+  ]) {
     const perpendicular = anyPerpendicular(axis);
     close(Math.hypot(...perpendicular), 1);
     close(perpendicular[0] * axis[0] + perpendicular[1] * axis[1] + perpendicular[2] * axis[2], 0);

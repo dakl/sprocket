@@ -18,7 +18,10 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "extrude"},
-        "profile": {"type": "string", "description": "id of a sketch feature. Extrudes everything drawn in it."},
+        "profile": {
+            "type": "string",
+            "description": "id of a sketch feature. Extrudes everything drawn in it.",
+        },
         "profiles": {
             "type": "array",
             "minItems": 1,
@@ -27,7 +30,10 @@ SCHEMA = {
                 "type": "object",
                 "required": ["sketch", "bounded_by"],
                 "properties": {
-                    "sketch": {"type": "string", "description": "id of a sketch feature"},
+                    "sketch": {
+                        "type": "string",
+                        "description": "id of a sketch feature",
+                    },
                     "bounded_by": {
                         "type": "array",
                         "items": {"type": "string"},
@@ -43,8 +49,15 @@ SCHEMA = {
                 },
             },
         },
-        "base": {"type": "string", "description": "id of a solid feature to fuse/cut into, if any"},
-        "distance": {"type": "number", "not": {"const": 0}, "description": "mm, sign controls direction"},
+        "base": {
+            "type": "string",
+            "description": "id of a solid feature to fuse/cut into, if any",
+        },
+        "distance": {
+            "type": "number",
+            "not": {"const": 0},
+            "description": "mm, sign controls direction",
+        },
         "mode": {
             "enum": ["join", "cut", "intersect", "new"],
             "description": "How the extrude combines with `base`. Needs a base, except `new`, which takes none.",
@@ -62,7 +75,9 @@ def profile_faces(feature: dict, ctx):
     if "profiles" not in feature:
         whole = ctx.results[feature["profile"]]
         if not whole.faces():
-            raise ProfileError(f"sketch {feature['profile']!r} has no closed region to extrude")
+            raise ProfileError(
+                f"sketch {feature['profile']!r} has no closed region to extrude"
+            )
         return whole
     picked = []
     # Region detection splits the whole sketch, so it runs once per sketch, not
@@ -71,7 +86,9 @@ def profile_faces(feature: dict, ctx):
     for reference in feature["profiles"]:
         sketch = ctx.features.get(reference["sketch"])
         if sketch is None or sketch["type"] != "sketch":
-            raise ProfileError(f"profile refers to {reference['sketch']!r}, which is not a sketch earlier in the document")
+            raise ProfileError(
+                f"profile refers to {reference['sketch']!r}, which is not a sketch earlier in the document"
+            )
         if "entities" not in sketch:
             # A sketch of one shape has no regions to choose between.
             picked.extend(ctx.results[reference["sketch"]].faces())
@@ -106,13 +123,19 @@ def combine(feature: dict, tool, ctx, mode: str | None = None):
     solids = list(result) if isinstance(result, ShapeList) else [result]
     part = Part(solids)
     if not solids or part.volume == 0:
-        raise ValueError(f"{mode} of {feature['id']} with {base_id} left an empty solid")
+        raise ValueError(
+            f"{mode} of {feature['id']} with {base_id} left an empty solid"
+        )
     return part
 
 
 @register("extrude", SCHEMA)
 def apply(feature: dict, ctx):
-    tool = b3d_extrude(profile_faces(feature, ctx), amount=feature["distance"], both=feature.get("symmetric", False))
+    tool = b3d_extrude(
+        profile_faces(feature, ctx),
+        amount=feature["distance"],
+        both=feature.get("symmetric", False),
+    )
     mode = feature.get("mode")
     # Documents from before `mode` existed carry the combine in the sign.
     if mode is None and feature.get("base") is not None:

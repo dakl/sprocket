@@ -29,17 +29,30 @@ const sketchSchema = {
 };
 
 test("id and type are not editable", () => {
-  const names = fieldsFor(extrudeSchema, { id: "e1", type: "extrude", profile: "s1", distance: 10 }).map((f) => f.name);
+  const names = fieldsFor(extrudeSchema, {
+    id: "e1",
+    type: "extrude",
+    profile: "s1",
+    distance: 10,
+  }).map((f) => f.name);
   assert.deepEqual(names, ["profile", "base", "distance"]);
 });
 
 test("a sketch shows only the profile shape it already has", () => {
   const feature = { id: "s1", type: "sketch", plane: "XY", rect: { width: 4, height: 3 } };
-  assert.deepEqual(fieldsFor(sketchSchema, feature).map((f) => f.name), ["plane", "rect"]);
+  assert.deepEqual(
+    fieldsFor(sketchSchema, feature).map((f) => f.name),
+    ["plane", "rect"],
+  );
 });
 
 test("a number field takes a number, or an =expression the engine resolves", () => {
-  const [, , distance] = fieldsFor(extrudeSchema, { id: "e1", type: "extrude", profile: "s1", distance: 10 });
+  const [, , distance] = fieldsFor(extrudeSchema, {
+    id: "e1",
+    type: "extrude",
+    profile: "s1",
+    distance: 10,
+  });
   assert.deepEqual(parseField(distance, " 12.5 "), { value: 12.5 });
   assert.deepEqual(parseField(distance, "=width * 2"), { value: "=width * 2" });
   assert.match(parseField(distance, "twelve").error, /distance must be a number/);
