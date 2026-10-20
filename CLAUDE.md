@@ -23,4 +23,8 @@ Send output to a file and check `$?`. A pipe into `tail` hides a failure.
 - A test that waits on a rebuild uses a 15 s timeout. The CI runner is slow.
 - Look at the page once in a browser before you call a UI change done.
 - `make metrics` counts complexity, duplication and unused code per part. The
-  numbers are sensors, not targets: never restructure code to move one.
+  numbers are sensors, not targets: never restructure code to move one. On a
+  PR, CI keeps one comment starting `<!-- sprocket-metrics -->` with the table
+  and a `metrics.json` block holding `{head, base}`. Read it with
+  `gh pr view <n> --json comments`, and explain in the PR any number that got
+  worse.

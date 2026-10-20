@@ -45,7 +45,21 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           marker="<!-- sprocket-metrics -->"
-          { echo "$marker"; echo "### Code metrics at ${SHA:0:7}"; echo; cat report.md; } > comment.md
+          {
+            echo "$marker"
+            echo "### Code metrics at ${SHA:0:7}"
+            echo
+            cat report.md
+            echo
+            # The raw numbers, for an agent to parse instead of the table.
+            echo "<details><summary>metrics.json (head, then base)</summary>"
+            echo
+            echo '```json'
+            jq -n --slurpfile head metrics.json --slurpfile base <(cat base.json 2>/dev/null || echo null) \
+              '{head: $head[0], base: $base[0]}'
+            echo '```'
+            echo "</details>"
+          } > comment.md
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             -q ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
           if [ -n "$id" ]; then
