@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 import pytest
+from golden_support import CASES
+from golden_support import document as golden_document
 
-from golden_support import CASES, document as golden_document
 from sprocket_engine import ops
 from sprocket_engine.replay import ReplayError, replay
 

@@ -24,7 +24,8 @@ class ReplayError(Exception):
 
 def _tagged(error, feature, index):
     """Records which feature failed, so the caller can name it to the user and
-    still export everything built before it."""
+    still export everything built before it.
+    """
     error.feature_id = feature.get("id")
     error.feature_index = index
     return error
@@ -112,7 +113,8 @@ def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
 def combine(bodies: list[dict]):
     """One shape for the part: the only body itself, so a one-body document
     exports exactly as before, or a compound of the bodies in order. Reference
-    bodies are left out, because they are not part of what is made."""
+    bodies are left out, because they are not part of what is made.
+    """
     shapes = [body["shape"] for body in bodies if not body["reference"]]
     if not shapes:
         return None
@@ -128,7 +130,8 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
     an empty document, not an error.
 
     With `return_context`, returns (shape, context): every feature's result,
-    which is what selector synthesis needs to see how the part was built."""
+    which is what selector synthesis needs to see how the part was built.
+    """
     features = document["features"]
     rollback_index = document.get("rollback_index", len(features))
     cache = BrepCache(cache_dir) if cache_dir else None
@@ -195,7 +198,8 @@ def last_solid_index(features: list[dict], rollback_index: int) -> int:
     inert until something extrudes it. replay() only returns its last
     feature's result, so a bare sketch left at the tip would become the part
     and blank out whatever solid came before it. Walk back past any trailing
-    sketch features to the last one that actually produced a solid."""
+    sketch features to the last one that actually produced a solid.
+    """
     index = rollback_index
     while index > 0 and features[index - 1].get("type") in NOT_SOLIDS:
         index -= 1

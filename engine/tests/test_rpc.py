@@ -13,11 +13,10 @@ import time
 from pathlib import Path
 
 import pytest
+from conftest import ALL_EDGES, EXTRUDE, SKETCH, running
 
 from sprocket_engine.document import Document, DocumentError
-from sprocket_engine.rpc import Client, Daemon, RpcError, STALE_REVISION, Session
-
-from conftest import ALL_EDGES, EXTRUDE, SKETCH, running
+from sprocket_engine.rpc import STALE_REVISION, Client, Daemon, RpcError, Session
 
 
 def insert(feature, **params):
@@ -50,7 +49,8 @@ def test_a_fillet_that_builds_reports_the_new_volume(client):
 
 def test_preview_returns_no_measurements_when_the_feature_fails(client):
     """A number beside `would_build: false` is a number somebody reads as the
-    answer, so a failed preview carries the reason and nothing else."""
+    answer, so a failed preview carries the reason and nothing else.
+    """
     bad = {
         "id": "try",
         "type": "fillet",
@@ -83,7 +83,8 @@ def test_preview_does_not_change_the_document(client):
 
 def test_a_stale_edit_comes_back_with_the_current_document(client):
     """One round trip, not two: the rejection carries what the client needs to
-    rebase, so a losing writer does not have to re-read before retrying."""
+    rebase, so a losing writer does not have to re-read before retrying.
+    """
     client.call("set_parameter", name="width", value=40)
     with pytest.raises(RpcError) as caught:
         client.call("set_parameter", name="height", value=20, base_revision=0)
@@ -104,7 +105,8 @@ def test_a_parameter_change_rebuilds_the_part(client):
 
 def test_an_edit_is_saved_to_disk_before_the_reply(client, daemon):
     """A crashed app must lose nothing an agent did, so the file on disk is
-    always the revision the reply names."""
+    always the revision the reply names.
+    """
     revision = client.call("set_parameter", name="width", value=40)["revision"]
     saved = json.loads(daemon.session.document.path.read_text())
     assert saved["revision"] == revision
@@ -238,7 +240,8 @@ def test_moving_the_rollback_bar_is_not_undoable(client):
 
 def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Path):
     """The Swift app opens the viewer from disk. After every change the
-    daemon rewrites the mesh and the timeline beside it, before it says so."""
+    daemon rewrites the mesh and the timeline beside it, before it says so.
+    """
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
     path = tmp_path / "part.sprocket"
@@ -278,8 +281,9 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
     """The part builds, but the export refuses it. The daemon used to log that
     to stderr and leave the previous document's mesh on screen, so opening the
     file looked like nothing happened. Now the mesh is deleted and the
-    notification carries the reason."""
-    import sprocket_engine.viewer_files as viewer_files
+    notification carries the reason.
+    """
+    from sprocket_engine import viewer_files
 
     def refuse(shape, appearances=None, bodies=None):
         raise ValueError("tessellation disagrees with the B-rep")
@@ -411,7 +415,8 @@ def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
 
 def test_an_agent_cannot_swap_the_users_document():
     """Opening and saving are the user's, through the app's menus. The agent's
-    tools edit the open document and nothing else."""
+    tools edit the open document and nothing else.
+    """
     from sprocket_engine.mcp_server import document_tools, op_tools
 
     names = {tool.name for tool in document_tools() + op_tools()}

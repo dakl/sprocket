@@ -3,8 +3,8 @@
 import math
 
 import pytest
-
 from conftest import running
+
 from sprocket_engine.document import Document, DocumentError
 from sprocket_engine.replay import build_shape, replay
 from sprocket_engine.rpc import Client
@@ -55,7 +55,7 @@ def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
         ]
     )
     box = ctx.results["cut"].bounding_box()
-    assert (box.min.X, box.max.X) == pytest.approx((30, 33))
+    assert pytest.approx((30, 33)) == (box.min.X, box.max.X)
     moved = {**YZ_AT_X30, "offset": 12}
     _, ctx = build(
         BOX
@@ -65,7 +65,7 @@ def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
             {"id": "cut", "type": "extrude", "profile": "s", "distance": 3},
         ]
     )
-    assert ctx.results["cut"].bounding_box().min.X == pytest.approx(12)
+    assert pytest.approx(12) == ctx.results["cut"].bounding_box().min.X
 
 
 def test_a_plane_feature_can_start_from_a_face_or_another_plane_feature():
@@ -96,7 +96,7 @@ def test_a_plane_feature_can_start_from_a_face_or_another_plane_feature():
         ]
     )
     box = ctx.results["e"].bounding_box()
-    assert (box.min.Z, box.max.Z) == pytest.approx((16, 17))
+    assert pytest.approx((16, 17)) == (box.min.Z, box.max.Z)
 
 
 def test_mirror_across_a_plane_feature():
@@ -109,7 +109,7 @@ def test_mirror_across_a_plane_feature():
     _, ctx = build(BOX + PEG + [YZ_AT_X30, mirror])
     box = ctx.results["m"].bounding_box()
     # The peg is at x 4..6, so its mirror about x = 30 is at 54..56.
-    assert (box.min.X, box.max.X) == pytest.approx((4, 56))
+    assert pytest.approx((4, 56)) == (box.min.X, box.max.X)
 
 
 def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
@@ -171,7 +171,7 @@ def test_a_construct_axis_is_a_pattern_direction():
     }
     _, ctx = build(BOX + PEG + [axis, row])
     box = ctx.results["row"].bounding_box()
-    assert (box.min.X, box.max.X) == pytest.approx((4, 26))
+    assert pytest.approx((4, 26)) == (box.min.X, box.max.X)
     # A named axis works as a direction too.
     row_y = {
         "id": "row",
@@ -180,7 +180,7 @@ def test_a_construct_axis_is_a_pattern_direction():
         "linear": {"direction": "Y", "count": 2, "spacing": 5},
     }
     _, ctx = build(BOX + PEG + [row_y])
-    assert ctx.results["row"].bounding_box().max.Y == pytest.approx(6)
+    assert pytest.approx(6) == ctx.results["row"].bounding_box().max.Y
 
 
 def test_an_axis_that_does_not_resolve_fails_that_feature_by_name():

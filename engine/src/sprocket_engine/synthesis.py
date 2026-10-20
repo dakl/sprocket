@@ -54,7 +54,8 @@ def _indices(items, universe) -> set[int]:
 
 def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
     """Returns {selector, strategy, steps, count}. `feature_ids` are the
-    features `new_since` may name, and `ctx` is the replay context they are in."""
+    features `new_since` may name, and `ctx` is the replay context they are in.
+    """
     starter, universe = parse_handles(handles, shape)
     target = {int(handle[1:]) for handle in handles}
 

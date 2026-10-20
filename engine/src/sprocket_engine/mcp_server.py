@@ -21,12 +21,12 @@ import json
 import tempfile
 from pathlib import Path
 
-import mcp.types as types
+from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
-from .ops import REGISTRY
 from .materials import PRESETS
+from .ops import REGISTRY
 from .rpc import INTERNAL_ERROR, Client, RpcError
 
 SERVER_NAME = "sprocket"

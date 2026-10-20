@@ -24,7 +24,7 @@ def build(*features):
 def test_shell_open_at_the_top_makes_a_tray():
     part = build({"id": "h", "type": "shell", "base": "b", "thickness": 2, "open": TOP})
     assert part.volume == pytest.approx(4000 - 16 * 16 * 8)
-    assert part.bounding_box().max.Z == pytest.approx(10)
+    assert pytest.approx(10) == part.bounding_box().max.Z
 
 
 def test_shell_with_no_open_face_is_a_closed_hollow():
@@ -45,7 +45,7 @@ def test_outward_shell_keeps_the_inside_and_grows_the_outside():
     )
     assert part.volume == pytest.approx(24 * 24 * 12 - 4000)
     box = part.bounding_box()
-    assert (box.min.X, box.min.Z, box.max.Z) == pytest.approx((-12, -2, 10))
+    assert pytest.approx((-12, -2, 10)) == (box.min.X, box.min.Z, box.max.Z)
 
 
 def test_shell_open_selector_must_match_faces():

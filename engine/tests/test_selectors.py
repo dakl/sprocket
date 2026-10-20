@@ -43,13 +43,14 @@ def test_top_face_selector_identifies_the_correct_face(tmp_path: Path):
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     faces = resolve_selector(part, TOP_FACE)
     assert len(faces) == 1
-    assert faces[0].center().Z == pytest.approx(10.0)  # extrude depth, not the base
+    assert pytest.approx(10.0) == faces[0].center().Z  # extrude depth, not the base
 
 
 def test_selector_survives_an_upstream_dimension_change(tmp_path: Path):
     """The whole point of a selector: it re-resolves after an edit instead of
     pointing at a stale index. Bump the extrude depth and confirm both
-    selectors still find the same semantic geometry, not just any 4 edges."""
+    selectors still find the same semantic geometry, not just any 4 edges.
+    """
     cache_dir = tmp_path / "cache"
     changed = json.loads(json.dumps(RECT_EXTRUDE))
     changed["features"][1]["distance"] = 25
@@ -61,7 +62,7 @@ def test_selector_survives_an_upstream_dimension_change(tmp_path: Path):
 
     faces = resolve_selector(part, TOP_FACE)
     assert len(faces) == 1
-    assert faces[0].center().Z == pytest.approx(25.0)
+    assert pytest.approx(25.0) == faces[0].center().Z
 
 
 def test_unknown_selector_op_raises(tmp_path: Path):
@@ -74,7 +75,8 @@ def test_unknown_selector_op_raises(tmp_path: Path):
 
 def test_new_since_keeps_what_a_feature_made_or_changed(tmp_path: Path):
     """After a fillet, the new faces are the round ones and the faces it trimmed.
-    The bottom face was not touched, so it is not new."""
+    The bottom face was not touched, so it is not new.
+    """
     document = {
         "features": RECT_EXTRUDE["features"]
         + [

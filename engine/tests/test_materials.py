@@ -1,19 +1,20 @@
 """Surface finishes: a preset name in the document, (roughness, metalness)
-per face in the mesh. See SPEC.md, "M5, material presets"."""
+per face in the mesh. See SPEC.md, "M5, material presets".
+"""
 
 import json
 import struct
 
 import numpy as np
 import pytest
-
 from conftest import running
+from test_bodies import CASE
+
 from sprocket_engine.document import Document, DocumentError
 from sprocket_engine.materials import PRESETS
 from sprocket_engine.mesh import NO_MATERIAL, export_mesh
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
-from test_bodies import CASE
 
 
 def read(path):
@@ -63,7 +64,7 @@ def test_a_body_finish_and_a_face_finish_reach_the_mesh_as_numbers(tmp_path):
     top = next(
         index
         for index, face in enumerate(part.faces())
-        if face.center().Z == pytest.approx(2) and face.center().X == pytest.approx(30)
+        if pytest.approx(2) == face.center().Z and pytest.approx(30) == face.center().X
     )
     assert values[top].tolist() == pytest.approx(PRESETS["glossy"])
     others = [index for index in range(6, 9) if index != top]

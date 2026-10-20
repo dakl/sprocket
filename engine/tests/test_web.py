@@ -152,7 +152,8 @@ def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server):
 
 def test_a_page_on_another_origin_cannot_edit_the_document(server):
     """Any web page in the user's browser can reach 127.0.0.1. A simple POST
-    needs no permission from the server, so the server has to check."""
+    needs no permission from the server, so the server has to check.
+    """
     base, _ = server
     body = {"jsonrpc": "2.0", "id": 1, "method": "set_rollback", "params": {"index": 0}}
     refused = post(base, "/rpc", body, headers={"Origin": "https://evil.example"})
@@ -170,7 +171,8 @@ def test_opening_another_document_at_the_same_revision_serves_its_mesh(
     server, tmp_path
 ):
     """Both documents are at revision 0. A mesh cached by revision alone would
-    keep serving the box."""
+    keep serving the box.
+    """
     base, _ = server
     assert mesh_header(base)["counts"]["faces"] == 6
     cylinder = tmp_path / "cylinder.sprocket"

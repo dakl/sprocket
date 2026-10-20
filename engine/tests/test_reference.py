@@ -5,8 +5,8 @@ import json
 import numpy as np
 import pytest
 from build123d import Box, export_step, import_step
-
 from conftest import running
+
 from sprocket_engine.document import Document
 from sprocket_engine.export import write_step
 from sprocket_engine.mesh import export_mesh
@@ -91,7 +91,7 @@ def test_a_step_reference_moves_by_translate(tmp_path):
             }
         ],
     )
-    assert ctx.bodies[0]["shape"].center().X == pytest.approx(5)
+    assert pytest.approx(5) == ctx.bodies[0]["shape"].center().X
 
 
 def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
@@ -162,7 +162,8 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
     """examples/orangepi-case.sprocket: the board is a reference body, the base
     and the lid are the exported bodies, one solid each, and neither shares
     volume with the board. The base touches it only from below (the posts), so
-    lifting the board opens a gap, and the lid's groove clears the base's lip."""
+    lifting the board opens a gap, and the lid's groove clears the base's lip.
+    """
     from pathlib import Path
 
     from build123d import Align, Box, Pos, ShapeList
@@ -201,14 +202,18 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
         document.parameters["lip_fit"], abs=1e-6
     )
     box = base.bounding_box()
-    assert (box.min.X, box.min.Y, box.max.X, box.max.Y) == pytest.approx(
-        (-3, -3, 68, 35)
+    assert pytest.approx((-3, -3, 68, 35)) == (
+        box.min.X,
+        box.min.Y,
+        box.max.X,
+        box.max.Y,
     )
 
 
 def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
     """The last appearance in examples/orangepi-zero-3w.sprocket colours the
-    one face Daniel picked: pin 28's cell, -Y side, area 2.24 x 2.5."""
+    one face Daniel picked: pin 28's cell, -Y side, area 2.24 x 2.5.
+    """
     from pathlib import Path
 
     from sprocket_engine.selectors import resolve_selector

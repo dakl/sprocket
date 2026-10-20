@@ -87,7 +87,8 @@ def _split(edges: list[Edge]):
 
 def _touches(cell: Face, frame_box) -> bool:
     """The outside cell runs to the frame. A real region never does, because
-    the frame is a quarter of the sketch wider on every side."""
+    the frame is a quarter of the sketch wider on every side.
+    """
     box = cell.bounding_box()
     return (
         box.min.X <= frame_box.min.X + FUZZY
@@ -100,7 +101,8 @@ def _touches(cell: Face, frame_box) -> bool:
 def _clean(cell: Face) -> Face:
     """Drops what the splitter leaves inside a cell. A line that ends inside a
     region stays behind as a wire that is not closed, and a face carrying it
-    extrudes to an invalid solid."""
+    extrudes to an invalid solid.
+    """
     face = Face(
         cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed]
     )
@@ -156,7 +158,8 @@ def _counter_clockwise(points):
 
 def _interior_point(face: Face) -> tuple[float, float]:
     """The centre of the face's largest triangle. A face's own centre can sit
-    outside it: a crescent's does."""
+    outside it: a crescent's does.
+    """
     vertices, triangles = face.tessellate(0.01)
     best, best_area = None, -1.0
     for a, b, c in triangles:

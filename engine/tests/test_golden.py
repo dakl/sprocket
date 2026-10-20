@@ -20,18 +20,17 @@ from pathlib import Path
 
 import pytest
 from build123d import import_step
-
 from golden_support import (
     CAPTURE_STAMP,
     CASES,
     EXPECTED_STEP,
     EXPECTED_STL,
-    capture_identity,
-    engine_identity,
     build,
+    capture_identity,
     case_dir,
     checks,
     document,
+    engine_identity,
     face_type_histogram,
     normalised_step,
     write_step,
@@ -42,7 +41,8 @@ from golden_support import (
 @pytest.fixture(scope="module")
 def parts(tmp_path_factory):
     """One replay per case for all three layers. Replaying six documents three
-    times over costs more than the tests do."""
+    times over costs more than the tests do.
+    """
     cache_root = tmp_path_factory.mktemp("golden-cache")
     return {case: build(case, cache_root / case) for case in CASES}
 
@@ -145,7 +145,8 @@ def test_every_case_ships_its_expected_files(case):
 
 def test_replay_is_deterministic(tmp_path: Path):
     """Two replays through one cache directory, so a cache hit has to give the
-    same answer as the miss that filled it."""
+    same answer as the miss that filled it.
+    """
     from sprocket_engine.replay import replay
 
     doc = document("rect_extrude")

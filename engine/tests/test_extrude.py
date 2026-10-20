@@ -72,14 +72,14 @@ def _sketch_on_face(distance, sketch):
 def test_positive_distance_fuses_a_boss_out_of_the_face(sketch):
     part = replay(_sketch_on_face(3, sketch))
     assert part.volume == pytest.approx(BOX_VOLUME + BOSS_VOLUME, rel=1e-6)
-    assert part.bounding_box().max.Z == pytest.approx(13, abs=1e-6)
+    assert pytest.approx(13, abs=1e-6) == part.bounding_box().max.Z
 
 
 @pytest.mark.parametrize("sketch", [FACE_SKETCH_CW, FACE_SKETCH_CCW], ids=["cw", "ccw"])
 def test_negative_distance_cuts_a_pocket_into_the_face(sketch):
     part = replay(_sketch_on_face(-3, sketch))
     assert part.volume == pytest.approx(BOX_VOLUME - BOSS_VOLUME, rel=1e-6)
-    assert part.bounding_box().max.Z == pytest.approx(10, abs=1e-6)
+    assert pytest.approx(10, abs=1e-6) == part.bounding_box().max.Z
 
 
 def test_extrude_without_a_base_returns_the_new_solid_alone():
