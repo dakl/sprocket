@@ -2,7 +2,7 @@
 // face colour becomes an `appearances` list for the daemon's set_appearances.
 //
 // Pure functions with no DOM, so viewer/test/colours.test.js runs them under node.
-(function (root) {
+((root) => {
   // Twelve tones a board or a printed part is usually made of.
   const PALETTE = [
     { name: "PCB green", hex: "#1f6b3a" },
@@ -36,8 +36,10 @@
       .trim()
       .replace(/^#/, "")
       .toLowerCase();
-    if (/^[0-9a-f]{6}$/.test(value)) return "#" + value;
-    if (/^[0-9a-f]{3}$/.test(value))
+    if (/^[0-9a-f]{6}$/.test(value)) {
+      return `#${value}`;
+    }
+    if (/^[0-9a-f]{3}$/.test(value)) {
       return (
         "#" +
         value
@@ -45,13 +47,16 @@
           .map((digit) => digit + digit)
           .join("")
       );
+    }
     return null;
   }
 
   /// The recent list with `colour` first, no repeats, at most RECENT_LIMIT.
   function pushRecent(recent, colour) {
     const hex = normaliseHex(colour);
-    if (!hex) return recent.slice(0, RECENT_LIMIT);
+    if (!hex) {
+      return recent.slice(0, RECENT_LIMIT);
+    }
     return [hex, ...recent.filter((item) => item !== hex)].slice(0, RECENT_LIMIT);
   }
 
@@ -66,11 +71,13 @@
     const ownIndices = info.entries
       .filter((entry) => entry.faces === 1)
       .map((entry) => entry.index);
-    const own = ownIndices.length ? appearances[ownIndices[ownIndices.length - 1]] : null;
-    const color = normaliseHex(change.color) || (own && own.color) || normaliseHex(shown);
-    const material = "material" in change ? change.material : own && own.material;
+    const own = ownIndices.length > 0 ? appearances[ownIndices.at(-1)] : null;
+    const color = normaliseHex(change.color) || own?.color || normaliseHex(shown);
+    const material = "material" in change ? change.material : own?.material;
     const entry = { color, select: info.selector };
-    if (material) entry.material = material;
+    if (material) {
+      entry.material = material;
+    }
     const owned = new Set(ownIndices);
     return [...appearances.filter((_, index) => !owned.has(index)), entry];
   }
@@ -88,9 +95,11 @@
 
   /// The menu item for clearing, or null when the face has no colour of its own.
   function clearLabel(info) {
-    if (!info || !info.entries.length) return null;
+    if (!info?.entries.length) {
+      return null;
+    }
     const widest = Math.max(...info.entries.map((entry) => entry.faces));
-    return widest > 1 ? "Clear colour (" + widest + " faces)" : "Clear face colour";
+    return widest > 1 ? `Clear colour (${widest} faces)` : "Clear face colour";
   }
 
   const api = {
@@ -104,6 +113,9 @@
     withoutFaceColour,
     clearLabel,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.ViewerColours = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.ViewerColours = api;
+  }
+})(globalThis);

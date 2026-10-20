@@ -6,7 +6,7 @@
 // `apply_edit`, so neither Swift nor Python carries a copy of the rules.
 //
 // Pure functions with no DOM, so viewer/test/edits.test.js runs them under node.
-(function (root) {
+((root) => {
   const GESTURES = [
     "set_rollback",
     "extrude_face",
@@ -27,15 +27,19 @@
 
   function require_(message, ...keys) {
     const missing = keys.filter((key) => !(key in message));
-    if (missing.length) fail(message.type + " needs " + missing.join(", "));
+    if (missing.length > 0) {
+      fail(`${message.type} needs ${missing.join(", ")}`);
+    }
   }
 
   /// `f<n>`, counting on from the features that remain, skipping any id in use.
   function newId(kept) {
     const used = new Set(kept.map((feature) => feature.id));
     let number = kept.length + 1;
-    while (used.has("f" + number)) number++;
-    return "f" + number;
+    while (used.has(`f${number}`)) {
+      number++;
+    }
+    return `f${number}`;
   }
 
   /// Building on top of a rolled-back part discards what was rolled back: replay
@@ -58,7 +62,9 @@
 
   function lastSolidId(features) {
     for (let index = features.length - 1; index >= 0; index--) {
-      if (!NOT_SOLIDS.includes(features[index].type)) return features[index].id;
+      if (!NOT_SOLIDS.includes(features[index].type)) {
+        return features[index].id;
+      }
     }
     return null;
   }
@@ -70,9 +76,13 @@
   /// "width * 2" is taken as one, so the "=" is optional to type.
   function parameterValue(text) {
     const trimmed = String(text).trim();
-    if (!trimmed || trimmed === "=") fail("a parameter needs a number or an expression");
-    if (NUMBER.test(trimmed)) return Number(trimmed);
-    return trimmed.startsWith("=") ? trimmed : "=" + trimmed;
+    if (!trimmed || trimmed === "=") {
+      fail("a parameter needs a number or an expression");
+    }
+    if (NUMBER.test(trimmed)) {
+      return Number(trimmed);
+    }
+    return trimmed.startsWith("=") ? trimmed : `=${trimmed}`;
   }
 
   const RULES = {
@@ -80,11 +90,14 @@
     /// what was typed: a number, or an expression with or without its "=".
     set_parameter(state, message) {
       require_(message, "name");
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(message.name))
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(message.name)) {
         fail(
           "a parameter name is letters, digits and underscores, and does not start with a digit",
         );
-      if (message.value === null) return [{ op: "set_parameter", name: message.name, value: null }];
+      }
+      if (message.value === null) {
+        return [{ op: "set_parameter", name: message.name, value: null }];
+      }
       require_(message, "value");
       return [
         {
@@ -100,15 +113,22 @@
     set_body(state, message) {
       require_(message, "id");
       const edit = { op: "set_body", id: message.id };
-      for (const name of ["name", "color", "material"])
-        if (name in message) edit[name] = message[name];
-      if (Object.keys(edit).length === 2) fail("set_body needs name, color or material");
+      for (const name of ["name", "color", "material"]) {
+        if (name in message) {
+          edit[name] = message[name];
+        }
+      }
+      if (Object.keys(edit).length === 2) {
+        fail("set_body needs name, color or material");
+      }
       return [edit];
     },
 
     set_rollback(state, message) {
       require_(message, "index");
-      if (!Number.isInteger(message.index)) fail("'index' must be an integer");
+      if (!Number.isInteger(message.index)) {
+        fail("'index' must be an integer");
+      }
       return [
         { op: "set_rollback", index: Math.max(0, Math.min(message.index, state.features.length)) },
       ];
@@ -118,13 +138,17 @@
       // `face` is a selector the engine made from the pick (resolve_selection).
       // Without one, the face is named by where it was clicked.
       require_(message, "distance");
-      if (!message.face) require_(message, "point", "normal");
+      if (!message.face) {
+        require_(message, "point", "normal");
+      }
       const { deletes, kept } = dropRolledBackTail(state);
-      if (!kept.length) fail("there is no part to push or pull yet");
+      if (kept.length === 0) {
+        fail("there is no part to push or pull yet");
+      }
       const feature = {
         id: newId(kept),
         type: "extrude_face",
-        base: kept[kept.length - 1].id,
+        base: kept.at(-1).id,
         face: message.face || {
           from: "part",
           select: [
@@ -140,7 +164,9 @@
     add_sketch(state, message) {
       require_(message, "plane");
       // A drawing of entities, or one polygon.
-      if (!message.entities && !message.polygon) fail("add_sketch needs entities or polygon");
+      if (!message.entities && !message.polygon) {
+        fail("add_sketch needs entities or polygon");
+      }
       const { deletes, kept } = dropRolledBackTail(state);
       const shape = message.entities
         ? { entities: message.entities, constraints: message.constraints || [] }
@@ -153,20 +179,28 @@
     /// `profile` is the older form, one sketch extruded whole.
     extrude_sketch(state, message) {
       require_(message, "distance");
-      if (!message.profile && !message.profiles) fail("extrude_sketch needs profile or profiles");
+      if (!message.profile && !message.profiles) {
+        fail("extrude_sketch needs profile or profiles");
+      }
       const { deletes, kept } = dropRolledBackTail(state);
       const named = message.profiles
         ? message.profiles.map((profile) => profile.sketch)
         : [message.profile];
       for (const id of named) {
-        if (!kept.some((feature) => feature.id === id && feature.type === "sketch"))
-          fail("unknown sketch id '" + id + "'");
+        if (!kept.some((feature) => feature.id === id && feature.type === "sketch")) {
+          fail(`unknown sketch id '${id}'`);
+        }
       }
       const feature = { id: newId(kept), type: "extrude", distance: message.distance };
-      if (message.profiles) feature.profiles = message.profiles;
-      else feature.profile = message.profile;
+      if (message.profiles) {
+        feature.profiles = message.profiles;
+      } else {
+        feature.profile = message.profile;
+      }
       const base = lastSolidId(kept);
-      if (base !== null) feature.base = base;
+      if (base !== null) {
+        feature.base = base;
+      }
       return [...deletes, { op: "insert", feature }];
     },
 
@@ -174,18 +208,23 @@
     /// on), without its id. The panel already named its `base`.
     add_feature(state, message) {
       require_(message, "feature");
-      if (!message.feature.type) fail("add_feature needs a feature with a type");
+      if (!message.feature.type) {
+        fail("add_feature needs a feature with a type");
+      }
       const { deletes, kept } = dropRolledBackTail(state);
       // A construct feature needs no part: a plane can come first.
-      if (!kept.length && !["plane", "axis", "point"].includes(message.feature.type))
+      if (kept.length === 0 && !["plane", "axis", "point"].includes(message.feature.type)) {
         fail("there is no part yet");
+      }
       return [...deletes, { op: "insert", feature: { ...message.feature, id: newId(kept) } }];
     },
 
     update_sketch(state, message) {
       require_(message, "id", "polygon");
       const current = state.features.find((feature) => feature.id === message.id);
-      if (!current || current.type !== "sketch") fail("no sketch with id '" + message.id + "'");
+      if (current?.type !== "sketch") {
+        fail(`no sketch with id '${message.id}'`);
+      }
       // A sketch carries exactly one of rect, polygon and circle. Dragging a
       // corner turns any of them into a polygon.
       const { rect, circle, ...rest } = current;
@@ -196,7 +235,9 @@
     update_sketch_entities(state, message) {
       require_(message, "id", "entities");
       const current = state.features.find((feature) => feature.id === message.id);
-      if (!current || current.type !== "sketch") fail("no sketch with id '" + message.id + "'");
+      if (current?.type !== "sketch") {
+        fail(`no sketch with id '${message.id}'`);
+      }
       const { rect, circle, polygon, entities, constraints, ...rest } = current;
       return [
         {
@@ -225,11 +266,16 @@
   /// document as the viewer last loaded it. Throws an Error with the reason
   /// when the gesture makes no sense against that state.
   function editsFor(state, message) {
-    if (!GESTURES.includes(message.type)) fail("unknown viewer command '" + message.type + "'");
+    if (!GESTURES.includes(message.type)) {
+      fail(`unknown viewer command '${message.type}'`);
+    }
     return RULES[message.type](state, message);
   }
 
   const api = { editsFor, GESTURES, parameterValue };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.ViewerEdits = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.ViewerEdits = api;
+  }
+})(globalThis);

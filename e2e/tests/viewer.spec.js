@@ -1,16 +1,16 @@
 // M2's definition of done, driven through the real viewer against a real
 // engine: open a document, scrub the timeline, edit a feature's parameters by
-// form. Assertions read `window.__tcad`, and clicks land where
+// form. Assertions read `globalThis.__tcad`, and clicks land where
 // `__tcad.screenPointOf` says a face is, so a camera change does not break them.
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
 
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, fixture);
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.mesh !== null);
   await settled(page);
 });
 
@@ -20,8 +20,8 @@ test("opens the document: the timeline lists its features and the part is built"
   page,
 }) => {
   const state = await page.evaluate(() => ({
-    timeline: window.__tcad.timeline,
-    mesh: window.__tcad.mesh,
+    timeline: globalThis.__tcad.timeline,
+    mesh: globalThis.__tcad.mesh,
   }));
   expect(state.timeline.map((entry) => [entry.id, entry.type, entry.active])).toEqual([
     ["f1", "sketch", true],
@@ -34,19 +34,17 @@ test("scrubbing the timeline rolls the part back and forward", async ({ page }) 
   // A live chip rolls back to just before it. Before the extrude there is
   // only a sketch, which builds no solid.
   await chip(page, "f2").click();
-  await page.waitForFunction(() => window.__tcad.mesh === null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
-    true,
-    false,
-  ]);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
+  expect(
+    await page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.active)),
+  ).toEqual([true, false]);
 
   // A greyed-out chip rolls forward to just past it.
   await chip(page, "f2").click();
-  await page.waitForFunction(() => window.__tcad.mesh !== null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
-    true,
-    true,
-  ]);
+  await page.waitForFunction(() => globalThis.__tcad.mesh !== null);
+  expect(
+    await page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.active)),
+  ).toEqual([true, true]);
 });
 
 test("clicking a visible side wall selects the wall, not the sketch behind it", async ({
@@ -68,7 +66,7 @@ test("clicking a visible side wall selects the wall, not the sketch behind it", 
   for (const target of visible) {
     await page.mouse.click(target.x, target.y);
     await expect
-      .poll(() => page.evaluate(() => window.__tcad.selection))
+      .poll(() => page.evaluate(() => globalThis.__tcad.selection))
       .toEqual({ face: target.face, edge: null, sketch: null, regions: [] });
     await page.keyboard.press("Escape");
   }
@@ -80,7 +78,7 @@ test("a selected face is extruded from the toolbar, with no floating panel", asy
 }) => {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
   await expect(page.locator("#tool-extrude")).toBeEnabled();
   await expect(page.locator("#selection-panel")).toHaveCount(0);
@@ -97,8 +95,10 @@ test("clicking an edge selects the B-rep edge the engine numbers the same way", 
   const target = await page.evaluate(
     (candidates) => {
       for (const edge of candidates) {
-        const point = window.__tcad.screenPointOf({ edge });
-        if (point && point.visible) return { edge, x: point.x, y: point.y };
+        const point = globalThis.__tcad.screenPointOf({ edge });
+        if (point?.visible) {
+          return { edge, x: point.x, y: point.y };
+        }
       }
       return null;
     },
@@ -106,7 +106,7 @@ test("clicking an edge selects the B-rep edge the engine numbers the same way", 
   );
   expect(target).not.toBeNull();
   await page.mouse.click(target.x, target.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(target.edge);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.edge)).toBe(target.edge);
 });
 
 test("editing a feature's parameter by form rebuilds the part", async ({ page, request }) => {
@@ -116,12 +116,12 @@ test("editing a feature's parameter by form rebuilds the part", async ({ page, r
 
   await distance.fill("25");
   await distance.press("Enter");
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 25);
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 25);
   await settled(page);
 
   // The engine's own measurement, not the form's: 40 x 30 x 25.
   const geometry = await rpc(request, "measure");
-  expect(geometry.volume).toBeCloseTo(30000, 3);
+  expect(geometry.volume).toBeCloseTo(30_000, 3);
   // The form stays open on the edited feature, showing the new value.
   await expect(page.getByTestId("field-distance")).toHaveValue("25");
 });
@@ -145,7 +145,7 @@ test("a number field takes a parameter expression", async ({ page, request }) =>
   const distance = page.getByTestId("field-distance");
   await distance.fill("=height * 2");
   await distance.press("Enter");
-  await page.waitForFunction(() => window.__tcad.features[1].distance === "=height * 2");
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === "=height * 2");
   await settled(page);
   expect((await rpc(request, "measure")).volume).toBeCloseTo(40 * 30 * 24, 3);
 });
@@ -156,7 +156,7 @@ test("an edit made by another client, such as an agent, reaches the open viewer"
 }) => {
   const feature = { ...fixture.features[1], distance: 7 };
   await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature }] });
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 7);
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 7);
 });
 
 test("undo puts back the value before the last form edit", async ({ page }) => {
@@ -164,12 +164,12 @@ test("undo puts back the value before the last form edit", async ({ page }) => {
   const distance = page.getByTestId("field-distance");
   await distance.fill("18");
   await distance.press("Enter");
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 18);
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 18);
 
   // Focus leaves the form, as it does when the user clicks the viewport.
   await page.mouse.click(640, 700);
   await page.keyboard.press("Meta+z");
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 10);
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 10);
 });
 
 test("a mesh the engine could not write is shown, and clears with the next good build", async ({
@@ -179,12 +179,16 @@ test("a mesh the engine could not write is shown, and clears with the next good 
   await expect(banner).toBeHidden();
 
   await page.evaluate(() =>
-    window.reloadPart(window.__tcad.revision || 0, false, "ValueError: tessellation disagrees"),
+    globalThis.reloadPart(
+      globalThis.__tcad.revision || 0,
+      false,
+      "ValueError: tessellation disagrees",
+    ),
   );
   await expect(banner).toBeVisible();
   await expect(banner).toHaveText("Could not draw the part: ValueError: tessellation disagrees");
 
-  await page.evaluate(() => window.reloadPart(window.__tcad.revision || 0, false, null));
+  await page.evaluate(() => globalThis.reloadPart(globalThis.__tcad.revision || 0, false, null));
   await expect(banner).toBeHidden();
 });
 
@@ -195,7 +199,7 @@ test("every op in the timeline has an icon, a boolean included", async ({ page, 
   await rpc(request, "apply_edit", {
     edits: [circle, tool, union].map((feature) => ({ op: "insert", feature })),
   });
-  await page.waitForFunction(() => window.__tcad.timeline.length === 5);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 5);
   await expect(chip(page, "f5").locator(".timeline-icon svg")).toHaveCount(1);
   for (const id of ["f1", "f2", "f3", "f4", "f5"]) {
     await expect(chip(page, id).locator(".timeline-icon")).not.toHaveText("?");
@@ -230,11 +234,10 @@ test("dragging the playhead rolls the part back and forward", async ({ page }) =
   await page.mouse.down();
   await page.mouse.move(first.x + first.width + 2, grab.y, { steps: 6 });
   await page.mouse.up();
-  await page.waitForFunction(() => window.__tcad.mesh === null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
-    true,
-    false,
-  ]);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
+  expect(
+    await page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.active)),
+  ).toEqual([true, false]);
 
   // The playhead now sits between the two chips.
   const moved = await box(playhead);
@@ -247,11 +250,10 @@ test("dragging the playhead rolls the part back and forward", async ({ page }) =
   await page.mouse.down();
   await page.mouse.move(last.x + last.width + 20, grab.y, { steps: 6 });
   await page.mouse.up();
-  await page.waitForFunction(() => window.__tcad.mesh !== null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
-    true,
-    true,
-  ]);
+  await page.waitForFunction(() => globalThis.__tcad.mesh !== null);
+  expect(
+    await page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.active)),
+  ).toEqual([true, true]);
 });
 
 // --- M4.5: selection as conversation -----------------------------------------
@@ -262,9 +264,9 @@ test("a face picked in the viewer is the selection an agent reads, with a senten
 }) => {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual(["f" + top]);
+  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual([`f${top}`]);
   const selection = await rpc(request, "get_selection");
   expect(selection.stale).toBe(false);
   expect(selection.descriptions[0].description).toContain("normal +Z");
@@ -279,14 +281,14 @@ test("a highlight from an agent shows in the viewer and does not touch the selec
 }) => {
   await rpc(request, "highlight", { handles: ["f0", "e0"] });
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.highlighted))
+    .poll(() => page.evaluate(() => globalThis.__tcad.highlighted))
     .toEqual({ handles: ["f0", "e0"], sketches: [] });
-  expect(await page.evaluate(() => window.__tcad.selection)).toMatchObject({
+  expect(await page.evaluate(() => globalThis.__tcad.selection)).toMatchObject({
     face: null,
     edge: null,
   });
   await rpc(request, "highlight", { handles: [] });
-  await expect.poll(() => page.evaluate(() => window.__tcad.highlighted.handles)).toEqual([]);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.highlighted.handles)).toEqual([]);
 });
 
 // --- M4: a picked face becomes a selector, not a position ----------------------
@@ -297,18 +299,18 @@ test("push/pull saves the picked face as a selector, and the feature survives a 
 }) => {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
   await expect(page.locator("#tool-extrude")).toBeEnabled();
   await page.locator("#tool-extrude").click();
   await expect(page.locator("#extrude-panel")).toBeVisible();
   await page.keyboard.type("5");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => !window.__tcad.extruding);
+  await page.waitForFunction(() => !globalThis.__tcad.extruding);
   await settled(page);
 
   const features = (await rpc(request, "get_document")).features;
-  const pushed = features[features.length - 1];
+  const pushed = features.at(-1);
   expect(pushed.type).toBe("extrude_face");
   expect(pushed.face.expected_count).toBe(1);
   expect(JSON.stringify(pushed.face.select)).toContain("new_since");
@@ -331,8 +333,8 @@ test("push/pull saves the picked face as a selector, and the feature survives a 
 
 // --- Live updates: another client or the file on disk moves the open page ------
 
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const TOP = {
   select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }],
@@ -344,25 +346,27 @@ test("a second client's edits update the open page live, keeping camera and sele
   request,
 }) => {
   await page.evaluate(() => {
-    window.__sameLoad = true;
+    globalThis.__sameLoad = true;
   });
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual(["f" + top]);
-  const camera = await page.evaluate(() => window.__tcad.camera);
+  await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual([`f${top}`]);
+  const camera = await page.evaluate(() => globalThis.__tcad.camera);
 
   // Face colour.
   await rpc(request, "set_appearances", {
     appearances: [{ color: "#2f9e44", select: TOP }],
     author: "agent:test",
   });
-  await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
-  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Updated by agent:test");
+  await page.waitForFunction((face) => globalThis.__tcad.faceColour(face) === "#2f9e44", top);
+  await expect
+    .poll(() => page.evaluate(() => globalThis.__tcad.status))
+    .toBe("Updated by agent:test");
   // The top face did not move, so it is still selected, here and for an agent.
   await settled(page);
-  expect((await page.evaluate(() => window.__tcad.selection)).face).toBe(top);
+  expect((await page.evaluate(() => globalThis.__tcad.selection)).face).toBe(top);
   expect((await rpc(request, "get_selection")).stale).toBe(false);
 
   // Geometry, and the changed row glows.
@@ -370,29 +374,29 @@ test("a second client's edits update the open page live, keeping camera and sele
     edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 7 } }],
     author: "agent:test",
   });
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 7);
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 7);
   await expect(chip(page, "f2")).toHaveClass(/timeline-chip-changed/);
 
   // Body colour and visibility, in the bodies list.
   await rpc(request, "set_body", { id: "f2", color: "#123456", author: "agent:test" });
   await page.waitForFunction(
-    () => window.__tcad.bodies[0] && window.__tcad.bodies[0].color === "#123456",
+    () => globalThis.__tcad.bodies[0] && globalThis.__tcad.bodies[0].color === "#123456",
   );
   await expect(page.locator(".browser-swatch").first()).toHaveValue("#123456");
   await rpc(request, "set_visibility", { id: "f2", visible: false });
-  await page.waitForFunction(() => window.__tcad.bodies[0].visible === false);
+  await page.waitForFunction(() => globalThis.__tcad.bodies[0].visible === false);
   await rpc(request, "set_visibility", { id: "f2", visible: true });
-  await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
+  await page.waitForFunction(() => globalThis.__tcad.bodies[0].visible !== false);
 
   // A parameter change.
   await rpc(request, "set_parameter", { name: "h", value: 9, author: "agent:test" });
   const { revision } = await rpc(request, "get_document");
-  await page.waitForFunction((expected) => window.__tcad.revision === expected, revision);
+  await page.waitForFunction((expected) => globalThis.__tcad.revision === expected, revision);
 
   // All of it without a page load, and the camera never moved.
   await settled(page);
-  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
-  const after = await page.evaluate(() => window.__tcad.camera);
+  expect(await page.evaluate(() => globalThis.__sameLoad)).toBe(true);
+  const after = await page.evaluate(() => globalThis.__tcad.camera);
   [...after.position, ...after.target].forEach((value, k) =>
     expect(value).toBeCloseTo([...camera.position, ...camera.target][k], 6),
   );
@@ -411,17 +415,17 @@ function rewriteOnDisk(file, change) {
 
 test("the document rewritten on disk reloads in the open page", async ({ page, request }) => {
   await page.evaluate(() => {
-    window.__sameLoad = true;
+    globalThis.__sameLoad = true;
   });
   const { path: file } = await rpc(request, "get_document");
   rewriteOnDisk(file, (document) => {
     document.features[1].distance = 13;
   });
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 13, null, {
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 13, null, {
     timeout: 3000,
   });
-  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Reloaded from disk");
-  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.status)).toBe("Reloaded from disk");
+  expect(await page.evaluate(() => globalThis.__sameLoad)).toBe(true);
 });
 
 test("an edit that races a rewrite on disk is a conflict the person settles", async ({
@@ -440,7 +444,7 @@ test("an edit that races a rewrite on disk is a conflict the person settles", as
   await expect(page.locator("#conflict")).toBeVisible();
   expect(JSON.parse(fs.readFileSync(file, "utf8")).features[1].distance).toBe(21);
   await page.locator("#conflict-file").click();
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 21);
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 21);
   await expect(page.locator("#conflict")).toBeHidden();
   expect((await rpc(request, "get_file_status")).conflict).toBe(null);
 });
@@ -455,20 +459,20 @@ test("right-click a face, pick a colour: the face is coloured in the document an
   await settled(page);
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
 
   // A right-drag pans and opens nothing.
   await page.mouse.move(point.x, point.y);
   await page.mouse.down({ button: "right" });
   await page.mouse.move(point.x + 40, point.y + 30, { steps: 5 });
   await page.mouse.up({ button: "right" });
-  expect(await page.evaluate(() => window.__tcad.contextMenu)).toBe(null);
+  expect(await page.evaluate(() => globalThis.__tcad.contextMenu)).toBe(null);
   await settled(page);
 
-  const again = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const again = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(again.x, again.y, { button: "right" });
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .poll(() => page.evaluate(() => globalThis.__tcad.contextMenu))
     .toEqual(["Colour…", "Body colour…", "Hide body"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await expect(page.locator("#colour-popover")).toBeVisible();
@@ -477,19 +481,19 @@ test("right-click a face, pick a colour: the face is coloured in the document an
   await expect
     .poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color))
     .toEqual(["#2f9e44"]);
-  await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
+  await page.waitForFunction((face) => globalThis.__tcad.faceColour(face) === "#2f9e44", top);
   // Only that face: the box the engine gave picks it out alone.
   const coloured = await page.evaluate(
-    (count) => Array.from({ length: count }, (_, k) => window.__tcad.faceColour(k)),
+    (count) => Array.from({ length: count }, (_, k) => globalThis.__tcad.faceColour(k)),
     faces.length,
   );
   expect(coloured.filter((hex) => hex === "#2f9e44")).toHaveLength(1);
 
   // The hex box, and the recent list remembers the green.
-  const point2 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point2 = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point2.x, point2.y, { button: "right" });
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .poll(() => page.evaluate(() => globalThis.__tcad.contextMenu))
     .toContain("Clear face colour");
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await expect(page.locator('#colour-popover .recent .swatch[data-hex="#2f9e44"]')).toHaveCount(1);
@@ -508,7 +512,7 @@ test("right-click a face, pick a colour: the face is coloured in the document an
 
   // Clear.
   await settled(page);
-  const point3 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point3 = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point3.x, point3.y, { button: "right" });
   await page.getByRole("menuitem", { name: "Clear face colour" }).click();
   await expect.poll(async () => (await rpc(request, "get_document")).appearances).toEqual([]);
@@ -524,7 +528,7 @@ test("a body row's right-click menu colours and hides the body; the swatch still
     .first();
   await row.click({ button: "right" });
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .poll(() => page.evaluate(() => globalThis.__tcad.contextMenu))
     .toEqual(["Colour…", "Hide"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
@@ -540,7 +544,7 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   await rpc(request, "set_visibility", { id: "f2", visible: true });
 
   // The swatch in the row still sends set_body by itself.
-  await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
+  await page.waitForFunction(() => globalThis.__tcad.bodies[0].visible !== false);
   await page
     .locator(".browser-swatch")
     .first()
@@ -562,9 +566,9 @@ test("a finish picked for a face and for a body reaches the document, the mesh a
   await settled(page);
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y, { button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toContain("Colour…");
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.contextMenu)).toContain("Colour…");
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .finishes button[data-material="bare_metal"]').click();
 
@@ -573,11 +577,11 @@ test("a finish picked for a face and for a body reaches the document, the mesh a
       (await rpc(request, "get_document")).appearances.map((entry) => entry.material),
     )
     .toEqual(["bare_metal"]);
-  await page.waitForFunction((face) => window.__tcad.faceFinish(face) !== null, top);
-  const finish = await page.evaluate((face) => window.__tcad.faceFinish(face), top);
+  await page.waitForFunction((face) => globalThis.__tcad.faceFinish(face) !== null, top);
+  const finish = await page.evaluate((face) => globalThis.__tcad.faceFinish(face), top);
   expect(finish[0]).toBeCloseTo(0.2, 5);
   expect(finish[1]).toBeCloseTo(1, 5);
-  expect(await page.evaluate(() => window.__tcad.finishMaterials)).toEqual([
+  expect(await page.evaluate(() => globalThis.__tcad.finishMaterials)).toEqual([
     { roughness: expect.any(Number), metalness: 1, hasEnvironment: true },
   ]);
 
@@ -594,7 +598,7 @@ test("a finish picked for a face and for a body reaches the document, the mesh a
   await expect
     .poll(async () => (await rpc(request, "get_bodies")).bodies[0].material)
     .toBe("anodised_aluminium");
-  await page.waitForFunction(() => window.__tcad.finishMaterials.length === 2);
+  await page.waitForFunction(() => globalThis.__tcad.finishMaterials.length === 2);
 
   await rpc(request, "set_appearances", { appearances: [] });
   await rpc(request, "set_body", { id: "f2", material: null });
@@ -624,10 +628,10 @@ test("a referenced file rewritten on disk rebuilds the open document live", asyn
     rollback_index: 3,
   });
   await page.evaluate(() => {
-    window.__sameLoad = true;
+    globalThis.__sameLoad = true;
   });
   await page.waitForFunction(() =>
-    window.__tcad.bodies.some((body) => body.reference && body.faces === 6),
+    globalThis.__tcad.bodies.some((body) => body.reference && body.faces === 6),
   );
   const revision = (await rpc(request, "get_document")).revision;
 
@@ -638,15 +642,15 @@ test("a referenced file rewritten on disk rebuilds the open document live", asyn
     );
   });
   await page.waitForFunction(
-    () => window.__tcad.bodies.some((body) => body.reference && body.faces === 8),
+    () => globalThis.__tcad.bodies.some((body) => body.reference && body.faces === 8),
     null,
-    { timeout: 15000 },
+    { timeout: 15_000 },
   );
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.status))
+    .poll(() => page.evaluate(() => globalThis.__tcad.status))
     .toBe("Rebuilt: board.sprocket changed");
   expect((await rpc(request, "get_document")).revision).toBe(revision);
-  expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
+  expect(await page.evaluate(() => globalThis.__sameLoad)).toBe(true);
 });
 
 test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", async ({
@@ -661,44 +665,44 @@ test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", 
   await settled(page);
   // 4 mm of M3 at 0.5 mm pitch is 8 turns of 24 steps: 193 points.
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.threads))
+    .poll(() => page.evaluate(() => globalThis.__tcad.threads))
     .toEqual([{ designation: "M3", points: 193 }]);
   await rpc(request, "set_rollback", { index: threaded.features.length - 1 });
-  await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([]);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.threads)).toEqual([]);
 });
 
 test("Measure shows the volume, then a picked face's area, and hides again", async ({
   page,
   request,
 }) => {
-  expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
+  expect(await page.evaluate(() => globalThis.__tcad.measure)).toBe("");
   await page.locator("#tool-measure").click();
   // The box fixture: 40 x 30 x 10.
-  await expect.poll(() => page.evaluate(() => window.__tcad.measure)).toBe("Volume 12000 mm³");
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.measure)).toBe("Volume 12000 mm³");
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.measure)).toBe("Area 1200 mm²");
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.measure)).toBe("Area 1200 mm²");
   await page.keyboard.press("i");
-  expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
+  expect(await page.evaluate(() => globalThis.__tcad.measure)).toBe("");
 });
 
 test("Section view clips the part across an axis, flips, and turns off", async ({ page }) => {
   await page.locator("#tool-section").click();
   // The box fixture is 10 tall, so Z starts at the middle.
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.section))
+    .poll(() => page.evaluate(() => globalThis.__tcad.section))
     .toMatchObject({ axis: "Z", offset: 5, flip: false, cap: true });
-  expect((await page.evaluate(() => window.__tcad.section)).clipped).toBeGreaterThan(0);
+  expect((await page.evaluate(() => globalThis.__tcad.section)).clipped).toBeGreaterThan(0);
   await page.locator('#section-panel button[data-axis="X"]').click();
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.section))
+    .poll(() => page.evaluate(() => globalThis.__tcad.section))
     .toMatchObject({ axis: "X", offset: 0 });
   await page.locator("#section-flip").click();
-  await expect.poll(() => page.evaluate(() => window.__tcad.section.flip)).toBe(true);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.section.flip)).toBe(true);
   await page.locator("#tool-section").click();
-  expect(await page.evaluate(() => window.__tcad.section)).toBeNull();
+  expect(await page.evaluate(() => globalThis.__tcad.section)).toBeNull();
   await expect(page.locator("#section-panel")).toBeHidden();
 });
 
@@ -715,8 +719,10 @@ async function topEdgePoints(page, request, count) {
     ([candidates, wanted]) => {
       const found = [];
       for (const edge of candidates) {
-        const point = window.__tcad.screenPointOf({ edge });
-        if (point && point.visible) found.push({ edge, x: point.x, y: point.y });
+        const point = globalThis.__tcad.screenPointOf({ edge });
+        if (point?.visible) {
+          found.push({ edge, x: point.x, y: point.y });
+        }
       }
       return found.slice(0, wanted);
     },
@@ -729,24 +735,24 @@ async function topEdgePoints(page, request, count) {
 async function clickTopFace(page, request) {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.face)).toBe(top);
 }
 
-const modifying = (page) => page.evaluate(() => window.__tcad.modifying);
+const modifying = (page) => page.evaluate(() => globalThis.__tcad.modifying);
 const previewReady = (page) =>
   page.waitForFunction(
-    () => window.__tcad.modifying && window.__tcad.modifying.ok && window.__tcad.modifying.preview,
+    () => globalThis.__tcad.modifying?.ok && globalThis.__tcad.modifying.preview,
     null,
     SLOW,
   );
 const timelineTypes = (page) =>
-  page.evaluate(() => window.__tcad.timeline.map((entry) => entry.type));
+  page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.type));
 
 async function undoOnce(page) {
   await page.keyboard.press("Meta+z");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 2, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 2, null, SLOW);
   await settled(page);
 }
 
@@ -760,7 +766,7 @@ test("fillet: Shift-click two edges, set a radius, see the preview, Enter applie
   await page.mouse.click(second.x, second.y);
   await page.keyboard.up("Shift");
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.selectedEdges))
+    .poll(() => page.evaluate(() => globalThis.__tcad.selectedEdges))
     .toEqual([first.edge, second.edge]);
   await expect(page.locator("#tool-fillet")).toBeEnabled();
 
@@ -770,9 +776,9 @@ test("fillet: Shift-click two edges, set a radius, see the preview, Enter applie
   await page.locator("#modify-radius").fill("2");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.radius === 2 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.radius === 2 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -781,17 +787,17 @@ test("fillet: Shift-click two edges, set a radius, see the preview, Enter applie
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
 
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude", "fillet"]);
   const feature = (await rpc(request, "get_document")).features[2];
   expect(feature.radius).toBe(2);
   expect(feature.edges.expected_count).toBe(2);
-  expect((await rpc(request, "measure")).volume).toBeLessThan(12000 - 1);
+  expect((await rpc(request, "measure")).volume).toBeLessThan(12_000 - 1);
   await expect(page.locator("#modify-panel")).toBeHidden();
 
   await undoOnce(page);
-  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000, 3);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12_000, 3);
 });
 
 test("fillet: a radius the part cannot take shows the reason and cannot be applied", async ({
@@ -818,11 +824,11 @@ test("fillet: a selected face is not an input, so F asks for an edge", async ({
 }) => {
   await clickTopFace(page, request);
   await page.keyboard.press("f");
-  await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("fillet");
-  expect(await page.evaluate(() => window.__tcad.selection.face)).toBeNull();
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.picking)).toBe("fillet");
+  expect(await page.evaluate(() => globalThis.__tcad.selection.face)).toBeNull();
   await expect(page.locator("#modify-panel")).toBeHidden();
   await page.keyboard.press("Escape");
-  await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBeNull();
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.picking)).toBeNull();
 });
 
 test("chamfer: C on a selected edge previews and applies a distance", async ({ page, request }) => {
@@ -834,18 +840,18 @@ test("chamfer: C on a selected edge previews and applies a distance", async ({ p
   await page.locator("#modify-length").fill("1.5");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.length === 1.5 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.length === 1.5 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   await page.locator("#modify-ok").click();
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude", "chamfer"]);
   // A 1.5 mm bevel along a 40 mm or 30 mm edge removes 1.5 * 1.5 / 2 of cross section.
-  const removed = 12000 - (await rpc(request, "measure")).volume;
+  const removed = 12_000 - (await rpc(request, "measure")).volume;
   expect([1.125 * 40, 1.125 * 30]).toContainEqual(expect.closeTo(removed, 2));
   await undoOnce(page);
 });
@@ -861,8 +867,8 @@ test("Shell and Hole enable when the part arrives after the timeline", async ({
     await route.continue();
   });
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.timeline.length > 0);
-  await page.waitForFunction(() => window.__tcad.mesh !== null);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.timeline.length > 0);
+  await page.waitForFunction(() => globalThis.__tcad.mesh !== null);
   await settled(page);
   await expect(page.locator("#tool-shell")).toBeEnabled({ timeout: 2000 });
 });
@@ -878,18 +884,18 @@ test("shell: the picked face is left open, and with none the part becomes a clos
   await page.locator("#modify-thickness").fill("2");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.thickness === 2 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.thickness === 2 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   await page.locator("#modify-ok").click();
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
   const closed = (await rpc(request, "get_document")).features[2];
   expect(closed.open).toBeUndefined();
-  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000 - 36 * 26 * 6, 2);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12_000 - 36 * 26 * 6, 2);
   await undoOnce(page);
 
   // A picked face is the opening.
@@ -900,17 +906,17 @@ test("shell: the picked face is left open, and with none the part becomes a clos
   await page.locator("#modify-thickness").fill("2");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.thickness === 2 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.thickness === 2 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   expect((await modifying(page)).feature.open).toBeDefined();
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
-  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000 - 36 * 26 * 8, 2);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12_000 - 36 * 26 * 8, 2);
   await undoOnce(page);
 });
 
@@ -925,18 +931,18 @@ test("hole: a picked face, diameter and depth, then a counterbore", async ({ pag
   await page.locator("#modify-depth").fill("4");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.diameter === 6 &&
-      window.__tcad.modifying.feature.depth === 4 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.diameter === 6 &&
+      globalThis.__tcad.modifying.feature.depth === 4 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude", "hole"]);
-  expect((await rpc(request, "measure")).volume).toBeCloseTo(12000 - Math.PI * 9 * 4, 2);
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(12_000 - Math.PI * 9 * 4, 2);
   await undoOnce(page);
 
   // A counterbore asks for its head too.
@@ -951,17 +957,17 @@ test("hole: a picked face, diameter and depth, then a counterbore", async ({ pag
   await page.locator("#modify-depth").fill("5");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.head_depth === 2 &&
-      window.__tcad.modifying.feature.depth === 5 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.head_depth === 2 &&
+      globalThis.__tcad.modifying.feature.depth === 5 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   await page.locator("#modify-ok").click();
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
-  const bored = 12000 - (await rpc(request, "measure")).volume;
+  const bored = 12_000 - (await rpc(request, "measure")).volume;
   expect(bored).toBeCloseTo(Math.PI * 16 * 2 + Math.PI * 4 * 3, 2);
   await undoOnce(page);
 
@@ -1010,7 +1016,7 @@ const TWO_BODIES = {
 async function openTwoBodies(page, request) {
   await resetDocument(request, TWO_BODIES);
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.bodies.length === 2);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.bodies.length === 2);
   await settled(page);
 }
 
@@ -1027,8 +1033,10 @@ async function pointOnBody(page, request, { first, what }) {
   const found = await page.evaluate(
     ([list, kind]) => {
       for (const index of list) {
-        const point = window.__tcad.screenPointOf({ [kind]: index });
-        if (point && point.visible) return { index, x: point.x, y: point.y };
+        const point = globalThis.__tcad.screenPointOf({ [kind]: index });
+        if (point?.visible) {
+          return { index, x: point.x, y: point.y };
+        }
       }
       return null;
     },
@@ -1047,40 +1055,40 @@ test("modify tools build on the body that was picked, not the newest one", async
   // Fillet an edge of the first body: the base is f2, though f4 is the newest solid.
   const edge = await pointOnBody(page, request, { first: true, what: "edge" });
   await page.mouse.click(edge.x, edge.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(edge.index);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.edge)).toBe(edge.index);
   await page.keyboard.press("f");
   await previewReady(page);
   expect((await modifying(page)).feature.base).toBe("f2");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 5, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 5, null, SLOW);
   await settled(page);
   const fillet = (await rpc(request, "get_document")).features[4];
   expect([fillet.type, fillet.base]).toEqual(["fillet", "f2"]);
   const bodies = (await rpc(request, "get_bodies")).bodies;
   expect(bodies.map((body) => body.id)).toEqual(["f2", "f4"]);
-  expect(bodies[0].volume).toBeLessThan(12000 - 0.5);
-  expect(bodies[1].volume).toBeCloseTo(12000, 3);
+  expect(bodies[0].volume).toBeLessThan(12_000 - 0.5);
+  expect(bodies[1].volume).toBeCloseTo(12_000, 3);
 
   // The same on the second body: a fillet of its edge builds on f4 and leaves the first alone.
-  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  await page.evaluate(() => document.activeElement?.blur());
   const second = await pointOnBody(page, request, { first: false, what: "edge" });
   await page.mouse.click(second.x, second.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(second.index);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.edge)).toBe(second.index);
   await page.keyboard.press("f");
   await previewReady(page);
   expect((await modifying(page)).feature.base).toBe("f4");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 6, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 6, null, SLOW);
   await settled(page);
   const after = (await rpc(request, "get_bodies")).bodies;
   expect(after.map((body) => body.tip)).toEqual(["f5", "f6"]);
-  expect(after[1].volume).toBeLessThan(12000 - 0.5);
+  expect(after[1].volume).toBeLessThan(12_000 - 0.5);
 
   // A hole in the second body names its tip, the new fillet f6.
-  await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  await page.evaluate(() => document.activeElement?.blur());
   const face = await pointOnBody(page, request, { first: false, what: "face" });
   await page.mouse.click(face.x, face.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(face.index);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.face)).toBe(face.index);
   await page.keyboard.press("h");
   await previewReady(page);
   expect((await modifying(page)).feature.base).toBe("f6");
@@ -1089,7 +1097,9 @@ test("modify tools build on the body that was picked, not the newest one", async
   // Shell with a face of the first body picked: its base is the fillet, the first body's tip.
   const firstFace = await pointOnBody(page, request, { first: true, what: "face" });
   await page.mouse.click(firstFace.x, firstFace.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(firstFace.index);
+  await expect
+    .poll(() => page.evaluate(() => globalThis.__tcad.selection.face))
+    .toBe(firstFace.index);
   await page.locator("#tool-shell").click();
   await previewReady(page);
   expect((await modifying(page)).feature.base).toBe(fillet.id);
@@ -1147,25 +1157,25 @@ test("revolve: a selected sketch turns about an axis, previews, applies, and und
     rollback_index: 1,
   });
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.timeline.length === 1);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.timeline.length === 1);
   await settled(page);
   await expect(page.locator("#tool-revolve")).toBeDisabled();
   // A sketch alone leaves the camera unframed, so pick it from its timeline chip.
   await chip(page, "f1").click();
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.sketch)).toBe("f1");
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.sketch)).toBe("f1");
   await expect(page.locator("#tool-revolve")).toBeEnabled();
 
   await page.locator("#tool-revolve").click();
   await previewReady(page);
   expect((await modifying(page)).feature).toEqual({ type: "revolve", profile: "f1", axis: "Y" });
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 2, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 2, null, SLOW);
   await settled(page);
   expect(await timelineTypes(page)).toEqual(["sketch", "revolve"]);
   // A ring of 10 x 10 mm section between radius 10 and 20: pi * (20^2 - 10^2) * 10.
   expect((await rpc(request, "measure")).volume).toBeCloseTo(Math.PI * 300 * 10, 1);
   await page.keyboard.press("Meta+z");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 1, null, SLOW);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 1, null, SLOW);
 });
 
 test("wheel zoom follows the distance scrolled, and the zoom setting scales it", async ({
@@ -1174,14 +1184,16 @@ test("wheel zoom follows the distance scrolled, and the zoom setting scales it",
   await cameraStill(page);
   const distance = () =>
     page.evaluate(() => {
-      const { position, target } = window.__tcad.camera;
+      const { position, target } = globalThis.__tcad.camera;
       return Math.hypot(...position.map((value, i) => value - target[i]));
     });
   // Away from the timeline and the toolbar, so the wheel lands on the canvas.
   await page.mouse.move(640, 300);
   const zoomBy = async (deltas) => {
     const before = await distance();
-    for (const delta of deltas) await page.mouse.wheel(0, delta);
+    for (const delta of deltas) {
+      await page.mouse.wheel(0, delta);
+    }
     await expect.poll(async () => (await distance()) !== before).toBe(true);
     return Math.log((await distance()) / before);
   };
@@ -1189,12 +1201,12 @@ test("wheel zoom follows the distance scrolled, and the zoom setting scales it",
   // One 100 px event, then twenty of 5 px: the same zoom. OrbitControls' own
   // fixed step made the twenty zoom twenty times as far.
   const one = await zoomBy([100]);
-  const twenty = await zoomBy(Array(20).fill(5));
+  const twenty = await zoomBy(new Array(20).fill(5));
   expect(twenty).toBeCloseTo(one, 3);
   expect(one).toBeCloseTo(0.05, 3);
 
   // What the app's Settings window sends.
-  await page.evaluate(() => window.__applySettings({ zoomSensitivity: 2 }));
-  expect(await page.evaluate(() => window.__tcad.zoomSensitivity)).toBe(2);
+  await page.evaluate(() => globalThis.__applySettings({ zoomSensitivity: 2 }));
+  expect(await page.evaluate(() => globalThis.__tcad.zoomSensitivity)).toBe(2);
   expect(await zoomBy([-100])).toBeCloseTo(-0.1, 3);
 });

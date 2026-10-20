@@ -393,7 +393,7 @@ test("a constraint between two shapes has a glyph beside each", () => {
 
 /// The user's case: an inner rectangle, and the outer one's left edge projected beside it.
 function innerWithProjectedEdge() {
-  let { sketch } = model.addRectangle(model.emptySketch(), [10, 10], [70, 40]);
+  const { sketch } = model.addRectangle(model.emptySketch(), [10, 10], [70, 40]);
   const added = model.addReference(
     sketch,
     { sketch: "f1", entity: "e4" },
@@ -421,7 +421,7 @@ test("two upright lines are dimensioned across, edge to edge, with the lower one
   assert.equal(suggestion.constraint.kind, "distance_x");
   assert.equal(
     suggestion.constraint.a,
-    reference + ".p0",
+    `${reference}.p0`,
     "the reference is the left one, so it comes first",
   );
   assert.equal(suggestion.constraint.b, "e4.p0");

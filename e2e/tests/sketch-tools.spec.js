@@ -1,27 +1,27 @@
 // Trim, Extend and Offset in the sketcher, driven by clicks. Each click lands
 // where `__tcad.sketchPoint` says a sketch point is on screen.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.mesh === null);
   await settled(page);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line",
   );
   await cameraStill(page);
 });
 
-const sketchState = (page) => page.evaluate(() => window.__tcad.sketch);
+const sketchState = (page) => page.evaluate(() => globalThis.__tcad.sketch);
 const entity = async (page, id) =>
   (await sketchState(page)).entities.find((item) => item.id === id);
 
 async function at(page, uv) {
-  const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+  const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
   return point;
 }
 async function click(page, uv) {
@@ -119,7 +119,7 @@ test("Offset moves a rectangle out by a typed distance, and the copy is saved wi
 
   await page.locator("#sketch-finish").click();
   await page.waitForFunction(
-    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1,
+    () => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length === 1,
   );
   const saved = (await rpc(request, "get_document")).features[0];
   expect(saved.entities).toHaveLength(8);

@@ -6,7 +6,7 @@
 // the same zoom however many events carry it.
 //
 // Pure functions with no DOM, so viewer/test/wheel-zoom.test.js runs them under node.
-(function (root) {
+((root) => {
   // At sensitivity 1, 100 px of scroll changes the camera distance by about 5%:
   // the step OrbitControls took for every event. Chrome reports a mouse notch
   // as 100 px.
@@ -23,15 +23,21 @@
 
   function clampSensitivity(value) {
     const number = Number(value);
-    if (!Number.isFinite(number)) return DEFAULT_SENSITIVITY;
+    if (!Number.isFinite(number)) {
+      return DEFAULT_SENSITIVITY;
+    }
     return Math.min(MAX_SENSITIVITY, Math.max(MIN_SENSITIVITY, number));
   }
 
   /// deltaY in pixels, whatever unit the event used. `pageHeight` is the
   /// viewport height, for the rare page-mode event.
   function pixelDelta(deltaY, deltaMode, pageHeight) {
-    if (deltaMode === 1) return deltaY * LINE_PIXELS;
-    if (deltaMode === 2) return deltaY * pageHeight;
+    if (deltaMode === 1) {
+      return deltaY * LINE_PIXELS;
+    }
+    if (deltaMode === 2) {
+      return deltaY * pageHeight;
+    }
     return deltaY;
   }
 
@@ -53,6 +59,9 @@
     pixelDelta,
     distanceScale,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.WheelZoom = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.WheelZoom = api;
+  }
+})(globalThis);

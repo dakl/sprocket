@@ -3,7 +3,7 @@
 // feature, is in construct.spec.js.)
 const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const BOX = {
   features: [
@@ -17,7 +17,7 @@ const REBUILD = { timeout: 15_000 };
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, BOX);
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.mesh !== null);
   await settled(page);
 });
 
@@ -43,7 +43,7 @@ test("Export saves the part as STL, 3MF or STEP, and the file is the part", asyn
 
 test("Export of an empty document says there is nothing to export", async ({ page, request }) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
-  await page.waitForFunction(() => window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
   await page.locator("#tool-export").click();
   await page.locator("#context-menu button", { hasText: "STL" }).click();
   await expect(page.locator("#status")).toContainText("no part to export");
@@ -108,7 +108,7 @@ test("a parameter that drives a sketch dimension moves the sketch itself, not on
   request,
 }, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
-  await page.waitForFunction(() => window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
   const lines = [
     ["e1", [0, 0], [40, 0]],
     ["e2", [40, 0], [40, 20]],
@@ -147,7 +147,7 @@ test("a parameter that drives a sketch dimension moves the sketch itself, not on
   await page.locator(".parameter-row .browser-param").first().press("Enter");
   await expect
     .poll(async () => (await rpc(request, "measure")).volume, REBUILD)
-    .toBeCloseTo(12000, 3);
+    .toBeCloseTo(12_000, 3);
   const sketch = (await rpc(request, "get_document")).features[0];
   expect(sketch.entities.find((item) => item.id === "e1").p1).toEqual([60, 0]);
   expect(sketch.constraints.find((item) => typeof item.value === "string").value).toBe("=w");
@@ -160,26 +160,26 @@ test("the sketch panel's offset box: type the offset, pick XY, and the part sits
   request,
 }, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
-  await page.waitForFunction(() => window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator("#sketch-plane-offset").fill("12");
   await page.screenshot({ path: info.outputPath("offset-plane-panel.png") });
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active);
+  await page.waitForFunction(() => globalThis.__tcad.sketch.active);
   await cameraStill(page);
   await page.locator('#sketch-draw-panel [data-tool="rectangle"]').click();
   const click = async (uv) => {
-    const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+    const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
     await page.mouse.click(point.x, point.y);
   };
   await click([-10, -5]);
   await click([10, 5]);
   await expect
-    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .poll(async () => (await page.evaluate(() => globalThis.__tcad.sketch)).entities.length)
     .toBe(4);
   await page.locator("#sketch-finish").click();
   await page.waitForFunction(
-    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1,
+    () => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length === 1,
   );
   await settled(page);
   expect((await rpc(request, "get_document")).features[0].plane).toEqual({
@@ -188,12 +188,12 @@ test("the sketch panel's offset box: type the offset, pick XY, and the part sits
   });
 
   // Extruding 5 from a plane 12 up gives a slab from z = 12 to 17.
-  const point = await page.evaluate(() => window.__tcad.regionPoint("f1", 0));
+  const point = await page.evaluate(() => globalThis.__tcad.regionPoint("f1", 0));
   await page.mouse.click(point.x, point.y);
   await page.locator("#tool-extrude").click();
   await page.keyboard.type("5");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => !window.__tcad.extruding);
+  await page.waitForFunction(() => !globalThis.__tcad.extruding);
   await settled(page);
   const box = (await rpc(request, "measure")).bounding_box;
   expect([box.min[2], box.max[2]]).toEqual([12, 17]);
@@ -204,15 +204,15 @@ test("the Fillet tool rounds a corner of two lines with an arc of the radius typ
   request,
 }, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
-  await page.waitForFunction(() => window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line",
   );
   await cameraStill(page);
   const click = async (uv) => {
-    const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+    const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
     await page.mouse.click(point.x, point.y);
   };
   // A square corner at the origin: up the v axis to it, then out along u.
@@ -221,7 +221,7 @@ test("the Fillet tool rounds a corner of two lines with an arc of the radius typ
   await click([40, 0]);
   await page.keyboard.press("Escape");
   await expect
-    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .poll(async () => (await page.evaluate(() => globalThis.__tcad.sketch)).entities.length)
     .toBe(2);
 
   await page.locator('#sketch-draw-panel [data-tool="fillet"]').click();
@@ -234,7 +234,7 @@ test("the Fillet tool rounds a corner of two lines with an arc of the radius typ
   await expect(page.locator("#sketch-dimension")).toBeHidden();
   await page.screenshot({ path: info.outputPath("fillet.png") });
 
-  const sketch = await page.evaluate(() => window.__tcad.sketch);
+  const sketch = await page.evaluate(() => globalThis.__tcad.sketch);
   const arc = sketch.entities.find((entity) => entity.kind === "arc");
   // A quarter circle in a square corner: centre 5 in from both lines, and the lines stop 5 short of the corner.
   expect(arc.r).toBeCloseTo(5, 6);
@@ -247,7 +247,7 @@ test("the Fillet tool rounds a corner of two lines with an arc of the radius typ
   // Finish saves it to the document, arc and all.
   await page.locator("#sketch-finish").click();
   await page.waitForFunction(
-    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1,
+    () => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length === 1,
   );
   const saved = (await rpc(request, "get_document")).features[0].entities;
   expect(saved.filter((entity) => entity.kind === "arc")).toHaveLength(1);
@@ -258,15 +258,15 @@ test("the Fillet tool says so when the radius does not fit, and changes nothing"
   request,
 }) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
-  await page.waitForFunction(() => window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line",
   );
   await cameraStill(page);
   const click = async (uv) => {
-    const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+    const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
     await page.mouse.click(point.x, point.y);
   };
   await click([0, 10]);
@@ -278,7 +278,7 @@ test("the Fillet tool says so when the radius does not fit, and changes nothing"
   await page.keyboard.type("50");
   await page.keyboard.press("Enter");
   await expect(page.locator("#sketch-status")).toContainText("too big");
-  expect((await page.evaluate(() => window.__tcad.sketch)).entities).toHaveLength(2);
+  expect((await page.evaluate(() => globalThis.__tcad.sketch)).entities).toHaveLength(2);
   // A click on a point that is not a corner says what to click.
   await page.keyboard.press("Escape");
   await click([40, 0]);
@@ -290,18 +290,22 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   request,
 }, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
-  await page.waitForFunction(() => window.__tcad.mesh === null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line",
   );
   await cameraStill(page);
   const click = async (uv, shift) => {
-    const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
-    if (shift) await page.keyboard.down("Shift");
+    const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
+    if (shift) {
+      await page.keyboard.down("Shift");
+    }
     await page.mouse.click(point.x, point.y);
-    if (shift) await page.keyboard.up("Shift");
+    if (shift) {
+      await page.keyboard.up("Shift");
+    }
   };
   // The mirror line, upright at u = 0, and a slanted line to its right.
   await click([0, -20]);
@@ -311,7 +315,7 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   await click([25, 10]);
   await page.keyboard.press("Escape");
   await expect
-    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .poll(async () => (await page.evaluate(() => globalThis.__tcad.sketch)).entities.length)
     .toBe(2);
 
   await page.locator('#sketch-draw-panel [data-tool="select"]').click();
@@ -321,11 +325,11 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   await expect(page.locator("#sketch-mirror")).toBeEnabled();
   await page.locator("#sketch-mirror").click();
   await expect
-    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .poll(async () => (await page.evaluate(() => globalThis.__tcad.sketch)).entities.length)
     .toBe(3);
   await page.screenshot({ path: info.outputPath("mirror.png") });
 
-  const sketch = await page.evaluate(() => window.__tcad.sketch);
+  const sketch = await page.evaluate(() => globalThis.__tcad.sketch);
   const [line, original, copy] = ["e1", "e2", "e3"].map((id) =>
     sketch.entities.find((entity) => entity.id === id),
   );
@@ -346,18 +350,18 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   await page.locator('#sketch-draw-panel [data-constraint="fix"]').click();
   await expect
     .poll(async () =>
-      (await page.evaluate(() => window.__tcad.sketch)).constraints.some(
+      (await page.evaluate(() => globalThis.__tcad.sketch)).constraints.some(
         (constraint) => constraint.kind === "fix",
       ),
     )
     .toBe(true);
-  const grab = await page.evaluate(() => window.__tcad.sketchPoint([25, 10]));
-  const drop = await page.evaluate(() => window.__tcad.sketchPoint([25, 16]));
+  const grab = await page.evaluate(() => globalThis.__tcad.sketchPoint([25, 10]));
+  const drop = await page.evaluate(() => globalThis.__tcad.sketchPoint([25, 16]));
   await page.mouse.move(grab.x, grab.y);
   await page.mouse.down();
   await page.mouse.move(drop.x, drop.y, { steps: 6 });
   await page.mouse.up();
-  const dragged = await page.evaluate(() => window.__tcad.sketch);
+  const dragged = await page.evaluate(() => globalThis.__tcad.sketch);
   const movedOriginal = dragged.entities.find((entity) => entity.id === "e2");
   const movedCopy = dragged.entities.find((entity) => entity.id === "e3");
   expect(movedOriginal.p1[1]).toBeGreaterThan(14);

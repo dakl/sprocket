@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const CYLINDER = {
   features: [
@@ -24,7 +24,7 @@ test.beforeEach(async ({ page, request }) => {
   original = (await rpc(request, "get_document")).path;
   folder = fs.mkdtempSync(path.join(os.tmpdir(), "sprocket-files-"));
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.mesh !== null);
   await settled(page);
 });
 
@@ -45,14 +45,14 @@ test("opening a document replaces the part and the timeline, even at the same re
 }) => {
   const file = writeDocument("cylinder.sprocket", CYLINDER);
   await rpc(request, "open_document", { path: file });
-  await page.waitForFunction(() => window.__tcad.timeline.some((entry) => entry.id === "e1"));
+  await page.waitForFunction(() => globalThis.__tcad.timeline.some((entry) => entry.id === "e1"));
   await settled(page);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.id))).toEqual([
+  expect(await page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.id))).toEqual([
     "s1",
     "e1",
   ]);
   // 3 faces is the cylinder, and the box had 6 at the same revision, 0.
-  await page.waitForFunction(() => window.__tcad.mesh && window.__tcad.mesh.faces === 3);
+  await page.waitForFunction(() => globalThis.__tcad.mesh && globalThis.__tcad.mesh.faces === 3);
 });
 
 test("opening a document drops a sketch in progress, which belonged to the old one", async ({
@@ -61,11 +61,11 @@ test("opening a document drops a sketch in progress, which belonged to the old o
 }) => {
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active);
+  await page.waitForFunction(() => globalThis.__tcad.sketch.active);
   await cameraStill(page);
 
   await rpc(request, "open_document", { path: writeDocument("cylinder.sprocket", CYLINDER) });
-  await page.waitForFunction(() => !window.__tcad.sketch.active);
+  await page.waitForFunction(() => !globalThis.__tcad.sketch.active);
   await settled(page);
 });
 
@@ -100,7 +100,7 @@ test("save as writes a copy, and later edits go to the copy and not the first fi
 
 test("a new document is empty, and the viewer shows nothing", async ({ page, request }) => {
   await rpc(request, "new_document", { path: path.join(folder, "fresh.sprocket") });
-  await page.waitForFunction(() => window.__tcad.timeline.length === 0);
+  await page.waitForFunction(() => globalThis.__tcad.timeline.length === 0);
   await settled(page);
-  expect(await page.evaluate(() => window.__tcad.mesh)).toBeNull();
+  expect(await page.evaluate(() => globalThis.__tcad.mesh)).toBeNull();
 });

@@ -9,13 +9,13 @@
 // which has no output encoding, so its colours stay raw hexes.
 const srgb = (hex) => new THREE.Color(hex).convertSRGBToLinear();
 // What a face with no colour from the document is drawn in.
-const PART_COLOUR = 0x5b8dee;
-const REFERENCE_COLOUR = 0xb0b4ba;
+const PART_COLOUR = 0x5b_8d_ee;
+const REFERENCE_COLOUR = 0xb0_b4_ba;
 
 const scene = new THREE.Scene();
 // Not srgb(): r128 clears the framebuffer with this colour directly and
 // skips outputEncoding for it, so converting here would darken it twice.
-scene.background = new THREE.Color(0x1e1e1e);
+scene.background = new THREE.Color(0x1e_1e_1e);
 
 // Persistent outlines for sketch features: a bare sketch has no solid to
 // show (see sprocket_engine.cli._last_solid_index), so this outline is
@@ -42,7 +42,9 @@ let section = null; // { axis, offset, flip } while the view is on
 let sectionCap = null;
 
 function sectionRange(axis) {
-  if (!mesh) return [0, 0];
+  if (!mesh) {
+    return [0, 0];
+  }
   mesh.geometry.computeBoundingBox();
   const box = mesh.geometry.boundingBox;
   const key = axis.toLowerCase();
@@ -55,7 +57,7 @@ function applySection() {
     const [low, high] = sectionRange(section.axis);
     section.offset = Math.min(high, Math.max(low, section.offset));
     Object.assign(sectionOffsetEl, { min: low, max: high, value: section.offset });
-    sectionValueEl.textContent = Number(section.offset.toFixed(2)) + " mm";
+    sectionValueEl.textContent = `${Number(section.offset.toFixed(2))} mm`;
     sectionPlane.normal.copy(SECTION_AXES[section.axis]).multiplyScalar(section.flip ? 1 : -1);
     sectionPlane.constant = section.flip ? -section.offset : section.offset;
     sectionPanelEl
@@ -64,8 +66,8 @@ function applySection() {
   }
   renderer.localClippingEnabled = Boolean(section);
   const clipped = [
-    mesh && mesh.material,
-    edgeLines && edgeLines.material,
+    mesh?.material,
+    edgeLines?.material,
     ...threadGroup.children.map((line) => line.material),
   ];
   clipped
@@ -82,7 +84,7 @@ function applySection() {
   }
   if (section && mesh) {
     const cap = new THREE.MeshBasicMaterial({
-      color: srgb(0xc8783c),
+      color: srgb(0xc8_78_3c),
       side: THREE.BackSide,
       clippingPlanes: planes,
     });
@@ -142,13 +144,18 @@ let constructObjects = []; // { id, object }
 let constructFramed = false; // a document of construct features alone is framed once, since there is no part to frame on
 const hiddenConstructIDs = new Set();
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
+const camera = new THREE.PerspectiveCamera(
+  45,
+  globalThis.innerWidth / globalThis.innerHeight,
+  0.1,
+  10_000,
+);
 camera.up.set(0, 0, 1); // Z-up, matching the engine's convention
 
-console.log("renderer init, size", window.innerWidth, window.innerHeight);
+console.log("renderer init, size", globalThis.innerWidth, globalThis.innerHeight);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio || 1);
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(globalThis.devicePixelRatio || 1);
+renderer.setSize(globalThis.innerWidth, globalThis.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
 document.body.appendChild(renderer.domElement);
 console.log("renderer ready");
@@ -165,18 +172,18 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 // channel at 255. Before, it spanned 0.30 to 0.65 with the top faces
 // clipped. Fusion 360 spans 0.18 to 0.32 on the same shape, but it
 // separates faces with black edge lines rather than with light.
-const hemisphere = new THREE.HemisphereLight(0xffffff, 0x20242b, 0.18);
+const hemisphere = new THREE.HemisphereLight(0xff_ff_ff, 0x20_24_2b, 0.18);
 scene.add(hemisphere);
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+const keyLight = new THREE.DirectionalLight(0xff_ff_ff, 0.85);
 keyLight.position.set(2, -3, 4); // over the viewer's right shoulder
 scene.add(keyLight);
 
-const fillLight = new THREE.DirectionalLight(0xffffff, 0.12);
+const fillLight = new THREE.DirectionalLight(0xff_ff_ff, 0.12);
 fillLight.position.set(-4, 1.5, 0.5); // opposite the key, to lift the shadow side
 scene.add(fillLight);
 
-const grid = new THREE.GridHelper(200, 20, 0x444444, 0x333333);
+const grid = new THREE.GridHelper(200, 20, 0x44_44_44, 0x33_33_33);
 grid.rotation.x = Math.PI / 2; // lie flat in the XY plane
 // GridHelper bakes its two colours into a vertex-colour attribute, so it
 // cannot take a srgb() Color. Convert the attribute in place instead.
@@ -184,7 +191,7 @@ grid.rotation.x = Math.PI / 2; // lie flat in the XY plane
 const gridColors = grid.geometry.attributes.color.array;
 for (let i = 0; i < gridColors.length; i++) {
   const c = gridColors[i];
-  gridColors[i] = c < 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  gridColors[i] = c < 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 scene.add(grid);
 
@@ -192,9 +199,9 @@ scene.add(grid);
 // far as the grid. While a sketch is open, a visible axis that lies in its
 // plane is something to snap to (see sketcher.js).
 const AXES = {
-  x: { name: "X", direction: new THREE.Vector3(1, 0, 0), colour: 0xff5a5a },
-  y: { name: "Y", direction: new THREE.Vector3(0, 1, 0), colour: 0x5ad25a },
-  z: { name: "Z", direction: new THREE.Vector3(0, 0, 1), colour: 0x5a9bff },
+  x: { name: "X", direction: new THREE.Vector3(1, 0, 0), colour: 0xff_5a_5a },
+  y: { name: "Y", direction: new THREE.Vector3(0, 1, 0), colour: 0x5a_d2_5a },
+  z: { name: "Z", direction: new THREE.Vector3(0, 0, 1), colour: 0x5a_9b_ff },
 };
 const axesVisible = { x: false, y: false, z: false };
 const axisLines = {};
@@ -223,7 +230,7 @@ function frameCameraOn(object) {
   controls.update();
 }
 
-const params = new URLSearchParams(window.location.search);
+const params = new URLSearchParams(globalThis.location.search);
 const partBase = params.get("part") || "part.mesh";
 const featuresBase = "features.json";
 
@@ -236,12 +243,16 @@ let loadedRevision = null;
 // The newest revision this page has heard of, from a reply or an event, which is what an edit is based on.
 let daemonRevision = 0;
 const sawRevision = (revision) => {
-  if (Number.isInteger(revision) && revision > daemonRevision) daemonRevision = revision;
+  if (Number.isInteger(revision) && revision > daemonRevision) {
+    daemonRevision = revision;
+  }
 };
 
 function urlWithCacheBust(base, token) {
-  if (!token) return base;
-  return base + (base.includes("?") ? "&" : "?") + "t=" + token;
+  if (!token) {
+    return base;
+  }
+  return `${base + (base.includes("?") ? "&" : "?")}t=${token}`;
 }
 
 // --- Mesh file (see engine/src/sprocket_engine/mesh.py) -------------
@@ -260,14 +271,16 @@ function parseMesh(buffer) {
   const header = JSON.parse(text);
   // Version 2 adds face_materials; everything else is version 1.
   if (header.format !== "sprocket-mesh" || (header.version !== 1 && header.version !== 2)) {
-    throw new Error("unexpected mesh format " + header.format + " v" + header.version);
+    throw new Error(`unexpected mesh format ${header.format} v${header.version}`);
   }
 
   const payloadStart = 4 + headerLength;
   const buffers = {};
   for (const [name, entry] of Object.entries(header.buffers)) {
     const ArrayType = MESH_ARRAY_TYPES[entry.type];
-    if (!ArrayType) throw new Error("unknown buffer type " + entry.type + " for " + name);
+    if (!ArrayType) {
+      throw new Error(`unknown buffer type ${entry.type} for ${name}`);
+    }
     // A view, not a copy: the whole point of the 4-alignment.
     buffers[name] = new ArrayType(buffer, payloadStart + entry.offset, entry.length);
   }
@@ -311,7 +324,9 @@ function buildPartGeometry(mesh) {
     const materialIndex = body.reference ? 2 : body.visible === false ? 1 : 0;
     for (let face = bodyFaceStart; face < bodyFaceStart + body.faces; face++) {
       geometry.groups[face].materialIndex = materialIndex;
-      if (materialIndex) geometry.userData.unpickableFace[face] = 1;
+      if (materialIndex) {
+        geometry.userData.unpickableFace[face] = 1;
+      }
     }
     bodyFaceStart += body.faces;
   }
@@ -323,8 +338,10 @@ function buildPartGeometry(mesh) {
     const indexOf = new Map();
     for (let face = 0; face < faceCount; face++) {
       const roughness = finishes[face * 2];
-      if (roughness < 0 || geometry.groups[face].materialIndex !== 0) continue;
-      const key = roughness + "," + finishes[face * 2 + 1];
+      if (roughness < 0 || geometry.groups[face].materialIndex !== 0) {
+        continue;
+      }
+      const key = `${roughness},${finishes[face * 2 + 1]}`;
       if (!indexOf.has(key)) {
         indexOf.set(key, 3 + geometry.userData.finishes.length);
         geometry.userData.finishes.push([roughness, finishes[face * 2 + 1]]);
@@ -341,7 +358,7 @@ function buildPartGeometry(mesh) {
     const indices = mesh.buffers.indices;
     for (let triangle = 0; triangle < faceOfTriangle.length; triangle++) {
       const hex = faceColours[faceOfTriangle[triangle]];
-      const colour = srgb(hex === 0xffffffff ? PART_COLOUR : hex);
+      const colour = srgb(hex === 0xff_ff_ff_ff ? PART_COLOUR : hex);
       for (let corner = 0; corner < 3; corner++) {
         const vertex = indices[triangle * 3 + corner] * 3;
         colours[vertex] = colour.r;
@@ -361,7 +378,9 @@ function buildPartGeometry(mesh) {
 /// finish do not use it, so their shading is as before.
 let environmentTexture = null;
 function environmentMap() {
-  if (environmentTexture) return environmentTexture;
+  if (environmentTexture) {
+    return environmentTexture;
+  }
   const room = new THREE.Scene();
   const sky = new THREE.SphereGeometry(50, 32, 16);
   const tones = new Float32Array(sky.attributes.position.count * 3);
@@ -380,7 +399,7 @@ function environmentMap() {
   ]) {
     const panel = new THREE.Mesh(
       new THREE.PlaneGeometry(30, 18),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: 0xff_ff_ff, side: THREE.DoubleSide }),
     );
     panel.position.set(x, y, z);
     panel.lookAt(0, 0, 0);
@@ -414,14 +433,16 @@ function disposePart() {
 }
 
 function loadPart(token, options) {
-  const refit = Boolean(options && options.refit);
+  const refit = Boolean(options?.refit);
   const path = urlWithCacheBust(partBase, token);
   return trackPending(
     fetch(path)
       // file:// fetches report status 0, not 200, so response.ok is always
       // false there.
       .then((response) => {
-        if (!response.ok && response.status !== 0) throw new Error("HTTP " + response.status);
+        if (!response.ok && response.status !== 0) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         return response.arrayBuffer();
       })
       .then((buffer) => {
@@ -430,9 +451,9 @@ function loadPart(token, options) {
         console.log(
           "mesh loaded",
           path,
-          counts.faces + " faces,",
-          counts.triangles + " triangles,",
-          counts.edges + " edges",
+          `${counts.faces} faces,`,
+          `${counts.triangles} triangles,`,
+          `${counts.edges} edges`,
         );
 
         // Replace, don't add: a rebuild reuses this scene instead of
@@ -449,7 +470,7 @@ function loadPart(token, options) {
         // the edge lines below, which sit exactly on the body's boundary,
         // win the depth test instead of flickering against it.
         const material = new THREE.MeshStandardMaterial({
-          color: parsed.buffers.face_colors ? 0xffffff : srgb(PART_COLOUR),
+          color: parsed.buffers.face_colors ? 0xff_ff_ff : srgb(PART_COLOUR),
           vertexColors: Boolean(parsed.buffers.face_colors),
           metalness: 0,
           roughness: 0.55,
@@ -502,7 +523,7 @@ function loadPart(token, options) {
         // material samples lights or not. Measured, a raw hex here comes
         // out #2a2c2f rather than #14181f, light enough to read as a grey
         // seam instead of an edge.
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: srgb(0x14181f) });
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: srgb(0x14_18_1f) });
         // Edges follow their body: one group per body, material as for faces.
         const unpickableEdge = new Uint8Array(parsed.buffers.segments_per_edge.length);
         if (layered) {
@@ -511,10 +532,13 @@ function loadPart(token, options) {
           for (const body of bodies) {
             const materialIndex = body.reference ? 2 : body.visible === false ? 1 : 0;
             let segments = 0;
-            for (let k = edge; k < edge + body.edges; k++)
+            for (let k = edge; k < edge + body.edges; k++) {
               segments += parsed.buffers.segments_per_edge[k];
+            }
             edgeGeometry.addGroup(segment * 2, segments * 2, materialIndex);
-            if (materialIndex) unpickableEdge.fill(1, edge, edge + body.edges);
+            if (materialIndex) {
+              unpickableEdge.fill(1, edge, edge + body.edges);
+            }
             edge += body.edges;
             segment += segments;
           }
@@ -550,7 +574,9 @@ function loadPart(token, options) {
         edgeLines.userData.edgeOfSegment = edgeOfSegment;
 
         // The first solid of a document has nothing to stay framed on.
-        if (refit || !hadPart) frameCameraOn(mesh);
+        if (refit || !hadPart) {
+          frameCameraOn(mesh);
+        }
         applyVisibility();
         renderBrowser();
         applySection();
@@ -590,12 +616,16 @@ function loadFeatures(token) {
         // the same sketch selected and its handles up for the next drag.
         browserFeatures = features;
         measureAsked = ""; // a rebuild changes what the same handles measure
-        const selectedSketchID = selectedSketch && selectedSketch.id;
+        const selectedSketchID = selectedSketch?.id;
         selectedSketch = null;
         selectedPatch = null;
         clearEdgeSelection();
-        if (modifyTool) cancelModify(); // its selector was made against the old build
-        if (extrudeArmed) cancelExtrude(); // its face is gone, and the arrow with it
+        if (modifyTool) {
+          cancelModify(); // its selector was made against the old build
+        }
+        if (extrudeArmed) {
+          cancelExtrude(); // its face is gone, and the arrow with it
+        }
         cancelPick();
         selectionChanged();
         hideStatus();
@@ -610,7 +640,9 @@ function loadFeatures(token) {
           (feature) =>
             feature.id === selectedSketchID && feature.type === "sketch" && feature.active,
         );
-        if (stillThere) selectSketchForExtrude(stillThere);
+        if (stillThere) {
+          selectSketchForExtrude(stillThere);
+        }
         reportFailedFeature(features);
         renderBrowser();
       })
@@ -629,14 +661,16 @@ function loadFeatures(token) {
 // `info` is the rest of the daemon's `document_changed` (author, changes),
 // when the change came from somewhere else. Swift and the event stream
 // both pass it; the viewer's own edits call this without it.
-window.reloadPart = function (token, opened, viewerError, info) {
+globalThis.reloadPart = (token, opened, viewerError, info) => {
   loadedRevision = token;
   sawRevision(token);
   showMeshError(viewerError);
-  if (opened) resetForNewDocument();
+  if (opened) {
+    resetForNewDocument();
+  }
   // A new document, or the same revision rebuilt because a referenced file
   // changed: either way the old URL would serve what is already shown.
-  const fetchToken = opened || (info && info.refresh) ? token + "-" + Date.now() : token;
+  const fetchToken = opened || info?.refresh ? `${token}-${Date.now()}` : token;
   // A rebuild renumbers faces and edges, so what an agent pointed at is gone.
   showAgentHighlight({});
   // The daemon has already carried the selection over to the new handles
@@ -656,38 +690,47 @@ window.reloadPart = function (token, opened, viewerError, info) {
   trackPending(
     Promise.all(loads)
       .then(([, , view]) => {
-        if (token !== loadedRevision) return; // a newer reload owns the screen
+        if (token !== loadedRevision) {
+          return; // a newer reload owns the screen
+        }
         applyDaemonSelection(view);
         showChangeCue(ViewerLive.changeCue(info));
       })
       .finally(() => {
-        if (token !== loadedRevision) return;
+        if (token !== loadedRevision) {
+          return;
+        }
         restoringSelection = false;
         reportSelection();
       }),
   );
   // The app and the browser both come through here. A sketch being edited
   // may be the thing that changed, and the sketcher checks.
-  if (!opened && sketchStage === "draw") sketcher.remoteChanged();
+  if (!opened && sketchStage === "draw") {
+    sketcher.remoteChanged();
+  }
 };
 
-const canCallDaemon = () => hasSwiftBridge() || /^https?:$/.test(window.location.protocol);
+const canCallDaemon = () => hasSwiftBridge() || /^https?:$/.test(globalThis.location.protocol);
 
 /// Selects what the daemon says is selected, if it belongs to the part on
 /// screen, without telling the daemon again.
 function applyDaemonSelection(view) {
   const picked = ViewerLive.selectionToApply(view, loadedRevision);
-  if (!picked || !mesh) return;
+  if (!picked || !mesh) {
+    return;
+  }
   if (picked.face !== null && mesh.geometry.groups[picked.face] && !selectedSketch) {
     selectedPatch = facePatch(picked.face);
-    setHighlight(selectedPatch, 0xffdd55);
+    setHighlight(selectedPatch, 0xff_dd_55);
   }
   if (
     picked.edge !== null &&
     edgeLines &&
     edgeLines.userData.edgeStart[picked.edge + 1] !== undefined
-  )
+  ) {
     selectEdge(picked.edge);
+  }
   updateToolbarState();
   renderBrowser();
 }
@@ -695,13 +738,15 @@ function applyDaemonSelection(view) {
 /// "Updated by agent:…" in the status line for a moment, and a short glow
 /// on each timeline row the change touched.
 function showChangeCue(cue) {
-  if (!cue) return;
+  if (!cue) {
+    return;
+  }
   showNotice(cue.text, 2500);
   for (const id of cue.featureIds) {
-    const chip = timelineEl.querySelector(
-      '.timeline-chip[data-feature-id="' + CSS.escape(id) + '"]',
-    );
-    if (!chip) continue;
+    const chip = timelineEl.querySelector(`.timeline-chip[data-feature-id="${CSS.escape(id)}"]`);
+    if (!chip) {
+      continue;
+    }
     chip.classList.remove("timeline-chip-changed");
     void chip.offsetWidth; // restart the animation when the same row changes twice
     chip.classList.add("timeline-chip-changed");
@@ -728,7 +773,9 @@ for (const [button, keep] of [
     trackPending(
       rpcCall("resolve_conflict", { keep }).then((result) => {
         sawRevision(result.revision);
-        if (result.revision !== loadedRevision) window.reloadPart(result.revision);
+        if (result.revision !== loadedRevision) {
+          globalThis.reloadPart(result.revision);
+        }
       }),
     );
   });
@@ -736,22 +783,30 @@ for (const [button, keep] of [
 
 // Swift forwards the daemon's other notifications here; the browser gets
 // them from the event stream below.
-window.__daemonNotification = function (method, params) {
-  if (method === "document_conflict") showConflict(params);
+globalThis.__daemonNotification = (method, params) => {
+  if (method === "document_conflict") {
+    showConflict(params);
+  }
 };
 
 /// The engine could not write the part as a mesh, so it deleted the mesh
 /// and sent the reason. Without this the screen shows nothing and says
 /// nothing, which looks like the file did not open.
 function showMeshError(text) {
-  meshErrorEl.textContent = text ? "Could not draw the part: " + text : "";
+  meshErrorEl.textContent = text ? `Could not draw the part: ${text}` : "";
   meshErrorEl.style.display = text ? "block" : "none";
 }
 
 function resetForNewDocument() {
-  if (extrudeArmed) cancelExtrude();
-  if (modifyTool) cancelModify();
-  if (sketchStage) exitSketchMode();
+  if (extrudeArmed) {
+    cancelExtrude();
+  }
+  if (modifyTool) {
+    cancelModify();
+  }
+  if (sketchStage) {
+    exitSketchMode();
+  }
   hiddenSketchIDs.clear();
   clearSelection();
 }
@@ -762,12 +817,16 @@ loadFeatures(params.get("t"));
 // daemon before the first change arrives. After this script has run,
 // because the transport below is declared further down.
 Promise.resolve().then(() => {
-  if (!canCallDaemon()) return;
+  if (!canCallDaemon()) {
+    return;
+  }
   trackPending(
     rpcCall("get_timeline", {})
       .then((timeline) => {
         sawRevision(timeline.revision);
-        if (loadedRevision === null) loadedRevision = timeline.revision;
+        if (loadedRevision === null) {
+          loadedRevision = timeline.revision;
+        }
       })
       .catch(() => {}),
   );
@@ -826,10 +885,9 @@ function renderTimeline(features) {
       (feature.active ? "" : " timeline-chip-inactive") +
       (feature.failed ? " timeline-chip-failed" : "");
     // Icons only. The id and type are in the tooltip.
-    chip.title =
-      feature.id + " (" + feature.type + ")" + (feature.failed ? " - no longer applies" : "");
+    chip.title = `${feature.id} (${feature.type})${feature.failed ? " - no longer applies" : ""}`;
     const icon = FEATURE_ICONS[feature.type] || "?";
-    chip.innerHTML = '<span class="timeline-icon">' + icon + "</span>";
+    chip.innerHTML = `<span class="timeline-icon">${icon}</span>`;
     chip.dataset.featureId = feature.id;
     const edit = document.createElement("span");
     edit.className = "timeline-edit";
@@ -842,8 +900,9 @@ function renderTimeline(features) {
     });
     chip.appendChild(edit);
     chip.addEventListener("dblclick", () => {
-      if (feature.type === "sketch" && feature.active && feature.feature.entities)
+      if (feature.type === "sketch" && feature.active && feature.feature.entities) {
         editSketch(feature);
+      }
     });
     chip.addEventListener("click", () => {
       // A sketch is inert (see cli.py's _last_solid_index) - clicking one
@@ -858,7 +917,9 @@ function renderTimeline(features) {
     });
     timeline.appendChild(chip);
   });
-  if (!draggingPlayhead) placePlayhead(features.filter((feature) => feature.active).length);
+  if (!draggingPlayhead) {
+    placePlayhead(features.filter((feature) => feature.active).length);
+  }
 }
 
 // --- Playhead -----------------------------------------------------------
@@ -889,10 +950,10 @@ function placePlayhead(index) {
     index === 0
       ? chips[0].offsetLeft - 3
       : index >= chips.length
-        ? after(chips[chips.length - 1]) + 3
+        ? after(chips.at(-1)) + 3
         : (after(chips[index - 1]) + chips[index].offsetLeft) / 2;
   playheadEl.style.display = "block";
-  playheadEl.style.left = x + "px";
+  playheadEl.style.left = `${x}px`;
 }
 
 /// How many chips lie left of the pointer: the rollback index it points at.
@@ -905,12 +966,16 @@ function indexAtPointer(clientX) {
 /// engine rebuilds, so while one is running only the newest target is kept.
 function scrubTo(index) {
   scrubTarget = index;
-  if (scrubbing) return;
+  if (scrubbing) {
+    return;
+  }
   scrubbing = true;
   const next = () => {
     const target = scrubTarget;
     return setRollback(target).finally(() => {
-      if (scrubTarget !== target) return next();
+      if (scrubTarget !== target) {
+        return next();
+      }
       scrubbing = false;
     });
   };
@@ -923,19 +988,23 @@ playheadEl.addEventListener("pointerdown", (event) => {
   event.preventDefault();
 });
 playheadEl.addEventListener("pointermove", (event) => {
-  if (!draggingPlayhead) return;
+  if (!draggingPlayhead) {
+    return;
+  }
   const index = indexAtPointer(event.clientX);
   placePlayhead(index);
   scrubTo(index);
 });
 const endPlayheadDrag = () => {
-  if (!draggingPlayhead) return;
+  if (!draggingPlayhead) {
+    return;
+  }
   draggingPlayhead = false;
   placePlayhead(browserFeatures.filter((feature) => feature.active).length);
 };
 playheadEl.addEventListener("pointerup", endPlayheadDrag);
 playheadEl.addEventListener("pointercancel", endPlayheadDrag);
-window.addEventListener("resize", () =>
+globalThis.addEventListener("resize", () =>
   placePlayhead(browserFeatures.filter((feature) => feature.active).length),
 );
 
@@ -967,11 +1036,14 @@ let editingFeatureId = null;
 let schemas = null;
 
 function loadSchemas() {
-  if (schemas) return Promise.resolve(schemas);
+  if (schemas) {
+    return Promise.resolve(schemas);
+  }
   return trackPending(
     fetch("schemas.json").then((response) => {
-      if (!response.ok && response.status !== 0)
-        throw new Error("no schemas.json (HTTP " + response.status + ")");
+      if (!response.ok && response.status !== 0) {
+        throw new Error(`no schemas.json (HTTP ${response.status})`);
+      }
       return response.json();
     }),
   ).then((loaded) => (schemas = loaded));
@@ -994,7 +1066,7 @@ function closeProperties() {
 
 function renderProperties() {
   const entry = editingFeatureId && browserFeatures.find((item) => item.id === editingFeatureId);
-  if (!entry || !entry.feature || !schemas || !schemas[entry.type]) {
+  if (!entry?.feature || !schemas?.[entry.type]) {
     editingFeatureId = null;
     propertiesEl.hidden = true;
     return;
@@ -1012,7 +1084,7 @@ function renderProperties() {
 // A gesture becomes edits (edits.js), and edits go to the daemon's
 // JSON-RPC methods. The two transports differ only in how a call reaches
 // it. Inside the Swift app it is a WKWebView message that Swift forwards to
-// the daemon socket and answers through window.__rpcReply. Over http(s) it
+// the daemon socket and answers through globalThis.__rpcReply. Over http(s) it
 // is a POST to `sprocket web`. From a file:// page with no bridge there is
 // nothing to call.
 //
@@ -1027,16 +1099,20 @@ function trackPending(promise) {
   });
 }
 
-const hasSwiftBridge = () =>
-  Boolean(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sprocket);
+const hasSwiftBridge = () => Boolean(globalThis.webkit?.messageHandlers?.sprocket);
 
 // Called from Swift with the daemon's reply to a call made below.
-window.__rpcReply = function (id, result, errorMessage) {
+globalThis.__rpcReply = (id, result, errorMessage) => {
   const call = pendingRpc.get(id);
-  if (!call) return;
+  if (!call) {
+    return;
+  }
   pendingRpc.delete(id);
-  if (errorMessage) call.reject(new Error(errorMessage));
-  else call.resolve(result);
+  if (errorMessage) {
+    call.reject(new Error(errorMessage));
+  } else {
+    call.resolve(result);
+  }
 };
 
 function rpcCall(method, params) {
@@ -1044,7 +1120,7 @@ function rpcCall(method, params) {
     const id = nextRpcId++;
     return new Promise((resolve, reject) => {
       pendingRpc.set(id, { resolve, reject });
-      window.webkit.messageHandlers.sprocket.postMessage({ type: "rpc", id, method, params });
+      globalThis.webkit.messageHandlers.sprocket.postMessage({ type: "rpc", id, method, params });
     });
   }
   return fetch("/rpc", {
@@ -1053,7 +1129,9 @@ function rpcCall(method, params) {
   })
     .then((response) => response.json())
     .then((body) => {
-      if (body.error) throw new Error(body.error.message);
+      if (body.error) {
+        throw new Error(body.error.message);
+      }
       return body.result;
     });
 }
@@ -1068,14 +1146,16 @@ function documentState() {
 
 // A gesture nobody awaits, such as a timeline click, still has to say why the
 // engine refused it.
-window.addEventListener("unhandledrejection", (event) => {
-  if (!(event.reason instanceof Error)) return;
+globalThis.addEventListener("unhandledrejection", (event) => {
+  if (!(event.reason instanceof Error)) {
+    return;
+  }
   warningEl.textContent = event.reason.message;
   warningEl.style.display = "block";
 });
 
 function sendCommand(message) {
-  if (!hasSwiftBridge() && !/^https?:$/.test(window.location.protocol)) {
+  if (!hasSwiftBridge() && !/^https?:$/.test(globalThis.location.protocol)) {
     console.log("(no Swift bridge and no server, dropping)", message);
     return Promise.resolve();
   }
@@ -1109,23 +1189,23 @@ function sendCommand(message) {
     call()
       .then((result) => {
         sawRevision(result.revision);
-        if (result.changed !== false && result.revision !== loadedRevision)
-          window.reloadPart(result.revision);
-        else hideStatus();
+        if (result.changed !== false && result.revision !== loadedRevision) {
+          globalThis.reloadPart(result.revision);
+        } else {
+          hideStatus();
+        }
         // The engine keeps every "=param" field the edit left alone. A field
         // the edit changed now holds a number, so say which links went.
-        if (result.unsolved && result.unsolved.length) {
+        if (result.unsolved?.length) {
           showNotice(
             "Sketch " +
               result.unsolved.join(", ") +
               " was not solved again: the engine has no constraint solver, so its geometry did not follow the parameter",
           );
         }
-        if (result.unlinked && result.unlinked.length) {
-          const fields = result.unlinked
-            .map((item) => item.field + " (" + item.was + ")")
-            .join(", ");
-          showNotice("Replaced parameter link: " + fields);
+        if (result.unlinked?.length) {
+          const fields = result.unlinked.map((item) => `${item.field} (${item.was})`).join(", ");
+          showNotice(`Replaced parameter link: ${fields}`);
         }
       })
       .catch((error) => {
@@ -1138,7 +1218,7 @@ function sendCommand(message) {
 // An edit made somewhere else, such as an agent on the daemon socket,
 // arrives here. The viewer's own edits arrive twice, once as the reply to
 // its POST and once as this event, so a revision already loaded is skipped.
-if (/^https?:$/.test(window.location.protocol)) {
+if (/^https?:$/.test(globalThis.location.protocol)) {
   const events = new EventSource("/events");
   events.addEventListener("highlight", (event) =>
     showAgentHighlight(JSON.parse(event.data).params),
@@ -1147,10 +1227,14 @@ if (/^https?:$/.test(window.location.protocol)) {
     const params = JSON.parse(event.data).params;
     const { revision, opened, viewer_error } = params;
     sawRevision(revision);
-    if (opened || params.refresh || revision !== loadedRevision)
-      window.reloadPart(revision, opened, viewer_error, params);
-    else showMeshError(viewer_error);
-    if (params.conflict) showConflict(params.conflict);
+    if (opened || params.refresh || revision !== loadedRevision) {
+      globalThis.reloadPart(revision, opened, viewer_error, params);
+    } else {
+      showMeshError(viewer_error);
+    }
+    if (params.conflict) {
+      showConflict(params.conflict);
+    }
   });
   events.addEventListener("document_conflict", (event) =>
     showConflict(JSON.parse(event.data).params),
@@ -1238,7 +1322,7 @@ function triangleCorners(t) {
 }
 
 function edgeKey(a, b) {
-  return a < b ? a + "|" + b : b + "|" + a;
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
 /// A patch's outside edges: used by one of its triangles rather than
@@ -1277,8 +1361,12 @@ function boundaryEdges(patch) {
 function orderLoops(edges) {
   const adj = new Map();
   for (const [a, b] of edges) {
-    if (!adj.has(a)) adj.set(a, []);
-    if (!adj.has(b)) adj.set(b, []);
+    if (!adj.has(a)) {
+      adj.set(a, []);
+    }
+    if (!adj.has(b)) {
+      adj.set(b, []);
+    }
     adj.get(a).push(b);
     adj.get(b).push(a);
   }
@@ -1286,14 +1374,18 @@ function orderLoops(edges) {
   const loops = [];
   for (const [a, b] of edges) {
     const startKey = edgeKey(a, b);
-    if (used.has(startKey)) continue;
+    if (used.has(startKey)) {
+      continue;
+    }
     used.add(startKey);
     const loop = [a];
     let cur = b;
     while (cur !== a) {
       loop.push(cur);
       const next = adj.get(cur).find((n) => !used.has(edgeKey(n, cur)));
-      if (next === undefined) break;
+      if (next === undefined) {
+        break;
+      }
       used.add(edgeKey(next, cur));
       cur = next;
     }
@@ -1346,7 +1438,7 @@ function buildPreviewArrays(patch) {
 
 const raycaster = new THREE.Raycaster();
 const highlightMaterial = new THREE.MeshBasicMaterial({
-  color: srgb(0xffaa00),
+  color: srgb(0xff_aa_00),
   transparent: true,
   opacity: 0.35,
   side: THREE.DoubleSide,
@@ -1399,7 +1491,7 @@ function clearHighlight() {
 const agentFaces = new THREE.Mesh(
   new THREE.BufferGeometry(),
   new THREE.MeshBasicMaterial({
-    color: srgb(0x5be0a0),
+    color: srgb(0x5b_e0_a0),
     transparent: true,
     opacity: 0.45,
     side: THREE.DoubleSide,
@@ -1407,7 +1499,7 @@ const agentFaces = new THREE.Mesh(
 );
 const agentEdges = new THREE.LineSegments(
   new THREE.BufferGeometry(),
-  new THREE.LineBasicMaterial({ color: srgb(0x5be0a0), depthTest: false }),
+  new THREE.LineBasicMaterial({ color: srgb(0x5b_e0_a0), depthTest: false }),
 );
 agentEdges.renderOrder = 2;
 agentFaces.visible = false;
@@ -1416,7 +1508,9 @@ scene.add(agentFaces, agentEdges);
 let agentPointedAt = { handles: [], sketches: [] };
 
 function appendAll(target, source) {
-  for (const value of source) target.push(value);
+  for (const value of source) {
+    target.push(value);
+  }
 }
 
 /// `pointed` is {handles, sketches}: `f2` and `e7` as describe_geometry names them.
@@ -1428,11 +1522,12 @@ function showAgentHighlight(pointed) {
     const index = Number(handle.slice(1));
     if (handle[0] === "f" && mesh) {
       const group = mesh.geometry.groups[index];
-      if (group)
+      if (group) {
         appendAll(
           facePositions,
           patchPositions({ firstTriangle: group.start / 3, triangleCount: group.count / 3 }),
         );
+      }
     } else if (handle[0] === "e" && edgeLines) {
       const { edgeStart } = edgeLines.userData;
       if (edgeStart && edgeStart[index + 1] !== undefined) {
@@ -1457,7 +1552,7 @@ function showAgentHighlight(pointed) {
   }
 }
 // The app's Swift side calls this when the daemon sends a highlight.
-window.__highlight = showAgentHighlight;
+globalThis.__highlight = showAgentHighlight;
 
 /// A pointer event as normalised device coordinates, which is what
 /// Raycaster.setFromCamera takes.
@@ -1484,10 +1579,12 @@ function partHits() {
 const partPickable = () => mesh && (mesh.visible || modifyPreview !== null);
 
 function raycastFace(event) {
-  if (!partPickable()) return null;
+  if (!partPickable()) {
+    return null;
+  }
   raycaster.setFromCamera(pointerNDC(event), camera);
   const hits = partHits();
-  return hits.length ? hits[0] : null;
+  return hits.length > 0 ? hits[0] : null;
 }
 
 // --- Edge picking ---------------------------------------------------
@@ -1498,7 +1595,7 @@ function raycastFace(event) {
 const EDGE_PICK_PIXELS = 6;
 const edgeHighlight = new THREE.LineSegments(
   new THREE.BufferGeometry(),
-  new THREE.LineBasicMaterial({ color: srgb(0xffaa00), depthTest: false }),
+  new THREE.LineBasicMaterial({ color: srgb(0xff_aa_00), depthTest: false }),
 );
 edgeHighlight.renderOrder = 2;
 edgeHighlight.visible = false;
@@ -1508,7 +1605,9 @@ scene.add(edgeHighlight);
 /// without depth, so an edge on the far side of the part is dropped when a
 /// face stands clearly in front of it.
 function raycastEdge(event) {
-  if (!edgeLines || !(edgeLines.visible || (modifyPreview !== null && partPickable()))) return null;
+  if (!edgeLines || !(edgeLines.visible || (modifyPreview !== null && partPickable()))) {
+    return null;
+  }
   raycaster.setFromCamera(pointerNDC(event), camera);
   const previous = raycaster.params.Line.threshold;
   raycaster.params.Line.threshold = worldRadius(EDGE_PICK_PIXELS, controls.target);
@@ -1517,7 +1616,9 @@ function raycastEdge(event) {
     .intersectObject(edgeLines)
     .filter((hit) => !unpickable[edgeLines.userData.edgeOfSegment[Math.floor(hit.index / 2)]]);
   raycaster.params.Line.threshold = previous;
-  if (!hits.length) return null;
+  if (hits.length === 0) {
+    return null;
+  }
   const faceHit = raycastFace(event);
   if (
     faceHit &&
@@ -1535,10 +1636,13 @@ function edgeIndexOfHit(hit) {
 /// A plain pick selects one edge. With `additive` (Shift), the edge joins
 /// the selection, or leaves it if it was in: a fillet takes many edges.
 function selectEdge(edgeIndex, additive) {
-  if (additive && selectedEdges.includes(edgeIndex))
+  if (additive && selectedEdges.includes(edgeIndex)) {
     selectedEdges = selectedEdges.filter((index) => index !== edgeIndex);
-  else if (additive) selectedEdges = [...selectedEdges, edgeIndex];
-  else selectedEdges = [edgeIndex];
+  } else if (additive) {
+    selectedEdges = [...selectedEdges, edgeIndex];
+  } else {
+    selectedEdges = [edgeIndex];
+  }
   const { edgeStart } = edgeLines.userData;
   const positions = edgeLines.geometry.attributes.position.array;
   // Two vertices of three floats per segment.
@@ -1626,15 +1730,21 @@ function hideHandle() {
   if (handle) {
     scene.remove(handle.object);
     handle.object.traverse((part) => {
-      if (part.geometry) part.geometry.dispose();
-      if (part.material) part.material.dispose();
+      if (part.geometry) {
+        part.geometry.dispose();
+      }
+      if (part.material) {
+        part.material.dispose();
+      }
     });
   }
   handle = null;
   handleDrag = null;
   handleTyped = false;
   distanceEl.style.display = "none";
-  if (document.activeElement === distanceEl) distanceEl.blur();
+  if (document.activeElement === distanceEl) {
+    distanceEl.blur();
+  }
 }
 
 /// The box opens with the caret in it, so a typed value needs no click,
@@ -1644,7 +1754,9 @@ function showHandleBox() {
   distanceEl.value = ViewerHandles.format(handle.value, handle.unit);
   distanceEl.style.display = "block";
   placeHandle();
-  if (handle.focus === false) return;
+  if (handle.focus === false) {
+    return;
+  }
   distanceEl.focus();
   distanceEl.select();
 }
@@ -1652,9 +1764,13 @@ function showHandleBox() {
 /// A value from somewhere other than the handle: a panel field, or a
 /// reselect that moved the handle's tool.
 function setHandleValue(value) {
-  if (!handle || !Number.isFinite(value)) return;
+  if (!handle || !Number.isFinite(value)) {
+    return;
+  }
   handle.value = value;
-  if (!handleTyped) distanceEl.value = ViewerHandles.format(value, handle.unit);
+  if (!handleTyped) {
+    distanceEl.value = ViewerHandles.format(value, handle.unit);
+  }
 }
 
 /// Where the arrow starts. The value point rides on the value, so it sits
@@ -1684,7 +1800,9 @@ function ringPoint(degrees) {
 
 /// The point the value box sits beside: the arrow's free end, or the ring's knob.
 function handleTip() {
-  if (handle.kind === "angular") return ringPoint(handle.value);
+  if (handle.kind === "angular") {
+    return ringPoint(handle.value);
+  }
   const base = arrowBase();
   return handle.pointAt
     ? base
@@ -1694,7 +1812,9 @@ function handleTip() {
 /// Puts the handle where its value says, at a fixed size on screen, and the
 /// box beside it. Runs every frame, so a zoom or an orbit keeps it in step.
 function placeHandle() {
-  if (!handle) return;
+  if (!handle) {
+    return;
+  }
   const { object } = handle;
   if (handle.kind === "linear") {
     const base = arrowBase();
@@ -1720,7 +1840,7 @@ function placeHandle() {
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(1, 0, 0),
     ]);
-    const end = points[points.length - 1];
+    const end = points.at(-1);
     const knobSize = worldRadius(KNOB_PIXELS, ringPoint(handle.value)) / radius;
     knob.position.copy(end);
     knob.scale.setScalar(knobSize);
@@ -1733,19 +1853,23 @@ function placeHandle() {
   const rect = renderer.domElement.getBoundingClientRect();
   const onScreen = ndc.z < 1;
   distanceEl.style.visibility = onScreen ? "visible" : "hidden";
-  distanceEl.style.left = rect.left + ((ndc.x + 1) / 2) * rect.width + 14 + "px";
-  distanceEl.style.top = rect.top + ((1 - ndc.y) / 2) * rect.height - 12 + "px";
+  distanceEl.style.left = `${rect.left + ((ndc.x + 1) / 2) * rect.width + 14}px`;
+  distanceEl.style.top = `${rect.top + ((1 - ndc.y) / 2) * rect.height - 12}px`;
 }
 
 function handleUnderPointer(event) {
-  if (!handle) return false;
+  if (!handle) {
+    return false;
+  }
   placeHandle();
   raycaster.setFromCamera(pointerNDC(event), camera);
   return raycaster.intersectObjects(handle.object.userData.grab, false).length > 0;
 }
 
 function setHandleHover(hovered) {
-  if (!handle) return;
+  if (!handle) {
+    return;
+  }
   handle.object.userData.material.color.copy(
     srgb(hovered ? ViewerHandles.HOVER_COLOUR : ViewerHandles.HANDLE_COLOUR),
   );
@@ -1766,7 +1890,9 @@ function handleReading(event) {
   }
   const hit = new THREE.Vector3();
   const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(handle.axis, handle.centre);
-  if (!ray.intersectPlane(plane, hit)) return null;
+  if (!ray.intersectPlane(plane, hit)) {
+    return null;
+  }
   return ViewerHandles.angleAbout(
     hit.toArray(),
     handle.centre.toArray(),
@@ -1779,7 +1905,9 @@ function handleReading(event) {
 /// handle does not jump to the pointer on the first move.
 function beginHandleDrag(event) {
   const reading = handleReading(event);
-  if (reading === null) return false;
+  if (reading === null) {
+    return false;
+  }
   handleDrag =
     handle.kind === "linear"
       ? { offset: handle.value - reading }
@@ -1795,7 +1923,9 @@ function beginHandleDrag(event) {
 
 function dragHandle(event) {
   const reading = handleReading(event);
-  if (reading === null) return;
+  if (reading === null) {
+    return;
+  }
   let value;
   let perPixel;
   if (handle.kind === "linear") {
@@ -1810,7 +1940,9 @@ function dragHandle(event) {
     ViewerHandles.snap(value, ViewerHandles.snapStep(perPixel)),
     handle.rule,
   );
-  if (value === handle.value) return;
+  if (value === handle.value) {
+    return;
+  }
   handle.value = value;
   distanceEl.value = ViewerHandles.format(value, handle.unit);
   handle.onChange(value);
@@ -1829,20 +1961,28 @@ function endHandleDrag() {
 
 // The box takes "5", "5 mm" or "-3": parseFloat stops at the unit.
 distanceEl.addEventListener("input", () => {
-  if (!handle) return;
-  const value = parseFloat(distanceEl.value);
-  if (!Number.isFinite(value)) return;
+  if (!handle) {
+    return;
+  }
+  const value = Number.parseFloat(distanceEl.value);
+  if (!Number.isFinite(value)) {
+    return;
+  }
   handleTyped = true;
   handle.value = value;
   handle.onChange(value);
 });
 // A drag that leaves the canvas still moves the handle, and a release
 // anywhere ends it.
-window.addEventListener("pointermove", (event) => {
-  if (handleDrag) dragHandle(event);
+globalThis.addEventListener("pointermove", (event) => {
+  if (handleDrag) {
+    dragHandle(event);
+  }
 });
-window.addEventListener("pointerup", () => {
-  if (handleDrag) endHandleDrag();
+globalThis.addEventListener("pointerup", () => {
+  if (handleDrag) {
+    endHandleDrag();
+  }
 });
 
 // --- Picking for a tool -----------------------------------------------
@@ -1872,7 +2012,7 @@ let hovered = null; // what showHover lit last, for the test hook: {kind, face |
 const hoverMesh = new THREE.Mesh(
   new THREE.BufferGeometry(),
   new THREE.MeshBasicMaterial({
-    color: srgb(0xffaa00),
+    color: srgb(0xff_aa_00),
     transparent: true,
     opacity: 0.35,
     side: THREE.DoubleSide,
@@ -1881,7 +2021,7 @@ const hoverMesh = new THREE.Mesh(
 hoverMesh.visible = false;
 const hoverEdge = new THREE.LineSegments(
   new THREE.BufferGeometry(),
-  new THREE.LineBasicMaterial({ color: srgb(0xffcc66), depthTest: false }),
+  new THREE.LineBasicMaterial({ color: srgb(0xff_cc_66), depthTest: false }),
 );
 hoverEdge.renderOrder = 2;
 hoverEdge.visible = false;
@@ -1889,8 +2029,12 @@ scene.add(hoverMesh, hoverEdge);
 
 /// The kind of tool open now, for what a click in the view reselects.
 function openToolKind() {
-  if (pickTool) return pickTool;
-  if (extrudeArmed) return "extrude";
+  if (pickTool) {
+    return pickTool;
+  }
+  if (extrudeArmed) {
+    return "extrude";
+  }
   return modifyTool ? modifyTool.kind : null;
 }
 
@@ -1899,15 +2043,21 @@ function startPick(kind) {
   clearSelection();
   pickTool = kind;
   const button = TOOL_BUTTONS()[kind];
-  if (button) button.classList.add("active");
-  showHint(PICKS[kind].prompt + ". Esc cancels.");
+  if (button) {
+    button.classList.add("active");
+  }
+  showHint(`${PICKS[kind].prompt}. Esc cancels.`);
   updateToolbarState();
 }
 
 function cancelPick() {
-  if (!pickTool) return;
+  if (!pickTool) {
+    return;
+  }
   const button = TOOL_BUTTONS()[pickTool];
-  if (button) button.classList.remove("active");
+  if (button) {
+    button.classList.remove("active");
+  }
   pickTool = null;
   clearHover();
   hideHint();
@@ -1941,11 +2091,15 @@ function pickAt(event, accepts) {
   }
   if (accepts.includes("edge")) {
     const edgeHit = raycastEdge(event);
-    if (edgeHit) return { kind: "edge", edge: edgeIndexOfHit(edgeHit) };
+    if (edgeHit) {
+      return { kind: "edge", edge: edgeIndexOfHit(edgeHit) };
+    }
   }
   if (accepts.includes("face")) {
     const hit = raycastFace(event);
-    if (hit) return { kind: "face", hit };
+    if (hit) {
+      return { kind: "face", hit };
+    }
   }
   return null;
 }
@@ -1966,7 +2120,9 @@ function showHover(pick) {
     hoverRegion = region;
     renderSketchSelection();
   }
-  if (!pick) return;
+  if (!pick) {
+    return;
+  }
   if (pick.kind === "face") {
     hoverMesh.geometry.dispose();
     hoverMesh.geometry = new THREE.BufferGeometry();
@@ -2004,7 +2160,7 @@ function applyPick(pick, additive) {
     clearEdgeSelection();
     selectedPatch = facePatchAt(pick.hit);
     selectedSketch = null;
-    setHighlight(selectedPatch, 0xffdd55);
+    setHighlight(selectedPatch, 0xff_dd_55);
     renderSketchSelection();
     selectionChanged();
   }
@@ -2034,11 +2190,19 @@ function edgeOutward(edgeIndex) {
     for (let c = group.start; c < group.start + group.count; c++) {
       const vertex = geometry.index.getX(c);
       corner.fromBufferAttribute(position, vertex);
-      if (nearA < 0 && corner.distanceTo(a) < tolerance) nearA = vertex;
-      if (nearB < 0 && corner.distanceTo(b) < tolerance) nearB = vertex;
-      if (nearA >= 0 && nearB >= 0) break;
+      if (nearA < 0 && corner.distanceTo(a) < tolerance) {
+        nearA = vertex;
+      }
+      if (nearB < 0 && corner.distanceTo(b) < tolerance) {
+        nearB = vertex;
+      }
+      if (nearA >= 0 && nearB >= 0) {
+        break;
+      }
     }
-    if (nearA >= 0 && nearB >= 0) sum.add(new THREE.Vector3().fromBufferAttribute(normals, nearA));
+    if (nearA >= 0 && nearB >= 0) {
+      sum.add(new THREE.Vector3().fromBufferAttribute(normals, nearA));
+    }
   });
   sum.addScaledVector(tangent, -sum.dot(tangent));
   if (sum.lengthSq() < 1e-8) {
@@ -2087,13 +2251,15 @@ function updateToolbarState() {
   const bodyPicked = Boolean(free && mesh && pickedBody());
   toolMirrorEl.disabled = toolLinearEl.disabled = toolCircularEl.disabled = !bodyPicked;
   toolCombineEl.disabled = !(free && mesh && partBodies().length >= 2);
-  toolAxisEl.disabled = !(free && mesh && (selectedPatch || selectedEdges.length));
+  toolAxisEl.disabled = !(free && mesh && (selectedPatch || selectedEdges.length > 0));
   toolPointEl.disabled = toolOffsetPlaneEl.disabled = !free;
   toolSketchEl.classList.toggle("active", Boolean(sketchStage));
 }
 
 toolSketchEl.addEventListener("click", () => {
-  if (sketchStage || extrudeArmed || modifyTool) return;
+  if (sketchStage || extrudeArmed || modifyTool) {
+    return;
+  }
   startSketchPickPlane();
 });
 
@@ -2109,29 +2275,35 @@ const EXPORT_FORMATS = [
   ["STEP", "step"],
 ];
 async function exportPart(format) {
-  if (!mesh) return showNotice("There is no part to export yet");
+  if (!mesh) {
+    return showNotice("There is no part to export yet");
+  }
   if (hasSwiftBridge()) {
-    window.webkit.messageHandlers.sprocket.postMessage({ type: "export", format });
+    globalThis.webkit.messageHandlers.sprocket.postMessage({ type: "export", format });
     return;
   }
   try {
-    const response = await fetch("/export?format=" + format);
-    if (!response.ok) throw new Error((await response.json()).error);
+    const response = await fetch(`/export?format=${format}`);
+    if (!response.ok) {
+      throw new Error((await response.json()).error);
+    }
     const disposition = response.headers.get("Content-Disposition") || "";
     const link = document.createElement("a");
     link.href = URL.createObjectURL(await response.blob());
-    link.download = (/filename="([^"]+)"/.exec(disposition) || [])[1] || "part." + format;
+    link.download = (/filename="([^"]+)"/.exec(disposition) || [])[1] || `part.${format}`;
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setTimeout(() => URL.revokeObjectURL(link.href), 10000);
-    showNotice("Exported " + link.download, 3000);
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    showNotice(`Exported ${link.download}`, 3000);
   } catch (error) {
-    showNotice("Export failed: " + error.message);
+    showNotice(`Export failed: ${error.message}`);
   }
 }
 toolExportEl.addEventListener("click", () => {
-  if (sketchStage || extrudeArmed) return;
+  if (sketchStage || extrudeArmed) {
+    return;
+  }
   const box = toolExportEl.getBoundingClientRect();
   openMenu(
     box.left,
@@ -2145,7 +2317,9 @@ toolExportEl.addEventListener("click", () => {
 // snapshots box.sprocket into the same undo stack every other edit uses, so
 // Cmd+Z brings the whole part back (see ContentView.performMutation).
 document.getElementById("tool-new").addEventListener("click", () => {
-  if (sketchStage || extrudeArmed || modifyTool) return;
+  if (sketchStage || extrudeArmed || modifyTool) {
+    return;
+  }
   sendCommand({ type: "new_document" });
 });
 
@@ -2170,9 +2344,15 @@ const EYE_OFF =
 /// to visible.
 function applyVisibility() {
   grid.visible = gridVisible;
-  for (const key of Object.keys(AXES)) axisLines[key].visible = axesVisible[key];
-  if (mesh) mesh.visible = bodyVisible;
-  if (edgeLines) edgeLines.visible = bodyVisible;
+  for (const key of Object.keys(AXES)) {
+    axisLines[key].visible = axesVisible[key];
+  }
+  if (mesh) {
+    mesh.visible = bodyVisible;
+  }
+  if (edgeLines) {
+    edgeLines.visible = bodyVisible;
+  }
   constructObjects.forEach(({ id, object }) => (object.visible = !hiddenConstructIDs.has(id)));
   sketchOutlines.forEach((entry) => {
     const visible = !hiddenSketchIDs.has(entry.feature.id);
@@ -2180,7 +2360,9 @@ function applyVisibility() {
     // The fills are the click targets (see raycastSketch), so hiding them
     // is also what makes a hidden sketch unpickable in the viewport.
     entry.fills.forEach((fill) => (fill.visible = visible));
-    if (!visible) entry.handles.visible = false;
+    if (!visible) {
+      entry.handles.visible = false;
+    }
   });
 }
 
@@ -2188,8 +2370,11 @@ function applyVisibility() {
 // corner handles go with it, and pickSketchPart refuses to grab a hidden
 // outline, so the only thing left is Extrude.
 function setSketchHidden(id, hidden) {
-  if (hidden) hiddenSketchIDs.add(id);
-  else hiddenSketchIDs.delete(id);
+  if (hidden) {
+    hiddenSketchIDs.add(id);
+  } else {
+    hiddenSketchIDs.delete(id);
+  }
   applyVisibility();
   renderBrowser();
 }
@@ -2206,7 +2391,9 @@ function visibleSketches() {
 
 function setEverythingVisible(visible) {
   gridVisible = visible;
-  for (const key of Object.keys(AXES)) axesVisible[key] = visible;
+  for (const key of Object.keys(AXES)) {
+    axesVisible[key] = visible;
+  }
   bodyVisible = visible;
   hiddenSketchIDs.clear();
   if (!visible) {
@@ -2219,8 +2406,11 @@ function setEverythingVisible(visible) {
 }
 
 function toggleGroup(name) {
-  if (collapsedGroups.has(name)) collapsedGroups.delete(name);
-  else collapsedGroups.add(name);
+  if (collapsedGroups.has(name)) {
+    collapsedGroups.delete(name);
+  } else {
+    collapsedGroups.add(name);
+  }
   renderBrowser();
 }
 
@@ -2230,28 +2420,34 @@ function renderBrowser() {
 
   function addRow(options) {
     const row = document.createElement("div");
-    row.className = "browser-row" + (options.selected ? " selected" : "");
-    row.style.paddingLeft = 6 + options.depth * 14 + "px";
+    row.className = `browser-row${options.selected ? " selected" : ""}`;
+    row.style.paddingLeft = `${6 + options.depth * 14}px`;
 
     const caret = document.createElement("span");
-    caret.className = "browser-caret" + (options.group ? " clickable" : "");
+    caret.className = `browser-caret${options.group ? " clickable" : ""}`;
     caret.textContent = options.group ? (collapsedGroups.has(options.group) ? "▸" : "▾") : "";
-    if (options.group) caret.addEventListener("click", () => toggleGroup(options.group));
+    if (options.group) {
+      caret.addEventListener("click", () => toggleGroup(options.group));
+    }
     row.appendChild(caret);
 
     const eye = document.createElement("span");
-    eye.className = "browser-eye" + (options.visible ? "" : " off");
+    eye.className = `browser-eye${options.visible ? "" : " off"}`;
     eye.innerHTML = options.noEye ? "" : options.visible ? EYE_ON : EYE_OFF;
     eye.title = options.noEye ? "" : options.visible ? "Hide" : "Show";
-    if (options.noEye) eye.style.width = "14px";
-    else eye.addEventListener("click", options.onToggle);
+    if (options.noEye) {
+      eye.style.width = "14px";
+    } else {
+      eye.addEventListener("click", options.onToggle);
+    }
     row.appendChild(eye);
 
     const label = document.createElement("span");
-    label.className =
-      "browser-label" + (options.onClick ? " clickable" : "") + (options.dim ? " dim" : "");
+    label.className = `browser-label${options.onClick ? " clickable" : ""}${options.dim ? " dim" : ""}`;
     label.textContent = options.label;
-    if (options.onClick) label.addEventListener("click", options.onClick);
+    if (options.onClick) {
+      label.addEventListener("click", options.onClick);
+    }
     row.appendChild(label);
 
     if (options.onColor) {
@@ -2260,7 +2456,7 @@ function renderBrowser() {
       swatch.type = "color";
       swatch.className = "browser-swatch";
       swatch.title = "Body colour";
-      swatch.value = options.color || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+      swatch.value = options.color || `#${PART_COLOUR.toString(16).padStart(6, "0")}`;
       swatch.addEventListener("change", () => options.onColor(swatch.value));
       row.appendChild(swatch);
     }
@@ -2289,7 +2485,9 @@ function renderBrowser() {
     visible: anythingVisible,
     onToggle: () => setEverythingVisible(!anythingVisible),
   });
-  if (collapsedGroups.has("root")) return;
+  if (collapsedGroups.has("root")) {
+    return;
+  }
 
   addRow({
     depth: 1,
@@ -2308,7 +2506,9 @@ function renderBrowser() {
     label: "Origin",
     visible: anyAxisVisible,
     onToggle: () => {
-      for (const key of Object.keys(AXES)) axesVisible[key] = !anyAxisVisible;
+      for (const key of Object.keys(AXES)) {
+        axesVisible[key] = !anyAxisVisible;
+      }
       applyVisibility();
       renderBrowser();
     },
@@ -2317,7 +2517,7 @@ function renderBrowser() {
     for (const [key, axis] of Object.entries(AXES)) {
       addRow({
         depth: 2,
-        label: axis.name + " axis",
+        label: `${axis.name} axis`,
         visible: axesVisible[key],
         onToggle: () => {
           axesVisible[key] = !axesVisible[key];
@@ -2335,7 +2535,9 @@ function renderBrowser() {
     dim: !mesh,
     visible: Boolean(mesh) && bodyVisible,
     onToggle: () => {
-      if (!mesh) return;
+      if (!mesh) {
+        return;
+      }
       bodyVisible = !bodyVisible;
       applyVisibility();
       renderBrowser();
@@ -2345,7 +2547,7 @@ function renderBrowser() {
   // `visible` view state: undoable, but not an edit. Hidden bodies still export.
   if (mesh && !collapsedGroups.has("bodies")) {
     const bodies = mesh.geometry.userData.bodies;
-    if (!bodies.length) {
+    if (bodies.length === 0) {
       addRow({
         depth: 2,
         label: "Body1",
@@ -2381,12 +2583,14 @@ function renderBrowser() {
     group: "parameters",
     label: "Parameters",
     noEye: true,
-    dim: !Object.keys(documentParameters).length,
+    dim: Object.keys(documentParameters).length === 0,
   });
-  if (!collapsedGroups.has("parameters")) renderParameterRows(tree);
+  if (!collapsedGroups.has("parameters")) {
+    renderParameterRows(tree);
+  }
 
   const constructs = browserFeatures.filter((feature) => feature.construct);
-  if (constructs.length) {
+  if (constructs.length > 0) {
     addRow({
       depth: 1,
       group: "construction",
@@ -2405,12 +2609,15 @@ function renderBrowser() {
       constructs.forEach((feature) =>
         addRow({
           depth: 2,
-          label: feature.id + " (" + feature.type + ")",
+          label: `${feature.id} (${feature.type})`,
           dim: !feature.active,
           visible: !hiddenConstructIDs.has(feature.id),
           onToggle: () => {
-            if (hiddenConstructIDs.has(feature.id)) hiddenConstructIDs.delete(feature.id);
-            else hiddenConstructIDs.add(feature.id);
+            if (hiddenConstructIDs.has(feature.id)) {
+              hiddenConstructIDs.delete(feature.id);
+            } else {
+              hiddenConstructIDs.add(feature.id);
+            }
             applyVisibility();
             renderBrowser();
           },
@@ -2430,7 +2637,9 @@ function renderBrowser() {
       sketches.forEach((feature) => setSketchHidden(feature.id, showing));
     },
   });
-  if (collapsedGroups.has("sketches")) return;
+  if (collapsedGroups.has("sketches")) {
+    return;
+  }
   sketches.forEach((feature) => {
     const hidden = hiddenSketchIDs.has(feature.id);
     addRow({
@@ -2456,13 +2665,13 @@ function renderParameterRows(tree) {
   const row = (build) => {
     const element = document.createElement("div");
     element.className = "browser-row parameter-row";
-    element.style.paddingLeft = 6 + 2 * 14 + "px";
+    element.style.paddingLeft = `${6 + 2 * 14}px`;
     build(element);
     tree.appendChild(element);
   };
   const field = (className, value, placeholder, title) => {
     const input = document.createElement("input");
-    input.className = "browser-param " + className;
+    input.className = `browser-param ${className}`;
     input.spellcheck = false;
     input.autocomplete = "off";
     input.value = value;
@@ -2474,15 +2683,17 @@ function renderParameterRows(tree) {
   };
   const apply = (name, value, restore) =>
     sendCommand({ type: "set_parameter", name, value }).catch((error) => {
-      showNotice("Parameter " + name + ": " + error.message);
-      if (restore) restore();
+      showNotice(`Parameter ${name}: ${error.message}`);
+      if (restore) {
+        restore();
+      }
     });
   for (const [name, raw] of Object.entries(documentParameters)) {
     row((element) => {
       const label = document.createElement("span");
       label.className = "browser-label";
       label.textContent = name;
-      label.title = name + ": use it in a field as =" + name;
+      label.title = `${name}: use it in a field as =${name}`;
       const input = field(
         "",
         String(raw),
@@ -2490,12 +2701,16 @@ function renderParameterRows(tree) {
         "A number, or an expression such as =width * 2",
       );
       const commit = () => {
-        if (input.value.trim() === String(raw)) return;
+        if (input.value.trim() === String(raw)) {
+          return;
+        }
         apply(name, input.value, () => (input.value = String(raw)));
       };
       input.addEventListener("change", commit);
       input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") input.blur();
+        if (event.key === "Enter") {
+          input.blur();
+        }
         if (event.key === "Escape") {
           input.value = String(raw);
           input.blur();
@@ -2504,7 +2719,7 @@ function renderParameterRows(tree) {
       const remove = document.createElement("span");
       remove.className = "browser-button";
       remove.textContent = "×";
-      remove.title = "Remove " + name;
+      remove.title = `Remove ${name}`;
       remove.addEventListener("click", () => apply(name, null));
       element.append(label, input, remove);
     });
@@ -2517,12 +2732,16 @@ function renderParameterRows(tree) {
     add.textContent = "+";
     add.title = "Add the parameter";
     const commit = () => {
-      if (!name.value.trim() && !value.value.trim()) return;
+      if (!name.value.trim() && !value.value.trim()) {
+        return;
+      }
       apply(name.value.trim(), value.value, null).then(() => {});
     };
     for (const input of [name, value]) {
       input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") commit();
+        if (event.key === "Enter") {
+          commit();
+        }
       });
     }
     add.addEventListener("click", commit);
@@ -2532,12 +2751,16 @@ function renderParameterRows(tree) {
 
 /// Reads the document's parameters, which features.json does not carry.
 function refreshParameters() {
-  if (!canCallDaemon()) return Promise.resolve();
+  if (!canCallDaemon()) {
+    return Promise.resolve();
+  }
   return rpcCall("get_document", {})
     .then((document) => {
       sawRevision(document.revision);
       const next = document.parameters || {};
-      if (JSON.stringify(next) === JSON.stringify(documentParameters)) return;
+      if (JSON.stringify(next) === JSON.stringify(documentParameters)) {
+        return;
+      }
       // A box being typed in keeps its text: the rebuild that follows an add repaints around it.
       documentParameters = next;
       renderBrowser();
@@ -2573,27 +2796,36 @@ function toggleMeasure() {
   measureOn = !measureOn;
   toolMeasureEl.classList.toggle("active", measureOn);
   measureAsked = "";
-  if (measureOn) updateMeasure();
-  else measureEl.style.display = "none";
+  if (measureOn) {
+    updateMeasure();
+  } else {
+    measureEl.style.display = "none";
+  }
 }
 toolMeasureEl.addEventListener("click", toggleMeasure);
 const millimetres = (value) => String(Number(value.toFixed(2)));
 function updateMeasure() {
-  if (!measureOn || !canCallDaemon()) return;
+  if (!measureOn || !canCallDaemon()) {
+    return;
+  }
   const handles = [
-    selectedPatch && "f" + selectedPatch.faceIndex,
-    ...selectedEdges.map((index) => "e" + index),
+    selectedPatch && `f${selectedPatch.faceIndex}`,
+    ...selectedEdges.map((index) => `e${index}`),
   ].filter(Boolean);
   const key = JSON.stringify(handles);
-  if (key === measureAsked) return;
+  if (key === measureAsked) {
+    return;
+  }
   measureAsked = key;
   if (handles.length > 2) {
     measureEl.style.display = "none"; // the daemon measures one or two things
     return;
   }
-  rpcCall("measure", handles.length ? { handles } : {})
+  rpcCall("measure", handles.length > 0 ? { handles } : {})
     .then((result) => {
-      if (key !== measureAsked) return;
+      if (key !== measureAsked) {
+        return;
+      }
       measureEl.textContent = measureLines(result, handles).join("\n");
       measureEl.style.display = measureEl.textContent ? "block" : "none";
     })
@@ -2603,18 +2835,22 @@ function updateMeasure() {
 }
 function measureLines(result, handles) {
   if (handles.length === 2) {
-    const lines = ["Distance " + millimetres(result.distance) + " mm"];
-    if (result.angle !== undefined) lines.push("Angle " + millimetres(result.angle) + "°");
+    const lines = [`Distance ${millimetres(result.distance)} mm`];
+    if (result.angle !== undefined) {
+      lines.push(`Angle ${millimetres(result.angle)}°`);
+    }
     return lines;
   }
   if (handles.length === 1) {
     return result.area !== undefined
-      ? ["Area " + millimetres(result.area) + " mm²"]
-      : ["Length " + millimetres(result.length) + " mm"];
+      ? [`Area ${millimetres(result.area)} mm²`]
+      : [`Length ${millimetres(result.length)} mm`];
   }
   const bodies = result.bodies || [];
-  if (bodies.length === 1) return ["Volume " + millimetres(bodies[0].volume) + " mm³"];
-  return bodies.map((body) => body.name + "  " + millimetres(body.volume) + " mm³");
+  if (bodies.length === 1) {
+    return [`Volume ${millimetres(bodies[0].volume)} mm³`];
+  }
+  return bodies.map((body) => `${body.name}  ${millimetres(body.volume)} mm³`);
 }
 
 // The daemon holds the selection so an agent can read it ("fillet these").
@@ -2623,17 +2859,25 @@ function measureLines(result, handles) {
 let reportedSelection = "";
 let restoringSelection = false; // a reload is putting the daemon's selection back
 function reportSelection() {
-  if (restoringSelection) return;
-  if (!hasSwiftBridge() && !/^https?:$/.test(window.location.protocol)) return;
+  if (restoringSelection) {
+    return;
+  }
+  if (!hasSwiftBridge() && !/^https?:$/.test(globalThis.location.protocol)) {
+    return;
+  }
   const handles = [
-    selectedPatch && "f" + selectedPatch.faceIndex,
-    ...selectedEdges.map((index) => "e" + index),
+    selectedPatch && `f${selectedPatch.faceIndex}`,
+    ...selectedEdges.map((index) => `e${index}`),
   ].filter(Boolean);
   const sketches = selectedSketch ? [selectedSketch.id] : [];
   const params = { handles, sketches };
-  if (Number.isInteger(loadedRevision)) params.revision = loadedRevision;
+  if (Number.isInteger(loadedRevision)) {
+    params.revision = loadedRevision;
+  }
   const key = JSON.stringify(params);
-  if (key === reportedSelection) return;
+  if (key === reportedSelection) {
+    return;
+  }
   reportedSelection = key;
   rpcCall("set_selection", params).catch(() => {});
 }
@@ -2642,11 +2886,17 @@ function reportSelection() {
 /// toolbar's Extrude button both come through here.
 /// With nothing selected, it asks for a face or a region first.
 function armCurrentSelection() {
-  if (extrudeArmed || modifyTool || sketchStage) return;
+  if (extrudeArmed || modifyTool || sketchStage) {
+    return;
+  }
   cancelPick();
-  if (selectedPatch) armExtrude();
-  else if (selectedSketch) armSketchExtrude(selectedSketch);
-  else if (!toolExtrudeEl.disabled) startPick("extrude");
+  if (selectedPatch) {
+    armExtrude();
+  } else if (selectedSketch) {
+    armSketchExtrude(selectedSketch);
+  } else if (!toolExtrudeEl.disabled) {
+    startPick("extrude");
+  }
 }
 
 function clearSelection() {
@@ -2667,7 +2917,9 @@ function showStatus(text) {
 // last, so loadFeatures clears it.
 let noticeUntil = 0;
 function hideStatus() {
-  if (Date.now() < noticeUntil) return;
+  if (Date.now() < noticeUntil) {
+    return;
+  }
   statusEl.style.display = "none";
 }
 /// A status line that outlives the rebuild it came with, for six seconds.
@@ -2709,14 +2961,16 @@ renderer.domElement.addEventListener("pointermove", (event) => {
       clearHighlight();
       return;
     }
-    setHighlight(facePatchAt(hit), 0xffaa00);
+    setHighlight(facePatchAt(hit), 0xff_aa_00);
     return;
   }
   if (sketchEditDrag) {
     dragSketchEdit(event);
     return;
   }
-  if (handleDrag) return; // the window's handler moves the handle
+  if (handleDrag) {
+    return; // the window's handler moves the handle
+  }
   // Over the handle: it lights up and offers a grab, and nothing below it
   // is hovered.
   if (handleUnderPointer(event)) {
@@ -2732,48 +2986,55 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   const tool = openToolKind();
   if (tool) {
     const accepts = PICKS[tool] ? PICKS[tool].accepts : [];
-    showHover(accepts.length ? pickAt(event, accepts) : null);
+    showHover(accepts.length > 0 ? pickAt(event, accepts) : null);
     return;
   }
   // A grab cursor over a corner or an edge of the selected sketch: the only
   // cue, besides the corner markers, that it can be dragged.
   renderer.domElement.style.cursor =
     selectedSketch && pickSketchPart(event, selectedSketch) ? "move" : "default";
-  if (selectedPatch) return; // keep the selection highlight until a new pick
+  if (selectedPatch) {
+    return; // keep the selection highlight until a new pick
+  }
   const hit = raycastFace(event);
   if (!hit) {
     clearHighlight();
     return;
   }
-  setHighlight(facePatchAt(hit), 0xffaa00);
+  setHighlight(facePatchAt(hit), 0xff_aa_00);
 });
 
 // Grabbing the viewport cancels a camera move, unless the move is the one
 // that puts you square on to a sketch plane.
 function cancelCameraMove() {
-  if (controls.enableRotate) cameraMove = null;
+  if (controls.enableRotate) {
+    cameraMove = null;
+  }
 }
 renderer.domElement.addEventListener("pointerdown", cancelCameraMove);
 
 // Wheel zoom, in place of OrbitControls' own (see wheel-zoom.js for why).
 // It listens on window in the capture phase and stops the event there, so
 // the controls' wheel listener on the canvas never runs. Middle-drag dolly
-// is still the controls'. The app sets window.__sprocketSettings before the
-// page loads and calls window.__applySettings when Settings change.
-let zoomSensitivity = WheelZoom.clampSensitivity(
-  window.__sprocketSettings && window.__sprocketSettings.zoomSensitivity,
-);
-window.__applySettings = (settings) => {
-  if (settings && "zoomSensitivity" in settings)
+// is still the controls'. The app sets globalThis.__sprocketSettings before the
+// page loads and calls globalThis.__applySettings when Settings change.
+let zoomSensitivity = WheelZoom.clampSensitivity(globalThis.__sprocketSettings?.zoomSensitivity);
+globalThis.__applySettings = (settings) => {
+  if (settings && "zoomSensitivity" in settings) {
     zoomSensitivity = WheelZoom.clampSensitivity(settings.zoomSensitivity);
+  }
 };
-window.addEventListener(
+globalThis.addEventListener(
   "wheel",
   (event) => {
-    if (event.target !== renderer.domElement) return;
+    if (event.target !== renderer.domElement) {
+      return;
+    }
     event.stopPropagation();
     event.preventDefault();
-    if (!controls.enabled || !controls.enableZoom) return;
+    if (!controls.enabled || !controls.enableZoom) {
+      return;
+    }
     cancelCameraMove();
     const scale = WheelZoom.distanceScale(
       event.deltaY,
@@ -2794,10 +3055,14 @@ window.addEventListener(
 renderer.domElement.addEventListener("pointerdown", (event) => {
   // The right button pans the camera, and a right click without a drag
   // opens the context menu (below). Neither picks.
-  if (event.button === 2) return;
+  if (event.button === 2) {
+    return;
+  }
   if (sketchStage === "pick-plane") {
     const hit = raycastFace(event);
-    if (!hit) return;
+    if (!hit) {
+      return;
+    }
     sketchOnFace(facePatchAt(hit), hit.point);
     return;
   }
@@ -2805,7 +3070,9 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     sketcher.pointerDown(event);
     return;
   }
-  if (handle && handleUnderPointer(event) && beginHandleDrag(event)) return;
+  if (handle && handleUnderPointer(event) && beginHandleDrag(event)) {
+    return;
+  }
   // In pick mode or an open tool, a press only picks if it is let go
   // without a drag: a drag orbits the camera (see the pointerup below).
   if (openToolKind()) {
@@ -2856,7 +3123,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   selectedPatch = facePatchAt(hit);
   selectedPatch.anchorPoint = hit.point.clone();
   selectedSketch = null;
-  setHighlight(selectedPatch, 0xffdd55);
+  setHighlight(selectedPatch, 0xff_dd_55);
   renderSketchSelection();
   hideHint();
   selectionChanged();
@@ -2889,8 +3156,8 @@ function placeAt(element, x, y) {
   element.style.display = "block";
   const width = element.offsetWidth;
   const height = element.offsetHeight;
-  element.style.left = Math.max(4, Math.min(x, window.innerWidth - width - 4)) + "px";
-  element.style.top = Math.max(4, Math.min(y, window.innerHeight - height - 4)) + "px";
+  element.style.left = `${Math.max(4, Math.min(x, globalThis.innerWidth - width - 4))}px`;
+  element.style.top = `${Math.max(4, Math.min(y, globalThis.innerHeight - height - 4))}px`;
 }
 
 /// `items` is [{label, action}]; a null entry is left out.
@@ -2918,14 +3185,14 @@ function loadRecentColours() {
   try {
     const stored = JSON.parse(localStorage.getItem("sprocket.recentColours") || "[]");
     return Array.isArray(stored) ? stored.filter((item) => ViewerColours.normaliseHex(item)) : [];
-  } catch (error) {
+  } catch {
     return [];
   }
 }
 function saveRecentColours(list) {
   try {
     localStorage.setItem("sprocket.recentColours", JSON.stringify(list));
-  } catch (error) {
+  } catch {
     // Private mode or blocked storage: the list just does not persist.
   }
 }
@@ -2934,7 +3201,7 @@ function swatchButton(hex, name) {
   const button = document.createElement("button");
   button.className = "swatch";
   button.style.background = hex;
-  button.title = name ? name + " " + hex : hex;
+  button.title = name ? `${name} ${hex}` : hex;
   button.setAttribute("aria-label", button.title);
   button.dataset.hex = hex;
   button.addEventListener("click", () => pickColour(hex));
@@ -2949,12 +3216,17 @@ function openColourPicker(x, y, title, current, onPick, finish) {
   colourPopoverEl.querySelector(".popover-title").textContent = title;
   const palette = colourPopoverEl.querySelector(".palette");
   palette.innerHTML = "";
-  for (const item of ViewerColours.PALETTE) palette.appendChild(swatchButton(item.hex, item.name));
+  for (const item of ViewerColours.PALETTE) {
+    palette.appendChild(swatchButton(item.hex, item.name));
+  }
   const recent = loadRecentColours();
   const recentEl = colourPopoverEl.querySelector(".recent");
   recentEl.innerHTML = "";
-  for (const hex of recent) recentEl.appendChild(swatchButton(hex));
-  colourPopoverEl.querySelector(".recent-label").style.display = recent.length ? "block" : "none";
+  for (const hex of recent) {
+    recentEl.appendChild(swatchButton(hex));
+  }
+  colourPopoverEl.querySelector(".recent-label").style.display =
+    recent.length > 0 ? "block" : "none";
   const finishesEl = colourPopoverEl.querySelector(".finishes");
   finishesEl.innerHTML = "";
   colourPopoverEl.querySelector(".finish-label").style.display = finish ? "block" : "none";
@@ -2963,7 +3235,9 @@ function openColourPicker(x, y, title, current, onPick, finish) {
       const button = document.createElement("button");
       button.textContent = item.name;
       button.dataset.material = item.id || "";
-      if ((finish.current || null) === item.id) button.className = "current";
+      if ((finish.current || null) === item.id) {
+        button.className = "current";
+      }
       button.addEventListener("click", () => {
         closeMenus();
         finish.onPick(item.id);
@@ -2972,7 +3246,7 @@ function openColourPicker(x, y, title, current, onPick, finish) {
     }
   }
   const start =
-    ViewerColours.normaliseHex(current) || "#" + PART_COLOUR.toString(16).padStart(6, "0");
+    ViewerColours.normaliseHex(current) || `#${PART_COLOUR.toString(16).padStart(6, "0")}`;
   colourHexEl.value = start;
   colourHexEl.classList.remove("invalid");
   colourNativeEl.value = start;
@@ -2983,7 +3257,9 @@ function openColourPicker(x, y, title, current, onPick, finish) {
 
 function pickColour(colour) {
   const hex = ViewerColours.normaliseHex(colour);
-  if (!hex || !colourTarget) return;
+  if (!hex || !colourTarget) {
+    return;
+  }
   const target = colourTarget;
   saveRecentColours(ViewerColours.pushRecent(loadRecentColours(), hex));
   closeMenus();
@@ -2993,25 +3269,35 @@ function pickColour(colour) {
 function applyHexBox() {
   const hex = ViewerColours.normaliseHex(colourHexEl.value);
   colourHexEl.classList.toggle("invalid", !hex);
-  if (hex) pickColour(hex);
+  if (hex) {
+    pickColour(hex);
+  }
 }
 document.getElementById("colour-apply").addEventListener("click", applyHexBox);
 colourHexEl.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") applyHexBox();
+  if (event.key === "Enter") {
+    applyHexBox();
+  }
 });
 colourHexEl.addEventListener("input", () => {
   const hex = ViewerColours.normaliseHex(colourHexEl.value);
   colourHexEl.classList.toggle("invalid", !hex && colourHexEl.value.length >= 4);
-  if (hex) colourNativeEl.value = hex;
+  if (hex) {
+    colourNativeEl.value = hex;
+  }
 });
 colourNativeEl.addEventListener("change", () => pickColour(colourNativeEl.value));
 
 // A press anywhere else closes them; one inside does not.
-window.addEventListener(
+globalThis.addEventListener(
   "pointerdown",
   (event) => {
-    if (!menuOpen()) return;
-    if (contextMenuEl.contains(event.target) || colourPopoverEl.contains(event.target)) return;
+    if (!menuOpen()) {
+      return;
+    }
+    if (contextMenuEl.contains(event.target) || colourPopoverEl.contains(event.target)) {
+      return;
+    }
     closeMenus();
   },
   true,
@@ -3021,7 +3307,9 @@ window.addEventListener(
 function bodyOfFace(faceIndex) {
   let start = 0;
   for (const body of mesh.geometry.userData.bodies) {
-    if (faceIndex < start + body.faces) return body;
+    if (faceIndex < start + body.faces) {
+      return body;
+    }
     start += body.faces;
   }
   return null;
@@ -3031,12 +3319,12 @@ function bodyOfFace(faceIndex) {
 /// or clears what reaches it when `change` is null. The daemon names the
 /// entries on the face and a box that picks it out alone.
 async function setFaceAppearance(faceIndex, change) {
-  const info = await rpcCall("get_face_appearance", { handle: "f" + faceIndex });
+  const info = await rpcCall("get_face_appearance", { handle: `f${faceIndex}` });
   const current = await rpcCall("get_document", {});
   const shown =
-    window.__tcad.faceColour(faceIndex) ||
-    (bodyOfFace(faceIndex) || {}).color ||
-    "#" + PART_COLOUR.toString(16).padStart(6, "0");
+    globalThis.__tcad.faceColour(faceIndex) ||
+    bodyOfFace(faceIndex)?.color ||
+    `#${PART_COLOUR.toString(16).padStart(6, "0")}`;
   const appearances = change
     ? ViewerColours.withFaceAppearance(current.appearances, info, change, shown)
     : ViewerColours.withoutFaceColour(current.appearances, info);
@@ -3061,7 +3349,7 @@ function openBodyMenu(x, y, body) {
             openColourPicker(
               x,
               y,
-              body.name + " colour",
+              `${body.name} colour`,
               body.color,
               (hex) => sendCommand({ type: "set_body", id: body.id, color: hex }),
               bodyFinish(body),
@@ -3075,9 +3363,13 @@ function openBodyMenu(x, y, body) {
 }
 
 async function openFaceMenu(event) {
-  if (sketchStage || extrudeArmed || modifyTool || !mesh) return;
+  if (sketchStage || extrudeArmed || modifyTool || !mesh) {
+    return;
+  }
   const hit = raycastFace(event);
-  if (!hit) return;
+  if (!hit) {
+    return;
+  }
   const x = event.clientX;
   const y = event.clientY;
   const faceIndex = mesh.geometry.userData.faceOfTriangle[hit.faceIndex];
@@ -3085,18 +3377,18 @@ async function openFaceMenu(event) {
   // The handle is only good for the part the daemon has now.
   const info =
     loadedRevision === daemonRevision
-      ? await trackPending(rpcCall("get_face_appearance", { handle: "f" + faceIndex })).catch(
+      ? await trackPending(rpcCall("get_face_appearance", { handle: `f${faceIndex}` })).catch(
           () => null,
         )
       : null;
   const clear = ViewerColours.clearLabel(info);
-  const faceColour = window.__tcad.faceColour(faceIndex) || (body && body.color);
+  const faceColour = globalThis.__tcad.faceColour(faceIndex) || body?.color;
   const ownEntry = info && [...info.entries].reverse().find((entry) => entry.faces === 1);
   const faceFinish = {
-    current: (ownEntry && ownEntry.material) || null,
+    current: ownEntry?.material || null,
     onPick: (material) => setFaceAppearance(faceIndex, { material }),
   };
-  openMenu(x, y, (body ? body.name + " · " : "") + "face f" + faceIndex, [
+  openMenu(x, y, `${body ? `${body.name} · ` : ""}face f${faceIndex}`, [
     {
       label: "Colour…",
       action: () =>
@@ -3116,7 +3408,7 @@ async function openFaceMenu(event) {
             openColourPicker(
               x,
               y,
-              body.name + " colour",
+              `${body.name} colour`,
               body.color,
               (hex) => sendCommand({ type: "set_body", id: body.id, color: hex }),
               bodyFinish(body),
@@ -3138,19 +3430,27 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   rightPress = event.button === 2 ? { x: event.clientX, y: event.clientY } : null;
 });
 renderer.domElement.addEventListener("pointerup", (event) => {
-  if (event.button !== 2 || !rightPress) return;
+  if (event.button !== 2 || !rightPress) {
+    return;
+  }
   const moved = Math.hypot(event.clientX - rightPress.x, event.clientY - rightPress.y);
   rightPress = null;
-  if (moved <= RIGHT_CLICK_SLOP) openFaceMenu(event);
+  if (moved <= RIGHT_CLICK_SLOP) {
+    openFaceMenu(event);
+  }
 });
 
 // Ends a corner or edge drag and sends the new profile to Swift, which
 // rewrites the sketch in place and replays everything after it (see
 // ContentView's updateSketchPolygon). Not on the canvas: releasing outside
 // it would otherwise leave the drag live.
-window.addEventListener("pointerup", () => {
-  if (sketchStage === "draw") sketcher.pointerUp();
-  if (!sketchEditDrag) return;
+globalThis.addEventListener("pointerup", () => {
+  if (sketchStage === "draw") {
+    sketcher.pointerUp();
+  }
+  if (!sketchEditDrag) {
+    return;
+  }
   const { feature, polygon } = sketchEditDrag;
   sketchEditDrag = null;
   controls.enabled = true;
@@ -3163,15 +3463,20 @@ window.addEventListener("pointerup", () => {
 // corner or edge drag edits - the user's own rule is "a sketch stays flat
 // until you select it and choose extrude."
 function selectSketchForExtrude(feature, regionIndex, additive) {
-  if (extrudeArmed) return;
+  if (extrudeArmed) {
+    return;
+  }
   const sameSketch = selectedSketch && selectedSketch.id === feature.id;
   const all = feature.regions.map((_, index) => index);
-  if (regionIndex === undefined) selectedRegions = all;
-  else if (additive && sameSketch) {
+  if (regionIndex === undefined) {
+    selectedRegions = all;
+  } else if (additive && sameSketch) {
     selectedRegions = selectedRegions.includes(regionIndex)
       ? selectedRegions.filter((index) => index !== regionIndex)
       : [...selectedRegions, regionIndex];
-  } else selectedRegions = [regionIndex];
+  } else {
+    selectedRegions = [regionIndex];
+  }
   selectedSketch = feature;
   selectedPatch = null;
   clearEdgeSelection();
@@ -3180,7 +3485,7 @@ function selectSketchForExtrude(feature, regionIndex, additive) {
   hideHint();
   showHint(
     feature.polygon
-      ? "Sketch " + feature.id + " selected, drag a corner or edge to change it"
+      ? `Sketch ${feature.id} selected, drag a corner or edge to change it`
       : "Sketch " +
           feature.id +
           ": " +
@@ -3203,7 +3508,9 @@ function pointerOnSketchPlane(event, plane) {
   const normal = new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize();
   const hit = new THREE.Vector3();
   const infinite = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, plane.origin);
-  if (!raycaster.ray.intersectPlane(infinite, hit)) return null;
+  if (!raycaster.ray.intersectPlane(infinite, hit)) {
+    return null;
+  }
   const local = hit.sub(plane.origin);
   return [local.dot(plane.xDir), local.dot(plane.yDir)];
 }
@@ -3230,11 +3537,17 @@ function pointToSegment([px, py], [ax, ay], [bx, by]) {
 /// plane } for a corner or an edge, else null. Corners win over edges at
 /// equal distance, since a corner sits on two of them.
 function pickSketchPart(event, feature) {
-  if (!feature.plane || !feature.polygon) return null;
-  if (hiddenSketchIDs.has(feature.id)) return null;
+  if (!feature.plane || !feature.polygon) {
+    return null;
+  }
+  if (hiddenSketchIDs.has(feature.id)) {
+    return null;
+  }
   const plane = resolveStoredPlane(feature.plane);
   const uv = pointerOnSketchPlane(event, plane);
-  if (!uv) return null;
+  if (!uv) {
+    return null;
+  }
   const world = plane.origin
     .clone()
     .addScaledVector(plane.xDir, uv[0])
@@ -3244,13 +3557,17 @@ function pickSketchPart(event, feature) {
   let best = { distance: worldRadius(SKETCH_PICK_PIXELS, world), kind: null, indices: null };
   polygon.forEach(([u, v], index) => {
     const distance = Math.hypot(u - uv[0], v - uv[1]);
-    if (distance < best.distance) best = { distance, kind: "corner", indices: [index] };
+    if (distance < best.distance) {
+      best = { distance, kind: "corner", indices: [index] };
+    }
   });
   if (!best.kind) {
     polygon.forEach((_, index) => {
       const next = (index + 1) % polygon.length;
       const distance = pointToSegment(uv, polygon[index], polygon[next]);
-      if (distance < best.distance) best = { distance, kind: "edge", indices: [index, next] };
+      if (distance < best.distance) {
+        best = { distance, kind: "edge", indices: [index, next] };
+      }
     });
   }
   return best.kind ? { kind: best.kind, indices: best.indices, uv: uv, plane: plane } : null;
@@ -3271,7 +3588,9 @@ function beginSketchEdit(pick) {
 
 function dragSketchEdit(event) {
   const uv = pointerOnSketchPlane(event, sketchEditDrag.plane);
-  if (!uv) return;
+  if (!uv) {
+    return;
+  }
   let du = uv[0] - sketchEditDrag.lastUV[0];
   let dv = uv[1] - sketchEditDrag.lastUV[1];
   if (sketchEditDrag.kind === "edge") {
@@ -3302,7 +3621,9 @@ function dragSketchEdit(event) {
 /// rebuild rebuilds it anyway.
 function redrawSketchEdit() {
   const entry = sketchOutlines.find(({ feature }) => feature.id === sketchEditDrag.feature.id);
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
   const { plane, polygon } = sketchEditDrag;
   const points = polygon.map(([u, v]) =>
     plane.origin.clone().addScaledVector(plane.xDir, u).addScaledVector(plane.yDir, v),
@@ -3325,7 +3646,7 @@ function armExtrude(distance = 0) {
     new THREE.Float32BufferAttribute(basePositions.slice(), 3),
   );
   const previewMaterial = new THREE.MeshStandardMaterial({
-    color: srgb(0x5be0a0),
+    color: srgb(0x5b_e0_a0),
     transparent: true,
     opacity: 0.55,
     side: THREE.DoubleSide,
@@ -3344,14 +3665,16 @@ function armSketchExtrude(feature, distance = 0) {
   const plane = resolveStoredPlane(feature.plane);
   const axis = new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize();
   const picked = selectedRegions.map((index) => feature.regions[index]);
-  if (!picked.length) return;
+  if (picked.length === 0) {
+    return;
+  }
   armedMode = "sketch";
   // The arrow stands on the first picked region's interior point, which is
   // inside it even when the outline is concave.
   const anchor = worldOfPlane(plane, picked[0].inside);
 
   const previewMaterial = new THREE.MeshStandardMaterial({
-    color: srgb(0x5be0a0),
+    color: srgb(0x5b_e0_a0),
     transparent: true,
     opacity: 0.55,
     side: THREE.DoubleSide,
@@ -3398,7 +3721,9 @@ function buildSketchExtrudePreviewGeometry(feature, regions, distance) {
     bevelEnabled: false,
     curveSegments: 1,
   });
-  if (distance < 0) geometry.translate(0, 0, -depth);
+  if (distance < 0) {
+    geometry.translate(0, 0, -depth);
+  }
   const normal = new THREE.Vector3().crossVectors(plane.xDir, plane.yDir).normalize();
   const basis = new THREE.Matrix4().makeBasis(plane.xDir, plane.yDir, normal);
   basis.setPosition(plane.origin);
@@ -3456,8 +3781,11 @@ function reselectExtrude(pick, additive) {
   const distance = previewState.distance;
   cancelExtrude();
   applyPick(pick, additive && pick.kind === "region");
-  if (selectedPatch) armExtrude(distance);
-  else if (selectedSketch && selectedRegions.length) armSketchExtrude(selectedSketch, distance);
+  if (selectedPatch) {
+    armExtrude(distance);
+  } else if (selectedSketch && selectedRegions.length > 0) {
+    armSketchExtrude(selectedSketch, distance);
+  }
 }
 
 function commitExtrude() {
@@ -3482,7 +3810,7 @@ function commitExtrude() {
           normal: selectedPatch.normal.toArray(),
           distance: previewState.distance,
         };
-  const faceHandle = armedMode === "sketch" ? null : "f" + selectedPatch.faceIndex;
+  const faceHandle = armedMode === "sketch" ? null : `f${selectedPatch.faceIndex}`;
   cancelExtrude();
   if (!faceHandle) {
     sendCommand(message);
@@ -3499,10 +3827,14 @@ function commitExtrude() {
 }
 
 document.getElementById("extrude-ok").addEventListener("click", () => {
-  if (extrudeArmed) commitExtrude();
+  if (extrudeArmed) {
+    commitExtrude();
+  }
 });
 document.getElementById("extrude-cancel").addEventListener("click", () => {
-  if (extrudeArmed) cancelExtrude();
+  if (extrudeArmed) {
+    cancelExtrude();
+  }
 });
 
 // --- Modify tools: fillet, chamfer, shell, hole -----------------------
@@ -3530,11 +3862,18 @@ function partBodies() {
 function pickedBody() {
   const bodies = partBodies();
   const named = bodies.find((body) => body.id === selectedBodyId);
-  if (named) return named;
+  if (named) {
+    return named;
+  }
   let owner = null;
-  if (selectedEdges.length) owner = bodyOfEdge(selectedEdges[0]);
-  else if (selectedPatch) owner = bodyOfFace(selectedPatch.faceIndex);
-  if (owner && !owner.reference) return owner;
+  if (selectedEdges.length > 0) {
+    owner = bodyOfEdge(selectedEdges[0]);
+  } else if (selectedPatch) {
+    owner = bodyOfFace(selectedPatch.faceIndex);
+  }
+  if (owner && !owner.reference) {
+    return owner;
+  }
   return bodies.length === 1 ? bodies[0] : null;
 }
 
@@ -3549,14 +3888,16 @@ function tipFeatureId() {
   const solids = browserFeatures.filter(
     (entry) => entry.active && !NOT_SOLIDS.includes(entry.type),
   );
-  return solids.length ? solids[solids.length - 1].id : null;
+  return solids.length > 0 ? solids.at(-1).id : null;
 }
 
 /// The body that owns edge `edgeIndex`, from the mesh header's edge counts.
 function bodyOfEdge(edgeIndex) {
   let start = 0;
   for (const body of mesh.geometry.userData.bodies) {
-    if (edgeIndex < start + body.edges) return body;
+    if (edgeIndex < start + body.edges) {
+      return body;
+    }
     start += body.edges;
   }
   return null;
@@ -3568,17 +3909,26 @@ function bodyOfEdge(edgeIndex) {
 function modifyBody(kind) {
   const bodies = mesh.geometry.userData.bodies;
   let owners = [];
-  if ((kind === "fillet" || kind === "chamfer") && selectedEdges.length)
+  if ((kind === "fillet" || kind === "chamfer") && selectedEdges.length > 0) {
     owners = selectedEdges.map(bodyOfEdge);
-  else if (selectedPatch) owners = [bodyOfFace(selectedPatch.faceIndex)];
-  else if (bodies.filter((body) => !body.reference).length === 1)
+  } else if (selectedPatch) {
+    owners = [bodyOfFace(selectedPatch.faceIndex)];
+  } else if (bodies.filter((body) => !body.reference).length === 1) {
     owners = [bodies.find((body) => !body.reference)];
-  else return { error: "Pick a face of the body to shell first." };
-  const ids = new Set(owners.map((body) => body && body.id));
-  if (ids.size !== 1) return { error: "Pick edges of one body." };
+  } else {
+    return { error: "Pick a face of the body to shell first." };
+  }
+  const ids = new Set(owners.map((body) => body?.id));
+  if (ids.size !== 1) {
+    return { error: "Pick edges of one body." };
+  }
   const body = owners[0];
-  if (!body) return { error: "That pick is not on a body." };
-  if (body.reference) return { error: body.name + " is a reference body." };
+  if (!body) {
+    return { error: "That pick is not on a body." };
+  }
+  if (body.reference) {
+    return { error: `${body.name} is a reference body.` };
+  }
   return { body };
 }
 
@@ -3606,12 +3956,15 @@ function modifyScale(kind, body) {
   const bodies = mesh.geometry.userData.bodies;
   let firstFace = 0;
   for (const other of bodies) {
-    if (other === body) break;
+    if (other === body) {
+      break;
+    }
     firstFace += other.faces;
   }
-  const range = bodies.length
-    ? faceTriangleRange(firstFace, body.faces)
-    : { start: 0, count: mesh.geometry.index.count };
+  const range =
+    bodies.length > 0
+      ? faceTriangleRange(firstFace, body.faces)
+      : { start: 0, count: mesh.geometry.index.count };
   const box = new THREE.Box3();
   visitVertices(range, (x, y, z) => box.expandByPoint(new THREE.Vector3(x, y, z)));
   const size = box.getSize(new THREE.Vector3());
@@ -3622,8 +3975,8 @@ function modifyScale(kind, body) {
       Math.abs(normal.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
     const u = across.sub(normal.clone().multiplyScalar(across.dot(normal))).normalize();
     const v = normal.clone().cross(u);
-    const low = [Infinity, Infinity];
-    const high = [-Infinity, -Infinity];
+    const low = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+    const high = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
     const point = new THREE.Vector3();
     visitVertices(faceTriangleRange(selectedPatch.faceIndex, 1), (x, y, z) => {
       point.set(x, y, z);
@@ -3640,44 +3993,62 @@ function modifyScale(kind, body) {
 /// `options` is what a reselect carries over: {values} keeps the panel's
 /// values, {openFaces} is the shell's list of faces to open.
 async function armModify(kind, options = {}) {
-  if (modifyTool || extrudeArmed || sketchStage) return;
+  if (modifyTool || extrudeArmed || sketchStage) {
+    return;
+  }
   cancelPick();
-  if (kind !== "revolve" && !mesh) return;
+  if (kind !== "revolve" && !mesh) {
+    return;
+  }
   // Nothing picked yet: ask for it, and open the tool on the first pick.
   const needsPick =
-    ((kind === "fillet" || kind === "chamfer") && !selectedEdges.length) ||
+    ((kind === "fillet" || kind === "chamfer") && selectedEdges.length === 0) ||
     (kind === "hole" && !selectedPatch) ||
     (kind === "revolve" && !selectedSketch);
-  if (needsPick && !(kind === "revolve" && toolRevolveEl.disabled)) return startPick(kind);
+  if (needsPick && !(kind === "revolve" && toolRevolveEl.disabled)) {
+    return startPick(kind);
+  }
   let base = null;
   let scale = null;
   if (kind !== "revolve") {
-    if (!mesh.geometry.userData.bodies.length)
+    if (mesh.geometry.userData.bodies.length === 0) {
       base = tipFeatureId(); // an engine that sends no body list
-    else {
-      if (kind === "hole" && !selectedPatch) return showNotice("Click the face to drill first.");
+    } else {
+      if (kind === "hole" && !selectedPatch) {
+        return showNotice("Click the face to drill first.");
+      }
       const found = modifyBody(kind);
-      if (found.error) return showNotice(found.error);
+      if (found.error) {
+        return showNotice(found.error);
+      }
       base = found.body.tip;
       scale = modifyScale(kind, found.body);
     }
-    if (!base) return;
+    if (!base) {
+      return;
+    }
   }
   const target = { base };
   let handles = [];
   if (kind === "revolve") {
-    if (!selectedSketch) return showNotice("Select a sketch first.");
+    if (!selectedSketch) {
+      return showNotice("Select a sketch first.");
+    }
     target.profile = selectedSketch.id;
   } else if (kind === "fillet" || kind === "chamfer") {
-    handles = selectedEdges.map((index) => "e" + index);
+    handles = selectedEdges.map((index) => `e${index}`);
   } else if (kind === "hole") {
-    if (!selectedPatch) return showNotice("Click the face to drill first.");
+    if (!selectedPatch) {
+      return showNotice("Click the face to drill first.");
+    }
     target.point = selectedPatch.anchorPoint.toArray();
     target.normal = selectedPatch.normal.toArray();
   }
   const openFaces =
     kind !== "shell" ? [] : options.openFaces || (selectedPatch ? [selectedPatch.faceIndex] : []);
-  if (kind === "shell") handles = openFaces.map((face) => "f" + face);
+  if (kind === "shell") {
+    handles = openFaces.map((face) => `f${face}`);
+  }
   const values = options.values ? { ...options.values } : ViewerModify.defaults(kind, scale);
   const tool = {
     kind,
@@ -3693,17 +4064,21 @@ async function armModify(kind, options = {}) {
   };
   if (kind === "revolve") {
     // Where the ring starts: the picked region's interior point, swept round the axis.
-    const region = selectedSketch.regions[selectedRegions.length ? selectedRegions[0] : 0];
-    if (region)
+    const region = selectedSketch.regions[selectedRegions.length > 0 ? selectedRegions[0] : 0];
+    if (region) {
       tool.profilePoint = worldOfPlane(resolveStoredPlane(selectedSketch.plane), region.inside);
+    }
   }
   modifyTool = tool; // claims the tool before the first await, so a second key press does nothing
   updateToolbarState();
-  if (handles.length) {
+  if (handles.length > 0) {
     try {
       const answer = await trackPending(rpcCall("resolve_selection", { handles }));
-      if (kind === "shell") target.open = answer.selector;
-      else target.edges = answer.selector;
+      if (kind === "shell") {
+        target.open = answer.selector;
+      } else {
+        target.edges = answer.selector;
+      }
     } catch (error) {
       if (modifyTool === tool) {
         modifyTool = null;
@@ -3714,7 +4089,9 @@ async function armModify(kind, options = {}) {
       return;
     }
   }
-  if (modifyTool !== tool) return; // cancelled while the selector was made
+  if (modifyTool !== tool) {
+    return; // cancelled while the selector was made
+  }
   document.getElementById("modify-title").textContent = ViewerModify.TOOLS[kind].title;
   modifyPanelEl.style.display = "flex";
   renderModifyFields();
@@ -3749,22 +4126,33 @@ const AXIS_VECTORS = { X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1] };
 function refreshModifyHandle(focus) {
   const tool = modifyTool;
   hideHandle();
-  if (!tool) return;
+  if (!tool) {
+    return;
+  }
   const name = HANDLE_FIELDS[tool.kind];
   const field = name && ViewerModify.TOOLS[tool.kind].fields.find((item) => item.name === name);
-  if (!field || !ViewerModify.visible(field, tool.values)) return;
+  if (!field || !ViewerModify.visible(field, tool.values)) {
+    return;
+  }
   const place = modifyHandlePlace(tool);
-  if (!place) return;
+  if (!place) {
+    return;
+  }
   const value = ViewerModify.parseNumber(tool.values[name]);
   const onChange = (next) => {
     tool.values[name] = String(next);
-    const input = document.getElementById("modify-" + name);
-    if (input) input.value = String(next);
+    const input = document.getElementById(`modify-${name}`);
+    if (input) {
+      input.value = String(next);
+    }
     schedulePreview();
   };
   const spec = { ...place, value: Number.isFinite(value) ? value : 0, onChange, focus };
-  if (place.axis) showAngularHandle(spec);
-  else showLinearHandle(spec);
+  if (place.axis) {
+    showAngularHandle(spec);
+  } else {
+    showLinearHandle(spec);
+  }
 }
 
 function vector(values) {
@@ -3781,10 +4169,14 @@ function ontoAxis(point, origin, direction) {
 function bodyBox(body) {
   const box = new THREE.Box3();
   const bodies = mesh.geometry.userData.bodies;
-  if (!body || !bodies.length) return box.setFromObject(mesh);
+  if (!body || bodies.length === 0) {
+    return box.setFromObject(mesh);
+  }
   let firstFace = 0;
   for (const other of bodies) {
-    if (other === body) break;
+    if (other === body) {
+      break;
+    }
     firstFace += other.faces;
   }
   visitVertices(faceTriangleRange(firstFace, body.faces), (x, y, z) =>
@@ -3796,13 +4188,15 @@ function bodyBox(body) {
 /// Where an axis choice lies: {origin, direction} as Vector3s, or null.
 /// `where` holds what pick_axis resolved for a picked edge or face.
 function axisOfChoice(choice, where) {
-  if (typeof choice === "string" && AXIS_VECTORS[choice])
+  if (typeof choice === "string" && AXIS_VECTORS[choice]) {
     return { origin: new THREE.Vector3(), direction: vector(AXIS_VECTORS[choice]) };
-  const found =
-    choice && choice.construct
-      ? (constructObjects.find((item) => item.id === choice.construct) || {}).info
-      : where;
-  if (!found || !found.direction) return null;
+  }
+  const found = choice?.construct
+    ? constructObjects.find((item) => item.id === choice.construct)?.info
+    : where;
+  if (!found?.direction) {
+    return null;
+  }
   return { origin: vector(found.origin), direction: vector(found.direction).normalize() };
 }
 
@@ -3826,10 +4220,12 @@ function modifyHandlePlace(tool) {
   const positive = { min: 0.01 };
   const { kind, target, values } = tool;
   if (kind === "fillet" || kind === "chamfer") {
-    if (!selectedEdges.length) return null;
+    if (selectedEdges.length === 0) {
+      return null;
+    }
     // From outside the corner, pointing at the last picked edge and into the
     // material: dragging toward the edge rounds or cuts more.
-    const edge = selectedEdges[selectedEdges.length - 1];
+    const edge = selectedEdges.at(-1);
     return {
       origin: edgeMidpoint(edge),
       direction: edgeOutward(edge).negate(),
@@ -3839,7 +4235,7 @@ function modifyHandlePlace(tool) {
   }
   if (kind === "shell") {
     const sign = values.outward ? 1 : -1;
-    if (tool.openFaces.length && !values.closed) {
+    if (tool.openFaces.length > 0 && !values.closed) {
       const face = tool.openFaces[0];
       return {
         origin: faceCentre(face),
@@ -3851,26 +4247,32 @@ function modifyHandlePlace(tool) {
     const top = box.getCenter(new THREE.Vector3()).setZ(box.max.z);
     return { origin: top, direction: new THREE.Vector3(0, 0, sign), rule: positive };
   }
-  if (kind === "hole")
+  if (kind === "hole") {
     return {
       origin: vector(target.point),
       direction: vector(target.normal).negate(),
       rule: positive,
     };
+  }
   if (kind === "plane") {
-    const choice = target.choices.plane && target.choices.plane[values.plane];
+    const choice = target.choices.plane?.[values.plane];
     let plane = null;
-    if (typeof choice === "string" && SKETCH_PRINCIPAL_PLANES[choice])
+    if (typeof choice === "string" && SKETCH_PRINCIPAL_PLANES[choice]) {
       plane = SKETCH_PRINCIPAL_PLANES[choice];
-    else if (choice && choice.construct) {
-      const info = (constructObjects.find((item) => item.id === choice.construct) || {}).info;
-      if (info) plane = { origin: vector(info.origin), normal: vector(info.normal) };
-    } else if (values.plane === "face" && target.where.face)
+    } else if (choice?.construct) {
+      const info = constructObjects.find((item) => item.id === choice.construct)?.info;
+      if (info) {
+        plane = { origin: vector(info.origin), normal: vector(info.normal) };
+      }
+    } else if (values.plane === "face" && target.where.face) {
       plane = {
         origin: vector(target.where.face.origin),
         normal: vector(target.where.face.normal),
       };
-    if (!plane) return null;
+    }
+    if (!plane) {
+      return null;
+    }
     // On the plane, level with the middle of the part, so the arrow is
     // beside what it offsets rather than out at the plane's origin.
     const normal = plane.normal.clone().normalize();
@@ -3883,11 +4285,10 @@ function modifyHandlePlace(tool) {
     return { origin, direction: normal, rule: {} };
   }
   if (kind === "linear") {
-    const axis = axisOfChoice(
-      target.choices.direction && target.choices.direction[values.direction],
-      target.where.direction,
-    );
-    if (!axis) return null;
+    const axis = axisOfChoice(target.choices.direction?.[values.direction], target.where.direction);
+    if (!axis) {
+      return null;
+    }
     // From the middle of the body, so the arrow's base sits where the first copy's middle goes.
     return {
       origin: bodyBox(pickedBody()).getCenter(new THREE.Vector3()),
@@ -3896,11 +4297,10 @@ function modifyHandlePlace(tool) {
     };
   }
   if (kind === "circular") {
-    const axis = axisOfChoice(
-      target.choices.axis && target.choices.axis[values.axis],
-      target.where.axis,
-    );
-    if (!axis) return null;
+    const axis = axisOfChoice(target.choices.axis?.[values.axis], target.where.axis);
+    if (!axis) {
+      return null;
+    }
     return {
       ...ringThrough(bodyBox(pickedBody()).getCenter(new THREE.Vector3()), axis),
       rule: { min: 1, max: 360 },
@@ -3908,7 +4308,9 @@ function modifyHandlePlace(tool) {
   }
   if (kind === "revolve") {
     const axis = axisOfChoice(values.axis, null);
-    if (!axis || !tool.profilePoint) return null;
+    if (!axis || !tool.profilePoint) {
+      return null;
+    }
     return { ...ringThrough(tool.profilePoint, axis), rule: { min: 1, max: 360 } };
   }
   return null;
@@ -3931,11 +4333,13 @@ function reselectModify(pick, additive) {
   let openFaces;
   if (tool.kind === "shell") {
     const face = mesh.geometry.userData.faceOfTriangle[pick.hit.faceIndex];
-    if (!additive) openFaces = [face];
-    else
+    if (!additive) {
+      openFaces = [face];
+    } else {
       openFaces = tool.openFaces.includes(face)
         ? tool.openFaces.filter((item) => item !== face)
         : [...tool.openFaces, face];
+    }
   }
   cancelModify();
   applyPick(pick, additive && pick.kind !== "face");
@@ -3946,8 +4350,12 @@ function renderModifyFields(focusName) {
   const tool = modifyTool;
   modifyFieldsEl.innerHTML = "";
   for (const field of ViewerModify.TOOLS[tool.kind].fields) {
-    if (field.onlyWithFace && !tool.target.open) continue;
-    if (!ViewerModify.visible(field, tool.values)) continue;
+    if (field.onlyWithFace && !tool.target.open) {
+      continue;
+    }
+    if (!ViewerModify.visible(field, tool.values)) {
+      continue;
+    }
     const label = document.createElement("label");
     label.append(field.label);
     let input;
@@ -3956,36 +4364,45 @@ function renderModifyFields(focusName) {
       const offered = field.dynamic
         ? tool.target.options[field.name] || []
         : field.options.map((option) => ({ value: option, label: option }));
-      for (const option of offered) input.add(new Option(option.label, option.value));
+      for (const option of offered) {
+        input.add(new Option(option.label, option.value));
+      }
       input.value = tool.values[field.name];
     } else {
       input = document.createElement("input");
       input.type = field.type === "checkbox" ? "checkbox" : "text";
-      if (field.type === "checkbox") input.checked = tool.values[field.name];
-      else {
+      if (field.type === "checkbox") {
+        input.checked = tool.values[field.name];
+      } else {
         input.value = tool.values[field.name];
         input.autocomplete = "off";
         input.spellcheck = false;
       }
     }
-    input.id = "modify-" + field.name;
+    input.id = `modify-${field.name}`;
     // A text field updates the preview as you type. A select or a checkbox
     // can show or hide other fields, so the row is drawn again.
     input.addEventListener(field.type === "number" ? "input" : "change", () => {
       tool.values[field.name] = field.type === "checkbox" ? input.checked : input.value;
-      if (field.type !== "number") renderModifyFields(field.name);
+      if (field.type !== "number") {
+        renderModifyFields(field.name);
+      }
       schedulePreview();
       // The handle follows: its value, or where it stands when a choice moved it.
-      if (field.name === HANDLE_FIELDS[tool.kind])
+      if (field.name === HANDLE_FIELDS[tool.kind]) {
         setHandleValue(ViewerModify.parseNumber(input.value));
-      else if (field.type !== "number") refreshModifyHandle(false);
+      } else if (field.type !== "number") {
+        refreshModifyHandle(false);
+      }
     });
     label.append(input);
     modifyFieldsEl.append(label);
   }
   if (focusName) {
-    const again = document.getElementById("modify-" + focusName);
-    if (again) again.focus();
+    const again = document.getElementById(`modify-${focusName}`);
+    if (again) {
+      again.focus();
+    }
   }
 }
 
@@ -4007,7 +4424,9 @@ function schedulePreview() {
 /// A reply that a newer call has overtaken is dropped.
 function runPreview() {
   const tool = modifyTool;
-  if (!tool) return Promise.resolve();
+  if (!tool) {
+    return Promise.resolve();
+  }
   clearTimeout(tool.timer);
   tool.dirty = false;
   const seq = ++tool.seq;
@@ -4034,12 +4453,14 @@ function runPreview() {
     } catch (error) {
       result = { would_build: false, reason: error.message };
     }
-    if (modifyTool !== tool || seq !== tool.seq) return;
+    if (modifyTool !== tool || seq !== tool.seq) {
+      return;
+    }
     if (result.would_build && result.construct) {
       showConstructPreview(result.construct);
       tool.ok = true;
       modifyOkEl.disabled = false;
-      setModifyInfo("Preview: " + describeConstruct(result.construct) + ". Enter applies.");
+      setModifyInfo(`Preview: ${describeConstruct(result.construct)}. Enter applies.`);
     } else if (result.would_build) {
       showModifyPreview(result.mesh);
       tool.ok = true;
@@ -4068,7 +4489,7 @@ function showModifyPreview(data) {
   const previewMesh = new THREE.Mesh(
     geometry,
     new THREE.MeshStandardMaterial({
-      color: srgb(0x5be0a0),
+      color: srgb(0x5b_e0_a0),
       transparent: true,
       opacity: 0.8,
       side: THREE.DoubleSide,
@@ -4078,7 +4499,7 @@ function showModifyPreview(data) {
   lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(data.edges), 3));
   const lines = new THREE.LineSegments(
     lineGeometry,
-    new THREE.LineBasicMaterial({ color: srgb(0x0a3a26) }),
+    new THREE.LineBasicMaterial({ color: srgb(0x0a_3a_26) }),
   );
   scene.add(previewMesh);
   scene.add(lines);
@@ -4088,8 +4509,12 @@ function showModifyPreview(data) {
     frameCameraOn(previewMesh);
   }
   // The real part would show through the green one, so it steps aside.
-  if (mesh) mesh.visible = false;
-  if (edgeLines) edgeLines.visible = false;
+  if (mesh) {
+    mesh.visible = false;
+  }
+  if (edgeLines) {
+    edgeLines.visible = false;
+  }
   clearHighlight(); // the picked face's tint would cover a hole or an opening
 }
 
@@ -4108,7 +4533,7 @@ function showConstructPreview(info) {
 const roundedNumbers = (values) => values.map((value) => Math.round(value * 100) / 100).join(", ");
 
 function describeConstruct(info) {
-  if (info.kind === "plane")
+  if (info.kind === "plane") {
     return (
       "plane through (" +
       roundedNumbers(info.origin) +
@@ -4116,7 +4541,8 @@ function describeConstruct(info) {
       roundedNumbers(info.normal) +
       ")"
     );
-  if (info.kind === "axis")
+  }
+  if (info.kind === "axis") {
     return (
       "axis through (" +
       roundedNumbers(info.origin) +
@@ -4124,27 +4550,38 @@ function describeConstruct(info) {
       roundedNumbers(info.direction) +
       ")"
     );
-  return "point at (" + roundedNumbers(info.at) + ")";
+  }
+  return `point at (${roundedNumbers(info.at)})`;
 }
 
 function clearModifyPreview() {
   if (modifyPreview) {
     for (const item of [modifyPreview.mesh, modifyPreview.lines]) {
-      if (!item) continue;
+      if (!item) {
+        continue;
+      }
       scene.remove(item);
       item.traverse((part) => {
-        if (part.geometry) part.geometry.dispose();
-        if (part.material) part.material.dispose();
+        if (part.geometry) {
+          part.geometry.dispose();
+        }
+        if (part.material) {
+          part.material.dispose();
+        }
       });
     }
     modifyPreview = null;
   }
   applyVisibility();
-  if (selectedPatch && mesh) setHighlight(selectedPatch, 0xffdd55);
+  if (selectedPatch && mesh) {
+    setHighlight(selectedPatch, 0xff_dd_55);
+  }
 }
 
 function cancelModify() {
-  if (!modifyTool) return;
+  if (!modifyTool) {
+    return;
+  }
   clearTimeout(modifyTool.timer);
   modifyTool = null;
   hideHandle();
@@ -4152,17 +4589,24 @@ function cancelModify() {
   clearModifyPreview();
   modifyPanelEl.style.display = "none";
   setModifyInfo("");
-  if (document.activeElement && modifyPanelEl.contains(document.activeElement))
+  if (document.activeElement && modifyPanelEl.contains(document.activeElement)) {
     document.activeElement.blur();
+  }
   updateToolbarState();
 }
 
 async function commitModify() {
   const tool = modifyTool;
-  if (!tool) return;
-  if (tool.dirty) runPreview();
+  if (!tool) {
+    return;
+  }
+  if (tool.dirty) {
+    runPreview();
+  }
   await tool.inflight;
-  if (modifyTool !== tool || !tool.ok) return; // the info line says why it would not build
+  if (modifyTool !== tool || !tool.ok) {
+    return; // the info line says why it would not build
+  }
   const feature = tool.feature;
   cancelModify();
   sendCommand({ type: "add_feature", feature });
@@ -4192,21 +4636,21 @@ async function planeChoices(target) {
   if (selectedPatch && canCallDaemon() && loadedRevision === daemonRevision) {
     try {
       const found = await trackPending(
-        rpcCall("face_sketch_plane", { handle: "f" + selectedPatch.faceIndex }),
+        rpcCall("face_sketch_plane", { handle: `f${selectedPatch.faceIndex}` }),
       );
       options.push({ value: "face", label: "Picked face" });
       choices.face = found.plane;
       target.where.face = found.resolved;
-    } catch (error) {
+    } catch {
       showNotice("The picked face is not flat, so it is not offered as a plane");
     }
   }
   for (const name of ORIGIN_PLANES) {
-    options.push({ value: name, label: name + " plane" });
+    options.push({ value: name, label: `${name} plane` });
     choices[name] = name;
   }
   for (const feature of browserFeatures.filter((entry) => entry.active && entry.type === "plane")) {
-    options.push({ value: feature.id, label: feature.id + " (plane)" });
+    options.push({ value: feature.id, label: `${feature.id} (plane)` });
     choices[feature.id] = { construct: feature.id };
   }
   target.options.plane = options;
@@ -4217,27 +4661,28 @@ async function planeChoices(target) {
 async function axisChoices(target, name) {
   const options = [];
   const choices = {};
-  const handle = selectedEdges.length
-    ? "e" + selectedEdges[selectedEdges.length - 1]
-    : selectedPatch
-      ? "f" + selectedPatch.faceIndex
-      : null;
+  const handle =
+    selectedEdges.length > 0
+      ? `e${selectedEdges.at(-1)}`
+      : selectedPatch
+        ? `f${selectedPatch.faceIndex}`
+        : null;
   if (handle && canCallDaemon() && loadedRevision === daemonRevision) {
     try {
       const found = await trackPending(rpcCall("pick_axis", { handle }));
       options.push({ value: "picked", label: handle[0] === "e" ? "Picked edge" : "Picked face" });
       choices.picked = found.axis;
       target.where[name] = found.resolved;
-    } catch (error) {
+    } catch {
       // A flat face or a curved edge has no axis: the list is only the others.
     }
   }
   for (const axis of ["X", "Y", "Z"]) {
-    options.push({ value: axis, label: axis + " axis" });
+    options.push({ value: axis, label: `${axis} axis` });
     choices[axis] = axis;
   }
   for (const feature of browserFeatures.filter((entry) => entry.active && entry.type === "axis")) {
-    options.push({ value: feature.id, label: feature.id + " (axis)" });
+    options.push({ value: feature.id, label: `${feature.id} (axis)` });
     choices[feature.id] = { construct: feature.id };
   }
   target.options[name] = options;
@@ -4245,13 +4690,17 @@ async function axisChoices(target, name) {
 }
 
 async function armConstruct(kind) {
-  if (modifyTool || extrudeArmed || sketchStage) return;
+  if (modifyTool || extrudeArmed || sketchStage) {
+    return;
+  }
   const target = { options: {}, choices: {}, where: {} };
   const bodies = partBodies();
   let body = null;
   if (BODY_KINDS.includes(kind)) {
     body = pickedBody();
-    if (!body) return showNotice("Pick a body in the browser first.");
+    if (!body) {
+      return showNotice("Pick a body in the browser first.");
+    }
     target.tool = body.tip;
   }
   const tool = {
@@ -4269,9 +4718,15 @@ async function armConstruct(kind) {
   updateToolbarState();
   const scale = { options: target.options };
   try {
-    if (kind === "plane" || kind === "mirror") await planeChoices(target);
-    if (kind === "linear") await axisChoices(target, "direction");
-    if (kind === "circular") await axisChoices(target, "axis");
+    if (kind === "plane" || kind === "mirror") {
+      await planeChoices(target);
+    }
+    if (kind === "linear") {
+      await axisChoices(target, "direction");
+    }
+    if (kind === "circular") {
+      await axisChoices(target, "axis");
+    }
     if (BODY_KINDS.includes(kind) && kind !== "plane") {
       target.options.into = [
         ViewerModify.SAME,
@@ -4286,9 +4741,8 @@ async function armConstruct(kind) {
       target.options.tool = offered;
     }
     if (kind === "axis") {
-      const handle = selectedEdges.length
-        ? "e" + selectedEdges[selectedEdges.length - 1]
-        : "f" + selectedPatch.faceIndex;
+      const handle =
+        selectedEdges.length > 0 ? `e${selectedEdges.at(-1)}` : `f${selectedPatch.faceIndex}`;
       const found = await trackPending(rpcCall("pick_axis", { handle }));
       target.axis = found.axis;
     }
@@ -4300,10 +4754,13 @@ async function armConstruct(kind) {
       loadedRevision === daemonRevision
     ) {
       const described = await trackPending(rpcCall("describe_geometry", {}));
-      const picked = selectedEdges.length
-        ? described.edges[selectedEdges[selectedEdges.length - 1]]
-        : described.faces[selectedPatch.faceIndex];
-      if (picked) scale.at = picked.centre.map((value) => Math.round(value * 100) / 100);
+      const picked =
+        selectedEdges.length > 0
+          ? described.edges[selectedEdges.at(-1)]
+          : described.faces[selectedPatch.faceIndex];
+      if (picked) {
+        scale.at = picked.centre.map((value) => Math.round(value * 100) / 100);
+      }
     }
     if (kind === "plane" && mesh) {
       const size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
@@ -4321,7 +4778,9 @@ async function armConstruct(kind) {
     );
     return;
   }
-  if (modifyTool !== tool) return; // cancelled while the choices were made
+  if (modifyTool !== tool) {
+    return; // cancelled while the choices were made
+  }
   tool.values = ViewerModify.defaults(kind, scale);
   if (kind === "combine") {
     const picked = pickedBody() || bodies[0];
@@ -4353,36 +4812,56 @@ toolCombineEl.addEventListener("click", () => armConstruct("combine"));
 renderer.domElement.addEventListener("pointerup", (event) => {
   const press = toolPress;
   toolPress = null;
-  if (!press || event.button !== 0) return;
-  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4) return;
+  if (!press || event.button !== 0) {
+    return;
+  }
+  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4) {
+    return;
+  }
   const kind = openToolKind();
-  if (!kind || !PICKS[kind]) return;
+  if (!kind || !PICKS[kind]) {
+    return;
+  }
   const pick = pickAt(event, PICKS[kind].accepts);
-  if (!pick) return;
+  if (!pick) {
+    return;
+  }
   clearHover();
   if (pickTool) {
     cancelPick();
     applyPick(pick, false);
-    if (kind === "extrude") armCurrentSelection();
-    else armModify(kind);
-  } else if (extrudeArmed) reselectExtrude(pick, event.shiftKey);
-  else reselectModify(pick, event.shiftKey);
+    if (kind === "extrude") {
+      armCurrentSelection();
+    } else {
+      armModify(kind);
+    }
+  } else if (extrudeArmed) {
+    reselectExtrude(pick, event.shiftKey);
+  } else {
+    reselectModify(pick, event.shiftKey);
+  }
 });
 
-window.addEventListener("keydown", (event) => {
+globalThis.addEventListener("keydown", (event) => {
   if (menuOpen()) {
-    if (event.key === "Escape") closeMenus();
+    if (event.key === "Escape") {
+      closeMenus();
+    }
     return; // the hex box takes letters; nothing else should act meanwhile
   }
   // The parameter form is a text field: "e" and "s" are letters there, and
   // Cmd+Z undoes the typing rather than the document.
-  if (propertiesEl.contains(document.activeElement)) return;
+  if (propertiesEl.contains(document.activeElement)) {
+    return;
+  }
   if (sketchStage === "draw") {
     sketcher.keyDown(event);
     return;
   }
   if (sketchStage) {
-    if (event.key === "Escape") cancelSketch();
+    if (event.key === "Escape") {
+      cancelSketch();
+    }
     return;
   }
   // A Modify tool owns the keyboard: its fields take the letters.
@@ -4475,7 +4954,7 @@ const sketchPlanePanelEl = document.getElementById("sketch-plane-panel");
 const sketchPlaneOffsetEl = document.getElementById("sketch-plane-offset");
 /// The offset typed in the plane panel, in mm. Anything that is not a number is no offset.
 const typedPlaneOffset = () => {
-  const value = parseFloat(sketchPlaneOffsetEl.value);
+  const value = Number.parseFloat(sketchPlaneOffsetEl.value);
   return Number.isFinite(value) ? value : 0;
 };
 const sketchDrawPanelEl = document.getElementById("sketch-draw-panel");
@@ -4539,8 +5018,9 @@ const sketcher = createSketcher({
   pickProjectable,
   /// What projecting `ref` ({sketch, entity} or {handle}) into a sketch on `plane` gives: {source, entity}.
   projectReference(plane, ref) {
-    if (ref.handle && loadedRevision !== daemonRevision)
+    if (ref.handle && loadedRevision !== daemonRevision) {
       return Promise.reject(new Error("the part is still rebuilding, try again"));
+    }
     const payload = plane.payload ||
       plane.ref || {
         origin: plane.origin.toArray(),
@@ -4567,7 +5047,9 @@ const sketcher = createSketcher({
   },
 });
 renderer.domElement.addEventListener("dblclick", () => {
-  if (sketchStage === "draw") sketcher.doubleClick();
+  if (sketchStage === "draw") {
+    sketcher.doubleClick();
+  }
 });
 
 // A picked face only gives a normal, not an in-plane x-axis, so one is
@@ -4634,8 +5116,9 @@ function entityRun(entity, plane) {
         entity.c[1] + entity.r * Math.sin(angle),
       ]);
     });
-  if (entity.kind === "line")
+  if (entity.kind === "line") {
     return [worldOfPlane(plane, entity.p0), worldOfPlane(plane, entity.p1)];
+  }
   return entity.kind === "circle"
     ? arcPoints(72, 0, 2 * Math.PI)
     : arcPoints(48, entity.a0, entity.a1);
@@ -4674,25 +5157,31 @@ function pickProjectable(event) {
       feature.active &&
       feature.plane &&
       !hiddenSketchIDs.has(feature.id);
-    if (!shown || index >= before) return;
+    if (!shown || index >= before) {
+      return;
+    }
     const entities = feature.entities || (feature.resolved || feature.feature).entities;
     const plane = resolveStoredPlane(feature.plane);
     for (const entity of entities || []) {
       const run = entityRun(entity, plane);
       for (let step = 0; step + 1 < run.length; step++) {
         const gap = pointToSegment(pointer, onScreen(run[step]), onScreen(run[step + 1]));
-        if (gap <= 8 && (!best || gap < best.gap))
+        if (gap <= 8 && (!best || gap < best.gap)) {
           best = { gap, ref: { sketch: feature.id, entity: entity.id }, run };
+        }
       }
     }
   });
-  if (best)
+  if (best) {
     return {
       ref: best.ref,
       segments: best.run.slice(1).flatMap((point, index) => [best.run[index], point]),
     };
+  }
   const hit = raycastEdge(event);
-  if (!hit) return null;
+  if (!hit) {
+    return null;
+  }
   const edgeIndex = edgeIndexOfHit(hit);
   const { edgeStart } = edgeLines.userData;
   const positions = edgeLines.geometry.attributes.position.array;
@@ -4700,7 +5189,7 @@ function pickProjectable(event) {
   for (let at = edgeStart[edgeIndex] * 6; at < edgeStart[edgeIndex + 1] * 6; at += 3) {
     points.push(new THREE.Vector3(positions[at], positions[at + 1], positions[at + 2]));
   }
-  return { ref: { handle: "e" + edgeIndex }, segments: points };
+  return { ref: { handle: `e${edgeIndex}` }, segments: points };
 }
 
 /// A region as a flat mesh in world space: its outline with its holes cut out.
@@ -4752,20 +5241,24 @@ function renderThreads(features) {
       });
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({ color: srgb(0xd0a040) }),
+        new THREE.LineBasicMaterial({ color: srgb(0xd0_a0_40) }),
       );
       line.userData.designation = thread.designation;
       threadGroup.add(line);
     });
-  if (section) applySection();
+  if (section) {
+    applySection();
+  }
 }
 
-const CONSTRUCT_COLOUR = 0x4dd0e1;
+const CONSTRUCT_COLOUR = 0x4d_d0_e1;
 
 /// How big to draw a plane or an axis: a little more than the part, and not
 /// tiny when there is no part yet.
 function sceneExtent() {
-  if (!mesh) return 60;
+  if (!mesh) {
+    return 60;
+  }
   const size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
   return Math.max(40, Math.max(size.x, size.y, size.z) * 1.6);
 }
@@ -4774,7 +5267,7 @@ function sceneExtent() {
 /// `construct` data. A preview is drawn brighter.
 function makeConstructObject(info, preview) {
   const group = new THREE.Group();
-  const colour = srgb(preview ? 0x5be0a0 : CONSTRUCT_COLOUR);
+  const colour = srgb(preview ? 0x5b_e0_a0 : CONSTRUCT_COLOUR);
   const extent = sceneExtent();
   if (info.kind === "plane") {
     const normal = new THREE.Vector3(...info.normal).normalize();
@@ -4817,12 +5310,13 @@ function makeConstructObject(info, preview) {
     const direction = new THREE.Vector3(...info.direction).normalize();
     // The axis runs through the part's middle, however far its origin is.
     let along = 0;
-    if (mesh)
+    if (mesh) {
       along = new THREE.Box3()
         .setFromObject(mesh)
         .getCenter(new THREE.Vector3())
         .sub(origin)
         .dot(direction);
+    }
     const middle = origin.clone().addScaledVector(direction, along);
     group.add(
       new THREE.Line(
@@ -4859,7 +5353,7 @@ function renderConstructs(features) {
     constructGroup.add(object);
     constructObjects.push({ id: feature.id, object, info: feature.construct });
   }
-  if (!mesh && !constructFramed && constructObjects.length) {
+  if (!mesh && !constructFramed && constructObjects.length > 0) {
     constructFramed = true;
     frameCameraOn(constructGroup);
   }
@@ -4885,7 +5379,7 @@ function renderSketchOutlines(features) {
           ? feature.polygon.map(([u, v]) => worldOfPlane(plane, [u, v]))
           : [];
       const geometry = new THREE.BufferGeometry().setFromPoints(
-        drawn || !points.length ? points : points.concat([points[0]]),
+        drawn || points.length === 0 ? points : points.concat([points[0]]),
       );
       // A sketch drawn on an existing face sits exactly on the mesh
       // surface, which z-fights with a normal line. depthTest off plus a
@@ -4893,7 +5387,7 @@ function renderSketchOutlines(features) {
       // stays visible regardless of camera angle: the user's explicit
       // requirement for a bare, unextruded sketch.
       const material = new THREE.LineBasicMaterial({
-        color: srgb(feature.active ? 0x5be0a0 : 0x666666),
+        color: srgb(feature.active ? 0x5b_e0_a0 : 0x66_66_66),
         depthTest: false,
       });
       const line = drawn
@@ -4910,7 +5404,7 @@ function renderSketchOutlines(features) {
         const fill = new THREE.Mesh(
           regionFillGeometry(region, plane),
           new THREE.MeshBasicMaterial({
-            color: srgb(0x5be0a0),
+            color: srgb(0x5b_e0_a0),
             transparent: true,
             opacity: 0,
             visible: drawn,
@@ -4930,7 +5424,7 @@ function renderSketchOutlines(features) {
       const handles = new THREE.Points(
         new THREE.BufferGeometry().setFromPoints(feature.polygon ? points : []),
         new THREE.PointsMaterial({
-          color: 0xffdd55,
+          color: 0xff_dd_55,
           size: 8,
           sizeAttenuation: false,
           depthTest: false,
@@ -4949,7 +5443,9 @@ function renderSketchOutlines(features) {
 function renderSketchSelection() {
   sketchOutlines.forEach(({ feature, line, fills, handles, drawn }) => {
     const selected = selectedSketch && selectedSketch.id === feature.id;
-    line.material.color.copy(srgb(selected ? 0xffdd55 : feature.active ? 0x5be0a0 : 0x666666));
+    line.material.color.copy(
+      srgb(selected ? 0xff_dd_55 : feature.active ? 0x5b_e0_a0 : 0x66_66_66),
+    );
     handles.visible = Boolean(selected) && !hiddenSketchIDs.has(feature.id);
     // A drawn sketch's regions glow faintly, and the picked ones brightly.
     fills.forEach((fill) => {
@@ -4959,7 +5455,7 @@ function renderSketchSelection() {
         hoverRegion.sketch === feature.id &&
         hoverRegion.region === fill.userData.regionIndex;
       fill.material.opacity = !drawn || !feature.active ? 0 : picked ? 0.55 : hovered ? 0.4 : 0.16;
-      fill.material.color.copy(srgb(picked ? 0xffaa00 : 0x5be0a0));
+      fill.material.color.copy(srgb(picked ? 0xff_aa_00 : 0x5b_e0_a0));
     });
   });
 }
@@ -4971,12 +5467,16 @@ function renderSketchSelection() {
 /// extrude would be appended to.
 function raycastSketch(event) {
   const candidates = sketchOutlines.filter(
-    ({ feature, fills }) => feature.active && fills[0] && fills[0].visible,
+    ({ feature, fills }) => feature.active && fills[0]?.visible,
   );
-  if (!candidates.length) return null;
+  if (candidates.length === 0) {
+    return null;
+  }
   raycaster.setFromCamera(pointerNDC(event), camera);
   const hits = raycaster.intersectObjects(candidates.flatMap(({ fills }) => fills));
-  if (!hits.length) return null;
+  if (hits.length === 0) {
+    return null;
+  }
   const entry = candidates.find(({ fills }) => fills.includes(hits[0].object));
   return entry
     ? {
@@ -4992,7 +5492,7 @@ function buildSketchPlaneHelper(plane) {
   const size = 300;
   const geometry = new THREE.PlaneGeometry(size, size);
   const material = new THREE.MeshBasicMaterial({
-    color: srgb(0x5be0a0),
+    color: srgb(0x5b_e0_a0),
     transparent: true,
     opacity: 0.08,
     side: THREE.DoubleSide,
@@ -5033,9 +5533,11 @@ function renderConstructPlaneButtons() {
     const button = document.createElement("button");
     button.textContent = entry.id;
     button.dataset.construct = entry.id;
-    button.title = "Sketch on the plane feature " + entry.id;
+    button.title = `Sketch on the plane feature ${entry.id}`;
     button.addEventListener("click", () => {
-      if (sketchStage !== "pick-plane") return;
+      if (sketchStage !== "pick-plane") {
+        return;
+      }
       const normal = new THREE.Vector3(...entry.info.normal).normalize();
       const offset = typedPlaneOffset();
       sketchPlane = makeSketchPlane(
@@ -5062,12 +5564,16 @@ function sketchOnFace(patch, point) {
     sketchPlane = makeSketchPlane(point, patch.normal, computeXDir(patch.normal));
     enterSketchDrawStage();
   };
-  if (!canCallDaemon() || loadedRevision !== daemonRevision) return fixed();
+  if (!canCallDaemon() || loadedRevision !== daemonRevision) {
+    return fixed();
+  }
   sketchStage = "resolving-plane";
   trackPending(
-    rpcCall("face_sketch_plane", { handle: "f" + patch.faceIndex })
+    rpcCall("face_sketch_plane", { handle: `f${patch.faceIndex}` })
       .then((found) => {
-        if (sketchStage !== "resolving-plane") return;
+        if (sketchStage !== "resolving-plane") {
+          return;
+        }
         const resolved = found.resolved;
         const offset = typedPlaneOffset();
         const normal = new THREE.Vector3(...resolved.normal);
@@ -5080,8 +5586,10 @@ function sketchOnFace(patch, point) {
         enterSketchDrawStage();
       })
       .catch((error) => {
-        if (sketchStage !== "resolving-plane") return;
-        showNotice("Sketch plane is fixed, it will not follow the face: " + error.message);
+        if (sketchStage !== "resolving-plane") {
+          return;
+        }
+        showNotice(`Sketch plane is fixed, it will not follow the face: ${error.message}`);
         fixed();
       }),
   );
@@ -5175,7 +5683,9 @@ function framingFor(feature) {
 /// Reopens an entity sketch for redrawing, on the plane it was drawn on.
 let editedSketchId = null;
 function editSketch(entry) {
-  if (sketchStage || extrudeArmed) return;
+  if (sketchStage || extrudeArmed) {
+    return;
+  }
   // The sketcher works in numbers. The engine puts each "=param"
   // expression back wherever the value did not change (keep_expressions).
   const feature = entry.resolved || entry.feature;
@@ -5184,10 +5694,13 @@ function editSketch(entry) {
   sketchPlane = makeSketchPlane(stored.origin, normal, stored.xDir);
   sketchPlane.ref = typeof entry.plane === "string" ? entry.plane : null;
   // A face or offset plane stays a reference when the sketch is redrawn.
-  const raw = entry.feature && entry.feature.plane;
-  if (raw && typeof raw === "object" && (raw.feature || raw.name || raw.construct))
+  const raw = entry.feature?.plane;
+  if (raw && typeof raw === "object" && (raw.feature || raw.name || raw.construct)) {
     sketchPlane.payload = raw;
-  if (raw && typeof raw === "object" && (raw.name || raw.construct)) sketchPlane.canonical = true;
+  }
+  if (raw && typeof raw === "object" && (raw.name || raw.construct)) {
+    sketchPlane.canonical = true;
+  }
   // The sketcher draws it now, and the saved outline would sit under it.
   editedSketchId = entry.id;
   hiddenSketchIDs.add(entry.id);
@@ -5201,7 +5714,9 @@ function cancelSketch() {
 
 function exitSketchMode() {
   sketcher.end();
-  if (editedSketchId) hiddenSketchIDs.delete(editedSketchId);
+  if (editedSketchId) {
+    hiddenSketchIDs.delete(editedSketchId);
+  }
   editedSketchId = null;
   applyVisibility();
   sketchStage = null;
@@ -5230,9 +5745,11 @@ function exitSketchMode() {
 
 ["XY", "XZ", "YZ"].forEach((name) => {
   document
-    .querySelector('#sketch-plane-panel button[data-plane="' + name + '"]')
+    .querySelector(`#sketch-plane-panel button[data-plane="${name}"]`)
     .addEventListener("click", () => {
-      if (sketchStage !== "pick-plane") return;
+      if (sketchStage !== "pick-plane") {
+        return;
+      }
       const def = SKETCH_PRINCIPAL_PLANES[name];
       const offset = typedPlaneOffset();
       sketchPlane = makeSketchPlane(
@@ -5254,7 +5771,9 @@ function exitSketchMode() {
 document.getElementById("sketch-plane-cancel").addEventListener("click", cancelSketch);
 sketchPlaneOffsetEl.addEventListener("keydown", (event) => {
   event.stopPropagation();
-  if (event.key === "Escape") cancelSketch();
+  if (event.key === "Escape") {
+    cancelSketch();
+  }
 });
 
 // --- View cube ---------------------------------------------------
@@ -5370,7 +5889,9 @@ function stepCameraMove() {
   camera.position
     .copy(controls.target)
     .addScaledVector(LOCAL_BACK.clone().applyQuaternion(orientation), cameraMove.distance);
-  if (t === 1) cameraMove = null;
+  if (t === 1) {
+    cameraMove = null;
+  }
 }
 
 function snapToView(dir, up) {
@@ -5385,7 +5906,7 @@ const cubeCanvas = document.createElement("canvas");
 cubeContainer.appendChild(cubeCanvas);
 
 const cubeRenderer = new THREE.WebGLRenderer({ canvas: cubeCanvas, antialias: true, alpha: true });
-cubeRenderer.setPixelRatio(window.devicePixelRatio || 1);
+cubeRenderer.setPixelRatio(globalThis.devicePixelRatio || 1);
 cubeRenderer.setSize(CUBE_SIZE, CUBE_SIZE);
 
 const cubeScene = new THREE.Scene();
@@ -5437,14 +5958,16 @@ AXIS_LABELS.forEach(({ text, color, direction }) => {
 // clicking cubeMesh itself already does, but gives the same visible
 // handle/hover affordance the edges and corners have. Direction is just
 // the region's own position normalised; the centre (all zero) is skipped.
-const REGION_DEFAULT_COLOR = 0xcfcfcf;
-const REGION_HOVER_COLOR = 0x5be0a0;
+const REGION_DEFAULT_COLOR = 0xcf_cf_cf;
+const REGION_HOVER_COLOR = 0x5b_e0_a0;
 const regionMeshes = [];
 for (const nx of [-1, 0, 1]) {
   for (const ny of [-1, 0, 1]) {
     for (const nz of [-1, 0, 1]) {
       const nonzero = [nx, ny, nz].filter((c) => c !== 0).length;
-      if (nonzero < 1) continue;
+      if (nonzero < 1) {
+        continue;
+      }
       const thin = 0.22;
       const long = 0.62;
       const medium = 0.5; // face-handle footprint: smaller than the full face
@@ -5509,7 +6032,9 @@ cubeCanvas.addEventListener("click", (event) => {
   const cubeRaycaster = new THREE.Raycaster();
   cubeRaycaster.setFromCamera(pickCubeNDC(event), cubeCamera);
   const hit = cubeRaycaster.intersectObjects([cubeMesh, ...regionMeshes])[0];
-  if (!hit) return;
+  if (!hit) {
+    return;
+  }
   if (hit.object === cubeMesh) {
     const view = AXIS_VIEWS[hit.face.materialIndex];
     snapToView(new THREE.Vector3(...view.dir), new THREE.Vector3(...view.up));
@@ -5532,7 +6057,9 @@ function renderViewCube() {
 
 function animate() {
   requestAnimationFrame(animate);
-  if (cameraMove) stepCameraMove();
+  if (cameraMove) {
+    stepCameraMove();
+  }
   controls.update();
   placeHandle();
   sketcher.frame();
@@ -5542,10 +6069,10 @@ function animate() {
 animate();
 renderBrowser();
 
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+globalThis.addEventListener("resize", () => {
+  camera.aspect = globalThis.innerWidth / globalThis.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(globalThis.innerWidth, globalThis.innerHeight);
 });
 
 // --- Test hooks -----------------------------------------------------
@@ -5555,7 +6082,9 @@ window.addEventListener("resize", () => {
 // changes the document, so it is safe in every build.
 /// Where B-rep edge `edge` is on screen, and whether it is in front.
 function screenPointOfEdge(edge) {
-  if (!mesh || !edgeLines || edge >= edgeLines.userData.edgeStart.length - 1) return null;
+  if (!mesh || !edgeLines || edge >= edgeLines.userData.edgeStart.length - 1) {
+    return null;
+  }
   camera.updateMatrixWorld();
   const point = edgeMidpoint(edge);
   const ndc = point.clone().project(camera);
@@ -5573,16 +6102,18 @@ function screenPointOfEdge(edge) {
   };
 }
 
-window.__tcad = {
+globalThis.__tcad = {
   get axes() {
     return { ...axesVisible };
   },
   /// The section view: axis, offset and flip, and how many materials are clipped, or null when off.
   get section() {
-    if (!section) return null;
+    if (!section) {
+      return null;
+    }
     const clipped = []
       .concat(mesh ? mesh.material : [], edgeLines ? edgeLines.material : [])
-      .filter((material) => material.clippingPlanes && material.clippingPlanes.length);
+      .filter((material) => material.clippingPlanes?.length);
     return { ...section, clipped: clipped.length, cap: Boolean(sectionCap) };
   },
   /// The measure readout's text, empty when it is hidden.
@@ -5621,7 +6152,7 @@ window.__tcad = {
   get selection() {
     return {
       face: selectedPatch ? selectedPatch.faceIndex : null,
-      edge: selectedEdges.length ? selectedEdges[selectedEdges.length - 1] : null,
+      edge: selectedEdges.length > 0 ? selectedEdges.at(-1) : null,
       sketch: selectedSketch ? selectedSketch.id : null,
       regions: selectedSketch ? [...selectedRegions] : [],
     };
@@ -5683,7 +6214,9 @@ window.__tcad = {
   /// it and which way to drag (`toward`, one handle length further along).
   /// Null when none shows.
   get handle() {
-    if (!handle) return null;
+    if (!handle) {
+      return null;
+    }
     placeHandle();
     const rect = renderer.domElement.getBoundingClientRect();
     const screen = (point) => {
@@ -5719,7 +6252,9 @@ window.__tcad = {
   /// Where a sketch's region `index` is on screen: the middle of its interior point.
   regionPoint(sketchId, index) {
     const entry = browserFeatures.find((item) => item.id === sketchId);
-    if (!entry || !entry.regions[index]) return null;
+    if (!entry?.regions[index]) {
+      return null;
+    }
     camera.updateMatrixWorld();
     const plane = resolveStoredPlane(entry.plane);
     const ndc = worldOfPlane(plane, entry.regions[index].inside).project(camera);
@@ -5752,24 +6287,32 @@ window.__tcad = {
   },
   /// Face `face`'s own colour as "#rrggbb", or null when it has none.
   faceColour(face) {
-    const colours = mesh && mesh.userData.faceColours;
-    if (!colours || colours[face] === undefined || colours[face] === 0xffffffff) return null;
-    return "#" + colours[face].toString(16).padStart(6, "0");
+    const colours = mesh?.userData.faceColours;
+    if (!colours || colours[face] === undefined || colours[face] === 0xff_ff_ff_ff) {
+      return null;
+    }
+    return `#${colours[face].toString(16).padStart(6, "0")}`;
   },
   /// The open right-click menu's items, or null.
   get contextMenu() {
-    if (contextMenuEl.style.display !== "block") return null;
+    if (contextMenuEl.style.display !== "block") {
+      return null;
+    }
     return Array.from(contextMenuEl.querySelectorAll("button")).map((button) => button.textContent);
   },
   /// Face `face`'s finish as [roughness, metalness], or null when it has none.
   faceFinish(face) {
-    const finishes = mesh && mesh.geometry.userData.faceFinishes;
-    if (!finishes || finishes[face * 2] < 0) return null;
+    const finishes = mesh?.geometry.userData.faceFinishes;
+    if (!finishes || finishes[face * 2] < 0) {
+      return null;
+    }
     return [finishes[face * 2], finishes[face * 2 + 1]];
   },
   /// The finished materials in use: [{roughness, metalness, hasEnvironment}].
   get finishMaterials() {
-    if (!mesh) return [];
+    if (!mesh) {
+      return [];
+    }
     return []
       .concat(mesh.material)
       .slice(3)
@@ -5791,8 +6334,12 @@ window.__tcad = {
   /// whole face: the centroid of a face with a hole or a concave outline
   /// can sit off the face altogether.
   screenPointOf({ face, edge }) {
-    if (edge !== undefined) return screenPointOfEdge(edge);
-    if (!mesh || !mesh.geometry.groups[face]) return null;
+    if (edge !== undefined) {
+      return screenPointOfEdge(edge);
+    }
+    if (!mesh?.geometry.groups[face]) {
+      return null;
+    }
     const geometry = mesh.geometry;
     const best = faceCentre(face);
     // The render loop refreshes these, but it does not run in a hidden tab.
