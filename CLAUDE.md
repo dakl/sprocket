@@ -13,6 +13,20 @@ tool and the parameter form do not count. If the control needs real design work,
 leave the button disabled and say why in the PR. The rule is in `docs/SPEC.md`,
 under Build order and milestones.
 
+## Lint and types
+
+`make lint` runs strict checks for every language, old code included, and CI
+runs them on every PR: ruff (every rule) and basedpyright (`all`) for the
+engine, Biome and `tsc --checkJs --strict` for the viewer and e2e, swift-format
+and a Swift 6 build with warnings as errors for the app. `make format` applies
+the formatters. Old code does not pass yet; new code must.
+
+- Model a domain object as a dataclass or a pydantic model, not a `dict`. A
+  `dict[str, Any]` fails basedpyright's `reportExplicitAny` on purpose. Keep
+  dicts for JSON at the edge, and parse them into a model there.
+- Do not switch off a rule to get a change through. A rule that is wrong for
+  this repo is switched off in its config, with the reason, in its own PR.
+
 ## Tests
 
 Send output to a file and check `$?`. A pipe into `tail` hides a failure.

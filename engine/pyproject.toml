@@ -31,13 +31,43 @@ threads = ["bd-warehouse>=0.3.0,<0.4"]
 [project.scripts]
 sprocket = "sprocket_engine:main"
 
-# Tests only. The bundled app installs without them (`uv sync --no-dev`).
+# Tests and checks only. The bundled app installs without them (`uv sync --no-dev`).
 [dependency-groups]
 dev = [
+    "basedpyright==1.40.2",
     "hypothesis>=6.168.3",
     "pytest>=9.1.1",
+    "ruff==0.17.0",
 ]
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]
 build-backend = "uv_build"
+
+# Strict on purpose, old code included: `make lint` fails until the old code
+# meets it. Ignore a rule here only when it conflicts with another one.
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D203",   # conflicts with D211 (no blank line before a class docstring)
+    "D213",   # conflicts with D212 (summary on the docstring's first line)
+    "COM812", # conflicts with the formatter
+    "CPY001", # a private repo with no licence header convention
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest checks with bare `assert`.
+"tests/**" = ["S101"]
+
+# "all" turns every rule on, reportAny and reportExplicitAny among them, so a
+# `dict[str, Any]` is an error: a domain object gets a dataclass, a pydantic
+# model or a TypedDict.
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.12"
+include = ["src", "tests", "tools"]
+venvPath = "."
+venv = ".venv"
