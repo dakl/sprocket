@@ -634,6 +634,8 @@
 
   /// The constraint `kind` applied to the selected references, or an Error
   /// that says what to select instead.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one case per constraint kind, each checking its own selection
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one case per constraint kind, each checking its own selection
   function constraintFor(sketch, kind, selection) {
     const [first, second] = selection;
     switch (kind) {

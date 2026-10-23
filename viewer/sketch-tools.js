@@ -211,6 +211,8 @@
   /// shapes that cross it. With no crossing the whole shape goes. A piece in the
   /// middle splits the shape in two. Returns {sketch, ids} with the ids that now
   /// hold what was left, or throws.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: a dense geometry routine: the circle, split and cut-back cases share the crossing search above them
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: a dense geometry routine: the circle, split and cut-back cases share the crossing search above them
   function trimEntity(sketch, id, uv) {
     const target = entityOf(sketch, id);
     if (!target) {
@@ -347,6 +349,7 @@
 
   /// Lengthens the end of the line or arc `id` that is nearer `uv`, to the first
   /// shape in its way. Throws when nothing is there to reach.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: a dense geometry routine: each shape kind finds its nearest crossing the same way
   function extendEntity(sketch, id, uv) {
     const target = entityOf(sketch, id);
     if (!target || target.kind === "circle") {

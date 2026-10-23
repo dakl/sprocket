@@ -1298,6 +1298,8 @@
     }
 
     /// True when the sketcher used the key.
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one branch per key, in the order the keys take priority
+    // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one branch per key, in the order the keys take priority
     function keyDown(event) {
       if (event.target === ui.dimension) {
         const orientation = ORIENTATIONS[event.key.toLowerCase()];
