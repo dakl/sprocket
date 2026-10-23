@@ -54,7 +54,9 @@
   },
   "overrides": [
     {
-      "includes": ["**"],
+      "includes": [
+        "**"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -68,7 +70,10 @@
       }
     },
     {
-      "includes": ["viewer/test/**", "e2e/**"],
+      "includes": [
+        "viewer/test/**",
+        "e2e/**"
+      ],
       "linter": {
         "rules": {
           "correctness": {
