@@ -790,55 +790,73 @@
       finishShape();
     }
 
+    /// The arc's two ends joined to whichever picked point is nearer: an arc may
+    /// run the other way round from the order the points were picked in.
+    function arcJoins(next, arcId, points) {
+      const ends = ["p0", "p1"].map((name) => solver.pointOf(next, `${arcId}.${name}`));
+      return points.slice(0, 2).map((point) => {
+        const nearer =
+          Math.hypot(ends[0][0] - point.uv[0], ends[0][1] - point.uv[1]) <=
+          Math.hypot(ends[1][0] - point.uv[0], ends[1][1] - point.uv[1])
+            ? "p0"
+            : "p1";
+        return [point, `${arcId}.${nearer}`];
+      });
+    }
+
+    /// The sketch with the current tool's shape added from `points`, and the
+    /// (picked point, new point) pairs to join where a pick snapped. Null when
+    /// the shape has no size.
+    function drawnShape(points) {
+      if (tool === "line") {
+        const added = model.addLine(sketch, points[0].uv, points[1].uv);
+        const next = points[1].align
+          ? model.withConstraint(added.sketch, { kind: points[1].align, e: added.id })
+          : added.sketch;
+        return {
+          added,
+          next,
+          joins: [
+            [points[0], `${added.id}.p0`],
+            [points[1], `${added.id}.p1`],
+          ],
+        };
+      }
+      if (tool === "rectangle") {
+        const added = model.addRectangle(sketch, points[0].uv, points[1].uv);
+        return added?.sketch
+          ? {
+              added,
+              next: added.sketch,
+              joins: [
+                [points[0], `${added.ids[0]}.p0`],
+                [points[1], `${added.ids[2]}.p0`],
+              ],
+            }
+          : null;
+      }
+      if (tool === "circle") {
+        const r = Math.hypot(points[1].uv[0] - points[0].uv[0], points[1].uv[1] - points[0].uv[1]);
+        const added = r > 1e-6 ? model.addCircle(sketch, points[0].uv, r) : null;
+        return added?.sketch
+          ? { added, next: added.sketch, joins: [[points[0], `${added.id}.c`]] }
+          : null;
+      }
+      if (tool === "arc") {
+        const added = model.addArc(sketch, points[0].uv, points[1].uv, points[2].uv);
+        return added?.sketch
+          ? { added, next: added.sketch, joins: arcJoins(added.sketch, added.id, points) }
+          : null;
+      }
+      return null;
+    }
+
     function finishShape() {
       const points = pending;
-      let next = null;
-      let added = null;
-      let joins = [];
-      if (tool === "line") {
-        added = model.addLine(sketch, points[0].uv, points[1].uv);
-        joins = [
-          [points[0], `${added.id}.p0`],
-          [points[1], `${added.id}.p1`],
-        ];
-        next = added.sketch;
-        if (points[1].align) {
-          next = model.withConstraint(next, { kind: points[1].align, e: added.id });
-        }
-      } else if (tool === "rectangle") {
-        added = model.addRectangle(sketch, points[0].uv, points[1].uv);
-        next = added?.sketch;
-        if (added) {
-          joins = [
-            [points[0], `${added.ids[0]}.p0`],
-            [points[1], `${added.ids[2]}.p0`],
-          ];
-        }
-      } else if (tool === "circle") {
-        const r = Math.hypot(points[1].uv[0] - points[0].uv[0], points[1].uv[1] - points[0].uv[1]);
-        added = r > 1e-6 ? model.addCircle(sketch, points[0].uv, r) : null;
-        next = added?.sketch;
-        if (added) {
-          joins = [[points[0], `${added.id}.c`]];
-        }
-      } else if (tool === "arc") {
-        added = model.addArc(sketch, points[0].uv, points[1].uv, points[2].uv);
-        next = added?.sketch;
-        if (added) {
-          // The arc may run the other way round, so join each end to whichever
-          // of its own ends is nearer.
-          const arc = next.entities.find((entity) => entity.id === added.id);
-          const ends = ["p0", "p1"].map((name) => solver.pointOf(next, `${added.id}.${name}`));
-          points.slice(0, 2).forEach((point) => {
-            const nearer =
-              Math.hypot(ends[0][0] - point.uv[0], ends[0][1] - point.uv[1]) <=
-              Math.hypot(ends[1][0] - point.uv[0], ends[1][1] - point.uv[1])
-                ? "p0"
-                : "p1";
-            joins.push([point, `${arc.id}.${nearer}`]);
-          });
-        }
-      }
+      const drawn = drawnShape(points);
+      const added = drawn?.added || null;
+      let next = drawn?.next || null;
+      const joins = drawn?.joins || [];
       if (!next) {
         pending = [];
         setMessage("That shape has no size");
