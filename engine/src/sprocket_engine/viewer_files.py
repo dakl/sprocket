@@ -13,8 +13,8 @@ from pathlib import Path
 from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
-from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
 from .ops.construct import CONSTRUCT_TYPES, construct_geometry
+from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
 from .ops.thread import thread_geometry
 from .sketch_reference import has_references
 
@@ -91,7 +91,8 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
 def _drawable_plane(plane, ctx):
     """A name or an explicit plane as stored. An offset or face plane becomes
     explicit, because only the engine can find a face. None when it does not
-    resolve, such as a sketch after the feature that broke the build."""
+    resolve, such as a sketch after the feature that broke the build.
+    """
     if isinstance(plane, str) or "origin" in plane:
         return plane
     try:

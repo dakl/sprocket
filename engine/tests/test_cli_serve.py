@@ -41,7 +41,8 @@ def test_rollback_to_empty_clears_stale_exports_instead_of_failing(tmp_path: Pat
 
 def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
     """Editing a sketch can leave a later op unbuildable. The user needs the
-    part they still have, plus the id of the op that no longer applies."""
+    part they still have, plus the id of the op that no longer applies.
+    """
     document_path = tmp_path / "document.json"
     document = json.loads(
         (

@@ -12,16 +12,12 @@ import json
 from pathlib import Path
 
 import anyio
-import pytest
-from mcp import ClientSession
+from mcp import ClientSession, types
 from mcp.shared.memory import create_client_server_memory_streams
-from mcp import types
 
 from sprocket_engine.mcp_server import LazyClient, build_server
 from sprocket_engine.ops import REGISTRY
 from sprocket_engine.rpc import Client
-
-from conftest import running
 
 
 def drive(daemon, work):
@@ -36,25 +32,27 @@ def drive(daemon, work):
         server = build_server(client)
         answer = {}
         try:
-            async with create_client_server_memory_streams() as (
-                (client_read, client_write),
-                (server_read, server_write),
+            async with (
+                create_client_server_memory_streams() as (
+                    (client_read, client_write),
+                    (server_read, server_write),
+                ),
+                anyio.create_task_group() as tasks,
             ):
-                async with anyio.create_task_group() as tasks:
 
-                    async def serve():
-                        await server.run(
-                            server_read,
-                            server_write,
-                            server.create_initialization_options(),
-                            raise_exceptions=True,
-                        )
+                async def serve():
+                    await server.run(
+                        server_read,
+                        server_write,
+                        server.create_initialization_options(),
+                        raise_exceptions=True,
+                    )
 
-                    tasks.start_soon(serve)
-                    async with ClientSession(client_read, client_write) as session:
-                        await session.initialize()
-                        answer["value"] = await work(session)
-                    tasks.cancel_scope.cancel()
+                tasks.start_soon(serve)
+                async with ClientSession(client_read, client_write) as session:
+                    await session.initialize()
+                    answer["value"] = await work(session)
+                tasks.cancel_scope.cancel()
         finally:
             client.close()
         return answer["value"]
@@ -70,7 +68,8 @@ def text_of(result) -> str:
 
 def test_every_registered_op_is_callable_as_a_tool(daemon):
     """An op added later has to become agent-callable without editing the
-    adapter. The generated list is the only thing that makes that true."""
+    adapter. The generated list is the only thing that makes that true.
+    """
     tools = drive(daemon, lambda session: session.list_tools())
     names = {tool.name for tool in tools.tools}
     assert {f"add_{name}" for name in REGISTRY} <= names
@@ -79,7 +78,8 @@ def test_every_registered_op_is_callable_as_a_tool(daemon):
 
 def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
     """`type` is fixed by the tool name, and an agent inventing unique ids
-    across a long session collides with itself."""
+    across a long session collides with itself.
+    """
     tools = drive(daemon, lambda session: session.list_tools())
     fillet = next(tool for tool in tools.tools if tool.name == "add_fillet")
     assert "type" not in fillet.input_schema["properties"]
@@ -90,7 +90,8 @@ def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
 def test_every_op_tool_describes_what_the_op_does(daemon):
     """The descriptions came from the apply docstrings once, and add_boolean
     opened "Operands are feature ids, because ...", which tells an agent
-    nothing. They come from the schemas now, so check they are all there."""
+    nothing. They come from the schemas now, so check they are all there.
+    """
     tools = drive(daemon, lambda session: session.list_tools())
     for tool in tools.tools:
         if tool.name.startswith("add_"):
@@ -117,7 +118,8 @@ def test_adding_a_feature_names_it_and_reports_the_build(daemon):
 
 def test_render_view_returns_the_image_itself(daemon):
     """A path would be a file the agent may have no tool to read, and an agent
-    that cannot see its work reports a part it has never looked at."""
+    that cannot see its work reports a part it has never looked at.
+    """
 
     async def work(session):
         return await session.call_tool(
@@ -135,7 +137,8 @@ def test_render_view_returns_the_image_itself(daemon):
 
 def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
     """A stale revision is the agent's to fix. Raising it out of the tool call
-    loses the daemon's payload, which is the only thing that lets it rebase."""
+    loses the daemon's payload, which is the only thing that lets it rebase.
+    """
 
     async def work(session):
         await session.call_tool("set_parameter", {"name": "width", "value": 40})

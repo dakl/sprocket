@@ -21,7 +21,8 @@ SCHEMA = {
 def apply(feature: dict, ctx):
     """Unlike extrude_face, this takes however many edges the selector matches.
     Rounding every top edge in one feature is the normal case, not an
-    exception, so only an empty match is an error."""
+    exception, so only an empty match is an error.
+    """
     base = ctx.results[feature["base"]]
     return b3d_fillet(
         resolve_edges(base, feature["edges"], ctx), radius=feature["radius"]

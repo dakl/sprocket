@@ -173,7 +173,8 @@ def _build_document(
     The reading and checking is `Document.load`'s, not a second copy here. The
     daemon and this path have to agree on what counts as a document, and going
     through the same loader also means `build` resolves parameters the way the
-    daemon does."""
+    daemon does.
+    """
     try:
         document = Document.load(document_path)
     except DocumentError as exc:

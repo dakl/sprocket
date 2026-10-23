@@ -1,25 +1,24 @@
-from .registry import REGISTRY, Op, register
-
 # Import op modules so their @register decorators run.
 from . import (
-    sketch,
+    boolean,
+    chamfer,
+    construct,
+    draft,
     extrude,
     extrude_face,
-    revolve,
-    boolean,
     fillet,
-    chamfer,
-    shell,
     hole,
-    pattern,
-    mirror,
-    sweep,
     loft,
-    split,
-    draft,
-    thread,
+    mirror,
+    pattern,
     reference,
-    construct,
-)  # noqa: E402,F401
+    revolve,
+    shell,
+    sketch,
+    split,
+    sweep,
+    thread,
+)
+from .registry import REGISTRY, Op, register
 
 __all__ = ["REGISTRY", "Op", "register"]

@@ -127,7 +127,8 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
 
 def resolve_parameters(parameters: dict) -> dict[str, float]:
     """Turns a parameter table into plain numbers, resolving references between
-    them. Raises on a cycle rather than recursing until the stack dies."""
+    them. Raises on a cycle rather than recursing until the stack dies.
+    """
     resolved: dict[str, float] = {}
     resolving: list[str] = []
 
@@ -472,7 +473,8 @@ class Document:
 
         A reference's `file` becomes absolute, against this document's folder,
         and gains the file's hash. The hash is part of the feature, so the
-        BREP cache key changes when the referenced file does."""
+        BREP cache key changes when the referenced file does.
+        """
         parameters = self.resolved_parameters()
         features = [resolve_value(feature, parameters) for feature in self.features]
         sources = dict(self.reference_sources())
@@ -498,7 +500,8 @@ class Document:
 
     def referenced_files(self) -> list[Path]:
         """Every file this document's build reads besides itself: its references,
-        and theirs, and so on. A cycle is cut where it closes."""
+        and theirs, and so on. A cycle is cut where it closes.
+        """
         found: list[Path] = []
         pending = [path for _, path in self.reference_sources()]
         while pending:
@@ -534,7 +537,8 @@ class Document:
 
     def _author_of(self, feature_id) -> str | None:
         """Who added this feature, read back off the log. Newest insert wins,
-        because a deleted-then-reinserted id belongs to whoever put it back."""
+        because a deleted-then-reinserted id belongs to whoever put it back.
+        """
         for entry in reversed(self.log):
             if (
                 entry.get("action") == "insert"
@@ -587,7 +591,8 @@ class Document:
 
     def snapshot(self) -> dict:
         """The editable state, deep-copied, for undo. The log is not part of it:
-        undoing an edit is itself an entry in the log, not an erasure."""
+        undoing an edit is itself an entry in the log, not an erasure.
+        """
         return copy.deepcopy(
             {
                 "features": self.features,
@@ -603,7 +608,8 @@ class Document:
     ) -> int:
         """Puts back a state taken with `snapshot()` and returns the new revision.
         Undoing a view change (`log=False`) leaves no entry in the log. A reload
-        from disk logs `action="reload"`."""
+        from disk logs `action="reload"`.
+        """
         self.features = copy.deepcopy(snapshot["features"])
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
@@ -624,7 +630,8 @@ class Document:
     def set_visibility(self, body_id: str, visible: bool) -> int:
         """Shows or hides one body: view state, saved with the document but not
         an edit, so it adds nothing to the log. The daemon still puts it on the
-        undo stack. A hidden body still exports."""
+        undo stack. A hidden body still exports.
+        """
         self.index_of(body_id)
         if not isinstance(visible, bool):
             raise DocumentError("'visible' must be true or false")
@@ -813,7 +820,7 @@ class Document:
             if has_references(new):
                 try:
                     new = with_references_updated(new, self._projector(index, after))
-                except Exception as exc:
+                except Exception:
                     # A reference that does not resolve is that feature's own failure to report, not this edit's.
                     unsolved.append(stored["id"])
                     continue
@@ -898,7 +905,8 @@ class Document:
         """Copies the solved entities of sketches with projected references back
         into the stored features. `built` maps a sketch id to its feature as
         replay left it. The numbers are derived from the sources, so this is a
-        cache refresh, not an edit: no revision, no log entry, no undo step."""
+        cache refresh, not an edit: no revision, no log entry, no undo step.
+        """
         parameters = self.resolved_parameters()
         for index, stored in enumerate(self.features):
             fresh = built.get(stored.get("id"))
@@ -919,7 +927,8 @@ class Document:
         """Changes one body's name or colour. A field set to None goes back to
         its default. The body id is the id of the feature that started the
         body, which need not be built yet. Visibility is not an edit: see
-        `set_visibility`."""
+        `set_visibility`.
+        """
         body_id = edit.get("id")
         self.index_of(body_id)
         if "visible" in edit:
@@ -950,7 +959,8 @@ class Document:
 
     def _set_appearances(self, edit: dict) -> dict:
         """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
-        applied in order over the body colours, later ones winning."""
+        applied in order over the body colours, later ones winning.
+        """
         appearances = edit.get("appearances")
         _check_appearances(appearances)
         self.appearances = copy.deepcopy(appearances)
@@ -994,7 +1004,8 @@ REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
 
 def _nested_references(path: Path) -> list[Path]:
     """The files a referenced .sprocket references itself. Read as plain JSON,
-    because a file that does not load is the reference op's error to report."""
+    because a file that does not load is the reference op's error to report.
+    """
     if path.suffix != ".sprocket" or not path.is_file():
         return []
     try:
@@ -1014,7 +1025,8 @@ def _nested_references(path: Path) -> list[Path]:
 def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
     """SHA-256 of a referenced file and, for a .sprocket, of everything it
     references in turn. It goes in the BREP cache key, so an edit two
-    references deep rebuilds this document too."""
+    references deep rebuilds this document too.
+    """
     if not path.is_file():
         return None
     digest = hashlib.sha256(path.read_bytes())

@@ -19,8 +19,9 @@ import pytest
 
 pytest.importorskip("planegcs", reason="install the `solver` extra")
 
-from solver_cases import CASES, rough_rectangle  # noqa: E402
-from sprocket_engine.solver import POINTS, point_of, solve  # noqa: E402
+from solver_cases import CASES, rough_rectangle
+
+from sprocket_engine.solver import POINTS, point_of, solve
 
 NODE = shutil.which("node")
 RUNNER = Path(__file__).with_name("solver_parity.js")
@@ -53,7 +54,8 @@ def viewer_answers(tmp_path_factory):
 
 def numbers(sketch):
     """Every number that describes the sketch, by name. An arc is compared by its
-    ends, not its angles, because two angles a turn apart draw the same arc."""
+    ends, not its angles, because two angles a turn apart draw the same arc.
+    """
     described = {}
     for entity in sketch["entities"]:
         for name in POINTS[entity["kind"]]:
@@ -90,7 +92,8 @@ def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(
 
 def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given():
     """Not a comparison: the numbers the dimensions ask for, so a pair of solvers
-    that agree on a wrong answer would still fail."""
+    that agree on a wrong answer would still fail.
+    """
     sketch = rough_rectangle(
         [
             {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
@@ -126,8 +129,10 @@ def test_two_dimensions_that_disagree_are_named():
 
 def test_arcs_add_no_hidden_redundant_constraints():
     """Duplicate arc rules made every arc redundant. Nothing reported it, but each
-    diagnosis then ran planegcs's slow redundancy search (24 ms on this plate, 14 without)."""
+    diagnosis then ran planegcs's slow redundancy search (24 ms on this plate, 14 without).
+    """
     from solver_cases import sprocket_plate
+
     from sprocket_engine.solver import _Build
 
     diagnosis = _Build(sprocket_plate(), None).system.diagnose()

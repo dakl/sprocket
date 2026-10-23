@@ -44,7 +44,7 @@ def test_polygon_on_arbitrary_plane_places_geometry_at_the_given_origin():
     part = replay(document)
     assert part.volume == pytest.approx(10 * 10 * 5, rel=1e-6)
     bbox = part.bounding_box()
-    assert bbox.min.Z == pytest.approx(20, abs=1e-6)
+    assert pytest.approx(20, abs=1e-6) == bbox.min.Z
 
 
 @pytest.mark.parametrize(
@@ -56,7 +56,8 @@ def test_polygon_on_arbitrary_plane_places_geometry_at_the_given_origin():
 )
 def test_positive_distance_extrudes_along_the_plane_normal(winding, polygon):
     """The sketcher emits whichever winding the user drew, and the viewer
-    measures its drag against the plane normal, so both must extrude up."""
+    measures its drag against the plane normal, so both must extrude up.
+    """
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},
@@ -66,7 +67,7 @@ def test_positive_distance_extrudes_along_the_plane_normal(winding, polygon):
         ],
     }
     bbox = replay(document).bounding_box()
-    assert (bbox.min.Z, bbox.max.Z) == pytest.approx((0, 5), abs=1e-6), winding
+    assert pytest.approx((0, 5), abs=1e-6) == (bbox.min.Z, bbox.max.Z), winding
 
 
 def test_rect_still_works_alongside_polygon_support():
@@ -102,7 +103,8 @@ def test_circle_extrudes_to_a_cylinder():
 
 def test_circle_center_offsets_the_profile():
     """A dropped `center` still gives the right volume, so this asserts the
-    position instead."""
+    position instead.
+    """
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},
@@ -117,12 +119,13 @@ def test_circle_center_offsets_the_profile():
         ],
     }
     bbox = replay(document).bounding_box()
-    assert (bbox.min.X, bbox.max.X) == pytest.approx((-5, 15), abs=1e-6)
+    assert pytest.approx((-5, 15), abs=1e-6) == (bbox.min.X, bbox.max.X)
 
 
 def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
     """The face-pick path hands extrude_face a plane taken off a B-rep face, so
-    a circle has to land on an arbitrary plane, not only a principal one."""
+    a circle has to land on an arbitrary plane, not only a principal one.
+    """
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},
@@ -137,7 +140,7 @@ def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
         ],
     }
     bbox = replay(document).bounding_box()
-    assert (bbox.min.X, bbox.max.X) == pytest.approx((0, 5), abs=1e-6)
+    assert pytest.approx((0, 5), abs=1e-6) == (bbox.min.X, bbox.max.X)
 
 
 @pytest.mark.parametrize(

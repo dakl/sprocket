@@ -86,7 +86,8 @@ class WebApp:
 
     def export_bytes(self, kind: str) -> tuple[bytes, str]:
         """The part as `kind` ("stl", "3mf" or "step"), and the file name to offer it under.
-        Raises DocumentError when there is nothing to export."""
+        Raises DocumentError when there is nothing to export.
+        """
         with self.daemon.lock:
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / f"part.{kind}"

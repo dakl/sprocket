@@ -70,14 +70,15 @@ def test_a_region_on_another_plane_lands_on_that_plane():
         extrude([{"sketch": "f1", "bounded_by": ["e1", "e2", "e3", "e4"]}]),
     )
     box = part.bounding_box()
-    assert (box.min.X, box.max.X) == pytest.approx((0, 40), abs=1e-6)
-    assert (box.min.Z, box.max.Z) == pytest.approx((0, 20), abs=1e-6)
-    assert (box.min.Y, box.max.Y) == pytest.approx((-10, 0), abs=1e-6)
+    assert pytest.approx((0, 40), abs=1e-6) == (box.min.X, box.max.X)
+    assert pytest.approx((0, 20), abs=1e-6) == (box.min.Z, box.max.Z)
+    assert pytest.approx((-10, 0), abs=1e-6) == (box.min.Y, box.max.Y)
 
 
 def test_a_profile_still_resolves_after_a_dimension_changes():
     """The reason profiles name entities and not positions: move the circle and
-    the same reference finds the same region."""
+    the same reference finds the same region.
+    """
     disc = extrude([{"sketch": "f1", "bounded_by": ["e5"]}])
     bigger = RECTANGLE + [{"id": "e5", "kind": "circle", "c": [25, 10], "r": 6}]
     assert build(sketch(bigger), disc).volume == pytest.approx(math.pi * 36 * 10)

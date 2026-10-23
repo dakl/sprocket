@@ -1,7 +1,7 @@
 from build123d import Part, Pos, ShapeList, Vector
 
-from .registry import register
 from .construct import AXIS_SCHEMA, resolve_axis
+from .registry import register
 
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 COUNT = {

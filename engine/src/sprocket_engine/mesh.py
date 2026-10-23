@@ -247,7 +247,8 @@ def _painted(shape, appearances):
 
 def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None:
     """(roughness, metalness) per face: the body's finish, then appearances
-    that name one. None when nothing has a finish, so the buffer is left out."""
+    that name one. None when nothing has a finish, so the buffer is left out.
+    """
     if not any(body.get("material") for body in bodies) and not any(
         "material" in item for item in appearances or []
     ):

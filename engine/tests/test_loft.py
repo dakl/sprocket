@@ -1,5 +1,6 @@
 """The loft op. The geometry is the golden case loft_square_frustum; these
-cover a smooth skin, combining, a sketch on a lofted side, and the errors."""
+cover a smooth skin, combining, a sketch on a lofted side, and the errors.
+"""
 
 import math
 
@@ -95,8 +96,9 @@ def test_a_sketch_goes_on_the_flat_side_of_a_ruled_loft():
     _, ctx = build(features)
     disc = ctx.results["s"].faces()[0]
     normal = disc.normal_at(disc.center())
-    assert (normal.X, normal.Z) == pytest.approx(
-        (10 / math.sqrt(125), 5 / math.sqrt(125))
+    assert pytest.approx((10 / math.sqrt(125), 5 / math.sqrt(125))) == (
+        normal.X,
+        normal.Z,
     )
 
 

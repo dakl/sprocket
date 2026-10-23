@@ -88,7 +88,8 @@ def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh):
 def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
     """Face identity is a triangle range, so the ranges have to tile the index
     buffer exactly: no gap leaves triangles belonging to no face, and no
-    overlap puts one triangle in two faces."""
+    overlap puts one triangle in two faces.
+    """
     part, _written, (header, buffers) = box_mesh
 
     per_face = buffers["triangles_per_face"]
@@ -115,7 +116,8 @@ def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
 def test_edges_are_ready_to_draw_as_line_segments(box_mesh):
     """The viewer draws edges with LineSegments, which consumes the buffer as
     consecutive point pairs. `segments_per_edge` then names which pairs came
-    from which B-rep edge."""
+    from which B-rep edge.
+    """
     part, _written, (header, buffers) = box_mesh
 
     per_edge = buffers["segments_per_edge"]
@@ -128,7 +130,8 @@ def test_box_topology_is_pinned(box_mesh):
     """A guard on OCCT, not on this code. Tessellation output is stable within
     an OCP version and reorders across upgrades (see ENGINE_VERSIONS), so these
     numbers changing means face indices moved and every stored face reference
-    now points somewhere else."""
+    now points somewhere else.
+    """
     _part, _written, (header, _buffers) = box_mesh
 
     assert header["counts"] == {
@@ -144,7 +147,8 @@ def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
     """The STL path had to call computeVertexNormals(), which averages
     triangle normals and so rounds off a curved face. These are OCCT's own
     surface normals, so they are unit length and, on a planar face, identical
-    across the face."""
+    across the face.
+    """
     _part, _written, (_header, buffers) = box_mesh
 
     normals = buffers["normals"].reshape(-1, 3)
@@ -246,7 +250,8 @@ def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
     logo failed the same way, which left the app showing the previous document.
 
     Each run must also belong to its own edge: the polyline's two ends are the
-    edge's two ends. A run shifted by one fails that, where counting would not."""
+    edge's two ends. A run shifted by one fails that, where counting would not.
+    """
     from build123d import Solid
 
     shape = Solid.make_sphere(10) if name == "sphere" else Solid.make_cone(5, 0, 10)

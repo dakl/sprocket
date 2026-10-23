@@ -16,10 +16,10 @@ from sprocket_engine.replay import replay
 
 pytest.importorskip("planegcs")
 
+from conftest import running
+
 from sprocket_engine.rpc import Client, RpcError
 from sprocket_engine.sketch_reference import project_edge
-
-from conftest import running
 
 
 def rectangle(left, bottom, right, top, extra=()):
@@ -103,7 +103,8 @@ def built(document):
 
 
 def test_a_line_is_projected_to_where_the_planes_put_it():
-    from build123d import Edge, Plane as B3dPlane
+    from build123d import Edge
+    from build123d import Plane as B3dPlane
 
     edge = Edge.make_line((-100, 0, 0), (-100, 60, 0))
     assert project_edge(edge, B3dPlane.XY.offset(5)) == {
@@ -121,21 +122,24 @@ def test_a_line_is_projected_to_where_the_planes_put_it():
 
 
 def test_an_edge_that_runs_straight_at_the_plane_has_no_projection():
-    from build123d import Edge, Plane as B3dPlane
+    from build123d import Edge
+    from build123d import Plane as B3dPlane
 
     with pytest.raises(ValueError, match="projects to a point"):
         project_edge(Edge.make_line((3, 4, 0), (3, 4, 9)), B3dPlane.XY)
 
 
 def test_a_slanted_line_projects_by_dropping_the_height():
-    from build123d import Edge, Plane as B3dPlane
+    from build123d import Edge
+    from build123d import Plane as B3dPlane
 
     projected = project_edge(Edge.make_line((0, 0, 0), (30, 40, 7)), B3dPlane.XY)
     assert projected == {"kind": "line", "p0": [0.0, 0.0], "p1": [30.0, 40.0]}
 
 
 def test_a_circle_projects_to_a_circle_only_onto_a_parallel_plane():
-    from build123d import Edge, Plane as B3dPlane
+    from build123d import Edge
+    from build123d import Plane as B3dPlane
 
     ring = B3dPlane.XY.offset(3) * Edge.make_circle(7, B3dPlane.XY.offset(0))
     assert project_edge(ring, B3dPlane.XY) == {
@@ -148,7 +152,8 @@ def test_a_circle_projects_to_a_circle_only_onto_a_parallel_plane():
 
 
 def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below():
-    from build123d import Edge, Plane as B3dPlane
+    from build123d import Edge
+    from build123d import Plane as B3dPlane
 
     quarter = Edge.make_circle(10, B3dPlane.XY, start_angle=0, end_angle=90)
     up = project_edge(quarter, B3dPlane.XY)

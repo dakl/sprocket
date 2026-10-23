@@ -20,7 +20,8 @@ GOLDEN_DOCUMENT = Path(__file__).parent / "golden" / "rect_extrude" / "document.
 
 def _run(monkeypatch, argv: list[str]) -> int:
     """Runs the console-script entry point (sprocket_engine:main, per
-    pyproject) and returns the code it exits with."""
+    pyproject) and returns the code it exits with.
+    """
     monkeypatch.setattr(sys, "argv", ["sprocket", *argv])
     with pytest.raises(SystemExit) as exit_info:
         sprocket_engine.main()
@@ -31,7 +32,8 @@ def _run(monkeypatch, argv: list[str]) -> int:
 def test_a_graceful_build_failure_exits_nonzero(tmp_path: Path, capsys, monkeypatch):
     """A cache dir that cannot be created makes replay() raise before it reaches
     any feature, so _build_document returns (False, message) rather than
-    raising - the graceful failure path. It must still exit 1."""
+    raising - the graceful failure path. It must still exit 1.
+    """
     blocked_cache = tmp_path / "cache"
     blocked_cache.write_text("a file where the cache dir should go")
 
@@ -132,7 +134,8 @@ def test_a_binary_file_is_a_readable_error_not_a_traceback(
 ):
     """Picking an .stl or .step instead of the .json is an easy mistake. read_text
     raises UnicodeDecodeError for it - a ValueError, so the OSError clause in
-    _load_document does not catch it."""
+    _load_document does not catch it.
+    """
     document_path = tmp_path / "part.stl"
     document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
 
@@ -148,7 +151,8 @@ def test_a_binary_file_is_a_readable_error_not_a_traceback(
 
 def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
     """`serve` swallows every exception into one response line, so a traceback
-    there reached the app as an unreadable `output`. Same message as `build`."""
+    there reached the app as an unreadable `output`. Same message as `build`.
+    """
     document_path = tmp_path / "document.json"
     document_path.write_text(json.dumps({"features": {"f1": {"type": "sketch"}}}))
 

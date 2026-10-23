@@ -25,7 +25,7 @@ def build(**extrude):
 def test_join_with_a_negative_distance_grows_the_part_below_the_sketch_plane():
     part = build(distance=-4, mode="join")
     assert part.volume == pytest.approx(BOX_VOLUME + PAD_VOLUME)
-    assert part.bounding_box().min.Z == pytest.approx(-4)
+    assert pytest.approx(-4) == part.bounding_box().min.Z
 
 
 def test_cut_with_a_positive_distance_cuts_up_into_the_part():
@@ -42,7 +42,7 @@ def test_no_mode_keeps_the_sign_rule_for_old_documents():
     # A negative distance cuts, here into the air below the box, which is the gap `mode` closes.
     legacy = build(distance=-4)
     assert legacy.volume == pytest.approx(BOX_VOLUME)
-    assert legacy.bounding_box().min.Z == pytest.approx(0)
+    assert pytest.approx(0) == legacy.bounding_box().min.Z
 
 
 def test_symmetric_extrudes_both_ways():
@@ -61,7 +61,7 @@ def test_symmetric_extrudes_both_ways():
         }
     )
     box = part.bounding_box()
-    assert (box.min.Z, box.max.Z) == pytest.approx((-5, 5))
+    assert pytest.approx((-5, 5)) == (box.min.Z, box.max.Z)
 
 
 def test_new_takes_no_base_and_combines_need_one():
@@ -101,5 +101,5 @@ def test_a_plane_facing_down_has_v_along_world_minus_y():
             ]
         }
     )
-    assert part.center().Y == pytest.approx(-5)
-    assert part.bounding_box().min.Z == pytest.approx(-1)
+    assert pytest.approx(-5) == part.center().Y
+    assert pytest.approx(-1) == part.bounding_box().min.Z

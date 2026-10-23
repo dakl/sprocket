@@ -1,5 +1,6 @@
 """The sweep op: a profile moved along a sketched path. The geometry itself is
-the golden case sweep_square_bend; these cover combining and the errors."""
+the golden case sweep_square_bend; these cover combining and the errors.
+"""
 
 import math
 
@@ -72,7 +73,7 @@ def test_named_entities_pick_the_path_and_construction_is_left_out_by_default():
     assert part.volume == pytest.approx(math.pi * 10, rel=1e-6)
     named = {**sweep, "path": {"sketch": "route", "entities": ["e1", "e2"]}}
     part, _ = build([SECTION, sketch, named])
-    assert part.bounding_box().max.Y == pytest.approx(10, abs=1e-6)
+    assert pytest.approx(10, abs=1e-6) == part.bounding_box().max.Y
     assert part.volume == pytest.approx(math.pi * 20, rel=1e-3), (
         "a mitred corner adds and removes the same wedge"
     )

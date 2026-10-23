@@ -57,7 +57,8 @@ SCHEMA = {
 def thread_geometry(feature: dict, ctx) -> dict:
     """Where the thread is: the face's axis, ends and radius, plus its size.
     Read from the geometry each time, so a cached replay that skips `apply`
-    still gives the viewer the same answer."""
+    still gives the viewer the same answer.
+    """
     base = ctx.results[feature["base"]]
     faces = resolve_selector(base, feature["face"], ctx)
     if len(faces) != 1 or not isinstance(faces[0], Face):
