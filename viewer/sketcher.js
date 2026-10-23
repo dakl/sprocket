@@ -431,7 +431,10 @@
       placeAt(ui.dimension, open.anchor, 6, 6);
       // A new dimension on one pick waits for a second, which may be the shape
       // under the box, so the box lets that click through to the sketch.
-      const waitsForSecondPick = (open.index === null || open.index === undefined) && open.selection && open.selection.length === 1;
+      const waitsForSecondPick =
+        (open.index === null || open.index === undefined) &&
+        open.selection &&
+        open.selection.length === 1;
       ui.dimension.style.pointerEvents = waitsForSecondPick ? "none" : "";
       ui.dimension.value = open.constraint.value.toFixed(open.constraint.kind === "angle" ? 1 : 2);
       ui.dimension.focus();
