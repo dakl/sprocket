@@ -20,6 +20,8 @@ enum MainMenu {
     private static func appMenu() -> NSMenu {
         let menu = NSMenu(title: "Sprocket")
         menu.addItem(withTitle: "About Sprocket", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let update = menu.addItem(withTitle: "Check for Updates\u{2026}", action: #selector(Updater.checkForUpdates(_:)), keyEquivalent: "")
+        update.target = Updater.shared
         menu.addItem(.separator())
         menu.addItem(withTitle: "Settings\u{2026}", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
         menu.addItem(.separator())
