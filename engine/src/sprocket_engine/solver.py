@@ -18,7 +18,7 @@ so a Mac builds it from source. See the Makefile's test-solver target.
 import copy
 import math
 from collections.abc import Callable
-from typing import Literal, NotRequired, TypedDict, final
+from typing import Literal
 
 from planegcs import (
     ArcId,
@@ -33,8 +33,11 @@ from planegcs import (
 
 from sprocket_engine.model import (
     Constraint,
+    Drag,
     Entity,
     EntityKind,
+    SolveResult,
+    SolverSketch,
     entity_number,
     entity_point,
 )
@@ -51,34 +54,6 @@ ORIGIN = "origin"
 # The sketch's own axes, as lines through the origin that a point can lie on.
 AXES = {"axis_u": (1.0, 0.0), "axis_v": (0.0, 1.0)}
 SOLVED = (SolveStatus.Success, SolveStatus.Converged)
-
-
-@final
-class SolverSketch(TypedDict):
-    """What the solver reads and writes: a sketch's entities and constraints."""
-
-    entities: list[Entity]
-    constraints: list[Constraint]
-
-
-@final
-class Drag(TypedDict):
-    """A point, or a whole entity, moved by `delta` before the solve."""
-
-    ref: str
-    delta: list[float]
-
-
-@final
-class SolveResult(TypedDict):
-    """What `solve` found. `conflicting` and `redundant` index the constraints."""
-
-    ok: bool
-    sketch: SolverSketch
-    dof: int | None
-    conflicting: list[int]
-    redundant: list[int]
-    diagnose_ms: NotRequired[float]
 
 
 def _entity(sketch: SolverSketch, entity_id: str) -> Entity:

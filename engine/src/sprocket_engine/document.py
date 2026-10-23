@@ -24,18 +24,37 @@ import json
 import operator
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypedDict, cast, final
 
 import jsonschema
-
 from build123d import Compound
 
-from .materials import PRESETS
-from .ops import REGISTRY
-from .ops.reference import set_document_loader
-from .replay import replay
-from .sketch_edit import assign_constraint_ids, edit_sketch
-from .sketch_reference import has_references, projector, with_references_updated
+from sprocket_engine.materials import PRESETS
+from sprocket_engine.model import (
+    JSON,
+    EntityReference,
+    JSONObject,
+    ReplayDocument,
+    SolveResult,
+    SolverSketch,
+    json_objects,
+    parse_json,
+    sketch_feature,
+    to_json,
+)
+from sprocket_engine.ops import REGISTRY
+from sprocket_engine.ops.reference import set_document_loader
+from sprocket_engine.replay import replay
+from sprocket_engine.sketch_edit import assign_constraint_ids, edit_sketch
+from sprocket_engine.sketch_reference import (
+    Project,
+    Projected,
+    has_references,
+    projector,
+    with_references_updated,
+)
 
 FORMAT_VERSION = 2
 
@@ -45,15 +64,27 @@ FORMAT_VERSION = 2
 # valid Python expression and would resolve to an undefined-name error.
 EXPRESSION_PREFIX = "="
 
-_BINARY = {
+_BINARY: dict[type[ast.operator], Callable[[float, float], float]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
+    ast.Div: lambda a, b: a / b,
     ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
+    ast.Pow: lambda a, b: _power(a, b),
 }
-_UNARY = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+_UNARY: dict[type[ast.unaryop], Callable[[float], float]] = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _power(base: float, exponent: float) -> float:
+    # Python's ** gives an int, a float, or, for a negative base to a
+    # fractional power, a complex number.
+    found = cast("float | complex", base**exponent)
+    if isinstance(found, complex):
+        raise DocumentError(f"{base} ** {exponent} is not a real number")
+    return found
 
 
 class DocumentError(Exception):
@@ -65,19 +96,42 @@ class DocumentError(Exception):
     """
 
 
-class StaleRevision(DocumentError):
+class StaleRevisionError(DocumentError):
     """An edit based on a revision that is no longer current.
 
     Carries the current revision so the caller can re-read and retry without a
     second round trip.
     """
 
-    def __init__(self, based_on: int, current: int):
+    def __init__(self, based_on: int, current: int) -> None:
+        """Record the revision the edit was based on and the current one."""
         super().__init__(
             f"edit was based on revision {based_on}, but the document is at revision {current}"
         )
-        self.based_on = based_on
-        self.current = current
+        self.based_on: int = based_on
+        self.current: int = current
+
+
+@final
+class Snapshot(TypedDict):
+    """The editable state of a document, for undo and for 'is it saved'."""
+
+    features: list[JSONObject]
+    rollback_index: int
+    parameters: JSONObject
+    appearances: list[JSONObject]
+    bodies: dict[str, JSONObject]
+
+
+@final
+class TimelineEntry(TypedDict):
+    """One feature as the timeline sidebar and an agent read it."""
+
+    index: int
+    id: JSON
+    type: JSON
+    built: bool
+    author: str | None
 
 
 def evaluate(expression: str, parameters: dict[str, float]) -> float:
@@ -98,15 +152,16 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
             f"cannot parse expression {expression!r}: {exc.msg}"
         ) from None
 
-    def walk(node):
+    def walk(node: ast.AST) -> float:
         if isinstance(node, ast.Expression):
             return walk(node.body)
         if isinstance(node, ast.Constant):
-            if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            value: object = node.value
+            if isinstance(value, bool) or not isinstance(value, int | float):
                 raise DocumentError(
                     f"expression {expression!r} holds a non-numeric constant"
                 )
-            return node.value
+            return value
         if isinstance(node, ast.Name):
             if node.id not in parameters:
                 known = ", ".join(sorted(parameters)) or "none"
@@ -129,7 +184,7 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
     return float(value)
 
 
-def resolve_parameters(parameters: dict) -> dict[str, float]:
+def resolve_parameters(parameters: JSONObject) -> dict[str, float]:
     """Turns a parameter table into plain numbers, resolving references between
     them. Raises on a cycle rather than recursing until the stack dies.
     """
@@ -140,11 +195,11 @@ def resolve_parameters(parameters: dict) -> dict[str, float]:
         if name in resolved:
             return resolved[name]
         if name in resolving:
-            cycle = " -> ".join(resolving[resolving.index(name) :] + [name])
+            cycle = " -> ".join([*resolving[resolving.index(name) :], name])
             raise DocumentError(f"parameters form a cycle: {cycle}")
 
         raw = parameters[name]
-        if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+        if isinstance(raw, bool) or not isinstance(raw, int | float | str):
             raise DocumentError(
                 f"parameter {name!r} must be a number or an expression string"
             )
@@ -166,14 +221,14 @@ def resolve_parameters(parameters: dict) -> dict[str, float]:
                     raise DocumentError(
                         f"parameter {name!r} references unknown parameter {node.id!r}"
                     )
-                resolve(node.id)
-        resolving.pop()
+                _ = resolve(node.id)
+        _ = resolving.pop()
 
         resolved[name] = evaluate(expression, resolved)
         return resolved[name]
 
     for name in parameters:
-        resolve(name)
+        _ = resolve(name)
     return resolved
 
 
@@ -186,7 +241,7 @@ def _parse(expression: str) -> ast.Expression:
         ) from None
 
 
-def resolve_value(value, parameters: dict[str, float]):
+def resolve_value(value: JSON, parameters: dict[str, float]) -> JSON:
     """Replaces expression strings with numbers, anywhere in a feature."""
     if isinstance(value, str) and value.startswith(EXPRESSION_PREFIX):
         return evaluate(value[len(EXPRESSION_PREFIX) :], parameters)
@@ -197,9 +252,18 @@ def resolve_value(value, parameters: dict[str, float]):
     return value
 
 
+def resolve_object(value: JSONObject, parameters: dict[str, float]) -> JSONObject:
+    """`resolve_value` for an object, which stays an object."""
+    return {key: resolve_value(item, parameters) for key, item in value.items()}
+
+
 def keep_expressions(
-    old, new, parameters: dict[str, float], unlinked: list, path: str = ""
-):
+    old: JSON,
+    new: JSON,
+    parameters: dict[str, float],
+    unlinked: list[JSON],
+    path: str = "",
+) -> JSON:
     """`new` with the `"=param"` strings of `old` put back wherever the value did not change.
 
     The viewer and the engine's sketch solver work in numbers, so a sketch
@@ -213,7 +277,7 @@ def keep_expressions(
     if (
         isinstance(old, str)
         and old.startswith(EXPRESSION_PREFIX)
-        and isinstance(new, (int, float))
+        and isinstance(new, int | float)
         and not isinstance(new, bool)
     ):
         try:
@@ -234,29 +298,46 @@ def keep_expressions(
             for key, value in new.items()
         }
     if isinstance(old, list) and isinstance(new, list):
-        if all(isinstance(item, dict) and "id" in item for item in old + new):
-            by_id = {item["id"]: item for item in old}
-            return [
-                keep_expressions(
-                    by_id[item["id"]],
-                    item,
-                    parameters,
-                    unlinked,
-                    f"{path}[{item['id']}]",
+        olds = [item for item in old if isinstance(item, dict) and "id" in item]
+        news = [item for item in new if isinstance(item, dict) and "id" in item]
+        if len(olds) == len(old) and len(news) == len(new):
+            kept: list[JSON] = []
+            for item in news:
+                # The last match, as a dict keyed by id would give.
+                match = next(
+                    (other for other in reversed(olds) if other["id"] == item["id"]),
+                    None,
                 )
-                if item["id"] in by_id
-                else item
-                for item in new
-            ]
+                kept.append(
+                    item
+                    if match is None
+                    else keep_expressions(
+                        match, item, parameters, unlinked, f"{path}[{item['id']}]"
+                    )
+                )
+            return kept
         if len(old) == len(new):
             return [
                 keep_expressions(a, b, parameters, unlinked, f"{path}[{i}]")
-                for i, (a, b) in enumerate(zip(old, new))
+                for i, (a, b) in enumerate(zip(old, new, strict=True))
             ]
     return new
 
 
-def validate_feature(feature, parameters: dict[str, float]) -> dict:
+def _keep_object(
+    old: JSONObject,
+    new: JSONObject,
+    parameters: dict[str, float],
+    unlinked: list[JSON],
+) -> JSONObject:
+    """`keep_expressions` for a feature, which stays an object."""
+    kept = keep_expressions(old, new, parameters, unlinked)
+    if not isinstance(kept, dict):
+        raise TypeError("keeping expressions turned an object into something else")
+    return kept
+
+
+def validate_feature(feature: JSON, parameters: dict[str, float]) -> JSONObject:
     """Checks one feature against its op's JSON Schema and returns it resolved.
 
     Validation runs on the resolved feature, never the raw one: the schemas say
@@ -268,12 +349,13 @@ def validate_feature(feature, parameters: dict[str, float]) -> dict:
     feature_id = feature.get("id")
     if not isinstance(feature_id, str) or not feature_id:
         raise DocumentError("a feature needs a non-empty string 'id'")
-    op = REGISTRY.get(feature.get("type"))
+    op_type = feature.get("type")
+    op = REGISTRY.get(op_type) if isinstance(op_type, str) else None
     if op is None:
         known = ", ".join(sorted(REGISTRY))
-        raise DocumentError(f"unknown op type {feature.get('type')!r} (known: {known})")
+        raise DocumentError(f"unknown op type {op_type!r} (known: {known})")
 
-    resolved = resolve_value(feature, parameters)
+    resolved = resolve_object(feature, parameters)
     try:
         jsonschema.validate(resolved, op.schema)
     except jsonschema.ValidationError as exc:
@@ -281,6 +363,16 @@ def validate_feature(feature, parameters: dict[str, float]) -> dict:
             f"feature {feature_id!r} failed validation: {exc.message}"
         ) from None
     return resolved
+
+
+def _text(value: JSON) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _index(value: JSON) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise DocumentError("'index' must be an integer")
+    return value
 
 
 class Document:
@@ -293,34 +385,35 @@ class Document:
 
     def __init__(
         self,
-        features: list[dict] | None = None,
+        features: list[JSONObject] | None = None,
         rollback_index: int | None = None,
-        parameters: dict | None = None,
+        parameters: JSONObject | None = None,
         revision: int = 0,
-        log: list[dict] | None = None,
+        log: list[JSONObject] | None = None,
         path: Path | None = None,
-        appearances: list[dict] | None = None,
-        bodies: dict | None = None,
-    ):
-        self.features = list(features or [])
-        self.rollback_index = (
+        appearances: list[JSONObject] | None = None,
+        bodies: dict[str, JSONObject] | None = None,
+    ) -> None:
+        """Hold the given state. Nothing is checked here: `load` checks a file."""
+        self.features: list[JSONObject] = list(features or [])
+        self.rollback_index: int = (
             len(self.features) if rollback_index is None else rollback_index
         )
-        self.parameters = dict(parameters or {})
+        self.parameters: JSONObject = dict(parameters or {})
         # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
-        self.appearances = list(appearances or [])
+        self.appearances: list[JSONObject] = list(appearances or [])
         # Settings per body, keyed by body id: {"name", "color", "visible", "material"}.
-        self.bodies = dict(bodies or {})
-        self.revision = revision
-        self.log = list(log or [])
-        self.path = Path(path) if path else None
+        self.bodies: dict[str, JSONObject] = dict(bodies or {})
+        self.revision: int = revision
+        self.log: list[JSONObject] = list(log or [])
+        self.path: Path | None = Path(path) if path else None
         # The hash of the bytes last read from or written to `path`. The daemon
         # compares the file against it to tell its own save from someone else's.
         self.saved_sha256: str | None = None
         # The editable state as the file holds it, for `has_unsaved_changes`. The
         # file's bytes cannot tell: they carry the revision and the log, so an
         # undo back to the saved state still writes different bytes.
-        self.saved_snapshot: dict | None = None
+        self.saved_snapshot: Snapshot | None = None
 
     # ---- loading and saving ------------------------------------------------
 
@@ -351,8 +444,8 @@ class Document:
                 f"{path} is not UTF-8 text, so it is not a document"
             ) from None
         try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
+            data = parse_json(raw)
+        except ValueError as exc:
             raise DocumentError(f"{path} is not valid JSON: {exc}") from None
         if not isinstance(data, dict):
             raise DocumentError(f"{path}: a document must be a JSON object")
@@ -360,11 +453,12 @@ class Document:
         # Present, not merely well formed. A file with no `features` at all is
         # a typo or the wrong file far more often than it is an empty part,
         # and defaulting it to [] builds nothing and reports success.
-        features = data.get("features")
-        if not isinstance(features, list) or not all(
-            isinstance(item, dict) for item in features
+        features_value = data.get("features")
+        if not isinstance(features_value, list) or not all(
+            isinstance(item, dict) for item in features_value
         ):
             raise DocumentError(f"{path}: 'features' must be a list of objects")
+        features = [item for item in features_value if isinstance(item, dict)]
 
         rollback_index = data.get("rollback_index", len(features))
         if isinstance(rollback_index, bool) or not isinstance(rollback_index, int):
@@ -388,18 +482,19 @@ class Document:
 
         appearances = data.get("appearances", [])
         try:
-            _check_appearances(appearances)
+            checked = _check_appearances(appearances)
         except DocumentError as exc:
             raise DocumentError(f"{path}: {exc}") from None
 
-        bodies = data.get("bodies", {})
-        if not isinstance(bodies, dict):
+        bodies_value = data.get("bodies", {})
+        if not isinstance(bodies_value, dict):
             raise DocumentError(
                 f"{path}: 'bodies' must be a JSON object keyed by body id"
             )
-        for body_id, settings in bodies.items():
+        bodies: dict[str, JSONObject] = {}
+        for body_id, settings in bodies_value.items():
             try:
-                _check_body_settings(settings)
+                bodies[body_id] = _check_body_settings(settings)
             except DocumentError as exc:
                 raise DocumentError(f"{path}: body {body_id!r}: {exc}") from None
 
@@ -410,26 +505,27 @@ class Document:
             rollback_index,
             parameters,
             revision,
-            log,
+            [entry for entry in log if isinstance(entry, dict)],
             path,
-            appearances,
+            checked,
             bodies,
         )
-        resolve_parameters(document.parameters)  # fail at open, not at first build
+        _ = resolve_parameters(document.parameters)  # fail at open, not at first build
         document.saved_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         document.saved_snapshot = document.snapshot()
         return document
 
-    def to_json(self) -> dict:
+    def to_json(self) -> JSONObject:
+        """The document as its file holds it."""
         return {
             "format_version": FORMAT_VERSION,
-            "features": self.features,
+            "features": [*self.features],
             "rollback_index": self.rollback_index,
             "parameters": self.parameters,
-            "appearances": self.appearances,
-            "bodies": self.bodies,
+            "appearances": [*self.appearances],
+            "bodies": {**self.bodies},
             "revision": self.revision,
-            "log": self.log,
+            "log": [*self.log],
         }
 
     def save(self, path: Path | None = None) -> Path:
@@ -444,9 +540,9 @@ class Document:
         if target is None:
             raise DocumentError("this document has no path, so it cannot be saved")
         temporary = target.with_name(target.name + ".tmp")
-        data = (json.dumps(self.to_json(), indent=2) + "\n").encode()
-        temporary.write_bytes(data)
-        temporary.replace(target)
+        data = (json_text(self.to_json()) + "\n").encode()
+        _ = temporary.write_bytes(data)
+        _ = temporary.replace(target)
         self.path = target
         self.saved_sha256 = hashlib.sha256(data).hexdigest()
         self.saved_snapshot = self.snapshot()
@@ -470,9 +566,10 @@ class Document:
     # ---- reading -----------------------------------------------------------
 
     def resolved_parameters(self) -> dict[str, float]:
+        """The parameter table, every value a number."""
         return resolve_parameters(self.parameters)
 
-    def for_replay(self) -> dict:
+    def for_replay(self) -> ReplayDocument:
         """The plain document `replay()` takes: numbers only, no log.
 
         A reference's `file` becomes absolute, against this document's folder,
@@ -480,11 +577,12 @@ class Document:
         BREP cache key changes when the referenced file does.
         """
         parameters = self.resolved_parameters()
-        features = [resolve_value(feature, parameters) for feature in self.features]
+        features = [resolve_object(feature, parameters) for feature in self.features]
         sources = dict(self.reference_sources())
         for index, feature in enumerate(features):
-            if feature.get("id") in sources:
-                path = sources[feature["id"]]
+            feature_id = feature.get("id")
+            if isinstance(feature_id, str) and feature_id in sources:
+                path = sources[feature_id]
                 features[index] = {
                     **feature,
                     "file": str(path),
@@ -492,14 +590,14 @@ class Document:
                 }
         return {"features": features, "rollback_index": self.rollback_index}
 
-    def reference_sources(self) -> list[tuple[str, Path]]:
+    def reference_sources(self) -> list[tuple[str | None, Path]]:
         """(feature id, absolute path) for each `reference` feature with a file."""
         folder = self.path.parent if self.path else Path.cwd()
         return [
-            (feature.get("id"), (folder / feature["file"]).resolve())
+            (_text(feature.get("id")), (folder / file).resolve())
             for feature in self.features
             if feature.get("type") == "reference"
-            and isinstance(feature.get("file"), str)
+            and isinstance(file := feature.get("file"), str)
         ]
 
     def referenced_files(self) -> list[Path]:
@@ -516,13 +614,14 @@ class Document:
             pending.extend(_nested_references(path))
         return found
 
-    def index_of(self, feature_id: str) -> int:
+    def index_of(self, feature_id: JSON) -> int:
+        """The position of the feature with `feature_id`."""
         for index, feature in enumerate(self.features):
             if feature.get("id") == feature_id:
                 return index
         raise DocumentError(f"no feature with id {feature_id!r}")
 
-    def timeline(self) -> list[dict]:
+    def timeline(self) -> list[TimelineEntry]:
         """The feature list as the timeline sidebar and an agent read it.
 
         `built` says whether the rollback bar includes the feature, which is
@@ -539,7 +638,7 @@ class Document:
             for index, feature in enumerate(self.features)
         ]
 
-    def _author_of(self, feature_id) -> str | None:
+    def _author_of(self, feature_id: JSON) -> str | None:
         """Who added this feature, read back off the log. Newest insert wins,
         because a deleted-then-reinserted id belongs to whoever put it back.
         """
@@ -548,14 +647,12 @@ class Document:
                 entry.get("action") == "insert"
                 and entry.get("feature_id") == feature_id
             ):
-                return entry.get("author")
+                return _text(entry.get("author"))
         return None
 
     # ---- editing -----------------------------------------------------------
 
-    def apply_edits(
-        self, edits: list[dict], base_revision: int | None, author: str
-    ) -> int:
+    def apply_edits(self, edits: JSON, base_revision: int | None, author: str) -> int:
         """Applies a list of edits as one unit and returns the new revision.
 
         All or nothing. The edits run against a copy, and the copy replaces the
@@ -567,7 +664,7 @@ class Document:
         CLI and the tests use. Every networked client passes a real revision.
         """
         if base_revision is not None and base_revision != self.revision:
-            raise StaleRevision(base_revision, self.revision)
+            raise StaleRevisionError(base_revision, self.revision)
         if not isinstance(edits, list) or not edits:
             raise DocumentError("apply_edits needs a non-empty list of edits")
 
@@ -593,7 +690,7 @@ class Document:
             self.log.append(entry)
         return self.revision
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> Snapshot:
         """The editable state, deep-copied, for undo. The log is not part of it:
         undoing an edit is itself an entry in the log, not an erasure.
         """
@@ -608,7 +705,12 @@ class Document:
         )
 
     def restore(
-        self, snapshot: dict, author: str, log: bool = True, action: str = "restore"
+        self,
+        snapshot: Snapshot,
+        author: str,
+        *,
+        log: bool = True,
+        action: str = "restore",
     ) -> int:
         """Puts back a state taken with `snapshot()` and returns the new revision.
         Undoing a view change (`log=False`) leaves no entry in the log. A reload
@@ -617,8 +719,8 @@ class Document:
         self.features = copy.deepcopy(snapshot["features"])
         self.rollback_index = snapshot["rollback_index"]
         self.parameters = copy.deepcopy(snapshot["parameters"])
-        self.appearances = copy.deepcopy(snapshot.get("appearances", []))
-        self.bodies = copy.deepcopy(snapshot.get("bodies", {}))
+        self.appearances = copy.deepcopy(snapshot["appearances"])
+        self.bodies = copy.deepcopy(snapshot["bodies"])
         self.revision += 1
         if log:
             self.log.append(
@@ -631,12 +733,12 @@ class Document:
             )
         return self.revision
 
-    def set_visibility(self, body_id: str, visible: bool) -> int:
+    def set_visibility(self, body_id: str, visible: JSON) -> int:
         """Shows or hides one body: view state, saved with the document but not
         an edit, so it adds nothing to the log. The daemon still puts it on the
         undo stack. A hidden body still exports.
         """
-        self.index_of(body_id)
+        _ = self.index_of(body_id)
         if not isinstance(visible, bool):
             raise DocumentError("'visible' must be true or false")
         settings = {
@@ -649,15 +751,15 @@ class Document:
         if settings:
             self.bodies[body_id] = settings
         else:
-            self.bodies.pop(body_id, None)
+            _ = self.bodies.pop(body_id, None)
         self.revision += 1
         return self.revision
 
-    def _apply_one(self, edit: dict, author: str) -> dict:
+    def _apply_one(self, edit: JSON, author: str) -> JSONObject:
         if not isinstance(edit, dict):
             raise DocumentError("an edit must be a JSON object")
         kind = edit.get("op")
-        handler = {
+        handlers: dict[str, Callable[[JSONObject], JSONObject]] = {
             "insert": self._insert,
             "update": self._update,
             "delete": self._delete,
@@ -667,7 +769,8 @@ class Document:
             "edit_sketch": self._edit_sketch,
             "set_body": self._set_body,
             "set_appearances": self._set_appearances,
-        }.get(kind)
+        }
+        handler = handlers.get(kind) if isinstance(kind, str) else None
         if handler is None:
             raise DocumentError(
                 f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch, set_body, set_appearances)"
@@ -675,17 +778,17 @@ class Document:
         detail = handler(edit)
         return {"author": author, "action": kind, "at": _now(), **detail}
 
-    def _insert(self, edit: dict) -> dict:
+    def _insert(self, edit: JSONObject) -> JSONObject:
         feature = edit.get("feature")
-        validate_feature(feature, self.resolved_parameters())
+        _ = validate_feature(feature, self.resolved_parameters())
+        if not isinstance(feature, dict):
+            raise DocumentError("a feature must be a JSON object")
         assign_constraint_ids(feature)
         feature_id = feature["id"]
         if any(existing.get("id") == feature_id for existing in self.features):
             raise DocumentError(f"a feature with id {feature_id!r} already exists")
 
-        index = edit.get("index", len(self.features))
-        if isinstance(index, bool) or not isinstance(index, int):
-            raise DocumentError("'index' must be an integer")
+        index = _index(edit.get("index", len(self.features)))
         if not 0 <= index <= len(self.features):
             raise DocumentError(f"index {index} is outside 0..{len(self.features)}")
         self._check_references(feature, available=self.features[:index])
@@ -697,26 +800,28 @@ class Document:
             self.rollback_index += 1
         return {"feature_id": feature_id, "index": index}
 
-    def _update(self, edit: dict) -> dict:
+    def _update(self, edit: JSONObject) -> JSONObject:
         feature = edit.get("feature")
         parameters = self.resolved_parameters()
-        validate_feature(feature, parameters)
+        _ = validate_feature(feature, parameters)
+        if not isinstance(feature, dict):
+            raise DocumentError("a feature must be a JSON object")
         assign_constraint_ids(feature)
         feature_id = edit.get("id", feature.get("id"))
         index = self.index_of(feature_id)
         if feature["id"] != feature_id:
             raise DocumentError("an update cannot change a feature's id")
         self._check_references(feature, available=self.features[:index])
-        unlinked = []
-        self.features[index] = keep_expressions(
+        unlinked: list[JSON] = []
+        self.features[index] = _keep_object(
             self.features[index], feature, parameters, unlinked
         )
-        detail = {"feature_id": feature_id, "index": index}
+        detail: JSONObject = {"feature_id": feature_id, "index": index}
         if unlinked:
             detail["unlinked"] = unlinked
         return detail
 
-    def _delete(self, edit: dict) -> dict:
+    def _delete(self, edit: JSONObject) -> JSONObject:
         feature_id = edit.get("id")
         index = self.index_of(feature_id)
         dependants = [
@@ -733,12 +838,10 @@ class Document:
             self.rollback_index -= 1
         return {"feature_id": feature_id, "index": index}
 
-    def _move(self, edit: dict) -> dict:
+    def _move(self, edit: JSONObject) -> JSONObject:
         feature_id = edit.get("id")
         index = self.index_of(feature_id)
-        target = edit.get("index")
-        if isinstance(target, bool) or not isinstance(target, int):
-            raise DocumentError("'index' must be an integer")
+        target = _index(edit.get("index"))
         if not 0 <= target < len(self.features):
             raise DocumentError(
                 f"index {target} is outside 0..{len(self.features) - 1}"
@@ -751,10 +854,8 @@ class Document:
         self._check_order()
         return {"feature_id": feature_id, "index": target, "from_index": index}
 
-    def _set_rollback(self, edit: dict) -> dict:
-        index = edit.get("index")
-        if isinstance(index, bool) or not isinstance(index, int):
-            raise DocumentError("'index' must be an integer")
+    def _set_rollback(self, edit: JSONObject) -> JSONObject:
+        index = _index(edit.get("index"))
         if not 0 <= index <= len(self.features):
             raise DocumentError(
                 f"rollback index {index} is outside 0..{len(self.features)}"
@@ -762,7 +863,7 @@ class Document:
         self.rollback_index = index
         return {"index": index}
 
-    def _set_parameter(self, edit: dict) -> dict:
+    def _set_parameter(self, edit: JSONObject) -> JSONObject:
         name = edit.get("name")
         if not isinstance(name, str) or not name.isidentifier():
             raise DocumentError(f"parameter name {name!r} must be a valid identifier")
@@ -783,12 +884,14 @@ class Document:
         resolved = resolve_parameters(candidate)
         self.parameters = candidate
         for feature in self.features:
-            validate_feature(feature, resolved)
-        detail = {"name": name, "value": value}
+            _ = validate_feature(feature, resolved)
+        detail: JSONObject = {"name": name, "value": value}
         detail.update(self._resolve_sketches(before, resolved))
         return detail
 
-    def _resolve_sketches(self, before: dict, after: dict) -> dict:
+    def _resolve_sketches(
+        self, before: dict[str, float], after: dict[str, float]
+    ) -> JSONObject:
         """Solves again each sketch whose numbers a parameter change moved.
 
         Replay trusts the stored entities and does not solve, so a dimension
@@ -803,34 +906,41 @@ class Document:
         the conflicting constraints. Without the solver nothing can move: the
         reply lists such sketches as `unsolved`, so nobody trusts stale geometry.
         """
-        unsolved, unlinked = [], []
-        solver = False  # not imported until a sketch needs it: planegcs is slow to load
+        unsolved: list[JSON] = []
+        unlinked: list[JSON] = []
+        # Not imported until a sketch needs it: planegcs is slow to load.
+        solve: Callable[[SolverSketch], SolveResult] | None = None
+        solver_missing = False
         for index, stored in enumerate(self.features):
             if stored.get("type") != "sketch" or "entities" not in stored:
                 continue
-            old, new = resolve_value(stored, before), resolve_value(stored, after)
+            old = resolve_object(stored, before)
+            new = resolve_object(stored, after)
             if old["entities"] == new["entities"] and old.get("constraints") == new.get(
                 "constraints"
             ):
                 continue
-            if solver is False:
-                try:
-                    from . import solver
-                except ImportError:
-                    solver = None
-            if solver is None:
+            if solve is None and not solver_missing:
+                solve = _solver()
+                solver_missing = solve is None
+            if solve is None:
                 unsolved.append(stored["id"])
+                continue
+            sketch = sketch_feature(new)
+            if sketch is None:
                 continue
             if has_references(new):
                 try:
-                    new = with_references_updated(new, self._projector(index, after))
+                    sketch = with_references_updated(
+                        sketch, self._projector(index, after)
+                    )
                 except Exception:
                     # A reference that does not resolve is that feature's own failure to report, not this edit's.
                     unsolved.append(stored["id"])
                     continue
-            constraints = new.get("constraints", [])
-            result = solver.solve(
-                {"entities": new["entities"], "constraints": constraints}
+            constraints = sketch.get("constraints", [])
+            result = solve(
+                {"entities": sketch.get("entities", []), "constraints": constraints}
             )
             if not result["ok"]:
                 names = ", ".join(
@@ -841,20 +951,18 @@ class Document:
                     f"that value leaves sketch {stored['id']!r} with no solution"
                     + (f". These constraints conflict: {names}" if names else "")
                 )
-            self.features[index] = keep_expressions(
-                stored,
-                {**stored, "entities": result["sketch"]["entities"]},
-                after,
-                unlinked,
+            solved = to_json({**sketch, "entities": result["sketch"]["entities"]})
+            self.features[index] = _keep_object(
+                stored, {**stored, "entities": solved["entities"]}, after, unlinked
             )
-        detail = {}
+        detail: JSONObject = {}
         if unsolved:
             detail["unsolved"] = unsolved
         if unlinked:
             detail["unlinked"] = unlinked
         return detail
 
-    def _edit_sketch(self, edit: dict) -> dict:
+    def _edit_sketch(self, edit: JSONObject) -> JSONObject:
         feature_id = edit.get("id")
         index = self.index_of(feature_id)
         feature = copy.deepcopy(self.features[index])
@@ -867,43 +975,47 @@ class Document:
             detail = edit_sketch(
                 feature,
                 edit,
-                lambda draft: resolve_value(draft, parameters),
+                lambda draft: resolve_object(draft, parameters),
                 self._projector(index, parameters),
             )
         except ValueError as exc:
             raise DocumentError(str(exc)) from None
-        validate_feature(feature, parameters)
-        unlinked = []
-        self.features[index] = keep_expressions(
+        _ = validate_feature(feature, parameters)
+        unlinked: list[JSON] = []
+        self.features[index] = _keep_object(
             self.features[index], feature, parameters, unlinked
         )
         if unlinked:
             detail["unlinked"] = unlinked
         return {"feature_id": feature_id, "index": index, **detail}
 
-    def _projector(self, index: int, parameters: dict):
+    def _projector(self, index: int, parameters: dict[str, float]) -> Project:
         """Turns a reference's source into the entity it projects to, for the sketch at `index`.
 
         The features before the sketch are built on the first call, because a
         sketch on a face finds its plane in them. Only an edit that projects
         or re-projects pays for that.
         """
-        built = []
+        built: list[Project] = []
 
-        def project(source):
+        def project(source: EntityReference) -> Projected:
             if not built:
                 earlier = self.for_replay()["features"][:index]
                 _, ctx = replay(
                     {"features": earlier, "rollback_index": len(earlier)},
                     return_context=True,
                 )
-                plane = resolve_value(self.features[index], parameters)["plane"]
-                built.append(projector(plane, ctx))
+                sketch = sketch_feature(
+                    resolve_object(self.features[index], parameters)
+                )
+                if sketch is None:
+                    raise DocumentError("only a sketch projects references")
+                built.append(projector(sketch["plane"], ctx))
             return built[0](source)
 
         return project
 
-    def sync_references(self, built: dict) -> None:
+    def sync_references(self, built: dict[str, JSONObject]) -> None:
         """Copies the solved entities of sketches with projected references back
         into the stored features. `built` maps a sketch id to its feature as
         replay left it. The numbers are derived from the sources, so this is a
@@ -911,7 +1023,8 @@ class Document:
         """
         parameters = self.resolved_parameters()
         for index, stored in enumerate(self.features):
-            fresh = built.get(stored.get("id"))
+            stored_id = _text(stored.get("id"))
+            fresh = built.get(stored_id) if stored_id is not None else None
             if (
                 stored.get("type") != "sketch"
                 or fresh is None
@@ -919,20 +1032,26 @@ class Document:
             ):
                 continue
             if not _same_numbers(
-                resolve_value(stored, parameters)["entities"], fresh["entities"]
+                resolve_object(stored, parameters).get("entities"),
+                fresh.get("entities"),
             ):
-                self.features[index] = keep_expressions(
-                    stored, {**stored, "entities": fresh["entities"]}, parameters, []
+                self.features[index] = _keep_object(
+                    stored,
+                    {**stored, "entities": fresh.get("entities")},
+                    parameters,
+                    [],
                 )
 
-    def _set_body(self, edit: dict) -> dict:
+    def _set_body(self, edit: JSONObject) -> JSONObject:
         """Changes one body's name or colour. A field set to None goes back to
         its default. The body id is the id of the feature that started the
         body, which need not be built yet. Visibility is not an edit: see
         `set_visibility`.
         """
         body_id = edit.get("id")
-        self.index_of(body_id)
+        _ = self.index_of(body_id)
+        if not isinstance(body_id, str):
+            raise DocumentError("a body id must be a string")
         if "visible" in edit:
             raise DocumentError(
                 "visibility is view state, not an edit: use set_visibility"
@@ -942,14 +1061,14 @@ class Document:
             if name not in edit:
                 continue
             if edit[name] is None:
-                settings.pop(name, None)
+                _ = settings.pop(name, None)
             else:
                 settings[name] = edit[name]
-        _check_body_settings(settings)
+        settings = _check_body_settings(settings)
         if settings:
             self.bodies[body_id] = settings
         else:
-            self.bodies.pop(body_id, None)
+            _ = self.bodies.pop(body_id, None)
         return {
             "body": body_id,
             **{
@@ -959,23 +1078,28 @@ class Document:
             },
         }
 
-    def _set_appearances(self, edit: dict) -> dict:
+    def _set_appearances(self, edit: JSONObject) -> JSONObject:
         """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
         applied in order over the body colours, later ones winning.
         """
-        appearances = edit.get("appearances")
-        _check_appearances(appearances)
+        appearances = _check_appearances(edit.get("appearances"))
         self.appearances = copy.deepcopy(appearances)
         return {"count": len(appearances)}
 
-    def _check_references(self, feature: dict, available: list[dict]) -> None:
+    def _check_references(
+        self, feature: JSONObject, available: list[JSONObject]
+    ) -> None:
         """A feature may only reference features that come before it.
 
         Replay walks the list once and looks each reference up in what it has
         already built, so a forward reference is a `KeyError` deep inside an
         op. Caught here it names both features instead.
         """
-        earlier = {item.get("id") for item in available}
+        earlier = {
+            feature_id
+            for item in available
+            if isinstance(feature_id := item.get("id"), str)
+        }
         for referenced in _referenced_ids(feature):
             if referenced not in earlier:
                 raise DocumentError(
@@ -984,7 +1108,7 @@ class Document:
                 )
 
     def _check_order(self) -> None:
-        seen: set = set()
+        seen: set[str] = set()
         for feature in self.features:
             for referenced in _referenced_ids(feature):
                 if referenced not in seen:
@@ -992,7 +1116,14 @@ class Document:
                         f"feature {feature.get('id')!r} references {referenced!r}, "
                         "which does not come before it"
                     )
-            seen.add(feature.get("id"))
+            feature_id = feature.get("id")
+            if isinstance(feature_id, str):
+                seen.add(feature_id)
+
+
+def json_text(value: JSON) -> str:
+    """The document's own JSON layout: two-space indent, keys in insertion order."""
+    return json.dumps(value, indent=2)
 
 
 # The fields an op uses to name another feature. One list rather than a
@@ -1011,20 +1142,20 @@ def _nested_references(path: Path) -> list[Path]:
     if path.suffix != ".sprocket" or not path.is_file():
         return []
     try:
-        data = json.loads(path.read_text())
+        data = parse_json(path.read_text())
     except (OSError, ValueError):
         return []
     features = data.get("features") if isinstance(data, dict) else None
     return [
-        (path.parent / feature["file"]).resolve()
-        for feature in features or []
+        (path.parent / file).resolve()
+        for feature in (features if isinstance(features, list) else [])
         if isinstance(feature, dict)
         and feature.get("type") == "reference"
-        and isinstance(feature.get("file"), str)
+        and isinstance(file := feature.get("file"), str)
     ]
 
 
-def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
+def reference_digest(path: Path, seen: frozenset[Path] | None = None) -> str | None:
     """SHA-256 of a referenced file and, for a .sprocket, of everything it
     references in turn. It goes in the BREP cache key, so an edit two
     references deep rebuilds this document too.
@@ -1032,6 +1163,7 @@ def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
     if not path.is_file():
         return None
     digest = hashlib.sha256(path.read_bytes())
+    seen = seen or frozenset()
     if path not in seen:
         for nested in _nested_references(path):
             digest.update(
@@ -1040,7 +1172,7 @@ def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
     return digest.hexdigest()
 
 
-def _check_appearances(appearances) -> None:
+def _check_appearances(appearances: JSON) -> list[JSONObject]:
     if not isinstance(appearances, list) or not all(
         isinstance(item, dict)
         and re.fullmatch(r"#[0-9a-fA-F]{6}", str(item.get("color", "")))
@@ -1051,14 +1183,19 @@ def _check_appearances(appearances) -> None:
         raise DocumentError(
             '\'appearances\' must be a list of {"color": "#rrggbb", "select": <selector>, "material": <optional preset>}'
         )
-    for item in appearances:
-        if "material" in item and item["material"] not in PRESETS:
+    checked = json_objects(appearances, "'appearances'")
+    for item in checked:
+        material = item.get("material")
+        if "material" in item and (
+            not isinstance(material, str) or material not in PRESETS
+        ):
             raise DocumentError(
-                f"unknown material {item['material']!r} (known: {', '.join(PRESETS)})"
+                f"unknown material {material!r} (known: {', '.join(PRESETS)})"
             )
+    return checked
 
 
-def _check_body_settings(settings) -> None:
+def _check_body_settings(settings: JSON) -> JSONObject:
     if not isinstance(settings, dict):
         raise DocumentError("body settings must be a JSON object")
     unknown = set(settings) - {"name", "color", "visible", "material"}
@@ -1066,9 +1203,12 @@ def _check_body_settings(settings) -> None:
         raise DocumentError(
             f"unknown body settings {sorted(unknown)} (known: name, color, visible, material)"
         )
-    if "material" in settings and settings["material"] not in PRESETS:
+    material = settings.get("material")
+    if "material" in settings and (
+        not isinstance(material, str) or material not in PRESETS
+    ):
         raise DocumentError(
-            f"unknown material {settings['material']!r} (known: {', '.join(PRESETS)})"
+            f"unknown material {material!r} (known: {', '.join(PRESETS)})"
         )
     if "name" in settings and not (
         isinstance(settings["name"], str) and settings["name"]
@@ -1080,62 +1220,64 @@ def _check_body_settings(settings) -> None:
         raise DocumentError(f"a body color must be #rrggbb, not {settings['color']!r}")
     if "visible" in settings and not isinstance(settings["visible"], bool):
         raise DocumentError("a body's visible must be true or false")
+    return settings
 
 
-def _referenced_ids(feature: dict) -> list[str]:
-    referenced = [
-        feature[field]
-        for field in REFERENCE_FIELDS
-        if isinstance(feature.get(field), str)
-    ]
+def _named(value: JSON, keys: tuple[str, ...]) -> list[str]:
+    """The string values of `keys` in `value`, when it is an object."""
+    if not isinstance(value, dict):
+        return []
+    return [item for key in keys if isinstance(item := value.get(key), str)]
+
+
+def _referenced_ids(feature: JSONObject) -> list[str]:
+    referenced = _named(feature, REFERENCE_FIELDS)
     # A sketch on a face names the feature that holds the face.
     plane = feature.get("plane")
-    if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
-        referenced.append(plane["feature"])
+    referenced.extend(_named(plane, ("feature",)))
     # A plane, an axis or a pattern direction may name a construct feature, or the body an axis is found on.
-    named = [plane, feature.get("axis"), (feature.get("circular") or {}).get("axis")]
-    named += [
-        (feature.get(key) or {}).get("direction") for key in ("linear", "linear2")
+    circular = feature.get("circular")
+    named: list[JSON] = [
+        plane,
+        feature.get("axis"),
+        circular.get("axis") if isinstance(circular, dict) else None,
     ]
+    for key in ("linear", "linear2"):
+        linear = feature.get(key)
+        named.append(linear.get("direction") if isinstance(linear, dict) else None)
     for item in named:
-        if isinstance(item, dict):
-            referenced.extend(
-                item[key]
-                for key in ("construct", "base")
-                if isinstance(item.get(key), str)
-            )
+        referenced.extend(_named(item, ("construct", "base")))
     # A projected reference names the sketch or body it was projected from.
-    for entity in feature.get("entities") or []:
+    entities = feature.get("entities")
+    for entity in entities if isinstance(entities, list) else []:
         source = entity.get("reference") if isinstance(entity, dict) else None
-        if isinstance(source, dict):
-            referenced.extend(
-                source[key]
-                for key in ("sketch", "feature")
-                if isinstance(source.get(key), str)
-            )
+        referenced.extend(_named(source, ("sketch", "feature")))
     # A sweep path and picked regions name their sketches one level down.
-    path = feature.get("path")
-    if isinstance(path, dict) and isinstance(path.get("sketch"), str):
-        referenced.append(path["sketch"])
-    for profile in feature.get("profiles") or []:
-        if isinstance(profile, dict) and isinstance(profile.get("sketch"), str):
-            referenced.append(profile["sketch"])
+    referenced.extend(_named(feature.get("path"), ("sketch",)))
+    profiles = feature.get("profiles")
+    for profile in profiles if isinstance(profiles, list) else []:
+        referenced.extend(_named(profile, ("sketch",)))
     # A loft names its sections as a list of ids.
+    sections = feature.get("sections")
     referenced.extend(
-        section for section in feature.get("sections") or [] if isinstance(section, str)
+        section
+        for section in (sections if isinstance(sections, list) else [])
+        if isinstance(section, str)
     )
     return referenced
 
 
-def _same_numbers(a, b) -> bool:
+def _same_numbers(a: JSON, b: JSON) -> bool:
     """Whether two JSON values are equal, numbers to within what a solver leaves over."""
     if isinstance(a, dict) and isinstance(b, dict):
         return a.keys() == b.keys() and all(_same_numbers(a[key], b[key]) for key in a)
     if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_same_numbers(x, y) for x, y in zip(a, b))
+        return len(a) == len(b) and all(
+            _same_numbers(x, y) for x, y in zip(a, b, strict=True)
+        )
     if (
-        isinstance(a, (int, float))
-        and isinstance(b, (int, float))
+        isinstance(a, int | float)
+        and isinstance(b, int | float)
         and not isinstance(a, bool)
     ):
         return abs(a - b) < 1e-9
@@ -1146,6 +1288,15 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def _solver() -> Callable[[SolverSketch], SolveResult] | None:
+    """The sketch solver, or None when the `solver` extra is not installed."""
+    try:
+        from sprocket_engine.solver import solve
+    except ImportError:
+        return None
+    return solve
+
+
 # Documents being read right now, so a document that includes itself fails
 # with a message instead of recursing until the stack runs out.
 _loading: set[Path] = set()
@@ -1154,16 +1305,14 @@ _loading: set[Path] = set()
 def _build_reference(path: Path) -> Compound:
     """Build a referenced .sprocket file into the one shape it makes."""
     if path in _loading:
-        msg = f"reference cycle: {path.name} includes itself"
-        raise ValueError(msg)
+        raise ValueError(f"reference cycle: {path.name} includes itself")
     _loading.add(path)
     try:
         part = replay(Document.load(path).for_replay())
     finally:
         _loading.discard(path)
     if part is None or not part.solids():
-        msg = f"referenced document {path.name} builds no solid"
-        raise ValueError(msg)
+        raise ValueError(f"referenced document {path.name} builds no solid")
     return part
 
 

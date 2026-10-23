@@ -34,7 +34,7 @@ from pathlib import Path
 from .document import (
     Document,
     DocumentError,
-    StaleRevision,
+    StaleRevisionError,
     reference_digest,
     validate_feature,
 )
@@ -583,7 +583,7 @@ def _handle_line(daemon: Daemon, line: bytes):
     try:
         with daemon.lock:
             result = handler(daemon, params)
-    except StaleRevision as exc:
+    except StaleRevisionError as exc:
         return _error(
             request_id,
             STALE_REVISION,
@@ -883,7 +883,7 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
         params.get("base_revision") is not None
         and params["base_revision"] != document.revision
     ):
-        raise StaleRevision(params["base_revision"], document.revision)
+        raise StaleRevisionError(params["base_revision"], document.revision)
     revision = document.set_visibility(params.get("id"), params.get("visible"))
     daemon.undo_stack.append(before)
     del daemon.undo_stack[:-UNDO_LIMIT]

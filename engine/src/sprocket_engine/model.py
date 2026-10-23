@@ -11,6 +11,7 @@ Every TypedDict is `@final`, so a type checker can tell the forms of a union
 apart by a key: `"name" in plane` picks the named plane.
 """
 
+import json
 from typing import Literal, NotRequired, Required, TypedDict, cast, final
 
 type JSON = None | bool | int | float | str | list[JSON] | dict[str, JSON]
@@ -517,6 +518,37 @@ class ReplayDocument(TypedDict):
     rollback_index: NotRequired[int]
 
 
+# ---- the sketch solver's input and output ---------------------------------
+
+
+@final
+class SolverSketch(TypedDict):
+    """What the solver reads and writes: a sketch's entities and constraints."""
+
+    entities: list[Entity]
+    constraints: list[Constraint]
+
+
+@final
+class Drag(TypedDict):
+    """A point, or a whole entity, moved by `delta` before the solve."""
+
+    ref: str
+    delta: list[float]
+
+
+@final
+class SolveResult(TypedDict):
+    """What `solve` found. `conflicting` and `redundant` index the constraints."""
+
+    ok: bool
+    sketch: SolverSketch
+    dof: int | None
+    conflicting: list[int]
+    redundant: list[int]
+    diagnose_ms: NotRequired[float]
+
+
 def entity_point(entity: Entity, name: Literal["p0", "p1", "c"]) -> list[float]:
     """Return one of the entity's points, which its kind must have."""
     if name == "p0":
@@ -571,3 +603,8 @@ def json_objects(value: JSON, what: str) -> list[JSONObject]:
     if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
         raise ValueError(f"{what} must be a list of objects")
     return [item for item in value if isinstance(item, dict)]
+
+
+def parse_json(text: str | bytes) -> JSON:
+    """Parse JSON text. `json.loads` is typed as returning Any; it returns JSON."""
+    return cast("JSON", json.loads(text))
