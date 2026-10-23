@@ -12,7 +12,7 @@ name: release
 # opens it on any Mac. That needs the five secrets codez and papershelf use:
 # CSC_LINK (the Developer ID Application .p12, base64), CSC_KEY_PASSWORD,
 # APPLE_ID, SPROCKET_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID. Without CSC_LINK the
-# DMG is built unsigned, with a warning, and Gatekeeper blocks it.
+# DMG job fails: Gatekeeper blocks an unsigned DMG, so nobody could open it.
 #
 # Give it a `release` (such as v0.10.0) to raise no version and build that
 # existing release's DMG again from its tag, for when a DMG job failed.
@@ -54,6 +54,17 @@ jobs:
         run: |
           echo "run the release on main, not $GITHUB_REF_NAME"
           exit 1
+
+      # Checked here too, so a missing certificate stops the release before
+      # it raises the version and tags it.
+      - name: Check the signing certificate is set
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "::error::CSC_LINK is not set. Gatekeeper blocks an unsigned DMG, so the release stops here"
+            exit 1
+          fi
 
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -125,8 +136,8 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: |
           if [ -z "$CSC_LINK" ]; then
-            echo "::warning::CSC_LINK is not set, so the DMG is unsigned and Gatekeeper blocks it"
-            exit 0
+            echo "::error::CSC_LINK is not set. Gatekeeper blocks an unsigned DMG, so the release stops here"
+            exit 1
           fi
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
@@ -148,7 +159,6 @@ jobs:
       # Before the Sparkle step: stapling changes the DMG, and the EdDSA
       # signature must cover the final file.
       - name: Notarise the DMG
-        if: env.SIGN_IDENTITY != ''
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.SPROCKET_APP_SPECIFIC_PASSWORD }}
