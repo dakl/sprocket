@@ -245,19 +245,18 @@ def _painted(shape, appearances):
         )
 
 
-def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None:
-    """(roughness, metalness) per face: the body's finish, then appearances
-    that name one. None when nothing has a finish, so the buffer is left out.
+def face_materials(materials, face_counts, shape, appearances) -> np.ndarray | None:
+    """(roughness, metalness) per face: each body's finish (`materials`, one per
+    run of `face_counts`), then appearances that name one. None when nothing has
+    a finish, so the buffer is left out.
     """
-    if not any(body.get("material") for body in bodies) and not any(
-        "material" in item for item in appearances or []
-    ):
+    if not any(materials) and not any("material" in item for item in appearances or []):
         return None
     values = np.full((sum(face_counts), 2), NO_MATERIAL, dtype="<f4")
     start = 0
-    for body, count in zip(bodies, face_counts):
-        if body.get("material"):
-            values[start : start + count] = PRESETS[body["material"]]
+    for material, count in zip(materials, face_counts):
+        if material:
+            values[start : start + count] = PRESETS[material]
         start += count
     if shape is not None:
         for appearance, indices in _painted(
@@ -272,8 +271,8 @@ def body_colours(bodies, face_counts, shape, appearances) -> np.ndarray:
     colours = np.full(sum(face_counts), NO_COLOUR, dtype="<u4")
     start = 0
     for body, count in zip(bodies, face_counts):
-        if body.get("color"):
-            colours[start : start + count] = int(body["color"].lstrip("#"), 16)
+        if body.color:
+            colours[start : start + count] = int(body.color.lstrip("#"), 16)
         start += count
     if appearances and shape is not None:
         painted = face_colours(shape, appearances)
@@ -296,42 +295,44 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
     """
     body_entries = []
     if bodies:
-        ordered = [body for body in bodies if not body["reference"]] + [
-            body for body in bodies if body["reference"]
+        ordered = [body for body in bodies if not body.reference] + [
+            body for body in bodies if body.reference
         ]
-        instances = [tessellate(body["shape"]) for body in ordered]
+        instances = [tessellate(body.shape) for body in ordered]
         instance = _concatenate(instances)
         face_counts = [len(item["triangles_per_face"]) for item in instances]
         for body, item, count in zip(ordered, instances, face_counts):
             body_entries.append(
                 {
-                    "id": body["id"],
+                    "id": body.id,
                     # The newest feature of the body: what a Modify tool names as its base.
-                    "tip": body.get("tip", body["id"]),
-                    "name": body.get("name", body["id"]),
-                    "color": body.get("color"),
-                    "visible": body.get("visible", True),
-                    "reference": body["reference"],
+                    "tip": body.tip,
+                    "name": body.name,
+                    "color": body.color,
+                    "visible": body.visible,
+                    "reference": body.reference,
                     "faces": count,
                     "edges": len(item["segments_per_edge"]),
                     # Only when set, so a document with no finishes writes the same bytes as before.
-                    **({"material": body["material"]} if body.get("material") else {}),
+                    **({"material": body.material} if body.material else {}),
                 }
             )
-        if appearances or any(body.get("color") for body in ordered):
+        if appearances or any(body.color for body in ordered):
             instance["face_colors"] = body_colours(
                 ordered, face_counts, shape, appearances
             )
-        finishes = face_materials(ordered, face_counts, shape, appearances)
+        finishes = face_materials(
+            [body.material for body in ordered], face_counts, shape, appearances
+        )
         if finishes is not None:
             instance["face_materials"] = finishes
-        expected_faces = sum(len(body["shape"].faces()) for body in ordered)
-        expected_edges = sum(len(body["shape"].edges()) for body in ordered)
+        expected_faces = sum(len(body.shape.faces()) for body in ordered)
+        expected_edges = sum(len(body.shape.edges()) for body in ordered)
     else:
         instance = tessellate(shape)
         if appearances:
             instance["face_colors"] = face_colours(shape, appearances)
-            finishes = face_materials([{}], [len(shape.faces())], shape, appearances)
+            finishes = face_materials([None], [len(shape.faces())], shape, appearances)
             if finishes is not None:
                 instance["face_materials"] = finishes
         expected_faces, expected_edges = len(shape.faces()), len(shape.edges())

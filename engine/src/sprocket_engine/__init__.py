@@ -1,13 +1,14 @@
 from typing import NoReturn
 
-import build123d
+from importlib import metadata
+
 import OCP
 
 # Pinned per the spec's Decisions table: OCCT output is stable within a
 # version but reorders topology across upgrades, so this is part of every
 # cache key and every golden case's expected result.
-ENGINE_VERSIONS = {
-    "build123d": build123d.__version__,
+ENGINE_VERSIONS: dict[str, str] = {
+    "build123d": metadata.version("build123d"),
     "ocp": OCP.__version__,
 }
 

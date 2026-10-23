@@ -4,6 +4,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from build123d import Face, Wire
+
+from sprocket_engine import regions
 from sprocket_engine.regions import ProfileError, find_regions, pick_region
 
 
@@ -25,6 +28,20 @@ def circle(entity_id, cx, cy, radius, **extra):
 
 def areas(regions):
     return sorted(round(region.area, 3) for region in regions)
+
+
+def test_a_cell_wound_clockwise_is_turned_to_face_up():
+    """A face built on a clockwise wire faces -Z. Turning it once raised
+    AttributeError, because build123d's Wire has no `reversed`."""
+    clockwise = Face(
+        Wire.make_polygon([(0, 0, 0), (0, 10, 0), (10, 10, 0), (10, 0, 0)])
+    )
+    assert clockwise.normal_at().Z < 0
+
+    cleaned = regions._clean(clockwise)
+
+    assert cleaned.normal_at().Z > 0
+    assert cleaned.area == pytest.approx(100)
 
 
 def test_a_rectangle_is_one_region_bounded_by_its_four_sides():

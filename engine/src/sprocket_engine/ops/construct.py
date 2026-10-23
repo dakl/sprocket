@@ -6,17 +6,34 @@ and the geometry is read from the feature itself (`construct_plane`,
 `{"construct": "f3"}` and follows it when it moves.
 """
 
-from build123d import Axis, Compound, Edge, GeomType, Plane
+from typing import Literal, TypedDict, final
 
-from ..selectors import AXES, SelectorError, resolve_selector
-from .registry import register
-from .sketch import OFFSET, PLANE_SCHEMA, VECTOR3, resolve_plane
+from build123d import Axis, Compound, Edge, Face, GeomType, Vector
+
+from sprocket_engine.context import Context
+from sprocket_engine.model import (
+    AxisFeature,
+    AxisRef,
+    JSONObject,
+    PlaneFeature,
+    PointFeature,
+    Selector,
+)
+from sprocket_engine.ops.registry import register
+from sprocket_engine.ops.sketch import (
+    OFFSET,
+    PLANE_SCHEMA,
+    VECTOR3,
+    not_built,
+    plane_of,
+)
+from sprocket_engine.selectors import AXES, Item, SelectorError, resolve_selector
 
 # Feature types that hold a reference, not a body. Replay skips them when it
 # looks for what the document makes.
 CONSTRUCT_TYPES = ("plane", "axis", "point")
 
-AXIS_SCHEMA = {
+AXIS_SCHEMA: JSONObject = {
     "oneOf": [
         {"enum": ["X", "Y", "Z"]},
         {
@@ -62,7 +79,7 @@ AXIS_SCHEMA = {
     ]
 }
 
-PLANE_SCHEMA_OF_FEATURE = {
+PLANE_SCHEMA_OF_FEATURE: JSONObject = {
     "type": "object",
     "description": (
         "A named plane that later features can use: a sketch plane, a mirror plane. `plane` is where it starts, "
@@ -77,7 +94,7 @@ PLANE_SCHEMA_OF_FEATURE = {
     },
 }
 
-AXIS_SCHEMA_OF_FEATURE = {
+AXIS_SCHEMA_OF_FEATURE: JSONObject = {
     "type": "object",
     "description": "A named axis that a circular pattern, a linear pattern or a revolve can use. `axis` says where it is.",
     "required": ["id", "type", "axis"],
@@ -88,7 +105,7 @@ AXIS_SCHEMA_OF_FEATURE = {
     },
 }
 
-POINT_SCHEMA_OF_FEATURE = {
+POINT_SCHEMA_OF_FEATURE: JSONObject = {
     "type": "object",
     "description": "A named point, [x, y, z] in mm, shown in the viewport.",
     "required": ["id", "type", "at"],
@@ -100,25 +117,9 @@ POINT_SCHEMA_OF_FEATURE = {
 }
 
 
-def _feature(construct_id, kind, ctx):
-    feature = ctx.features.get(construct_id) if ctx is not None else None
-    if feature is None or feature.get("type") != kind:
-        raise ValueError(
-            f"{construct_id!r} is not a {kind} feature built before this one"
-        )
-    return feature
-
-
-def plane_of(feature: dict, ctx) -> Plane:
-    """The plane a plane feature makes: its base plane, moved along its normal."""
-    return resolve_plane(feature["plane"], ctx).offset(feature.get("offset", 0))
-
-
-def construct_plane(construct_id, ctx) -> Plane:
-    return plane_of(_feature(construct_id, "plane", ctx), ctx)
-
-
-def _one(shape, selector, kind, ctx):
+def _one(
+    shape: Compound, selector: Selector, kind: Literal["edge", "face"], ctx: Context
+) -> Item:
     found = resolve_selector(shape, selector, ctx)
     if len(found) != 1:
         raise SelectorError(
@@ -127,7 +128,7 @@ def _one(shape, selector, kind, ctx):
     return found[0]
 
 
-def _axis_of_edge(edge) -> Axis:
+def _axis_of_edge(edge: Edge) -> Axis:
     if edge.geom_type == GeomType.LINE:
         return Axis(edge.position_at(0), edge.tangent_at(0))
     if edge.geom_type == GeomType.CIRCLE:
@@ -137,34 +138,61 @@ def _axis_of_edge(edge) -> Axis:
     )
 
 
-def resolve_axis(axis_ref, ctx=None) -> Axis:
+def resolve_axis(axis_ref: AxisRef, ctx: Context | None = None) -> Axis:
     """The build123d Axis for any axis form. `ctx` is needed for the forms that name a feature."""
     if isinstance(axis_ref, str):
         return AXES[axis_ref]
     if "construct" in axis_ref:
-        return resolve_axis(_feature(axis_ref["construct"], "axis", ctx)["axis"], ctx)
+        feature = ctx.axis_feature(axis_ref["construct"]) if ctx is not None else None
+        if feature is None:
+            raise not_built(axis_ref["construct"], "axis")
+        return resolve_axis(feature["axis"], ctx)
     if "base" in axis_ref:
         shape = ctx.results.get(axis_ref["base"]) if ctx is not None else None
-        if shape is None:
+        if shape is None or ctx is None:
             raise ValueError(
                 f"the axis names {axis_ref['base']!r}, which is not built before this one"
             )
         if "edge" in axis_ref:
-            return _axis_of_edge(_one(shape, axis_ref["edge"], "edge", ctx))
+            edge = _one(shape, axis_ref["edge"], "edge", ctx)
+            if not isinstance(edge, Edge):
+                msg = "the axis selector must match an edge"
+                raise SelectorError(msg)
+            return _axis_of_edge(edge)
         face = _one(shape, axis_ref["face"], "face", ctx)
+        if not isinstance(face, Face):
+            msg = "the axis selector must match a face"
+            raise SelectorError(msg)
         axis = face.axis_of_rotation
         if axis is None:
             raise ValueError(
                 f"an axis needs a cylindrical, conical or revolved face, and this one is {face.geom_type.name.lower()}"
             )
         return axis
-    return Axis(tuple(axis_ref["origin"]), tuple(axis_ref["direction"]))
+    origin, direction = axis_ref["origin"], axis_ref["direction"]
+    return Axis(
+        Vector(origin[0], origin[1], origin[2]),
+        Vector(direction[0], direction[1], direction[2]),
+    )
 
 
-def construct_geometry(feature: dict, ctx) -> dict:
+@final
+class ConstructGeometry(TypedDict, total=False):
+    """What the viewer draws for a construct feature: a plane, an axis or a point."""
+
+    kind: Literal["plane", "axis", "point"]
+    origin: list[float]
+    normal: list[float]
+    x_dir: list[float]
+    direction: list[float]
+    at: list[float]
+
+
+def construct_geometry(
+    feature: PlaneFeature | AxisFeature | PointFeature, ctx: Context | None
+) -> ConstructGeometry:
     """What the viewer draws for a construct feature, in world coordinates."""
-    kind = feature["type"]
-    if kind == "plane":
+    if feature["type"] == "plane":
         plane = plane_of(feature, ctx)
         return {
             "kind": "plane",
@@ -172,7 +200,7 @@ def construct_geometry(feature: dict, ctx) -> dict:
             "normal": [round(v, 9) for v in plane.z_dir],
             "x_dir": [round(v, 9) for v in plane.x_dir],
         }
-    if kind == "axis":
+    if feature["type"] == "axis":
         axis = resolve_axis(feature["axis"], ctx)
         return {
             "kind": "axis",
@@ -187,17 +215,20 @@ def _marker() -> Compound:
 
 
 @register("plane", PLANE_SCHEMA_OF_FEATURE)
-def apply_plane(feature: dict, ctx):
-    plane_of(feature, ctx)
+def apply_plane(feature: PlaneFeature, ctx: Context) -> Compound:
+    """Check that the plane resolves, and leave a marker."""
+    _ = plane_of(feature, ctx)
     return _marker()
 
 
 @register("axis", AXIS_SCHEMA_OF_FEATURE)
-def apply_axis(feature: dict, ctx):
-    resolve_axis(feature["axis"], ctx)
+def apply_axis(feature: AxisFeature, ctx: Context) -> Compound:
+    """Check that the axis resolves, and leave a marker."""
+    _ = resolve_axis(feature["axis"], ctx)
     return _marker()
 
 
 @register("point", POINT_SCHEMA_OF_FEATURE)
-def apply_point(feature: dict, ctx):
+def apply_point(_feature: PointFeature, _ctx: Context) -> Compound:
+    """Leave a marker: a point needs nothing resolved."""
     return _marker()

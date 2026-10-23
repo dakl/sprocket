@@ -35,6 +35,7 @@ sprocket = "sprocket_engine:main"
 [dependency-groups]
 dev = [
     "basedpyright==1.40.2",
+    "cadquery-ocp-stubs==8.0.1.0.0",
     "hypothesis>=6.168.3",
     "pytest>=9.1.1",
     "ruff==0.17.0",

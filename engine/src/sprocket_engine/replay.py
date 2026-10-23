@@ -6,41 +6,68 @@ result is cached by content hash (see cache.py), so scrubbing the rollback
 bar is a cache lookup, not a rebuild.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, overload
 
 import jsonschema
 from build123d import Compound
 
-from .cache import BrepCache, feature_cache_key
-from .ops import REGISTRY
-from .ops.construct import CONSTRUCT_TYPES
-from .sketch_reference import has_references, refresh_references
+from sprocket_engine.cache import BrepCache, feature_cache_key
+from sprocket_engine.context import Body, Context
+from sprocket_engine.model import JSONObject, ReplayDocument
+from sprocket_engine.ops import REGISTRY
+from sprocket_engine.ops.construct import CONSTRUCT_TYPES
+from sprocket_engine.sketch_reference import has_references, refresh_references
+
+__all__ = [
+    "CONSUMES_TOOL",
+    "NOT_SOLIDS",
+    "Body",
+    "Context",
+    "FailedAt",
+    "ReplayError",
+    "build_shape",
+    "combine",
+    "failed_feature",
+    "find_bodies",
+    "last_solid_index",
+    "replay",
+    "with_settings",
+]
 
 
 class ReplayError(Exception):
-    pass
+    """A feature replay cannot apply: an unknown op, or one that fails its schema."""
 
 
-def _tagged(error, feature, index):
+@dataclass(frozen=True)
+class FailedAt:
+    """Which feature an exception out of replay came from."""
+
+    feature_id: str | None
+    index: int
+
+
+_FAILED_AT = "sprocket_failed_at"
+
+
+def _tagged(error: Exception, feature: JSONObject, index: int) -> Exception:
     """Records which feature failed, so the caller can name it to the user and
-    still export everything built before it.
+    still export everything built before it. The exception keeps its own type,
+    because callers catch the op's own errors.
     """
-    error.feature_id = feature.get("id")
-    error.feature_index = index
+    feature_id = feature.get("id")
+    vars(error)[_FAILED_AT] = FailedAt(
+        feature_id if isinstance(feature_id, str) else None, index
+    )
     return error
 
 
-@dataclass
-class Context:
-    """Carries each feature's result forward so later features can reference it."""
-
-    results: dict = field(default_factory=dict)
-    # The features replayed so far, by id. An extrude that picks a region needs
-    # the sketch's entities, which the sketch's shape no longer carries.
-    features: dict = field(default_factory=dict)
-    # The document's bodies after the replay, see find_bodies.
-    bodies: list = field(default_factory=list)
+def failed_feature(error: BaseException) -> FailedAt | None:
+    """The feature that raised `error` during replay, or None if replay did not tag it."""
+    found: object = getattr(error, _FAILED_AT, None)
+    return found if isinstance(found, FailedAt) else None
 
 
 # A sketch is a flat profile and a construct feature a reference: neither makes a solid.
@@ -50,7 +77,11 @@ NOT_SOLIDS = ("sketch", *CONSTRUCT_TYPES)
 CONSUMES_TOOL = {"boolean", "pattern", "mirror"}
 
 
-def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
+def _text(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def find_bodies(features: list[JSONObject], ctx: Context) -> list[Body]:
     """The bodies the replayed features make, in the order they started.
 
     A solid feature with no base starts a body, whose id is that feature's id.
@@ -59,20 +90,28 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
     body. A body started by a `reference` op is a reference body. See SPEC.md,
     "M5, bodies".
     """
-    root_of, tip_of, order, consumed = {}, {}, [], set()
+    root_of: dict[str, str] = {}
+    tip_of: dict[str, str] = {}
+    order: list[str] = []
+    consumed: set[str] = set()
     for feature in features:
-        feature_id = feature["id"]
-        if feature.get("type") in NOT_SOLIDS or feature_id not in ctx.results:
+        feature_id = _text(feature.get("id"))
+        if (
+            feature_id is None
+            or feature.get("type") in NOT_SOLIDS
+            or feature_id not in ctx.results
+        ):
             continue
-        base = feature.get("base")
+        base = _text(feature.get("base"))
         root = root_of.get(base, feature_id) if base else feature_id
         root_of[feature_id] = root
         if root not in tip_of:
             order.append(root)
         tip_of[root] = feature_id
-        tool = feature.get("tool")
+        tool = _text(feature.get("tool"))
         if (
             feature.get("type") in CONSUMES_TOOL
+            and tool is not None
             and tool in root_of
             and root_of[tool] != root
         ):
@@ -82,40 +121,33 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
         root for root in order if ctx.features[root].get("type") == "reference"
     }
     return [
-        {
-            "id": root,
-            "tip": tip_of[root],
-            "shape": ctx.results[tip_of[root]],
-            "reference": root in reference,
-        }
+        Body(
+            id=root,
+            tip=tip_of[root],
+            shape=ctx.results[tip_of[root]],
+            reference=root in reference,
+            name=root,
+        )
         for root in order
         if root not in consumed or root in reference
     ]
 
 
-def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
+def with_settings(bodies: list[Body], settings: JSONObject) -> list[Body]:
     """Each body with the document's settings for it: name, colour, finish, visibility."""
-    merged = []
+    merged: list[Body] = []
     for body in bodies:
-        own = settings.get(body["id"], {})
-        merged.append(
-            {
-                **body,
-                "name": own.get("name", body["id"]),
-                "color": own.get("color"),
-                "material": own.get("material"),
-                "visible": own.get("visible", True),
-            }
-        )
+        own = settings.get(body.id)
+        merged.append(body.with_settings(own if isinstance(own, dict) else {}))
     return merged
 
 
-def combine(bodies: list[dict]):
+def combine(bodies: list[Body]) -> Compound | None:
     """One shape for the part: the only body itself, so a one-body document
     exports exactly as before, or a compound of the bodies in order. Reference
     bodies are left out, because they are not part of what is made.
     """
-    shapes = [body["shape"] for body in bodies if not body["reference"]]
+    shapes = [body.shape for body in bodies if not body.reference]
     if not shapes:
         return None
     if len(shapes) == 1:
@@ -123,7 +155,30 @@ def combine(bodies: list[dict]):
     return Compound(children=shapes)
 
 
-def replay(document: dict, cache_dir: Path | None = None, return_context: bool = False):
+@overload
+def replay(
+    document: ReplayDocument,
+    cache_dir: Path | None = None,
+    *,
+    return_context: Literal[False] = False,
+) -> Compound | None: ...
+
+
+@overload
+def replay(
+    document: ReplayDocument,
+    cache_dir: Path | None = None,
+    *,
+    return_context: Literal[True],
+) -> tuple[Compound | None, Context]: ...
+
+
+def replay(
+    document: ReplayDocument,
+    cache_dir: Path | None = None,
+    *,
+    return_context: bool = False,
+) -> Compound | None | tuple[Compound | None, Context]:
     """Returns the shape after replaying features[:rollback_index], or None
     when that prefix is empty. rollback_index=0 is a valid state, the same
     as Fusion 360's timeline rolled back before the first feature - it means
@@ -138,11 +193,12 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
 
     ctx = Context()
     upstream_key = "root"
-    last_result = None
+    last_result: Compound | None = None
 
-    for index, feature in enumerate(features[:rollback_index]):
+    for index, raw in enumerate(features[:rollback_index]):
+        feature = raw
         op_type = feature.get("type")
-        op = REGISTRY.get(op_type)
+        op = REGISTRY.get(op_type) if isinstance(op_type, str) else None
         if op is None:
             raise _tagged(
                 ReplayError(
@@ -160,6 +216,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
             )
             raise _tagged(error, feature, index) from exc
 
+        feature_id = _text(feature.get("id")) or ""
         key = feature_cache_key(feature, upstream_key)
         # A sketch with projected references is read as its sources leave it
         # now. The key above is of what is stored: with the sources' own
@@ -182,8 +239,8 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
             if cache:
                 cache.put(key, result)
 
-        ctx.results[feature["id"]] = result
-        ctx.features[feature["id"]] = feature
+        ctx.results[feature_id] = result
+        ctx.features[feature_id] = feature
         upstream_key = key
         last_result = result
 
@@ -193,7 +250,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
     return (part, ctx) if return_context else part
 
 
-def last_solid_index(features: list[dict], rollback_index: int) -> int:
+def last_solid_index(features: list[JSONObject], rollback_index: int) -> int:
     """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
     inert until something extrudes it. replay() only returns its last
     feature's result, so a bare sketch left at the tip would become the part
@@ -207,8 +264,8 @@ def last_solid_index(features: list[dict], rollback_index: int) -> int:
 
 
 def build_shape(
-    features: list[dict], rollback_index: int, cache_dir: Path | None
-) -> tuple[object, str | None, Context]:
+    features: list[JSONObject], rollback_index: int, cache_dir: Path | None
+) -> tuple[Compound | None, str | None, Context]:
     """Replays as much of the document as still builds.
 
     Returns (shape, failed_feature_id, context). The context holds every
@@ -234,22 +291,21 @@ def build_shape(
             ctx,
         )
     except Exception as exc:
-        failed_index = getattr(exc, "feature_index", None)
-        failed_id = getattr(exc, "feature_id", None)
-        if failed_index is None:
+        failed = failed_feature(exc)
+        if failed is None:
             raise
-        good_index = last_solid_index(features, failed_index)
+        good_index = last_solid_index(features, failed.index)
         shape, ctx = replay(
             {"features": features, "rollback_index": good_index},
             cache_dir=cache_dir,
             return_context=True,
         )
-        _trailing_sketches(features, good_index, failed_index, ctx)
-        return shape, failed_id, ctx
+        _ = _trailing_sketches(features, good_index, failed.index, ctx)
+        return shape, failed.feature_id, ctx
 
 
 def _trailing_sketches(
-    features: list[dict], start: int, stop: int, ctx: Context
+    features: list[JSONObject], start: int, stop: int, ctx: Context
 ) -> str | None:
     """Puts the sketches between the last solid and `stop` into `ctx.features`.
 
@@ -258,16 +314,19 @@ def _trailing_sketches(
     leave it now, and the viewer draws it from here. Returns the id of the first
     one that cannot be, as a failed feature.
     """
-    for feature in features[start:stop]:
+    for raw in features[start:stop]:
+        feature = raw
+        feature_id = _text(feature.get("id")) or ""
         if feature.get("type") in CONSTRUCT_TYPES:
-            ctx.features[feature["id"]] = feature
+            ctx.features[feature_id] = feature
             continue
         if feature.get("type") != "sketch":
             continue
         try:
             feature = refresh_references(feature, ctx)
         except Exception as exc:
-            ctx.features[feature["id"]] = feature
-            return getattr(exc, "feature_id", None) or feature["id"]
-        ctx.features[feature["id"]] = feature
+            ctx.features[feature_id] = feature
+            failed = failed_feature(exc)
+            return (failed.feature_id if failed else None) or feature_id
+        ctx.features[feature_id] = feature
     return None

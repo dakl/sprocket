@@ -1,11 +1,51 @@
-from build123d import Compound, Part, ShapeList, Sketch
+from collections.abc import Callable
+from typing import NotRequired, TypedDict
+
+from build123d import Compound, Face, Part, ShapeList, Sketch
+from build123d.topology import Shape
+from OCP.TopoDS import TopoDS_Shape
 from build123d import extrude as b3d_extrude
 
-from ..regions import ProfileError, find_regions, pick_region
-from .registry import register
-from .sketch import resolve_plane, sketch_entities
+from sprocket_engine.b3d import cut, fuse, intersect
+from sprocket_engine.context import Context
+from sprocket_engine.model import CombineMode, ExtrudeFeature, JSONObject, ProfileRef
+from sprocket_engine.ops.registry import register
+from sprocket_engine.ops.sketch import resolve_plane, sketch_entities
+from sprocket_engine.regions import ProfileError, Region, find_regions, pick_region
 
-SCHEMA = {
+PROFILE: JSONObject = {
+    "type": "string",
+    "description": "id of a sketch feature. Extrudes everything drawn in it.",
+}
+PROFILES: JSONObject = {
+    "type": "array",
+    "minItems": 1,
+    "description": "The regions to extrude, picked from one or more sketches.",
+    "items": {
+        "type": "object",
+        "required": ["sketch", "bounded_by"],
+        "properties": {
+            "sketch": {
+                "type": "string",
+                "description": "id of a sketch feature",
+            },
+            "bounded_by": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "ids of the entities that enclose the region. Empty for a sketch that is one shape.",
+            },
+            "inside": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "A point [u, v] inside the region. Only needed when two regions share the same bounded_by.",
+            },
+        },
+    },
+}
+
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Pushes a sketch into a solid. With no base it makes a new body. With a base and no mode, a positive "
@@ -18,37 +58,8 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "extrude"},
-        "profile": {
-            "type": "string",
-            "description": "id of a sketch feature. Extrudes everything drawn in it.",
-        },
-        "profiles": {
-            "type": "array",
-            "minItems": 1,
-            "description": "The regions to extrude, picked from one or more sketches.",
-            "items": {
-                "type": "object",
-                "required": ["sketch", "bounded_by"],
-                "properties": {
-                    "sketch": {
-                        "type": "string",
-                        "description": "id of a sketch feature",
-                    },
-                    "bounded_by": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "ids of the entities that enclose the region. Empty for a sketch that is one shape.",
-                    },
-                    "inside": {
-                        "type": "array",
-                        "items": {"type": "number"},
-                        "minItems": 2,
-                        "maxItems": 2,
-                        "description": "A point [u, v] inside the region. Only needed when two regions share the same bounded_by.",
-                    },
-                },
-            },
-        },
+        "profile": PROFILE,
+        "profiles": PROFILES,
         "base": {
             "type": "string",
             "description": "id of a solid feature to fuse/cut into, if any",
@@ -70,22 +81,35 @@ SCHEMA = {
 }
 
 
-def profile_faces(feature: dict, ctx):
+class ProfileSource(TypedDict):
+    """The fields of an extrude or a sweep that say what to push: a sketch, or regions of sketches."""
+
+    profile: NotRequired[str]
+    profiles: NotRequired[list[ProfileRef]]
+
+
+def profile_faces(feature: ProfileSource, ctx: Context) -> Sketch:
     """The shape to extrude: the whole sketch, or the regions picked from it."""
     if "profiles" not in feature:
+        if "profile" not in feature:
+            msg = "needs a profile or profiles"
+            raise ProfileError(msg)
         whole = ctx.results[feature["profile"]]
         if not whole.faces():
             raise ProfileError(
                 f"sketch {feature['profile']!r} has no closed region to extrude"
             )
+        if not isinstance(whole, Sketch):
+            msg = f"profile {feature['profile']!r} is not a sketch"
+            raise ProfileError(msg)
         return whole
-    picked = []
+    picked: list[Face] = []
     # Region detection splits the whole sketch, so it runs once per sketch, not
     # once per picked region: 40 regions of one 160-line sketch took 23 s.
-    regions_of = {}
+    regions_of: dict[str, list[Region]] = {}
     for reference in feature["profiles"]:
-        sketch = ctx.features.get(reference["sketch"])
-        if sketch is None or sketch["type"] != "sketch":
+        sketch = ctx.sketch(reference["sketch"])
+        if sketch is None:
             raise ProfileError(
                 f"profile refers to {reference['sketch']!r}, which is not a sketch earlier in the document"
             )
@@ -100,14 +124,32 @@ def profile_faces(feature: dict, ctx):
     return Sketch(Compound(picked))
 
 
-COMBINE = {
-    "join": lambda base, tool: base.fuse(tool),
-    "cut": lambda base, tool: base.cut(tool),
-    "intersect": lambda base, tool: base.intersect(tool),
+type Combined = Compound | ShapeList[Shape[TopoDS_Shape]]
+
+
+def _intersect(base: Compound, tool: Compound) -> Combined:
+    # Nothing shared is an empty list, which `combine` reports as an empty solid.
+    return intersect(base, tool) or ShapeList[Shape[TopoDS_Shape]]()
+
+
+COMBINE: dict[str, Callable[[Compound, Compound], Combined]] = {
+    "join": fuse,
+    "cut": cut,
+    "intersect": _intersect,
 }
 
 
-def combine(feature: dict, tool, ctx, mode: str | None = None):
+class Combines(TypedDict):
+    """The fields of an op that say how its tool combines with a base."""
+
+    id: str
+    base: NotRequired[str]
+    mode: NotRequired[CombineMode]
+
+
+def combine(
+    feature: Combines, tool: Compound, ctx: Context, mode: CombineMode | None = None
+) -> Compound:
     """`tool` combined with the feature's `base` by `mode` (default join), or
     `tool` alone as a new body when there is no base.
     """
@@ -131,13 +173,14 @@ def combine(feature: dict, tool, ctx, mode: str | None = None):
 
 
 @register("extrude", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: ExtrudeFeature, ctx: Context) -> Compound:
+    """Push the profile into a solid, and combine it with the base."""
     tool = b3d_extrude(
         profile_faces(feature, ctx),
         amount=feature["distance"],
         both=feature.get("symmetric", False),
     )
-    mode = feature.get("mode")
+    mode: CombineMode | None = feature.get("mode")
     # Documents from before `mode` existed carry the combine in the sign.
     if mode is None and feature.get("base") is not None:
         mode = "cut" if feature["distance"] < 0 else "join"

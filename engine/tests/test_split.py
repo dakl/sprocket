@@ -34,7 +34,7 @@ def test_keep_one_side_of_the_plane(keep, volume, bottom, top):
     assert part.volume == pytest.approx(volume)
     box = part.bounding_box()
     assert pytest.approx((bottom, top)) == (box.min.Z, box.max.Z)
-    assert [body["id"] for body in ctx.bodies] == ["box"], (
+    assert [body.id for body in ctx.bodies] == ["box"], (
         "a split continues its base's body"
     )
 

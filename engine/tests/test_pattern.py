@@ -88,7 +88,7 @@ def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies():
         return_context=True,
     )
     # The pin body ends in the pattern, which is a body of its own beside the board.
-    assert [body["id"] for body in ctx.bodies] == ["board", "pp"]
+    assert [body.id for body in ctx.bodies] == ["board", "pp"]
     part = ctx.results["pp"]
     assert part.volume == pytest.approx(4 * 2)
     assert len(part.solids()) == 4

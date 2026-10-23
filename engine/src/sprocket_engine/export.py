@@ -21,6 +21,9 @@ from build123d import (
     export_step,
     export_stl,
 )
+from build123d.topology import Shape
+
+from sprocket_engine.context import Body
 
 
 class ExportError(Exception):
@@ -47,17 +50,18 @@ def _check_writable(path: Path, kind: str) -> None:
 
 def _made(bodies) -> list[dict]:
     """The bodies that are part of what is made: every one but the references."""
-    return [body for body in bodies or [] if not body["reference"]]
+    return [body for body in bodies or [] if not body.reference]
 
 
-def _labelled(body: dict):
-    """A copy of the body's shape carrying its name and colour, which build123d
-    writes into STEP and 3MF. A copy, because the original sits in the cache.
+def _labelled(body: Body, shape: Shape | None = None):
+    """A copy of the body's shape, or of `shape`, one solid of it, carrying the
+    body's name and colour, which build123d writes into STEP and 3MF. A copy,
+    because the original sits in the cache.
     """
-    shape = copy.copy(body["shape"])
-    shape.label = body.get("name") or body["id"]
-    if body.get("color"):
-        shape.color = Color(body["color"])
+    shape = copy.copy(body.shape if shape is None else shape)
+    shape.label = body.name or body.id
+    if body.color:
+        shape.color = Color(body.color)
     return shape
 
 
@@ -69,9 +73,7 @@ def write_step(shape, path, bodies=None) -> None:
     path = Path(path)
     _check_writable(path, "STEP")
     made = _made(bodies)
-    if len(made) > 1 or any(
-        body.get("color") or body.get("name", body["id"]) != body["id"] for body in made
-    ):
+    if len(made) > 1 or any(body.color or body.name != body.id for body in made):
         shape = Compound(children=[_labelled(body) for body in made])
     try:
         written = export_step(shape, path)
@@ -105,8 +107,8 @@ def write_stl_dir(bodies, directory) -> list[Path]:
         )
     written = []
     for body in _made(bodies):
-        target = directory / f"{_file_name(body.get('name') or body['id'])}.stl"
-        write_stl(body["shape"], target)
+        target = directory / f"{_file_name(body.name or body.id)}.stl"
+        write_stl(body.shape, target)
         written.append(target)
     return written
 
@@ -120,12 +122,12 @@ def write_3mf(bodies, path) -> None:
         # One mesh per solid. A body of several solids meshed as one compound
         # fails lib3mf's validity check (the Orange Pi heatsink, whose ears
         # touch the plate only along an edge, did).
-        for solid in body["shape"].solids():
+        for solid in body.shape.solids():
             try:
-                mesher.add_shape(_labelled({**body, "shape": solid}))
+                mesher.add_shape(_labelled(body, solid))
             except Exception as exc:
                 raise ExportError(
-                    f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}"
+                    f"cannot write 3MF file {path}: body {body.name or body.id}: {exc}"
                 ) from None
     try:
         mesher.write(str(path))

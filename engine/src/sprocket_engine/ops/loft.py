@@ -1,10 +1,13 @@
+from build123d import Compound, Face
 from build123d import loft as b3d_loft
 
-from ..regions import ProfileError
-from .extrude import combine
-from .registry import register
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, LoftFeature
+from sprocket_engine.ops.extrude import combine
+from sprocket_engine.ops.registry import register
+from sprocket_engine.regions import ProfileError
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Joins two or more sketch profiles, in order, into one solid. Each section is a sketch of one closed region. "
@@ -37,11 +40,11 @@ SCHEMA = {
 
 
 @register("loft", SCHEMA)
-def apply(feature: dict, ctx):
-    faces = []
+def apply(feature: LoftFeature, ctx: Context) -> Compound:
+    """Skin the sections, in order, and combine the solid with the base."""
+    faces: list[Face] = []
     for sketch_id in feature["sections"]:
-        sketch = ctx.features.get(sketch_id)
-        if sketch is None or sketch["type"] != "sketch":
+        if ctx.sketch(sketch_id) is None:
             raise ProfileError(
                 f"loft section {sketch_id!r} is not a sketch earlier in the document"
             )

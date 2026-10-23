@@ -1,9 +1,12 @@
+from build123d import Compound
 from build123d import revolve as b3d_revolve
 
-from .construct import AXIS_SCHEMA, resolve_axis
-from .registry import register
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, RevolveFeature
+from sprocket_engine.ops.construct import AXIS_SCHEMA, resolve_axis
+from sprocket_engine.ops.registry import register
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": "Sweeps a sketch around an axis. Always makes a new body, never a cut.",
     "required": ["id", "type", "profile", "axis"],
@@ -30,7 +33,10 @@ SCHEMA = {
 
 
 @register("revolve", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: RevolveFeature, ctx: Context) -> Compound:
+    """Sweep the profile sketch around the axis."""
     profile = ctx.results[feature["profile"]]
     axis = resolve_axis(feature["axis"], ctx)
-    return b3d_revolve(profile, axis=axis, revolution_arc=feature.get("angle", 360))
+    return b3d_revolve(
+        profile.faces(), axis=axis, revolution_arc=feature.get("angle", 360)
+    )

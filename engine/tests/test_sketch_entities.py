@@ -3,7 +3,7 @@ import math
 import pytest
 
 from sprocket_engine.regions import ProfileError
-from sprocket_engine.replay import replay
+from sprocket_engine.replay import failed_feature, replay
 
 RECTANGLE = [
     {"id": "e1", "kind": "line", "p0": [0, 0], "p1": [40, 0]},
@@ -88,7 +88,9 @@ def test_a_profile_that_no_longer_exists_names_the_extrude_that_broke():
     gone = extrude([{"sketch": "f1", "bounded_by": ["e5"]}])
     with pytest.raises(ProfileError, match="matches 0 regions") as raised:
         build(sketch(RECTANGLE), gone)
-    assert raised.value.feature_id == "f2"
+    failed = failed_feature(raised.value)
+    assert failed is not None
+    assert failed.feature_id == "f2"
 
 
 def test_two_regions_with_one_bounded_by_are_told_apart_by_inside():

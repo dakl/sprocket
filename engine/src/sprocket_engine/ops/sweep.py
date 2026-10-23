@@ -1,12 +1,13 @@
-from build123d import Transition
+from build123d import Compound, Transition
 from build123d import sweep as b3d_sweep
 
-from .extrude import SCHEMA as EXTRUDE_SCHEMA
-from .extrude import combine, profile_faces
-from .registry import register
-from .sketch import PATH_SCHEMA, sketch_path
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, SweepFeature
+from sprocket_engine.ops.extrude import PROFILE, PROFILES, combine, profile_faces
+from sprocket_engine.ops.registry import register
+from sprocket_engine.ops.sketch import PATH_SCHEMA, sketch_path
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Moves a sketch profile along a path drawn in another sketch. Draw the profile across the start of the "
@@ -17,8 +18,8 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "sweep"},
-        "profile": EXTRUDE_SCHEMA["properties"]["profile"],
-        "profiles": EXTRUDE_SCHEMA["properties"]["profiles"],
+        "profile": PROFILE,
+        "profiles": PROFILES,
         "path": PATH_SCHEMA,
         "base": {
             "type": "string",
@@ -33,7 +34,8 @@ SCHEMA = {
 
 
 @register("sweep", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: SweepFeature, ctx: Context) -> Compound:
+    """Move the profile along the path, and combine the solid with the base."""
     # build123d's default transition keeps only the path up to the first sharp
     # corner, with no error. RIGHT mitres the corner, as Fusion does.
     tool = b3d_sweep(

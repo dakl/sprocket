@@ -1,16 +1,30 @@
-from build123d import Part, Pos, ShapeList, Vector
+from build123d import Compound, Part, Pos, Vector
 
-from .construct import AXIS_SCHEMA, resolve_axis
-from .registry import register
+from sprocket_engine.b3d import cut, fuse
+from sprocket_engine.context import Context
+from sprocket_engine.model import (
+    AxisRef,
+    JSONObject,
+    PatternCircular,
+    PatternFeature,
+    PatternLinear,
+)
+from sprocket_engine.ops.construct import AXIS_SCHEMA, resolve_axis
+from sprocket_engine.ops.registry import register
 
-VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
-COUNT = {
+VECTOR3: JSONObject = {
+    "type": "array",
+    "items": {"type": "number"},
+    "minItems": 3,
+    "maxItems": 3,
+}
+COUNT: JSONObject = {
     "type": "integer",
     "minimum": 1,
     "description": "copies along this direction, the original included",
 }
 
-LINEAR = {
+LINEAR: JSONObject = {
     "type": "object",
     "required": ["direction", "count", "spacing"],
     "properties": {
@@ -23,7 +37,7 @@ LINEAR = {
     },
 }
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Copies the solid an earlier feature made, in a row, a grid or around an axis, and combines the copies "
@@ -62,28 +76,33 @@ SCHEMA = {
 }
 
 
-def _direction(direction, ctx) -> Vector:
+def _direction(direction: list[float] | AxisRef, ctx: Context | None) -> Vector:
     if isinstance(direction, list):
-        return Vector(*direction).normalized()
+        return Vector(direction[0], direction[1], direction[2]).normalized()
     return resolve_axis(direction, ctx).direction.normalized()
 
 
-def _linear_offsets(spec, ctx):
+def _linear_offsets(spec: PatternLinear | None, ctx: Context | None) -> list[Vector]:
     if spec is None:
         return [Vector(0, 0, 0)]
     step = _direction(spec["direction"], ctx) * spec["spacing"]
     return [step * index for index in range(spec["count"])]
 
 
-def pattern_copies(feature: dict, tool, ctx=None) -> list:
+def pattern_copies(
+    feature: PatternFeature, tool: Compound, ctx: Context | None = None
+) -> list[Compound]:
     """The tool's solid at every place in the pattern, the original first."""
     if "linear" in feature:
         return [
-            tool.moved(Pos(*(first + second)))
+            tool.moved(Pos(first + second))
             for first in _linear_offsets(feature["linear"], ctx)
             for second in _linear_offsets(feature.get("linear2"), ctx)
         ]
-    circular = feature["circular"]
+    circular: PatternCircular | None = feature.get("circular")
+    if circular is None:
+        msg = "a pattern needs linear or circular"
+        raise ValueError(msg)
     axis = resolve_axis(circular["axis"], ctx)
     angle = circular.get("angle", 360)
     count = circular["count"]
@@ -94,18 +113,19 @@ def pattern_copies(feature: dict, tool, ctx=None) -> list:
 
 
 @register("pattern", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: PatternFeature, ctx: Context) -> Compound:
+    """Copy the tool and combine the copies with the base."""
     tool = ctx.results[feature["tool"]]
     if not tool.solids():
         raise ValueError(f"pattern tool {feature['tool']!r} is not a solid")
     placed = pattern_copies(feature, tool, ctx)
     base_id = feature.get("base")
     if base_id is None:
-        result = placed[0].fuse(*placed[1:]) if len(placed) > 1 else placed[0]
+        result = fuse(placed[0], *placed[1:]) if len(placed) > 1 else placed[0]
         return Part(result.solids())
     base = ctx.results[base_id]
-    result = base.cut(*placed) if feature.get("mode") == "cut" else base.fuse(*placed)
-    solids = list(result) if isinstance(result, ShapeList) else result.solids()
+    result = cut(base, *placed) if feature.get("mode") == "cut" else fuse(base, *placed)
+    solids = result.solids()
     if not solids:
         raise ValueError(f"pattern {feature['id']} left an empty solid")
     return Part(solids)

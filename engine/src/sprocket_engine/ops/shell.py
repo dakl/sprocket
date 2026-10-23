@@ -1,9 +1,16 @@
-from build123d import Face, Kind, Part, offset
+from build123d import Compound, Face, Kind, Part, offset
 
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
-from .registry import register
+from sprocket_engine.b3d import cut
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, ShellFeature
+from sprocket_engine.ops.registry import register
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Hollows a solid into walls of one thickness. The faces in `open` are removed, which is how a box "
@@ -21,7 +28,7 @@ SCHEMA = {
         },
         "open": {
             "type": "object",
-            "description": "The faces to remove. " + SELECTOR_DESCRIPTION,
+            "description": f"The faces to remove. {SELECTOR_DESCRIPTION}",
         },
         "outward": {
             "type": "boolean",
@@ -32,14 +39,16 @@ SCHEMA = {
 
 
 @register("shell", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: ShellFeature, ctx: Context) -> Compound:
+    """Hollow the base into walls, leaving the `open` faces open."""
     base = ctx.results[feature["base"]]
-    openings = []
+    openings: list[Face] = []
     if "open" in feature:
-        openings = resolve_selector(base, feature["open"], ctx)
-        if not openings:
+        found = resolve_selector(base, feature["open"], ctx)
+        if not found:
             raise SelectorError("the shell's `open` selector matched no faces")
-        if not all(isinstance(item, Face) for item in openings):
+        openings = [item for item in found if isinstance(item, Face)]
+        if len(openings) != len(found):
             raise SelectorError("the shell's `open` selector must match faces")
     amount = feature["thickness"] if feature.get("outward") else -feature["thickness"]
     # INTERSECTION keeps corners sharp. The default, ARC, rounds the outside
@@ -48,7 +57,7 @@ def apply(feature: dict, ctx):
     if not openings:
         # With nothing to open, offset returns the offset solid itself, not a
         # wall. The hollow is the space between it and the original.
-        result = result.cut(base) if feature.get("outward") else base.cut(result)
+        result = cut(result, base) if feature.get("outward") else cut(base, result)
     part = Part(result.solids())
     if not part.solids() or part.volume <= 0:
         raise ValueError(

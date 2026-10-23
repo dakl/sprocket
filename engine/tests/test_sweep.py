@@ -55,7 +55,7 @@ def test_cut_mode_bores_the_swept_profile_out_of_the_base():
     ]
     part, ctx = build(features)
     assert part.volume == pytest.approx(40 * 10 * 10 - math.pi * 20, rel=1e-6)
-    assert [body["id"] for body in ctx.bodies] == ["block"]
+    assert [body.id for body in ctx.bodies] == ["block"]
 
 
 def test_named_entities_pick_the_path_and_construction_is_left_out_by_default():

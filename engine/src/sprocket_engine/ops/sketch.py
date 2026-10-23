@@ -1,8 +1,11 @@
 import math
+from collections.abc import Sequence
+from typing import TypedDict, final
 
 from build123d import (
     Circle,
     Compound,
+    Face,
     GeomType,
     Plane,
     Polygon,
@@ -16,18 +19,58 @@ from OCP.BRep import BRep_Builder, BRep_Tool
 from OCP.GeomLib import GeomLib_IsPlanarSurface
 from OCP.TopoDS import TopoDS_Compound
 
-from ..regions import FUZZY, ProfileError, entity_edge, find_regions
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
-from .registry import register
+from sprocket_engine.context import Context
+from sprocket_engine.model import (
+    Constraint,
+    Entity,
+    ExplicitPlane,
+    FacePlane,
+    JSONObject,
+    OriginPlaneName,
+    PathRef,
+    PlaneFeature,
+    PlaneRef,
+    SketchFeature,
+)
+from sprocket_engine.ops.registry import register
+from sprocket_engine.regions import (
+    FUZZY,
+    Point2,
+    ProfileError,
+    entity_edge,
+    find_regions,
+)
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
 
-ORIGIN_PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
+ORIGIN_PLANES: dict[OriginPlaneName, Plane] = {
+    "XY": Plane.XY,
+    "XZ": Plane.XZ,
+    "YZ": Plane.YZ,
+}
 
-VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
-POINT2 = {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+VECTOR3: JSONObject = {
+    "type": "array",
+    "items": {"type": "number"},
+    "minItems": 3,
+    "maxItems": 3,
+}
+POINT2: JSONObject = {
+    "type": "array",
+    "items": {"type": "number"},
+    "minItems": 2,
+    "maxItems": 2,
+}
 
-OFFSET = {"type": "number", "description": "mm along the plane normal, default 0"}
+OFFSET: JSONObject = {
+    "type": "number",
+    "description": "mm along the plane normal, default 0",
+}
 
-PLANE_SCHEMA = {
+PLANE_SCHEMA: JSONObject = {
     "oneOf": [
         {"enum": ["XY", "XZ", "YZ"]},
         {
@@ -80,7 +123,7 @@ PLANE_SCHEMA = {
 # Replay does not solve constraints: whoever last edited the sketch, the viewer's
 # solver or sketch_edit.py's, already placed every entity, so replay trusts the
 # geometry and keeps the constraints so the sketch can be solved again.
-ENTITY_SCHEMA = {
+ENTITY_SCHEMA: JSONObject = {
     "type": "object",
     "required": ["id", "kind"],
     "properties": {
@@ -130,7 +173,7 @@ PLANE_REFERENCES = (ORIGIN, "axis_u", "axis_v")
 
 # Kind -> the fields it needs. A reference is an entity id, `<id>.<point>`
 # where point is p0 or p1 (line, arc) or c (arc, circle), or `origin`.
-CONSTRAINT_FIELDS = {
+CONSTRAINT_FIELDS: dict[str, tuple[str, ...]] = {
     "coincident": ("a", "b"),
     "point_on": ("a", "b"),
     "horizontal": (),
@@ -151,7 +194,7 @@ CONSTRAINT_FIELDS = {
     "angle": ("a", "b", "value"),
 }
 
-CONSTRAINT_SCHEMA = {
+CONSTRAINT_SCHEMA: JSONObject = {
     "type": "object",
     "required": ["kind"],
     "properties": {
@@ -159,7 +202,7 @@ CONSTRAINT_SCHEMA = {
             "type": "string",
             "description": "c<n>. Stable for the life of the sketch. Filled in when missing.",
         },
-        "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
+        "kind": {"enum": [*sorted(CONSTRAINT_FIELDS)]},
         "e": {
             "type": "string",
             "description": "the one entity or point a constraint acts on. For symmetric, the line the points mirror across",
@@ -179,7 +222,7 @@ CONSTRAINT_SCHEMA = {
     },
 }
 
-SKETCH_LINEAR = {
+SKETCH_LINEAR: JSONObject = {
     "type": "object",
     "required": ["count", "step"],
     "properties": {
@@ -194,7 +237,7 @@ SKETCH_LINEAR = {
 
 # Copies of entities, made before regions are found. A copy of `e1` is `e1#1`,
 # `e1#2` and so on, which is the id a profile's bounded_by names.
-SKETCH_PATTERN_SCHEMA = {
+SKETCH_PATTERN_SCHEMA: JSONObject = {
     "type": "object",
     "required": ["entities"],
     "oneOf": [{"required": ["linear"]}, {"required": ["circular"]}],
@@ -229,7 +272,7 @@ SKETCH_PATTERN_SCHEMA = {
     },
 }
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "A flat drawing on a plane. Not a solid on its own: something has to extrude or revolve it. "
@@ -292,30 +335,49 @@ SCHEMA = {
 }
 
 
-def resolve_plane(plane_ref, ctx=None):
+def resolve_plane(plane_ref: PlaneRef, ctx: Context | None = None) -> Plane:
     """The build123d Plane a sketch sits on. A face plane needs `ctx`, the
     replay context, to find the face in an earlier feature's result.
     """
     if isinstance(plane_ref, str):
         return ORIGIN_PLANES[plane_ref]
     if "name" in plane_ref:
-        plane = ORIGIN_PLANES[plane_ref["name"]]
-    elif "construct" in plane_ref:
-        from .construct import construct_plane
-
+        return ORIGIN_PLANES[plane_ref["name"]].offset(plane_ref.get("offset", 0))
+    if "construct" in plane_ref:
         plane = construct_plane(plane_ref["construct"], ctx)
-    elif "feature" in plane_ref:
-        plane = _face_plane(plane_ref, ctx)
-    else:
-        return Plane(
-            origin=tuple(plane_ref["origin"]),
-            z_dir=tuple(plane_ref["normal"]),
-            x_dir=tuple(plane_ref["x_dir"]),
-        )
-    return plane.offset(plane_ref.get("offset", 0))
+        return plane.offset(plane_ref.get("offset", 0))
+    if "feature" in plane_ref:
+        return _face_plane(plane_ref, ctx).offset(plane_ref.get("offset", 0))
+    return Plane(
+        origin=_vector(plane_ref["origin"]),
+        z_dir=_vector(plane_ref["normal"]),
+        x_dir=_vector(plane_ref["x_dir"]),
+    )
 
 
-def _face_plane(plane_ref, ctx) -> Plane:
+def not_built(construct_id: str, kind: str) -> ValueError:
+    """The error for a construct reference to a feature that is not that kind, or not earlier."""
+    return ValueError(f"{construct_id!r} is not a {kind} feature built before this one")
+
+
+def plane_of(feature: PlaneFeature, ctx: Context | None) -> Plane:
+    """The plane a plane feature makes: its base plane, moved along its normal."""
+    return resolve_plane(feature["plane"], ctx).offset(feature.get("offset", 0))
+
+
+def construct_plane(construct_id: str, ctx: Context | None) -> Plane:
+    """The plane that the plane feature `construct_id` makes."""
+    feature = ctx.plane_feature(construct_id) if ctx is not None else None
+    if feature is None:
+        raise not_built(construct_id, "plane")
+    return plane_of(feature, ctx)
+
+
+def _vector(values: Sequence[float]) -> Vector:
+    return Vector(values[0], values[1], values[2])
+
+
+def _face_plane(plane_ref: FacePlane, ctx: Context | None) -> Plane:
     feature_id = plane_ref["feature"]
     shape = ctx.results.get(feature_id) if ctx is not None else None
     if shape is None:
@@ -328,6 +390,9 @@ def _face_plane(plane_ref, ctx) -> Plane:
             f"sketch plane face selector matched {len(faces)} faces, expected exactly 1"
         )
     face = faces[0]
+    if not isinstance(face, Face):
+        msg = "a sketch plane selector must match a face"
+        raise SelectorError(msg)
     # A ruled loft's flat sides are B-spline surfaces, so ask whether it is flat, not what type it is.
     if (
         face.geom_type != GeomType.PLANE
@@ -348,7 +413,7 @@ def _face_plane(plane_ref, ctx) -> Plane:
     return Plane(origin=origin, z_dir=normal, x_dir=x_dir)
 
 
-def plane_json(plane: Plane) -> dict:
+def plane_json(plane: Plane) -> ExplicitPlane:
     """A Plane as the explicit {origin, normal, x_dir} form, which is what the viewer draws on."""
     return {
         "origin": [round(value, 9) for value in plane.origin],
@@ -357,7 +422,7 @@ def plane_json(plane: Plane) -> dict:
     }
 
 
-def _polygon_area(points) -> float:
+def _polygon_area(points: list[Point2]) -> float:
     return (
         abs(
             sum(
@@ -369,7 +434,7 @@ def _polygon_area(points) -> float:
     )
 
 
-def _counter_clockwise(points):
+def _counter_clockwise(points: list[Point2]) -> list[Point2]:
     """Returns `points` wound counter-clockwise in the plane's own uv axes.
 
     A face's normal follows its winding, so a clockwise polygon builds a face
@@ -384,25 +449,36 @@ def _counter_clockwise(points):
     return points if signed_area >= 0 else points[::-1]
 
 
-def _moved(entity: dict, index: int, du: float, dv: float, turn: float, centre) -> dict:
+def _moved(
+    entity: Entity,
+    index: int,
+    du: float,
+    dv: float,
+    turn: float,
+    centre: Sequence[float],
+) -> Entity:
     """A copy of `entity` turned by `turn` radians about `centre`, then shifted by (du, dv)."""
     cos, sin = math.cos(turn), math.sin(turn)
 
-    def point(uv):
+    def point(uv: list[float]) -> list[float]:
         u, v = uv[0] - centre[0], uv[1] - centre[1]
         return [centre[0] + u * cos - v * sin + du, centre[1] + u * sin + v * cos + dv]
 
-    copy = {**entity, "id": f"{entity['id']}#{index}"}
-    for name in ("p0", "p1", "c"):
-        if name in entity:
-            copy[name] = point(entity[name])
-    for name in ("a0", "a1"):
-        if name in entity:
-            copy[name] = entity[name] + turn
+    copy: Entity = {**entity, "id": f"{entity['id']}#{index}"}
+    if "p0" in entity:
+        copy["p0"] = point(entity["p0"])
+    if "p1" in entity:
+        copy["p1"] = point(entity["p1"])
+    if "c" in entity:
+        copy["c"] = point(entity["c"])
+    if "a0" in entity:
+        copy["a0"] = entity["a0"] + turn
+    if "a1" in entity:
+        copy["a1"] = entity["a1"] + turn
     return copy
 
 
-def sketch_entities(feature: dict) -> list[dict]:
+def sketch_entities(feature: SketchFeature) -> list[Entity]:
     """The sketch's entities with every pattern copy added after them."""
     entities = list(feature.get("entities", []))
     by_id = {entity["id"]: entity for entity in entities}
@@ -424,12 +500,12 @@ def sketch_entities(feature: dict) -> list[dict]:
                     i * first["step"][0] + j * second["step"][0],
                     i * first["step"][1] + j * second["step"][1],
                     0.0,
-                    (0, 0),
+                    [0.0, 0.0],
                 )
                 for i in range(first["count"])
                 for j in range(second["count"])
             ]
-        else:
+        elif "circular" in pattern:
             circular = pattern["circular"]
             angle, count = circular.get("angle", 360), circular["count"]
             step = angle / count if angle % 360 == 0 else angle / max(count - 1, 1)
@@ -437,6 +513,9 @@ def sketch_entities(feature: dict) -> list[dict]:
                 (0.0, 0.0, math.radians(step * k), circular["center"])
                 for k in range(count)
             ]
+        else:
+            msg = "a sketch pattern needs linear or circular"
+            raise ValueError(msg)
         for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
             entities.extend(
                 _moved(by_id[entity_id], index, du, dv, turn, centre)
@@ -445,7 +524,7 @@ def sketch_entities(feature: dict) -> list[dict]:
     return entities
 
 
-PATH_SCHEMA = {
+PATH_SCHEMA: JSONObject = {
     "type": "object",
     "description": "Entities of a sketch that join end to end into one path.",
     "required": ["sketch"],
@@ -464,10 +543,10 @@ PATH_SCHEMA = {
 }
 
 
-def sketch_path(path_ref: dict, ctx) -> Wire:
+def sketch_path(path_ref: PathRef, ctx: Context) -> Wire:
     """The wire a `PATH_SCHEMA` reference names, placed on its sketch's plane."""
-    sketch = ctx.features.get(path_ref["sketch"])
-    if sketch is None or sketch["type"] != "sketch" or "entities" not in sketch:
+    sketch = ctx.sketch(path_ref["sketch"])
+    if sketch is None or "entities" not in sketch:
         raise ProfileError(
             f"path refers to {path_ref['sketch']!r}, which is not a sketch with entities earlier in the document"
         )
@@ -494,22 +573,26 @@ def sketch_path(path_ref: dict, ctx) -> Wire:
     return wires[0]
 
 
-_POINTS = {"line": {"p0", "p1"}, "arc": {"p0", "p1", "c"}, "circle": {"c"}}
-_ENTITY_FIELDS = {
+_POINTS: dict[str, set[str]] = {
+    "line": {"p0", "p1"},
+    "arc": {"p0", "p1", "c"},
+    "circle": {"c"},
+}
+_ENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "line": ("p0", "p1"),
     "arc": ("c", "r", "a0", "a1"),
     "circle": ("c", "r"),
 }
 
 
-def check_entities(feature: dict) -> None:
+def check_entities(feature: SketchFeature) -> None:
     """The checks a JSON Schema cannot make: fields per kind, unique ids, and
     constraints that name something that exists. A constraint on a deleted
     entity would otherwise replay fine and break the next time the viewer
     solves the sketch.
     """
-    kinds = {}
-    for entity in feature["entities"]:
+    kinds: dict[str, str] = {}
+    for entity in feature.get("entities", []):
         entity_id = entity["id"]
         if entity_id in kinds:
             raise ValueError(
@@ -524,8 +607,7 @@ def check_entities(feature: dict) -> None:
             )
         kinds[entity_id] = entity["kind"]
 
-    def check_reference(constraint, name):
-        reference = constraint[name]
+    def check_reference(constraint: Constraint, reference: str) -> None:
         if reference in PLANE_REFERENCES:
             return
         entity_id, _, point = reference.partition(".")
@@ -538,7 +620,7 @@ def check_entities(feature: dict) -> None:
                 f"constraint {constraint['kind']!r} refers to {reference!r}, but a {kinds[entity_id]} has no point {point!r}"
             )
 
-    constraint_ids = set()
+    constraint_ids: set[str] = set()
     for constraint in feature.get("constraints", []):
         constraint_id = constraint.get("id")
         if constraint_id is not None:
@@ -560,16 +642,37 @@ def check_entities(feature: dict) -> None:
             raise ValueError(
                 f"constraint {constraint['kind']!r} needs 'e', or 'a' and 'b'"
             )
-        for name in ("a", "b", "e"):
-            if name in constraint:
-                check_reference(constraint, name)
+        for reference in (
+            constraint.get("a"),
+            constraint.get("b"),
+            constraint.get("e"),
+        ):
+            if reference is not None:
+                check_reference(constraint, reference)
 
 
-def _round(points):
+def _round(points: list[Point2]) -> list[list[float]]:
     return [[round(u, 6), round(v, 6)] for u, v in points]
 
 
-def sketch_profiles(feature: dict) -> list[dict]:
+@final
+class SketchProfile(TypedDict):
+    """One region of a sketch as the viewer and an agent read it."""
+
+    bounded_by: list[str]
+    inside: list[float]
+    outline: list[list[float]]
+    holes: list[list[list[float]]]
+    area: float
+
+
+def _no_shape(feature: SketchFeature) -> ValueError:
+    return ValueError(
+        f"sketch {feature['id']!r} needs entities, rect, polygon or circle"
+    )
+
+
+def sketch_profiles(feature: SketchFeature) -> list[SketchProfile]:
     """The regions a user can pick from `feature`, as plain JSON.
 
     An entity sketch gives one per closed region. A sketch of one shape gives
@@ -589,7 +692,9 @@ def sketch_profiles(feature: dict) -> list[dict]:
             for region in find_regions(sketch_entities(feature))
         ]
     if "polygon" in feature:
-        outline = _counter_clockwise([tuple(point) for point in feature["polygon"]])
+        outline = _counter_clockwise(
+            [(point[0], point[1]) for point in feature["polygon"]]
+        )
         area = _polygon_area(outline)
     elif "circle" in feature:
         (cx, cy), radius = (
@@ -604,7 +709,7 @@ def sketch_profiles(feature: dict) -> list[dict]:
             for step in range(48)
         ]
         area = math.pi * radius**2
-    else:
+    elif "rect" in feature:
         rect = feature["rect"]
         (cx, cy), half_w, half_h = (
             rect.get("center", [0, 0]),
@@ -618,9 +723,14 @@ def sketch_profiles(feature: dict) -> list[dict]:
             (cx - half_w, cy + half_h),
         ]
         area = rect["width"] * rect["height"]
+    else:
+        raise _no_shape(feature)
     # The mean of the outline is inside every shape a legacy sketch can be
     # except a concave polygon, which is why `extrude` ignores `inside` here.
-    inside = [sum(point[axis] for point in outline) / len(outline) for axis in (0, 1)]
+    inside = (
+        sum(point[0] for point in outline) / len(outline),
+        sum(point[1] for point in outline) / len(outline),
+    )
     return [
         {
             "bounded_by": [],
@@ -643,7 +753,8 @@ def _empty_sketch() -> Sketch:
 
 
 @register("sketch", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: SketchFeature, ctx: Context) -> Compound:
+    """Build the sketch's closed regions on its plane."""
     plane = resolve_plane(feature["plane"], ctx)
     if "entities" in feature:
         check_entities(feature)
@@ -656,12 +767,16 @@ def apply(feature: dict, ctx):
             else _empty_sketch()
         )
     if "polygon" in feature:
-        points = _counter_clockwise([tuple(point) for point in feature["polygon"]])
+        points = _counter_clockwise(
+            [(point[0], point[1]) for point in feature["polygon"]]
+        )
         return plane * Polygon(*points)
     if "circle" in feature:
         circle = feature["circle"]
         cx, cy = circle.get("center", [0, 0])
         return plane * Pos(cx, cy) * Circle(circle["radius"])
-    rect = feature["rect"]
-    cx, cy = rect.get("center", [0, 0])
-    return plane * Pos(cx, cy) * Rectangle(rect["width"], rect["height"])
+    if "rect" in feature:
+        rect = feature["rect"]
+        cx, cy = rect.get("center", [0, 0])
+        return plane * Pos(cx, cy) * Rectangle(rect["width"], rect["height"])
+    raise _no_shape(feature)

@@ -18,7 +18,7 @@ from pathlib import Path
 from .document import Document, DocumentError
 from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
 from .mesh import export_mesh
-from .replay import build_shape, with_settings
+from .replay import build_shape, failed_feature, with_settings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -192,7 +192,8 @@ def _build_document(
             features, rollback_index, resolved_cache_dir
         )
     except Exception as exc:
-        return False, f"error: {exc}", getattr(exc, "feature_id", None)
+        failed = failed_feature(exc)
+        return False, f"error: {exc}", failed.feature_id if failed else None
 
     if result is None:
         # rollback_index=0: a valid empty document, not a failure. Clear any
@@ -236,7 +237,7 @@ def _build_document(
         )
     if len(bodies) > 1:
         messages.append(
-            f"{len(bodies)} bodies: {', '.join(body['name'] for body in bodies)}"
+            f"{len(bodies)} bodies: {', '.join(body.name for body in bodies)}"
         )
     if not any((step, stl, mesh, stl_dir, three_mf)):
         messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")

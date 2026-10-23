@@ -1,12 +1,21 @@
-from build123d import Align, Cylinder, Face, GeomType, Part, Plane, Vector
+from typing import TypedDict, final
+
+from build123d import Align, Compound, Cylinder, Face, GeomType, Part, Plane, Vector
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepTools import BRepTools
 
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
-from .registry import register
+from sprocket_engine.b3d import cut, fuse
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, ThreadFeature
+from sprocket_engine.ops.registry import register
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
 
 # ISO 261 coarse pitches, mm.
-ISO_COARSE = {
+ISO_COARSE: dict[str, float] = {
     "M1.6": 0.35,
     "M2": 0.4,
     "M2.5": 0.45,
@@ -23,7 +32,7 @@ ISO_COARSE = {
     "M24": 3.0,
 }
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Threads a cylindrical face: a hole gets an internal thread, a shaft an external one, over the face's whole "
@@ -40,7 +49,7 @@ SCHEMA = {
             "description": "id of the feature whose face is threaded",
         },
         "face": {"type": "object", "description": SELECTOR_DESCRIPTION},
-        "designation": {"enum": list(ISO_COARSE), "description": "ISO metric size"},
+        "designation": {"enum": [*ISO_COARSE], "description": "ISO metric size"},
         "pitch": {
             "type": "number",
             "exclusiveMinimum": 0,
@@ -54,18 +63,32 @@ SCHEMA = {
 }
 
 
-def thread_geometry(feature: dict, ctx) -> dict:
+@final
+class ThreadGeometry(TypedDict):
+    """Where a thread is and what size, as the viewer draws it."""
+
+    start: list[float]
+    direction: list[float]
+    length: float
+    radius: float
+    major_diameter: float
+    pitch: float
+    internal: bool
+    designation: str
+
+
+def thread_geometry(feature: ThreadFeature, ctx: Context) -> ThreadGeometry:
     """Where the thread is: the face's axis, ends and radius, plus its size.
     Read from the geometry each time, so a cached replay that skips `apply`
     still gives the viewer the same answer.
     """
     base = ctx.results[feature["base"]]
     faces = resolve_selector(base, feature["face"], ctx)
-    if len(faces) != 1 or not isinstance(faces[0], Face):
+    face = faces[0] if len(faces) == 1 else None
+    if not isinstance(face, Face):
         raise SelectorError(
             f"thread {feature['id']} needs a selector that matches one face, and it matched {len(faces)}"
         )
-    face = faces[0]
     if face.geom_type != GeomType.CYLINDER:
         raise ValueError(
             f"thread {feature['id']} needs a cylindrical face, and the selector found a {face.geom_type.name.lower()} face"
@@ -109,7 +132,7 @@ def thread_geometry(feature: dict, ctx) -> dict:
     }
 
 
-def _modeled(base, geometry: dict):
+def _modeled(base: Compound, geometry: ThreadGeometry) -> Compound:
     try:
         from bd_warehouse.thread import IsoThread
     except ImportError:
@@ -127,7 +150,11 @@ def _modeled(base, geometry: dict):
         external=not internal,
         end_finishes=finishes,
     )
-    place = Plane(origin=tuple(geometry["start"]), z_dir=tuple(geometry["direction"]))
+    start, direction = geometry["start"], geometry["direction"]
+    place = Plane(
+        origin=Vector(start[0], start[1], start[2]),
+        z_dir=Vector(direction[0], direction[1], direction[2]),
+    )
     bottom = (Align.CENTER, Align.CENTER, Align.MIN)
     if internal:
         clearance = Cylinder(thread.root_radius, length, align=bottom)
@@ -135,11 +162,12 @@ def _modeled(base, geometry: dict):
         clearance = Cylinder(geometry["radius"] + 1, length, align=bottom) - Cylinder(
             thread.root_radius, length, align=bottom
         )
-    return base.cut(place * clearance).fuse(place * thread)
+    return fuse(cut(base, place * clearance), place * thread)
 
 
 @register("thread", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: ThreadFeature, ctx: Context) -> Compound:
+    """Check the thread fits its face, and cut it when it is modelled."""
     base = ctx.results[feature["base"]]
     geometry = thread_geometry(feature, ctx)
     if not feature.get("modeled"):

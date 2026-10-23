@@ -28,8 +28,12 @@ from pathlib import Path
 
 import jsonschema
 
+from build123d import Compound
+
 from .materials import PRESETS
 from .ops import REGISTRY
+from .ops.reference import set_document_loader
+from .replay import replay
 from .sketch_edit import assign_constraint_ids, edit_sketch
 from .sketch_reference import has_references, projector, with_references_updated
 
@@ -888,8 +892,6 @@ class Document:
 
         def project(source):
             if not built:
-                from .replay import replay
-
                 earlier = self.for_replay()["features"][:index]
                 _, ctx = replay(
                     {"features": earlier, "rollback_index": len(earlier)},
@@ -1142,3 +1144,27 @@ def _same_numbers(a, b) -> bool:
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+# Documents being read right now, so a document that includes itself fails
+# with a message instead of recursing until the stack runs out.
+_loading: set[Path] = set()
+
+
+def _build_reference(path: Path) -> Compound:
+    """Build a referenced .sprocket file into the one shape it makes."""
+    if path in _loading:
+        msg = f"reference cycle: {path.name} includes itself"
+        raise ValueError(msg)
+    _loading.add(path)
+    try:
+        part = replay(Document.load(path).for_replay())
+    finally:
+        _loading.discard(path)
+    if part is None or not part.solids():
+        msg = f"referenced document {path.name} builds no solid"
+        raise ValueError(msg)
+    return part
+
+
+set_document_loader(_build_reference)

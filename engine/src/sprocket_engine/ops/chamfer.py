@@ -1,9 +1,12 @@
+from build123d import Compound
 from build123d import chamfer as b3d_chamfer
 
-from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
-from .registry import register
+from sprocket_engine.context import Context
+from sprocket_engine.model import ChamferFeature, JSONObject
+from sprocket_engine.ops.registry import register
+from sprocket_engine.selectors import SELECTOR_DESCRIPTION, resolve_edges
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": "Cuts the selected edges of a solid back to a flat bevel.",
     "required": ["id", "type", "base", "edges", "length"],
@@ -25,7 +28,7 @@ SCHEMA = {
 
 
 @register("chamfer", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: ChamferFeature, ctx: Context) -> Compound:
     base = ctx.results[feature["base"]]
     return b3d_chamfer(
         resolve_edges(base, feature["edges"], ctx), length=feature["length"]

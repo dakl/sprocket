@@ -40,10 +40,10 @@ def bodies_of(features, settings=None):
 
 def test_two_unjoined_extrudes_are_two_bodies_in_one_compound():
     part, bodies = bodies_of(CASE)
-    assert [body["id"] for body in bodies] == ["case", "lid"]
+    assert [body.id for body in bodies] == ["case", "lid"]
     assert part.volume == pytest.approx(4000 + math.pi * 9 * 2)
     # Face order runs body by body, which the mesh and picking rely on.
-    expected = bodies[0]["shape"].faces() + bodies[1]["shape"].faces()
+    expected = bodies[0].shape.faces() + bodies[1].shape.faces()
     assert all(a.is_same(b) for a, b in zip(part.faces(), expected, strict=True))
 
 
@@ -58,7 +58,7 @@ def test_a_boolean_ends_its_tools_body():
         }
     ]
     _, bodies = bodies_of(joined)
-    assert [(body["id"], body["tip"]) for body in bodies] == [("case", "u")]
+    assert [(body.id, body.tip) for body in bodies] == [("case", "u")]
 
 
 def test_a_feature_on_an_older_chain_member_replaces_the_body_as_before():
@@ -77,7 +77,7 @@ def test_a_feature_on_an_older_chain_member_replaces_the_body_as_before():
         "edges": {"select": [{"op": "edges"}, {"op": "filter_by", "axis": "Z"}]},
     }
     _, bodies = bodies_of(CASE[:2] + [fillet, chamfer])
-    assert [(body["id"], body["tip"]) for body in bodies] == [("case", "c")]
+    assert [(body.id, body.tip) for body in bodies] == [("case", "c")]
 
 
 def read_mesh(path):

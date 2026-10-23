@@ -1,13 +1,14 @@
 import copy
+from build123d import Compound, Keep, Part
 
-from build123d import Keep, Part
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, SplitFeature
+from sprocket_engine.ops.registry import register
+from sprocket_engine.ops.sketch import PLANE_SCHEMA, resolve_plane
 
-from .registry import register
-from .sketch import PLANE_SCHEMA, resolve_plane
+KEEP = ("above", "below", "both")
 
-KEEP = {"above": Keep.TOP, "below": Keep.BOTTOM, "both": Keep.BOTH}
-
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Cuts a body in two along a plane. `keep` chooses the side above the plane (the way its normal points), "
@@ -22,20 +23,34 @@ SCHEMA = {
             "description": "id of the feature whose solid is split",
         },
         "plane": PLANE_SCHEMA,
-        "keep": {"enum": list(KEEP), "description": "default both"},
+        "keep": {"enum": [*KEEP], "description": "default both"},
     },
 }
 
 
+def _pieces(side: Compound | list[Compound] | None) -> list[Compound]:
+    if side is None:
+        return []
+    return side if isinstance(side, list) else [side]
+
+
 @register("split", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: SplitFeature, ctx: Context) -> Compound:
+    """Cut the base along the plane, keeping one side or both."""
     base = ctx.results[feature["base"]]
-    result = base.split(
-        resolve_plane(feature["plane"], ctx), keep=KEEP[feature.get("keep", "both")]
-    )
-    # Keep.BOTH gives (above, below), and a side with nothing on it is None.
-    sides = result if isinstance(result, tuple) else (result,)
-    solids = [solid for side in sides if side is not None for solid in side.solids()]
+    plane = resolve_plane(feature["plane"], ctx)
+    keep = feature.get("keep", "both")
+    # Keep.BOTH gives (above, below). A side with nothing on it is None, and
+    # a side in several pieces can be a list.
+    if keep == "both":
+        sides = list(base.split(plane, keep=Keep.BOTH))
+    elif keep == "above":
+        sides = [base.split(plane, keep=Keep.TOP)]
+    else:
+        sides = [base.split(plane, keep=Keep.BOTTOM)]
+    solids = [
+        solid for side in sides for piece in _pieces(side) for solid in piece.solids()
+    ]
     if not solids:
         raise ValueError(
             f"split {feature['id']} kept nothing: the plane misses the side you asked for"

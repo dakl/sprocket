@@ -43,7 +43,14 @@ from .ops import REGISTRY
 from .ops.construct import CONSTRUCT_TYPES, construct_geometry
 from .ops.sketch import sketch_profiles
 from .render import render_png
-from .replay import NOT_SOLIDS, build_shape, last_solid_index, replay, with_settings
+from .replay import (
+    NOT_SOLIDS,
+    build_shape,
+    failed_feature,
+    last_solid_index,
+    replay,
+    with_settings,
+)
 from .selectors import SelectorError, resolve_selector
 from .synthesis import synthesize
 from .viewer_files import write_viewer_files
@@ -982,15 +989,15 @@ def _get_bodies(daemon: Daemon, params: dict) -> dict:
     return {
         "bodies": [
             {
-                "id": body["id"],
-                "name": body["name"],
-                "color": body["color"],
-                "material": body["material"],
-                "visible": body["visible"],
-                "reference": body["reference"],
-                "tip": body["tip"],
-                "volume": round(body["shape"].volume, 6),
-                "faces": len(body["shape"].faces()),
+                "id": body.id,
+                "name": body.name,
+                "color": body.color,
+                "material": body.material,
+                "visible": body.visible,
+                "reference": body.reference,
+                "tip": body.tip,
+                "volume": round(body.shape.volume, 6),
+                "faces": len(body.shape.faces()),
             }
             for body in daemon.session.bodies()
         ]
@@ -1005,14 +1012,14 @@ def _check_clearance(daemon: Daemon, params: dict) -> dict:
     from build123d import ShapeList
 
     bodies = daemon.session.bodies()
-    parts = [body for body in bodies if not body["reference"]]
-    references = [body for body in bodies if body["reference"]]
+    parts = [body for body in bodies if not body.reference]
+    references = [body for body in bodies if body.reference]
     if not references:
         raise DocumentError("the document has no reference body to check against")
     pairs = []
     for part in parts:
         for reference in references:
-            shared = part["shape"].intersect(reference["shape"])
+            shared = part.shape.intersect(reference.shape)
             pieces = (
                 list(shared)
                 if isinstance(shared, ShapeList)
@@ -1023,9 +1030,9 @@ def _check_clearance(daemon: Daemon, params: dict) -> dict:
             overlap = sum(piece.volume for piece in pieces)
             pairs.append(
                 {
-                    "body": part["id"],
-                    "reference": reference["id"],
-                    "distance": round(part["shape"].distance_to(reference["shape"]), 6),
+                    "body": part.id,
+                    "reference": reference.id,
+                    "distance": round(part.shape.distance_to(reference.shape), 6),
                     "overlap_volume": round(overlap, 6),
                 }
             )
@@ -1141,9 +1148,10 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
             trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True
         )
     except Exception as exc:
+        failed = failed_feature(exc)
         return {
             "would_build": False,
-            "failed_feature": getattr(exc, "feature_id", None),
+            "failed_feature": failed.feature_id if failed else None,
             "reason": f"{type(exc).__name__}: {exc}",
         }
     feature = params.get("feature") or {}
@@ -1551,9 +1559,9 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(str(exc)) from None
     ctx = daemon.session.context()
     for body in daemon.session.bodies():
-        if body["reference"]:
+        if body.reference:
             continue
-        faces = body["shape"].faces()
+        faces = body.shape.faces()
         local = next(
             (index for index, item in enumerate(faces) if item.is_same(face)), None
         )
@@ -1563,7 +1571,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"{handle} is not on a part body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(
-        index for index, feature in enumerate(features) if feature["id"] == body["tip"]
+        index for index, feature in enumerate(features) if feature["id"] == body.tip
     )
     candidates = [
         feature["id"]
@@ -1571,10 +1579,10 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         if feature.get("type") not in NOT_SOLIDS
     ]
     try:
-        found = synthesize(body["shape"], ctx, [f"f{local}"], candidates)
+        found = synthesize(body.shape, ctx, [f"f{local}"], candidates)
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
-    reference = {"feature": body["tip"], "face": found["selector"]}
+    reference = {"feature": body.tip, "face": found["selector"]}
     try:
         plane = resolve_plane(reference, ctx)
     except (ValueError, SelectorError) as exc:
@@ -1609,7 +1617,7 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
     ctx = daemon.session.context()
     kind = "face" if handle[0] == "f" else "edge"
     for body in daemon.session.bodies():
-        items = body["shape"].faces() if kind == "face" else body["shape"].edges()
+        items = body.shape.faces() if kind == "face" else body.shape.edges()
         local = next(
             (index for index, item in enumerate(items) if item.is_same(picked)), None
         )
@@ -1619,7 +1627,7 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"{handle} is not on a body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(
-        index for index, feature in enumerate(features) if feature["id"] == body["tip"]
+        index for index, feature in enumerate(features) if feature["id"] == body.tip
     )
     candidates = [
         feature["id"]
@@ -1627,10 +1635,10 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
         if feature.get("type") not in NOT_SOLIDS
     ]
     try:
-        found = synthesize(body["shape"], ctx, [f"{handle[0]}{local}"], candidates)
+        found = synthesize(body.shape, ctx, [f"{handle[0]}{local}"], candidates)
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
-    reference = {"base": body["tip"], kind: found["selector"]}
+    reference = {"base": body.tip, kind: found["selector"]}
     try:
         axis = resolve_axis(reference, ctx)
     except (KeyError, ValueError, SelectorError) as exc:
@@ -1656,7 +1664,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
         raise DocumentError(str(exc)) from None
     ctx = daemon.session.context()
     for body in daemon.session.bodies():
-        edges = body["shape"].edges()
+        edges = body.shape.edges()
         local = next(
             (index for index, item in enumerate(edges) if item.is_same(edge)), None
         )
@@ -1666,7 +1674,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
         raise DocumentError(f"{handle} is not an edge of a body")
     features = daemon.session.document.for_replay()["features"]
     tip_index = next(
-        index for index, feature in enumerate(features) if feature["id"] == body["tip"]
+        index for index, feature in enumerate(features) if feature["id"] == body.tip
     )
     candidates = [
         feature["id"]
@@ -1674,10 +1682,10 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
         if feature.get("type") not in NOT_SOLIDS
     ]
     try:
-        found = synthesize(body["shape"], ctx, [f"e{local}"], candidates)
+        found = synthesize(body.shape, ctx, [f"e{local}"], candidates)
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
-    return {"feature": body["tip"], "edge": found["selector"]}
+    return {"feature": body.tip, "edge": found["selector"]}
 
 
 def _project_reference(daemon: Daemon, params: dict) -> dict:
@@ -1728,25 +1736,25 @@ def _measure(daemon: Daemon, params: dict) -> dict:
     """
     session = daemon.session
     shape = session.require_shape()
-    parts = [body for body in session.bodies() if not body["reference"]]
+    parts = [body for body in session.bodies() if not body.reference]
     body_id = params.get("body")
     if body_id is not None:
         if params.get("handles"):
             raise DocumentError("measure takes a body or handles, not both")
-        body = next((body for body in parts if body["id"] == body_id), None)
+        body = next((body for body in parts if body.id == body_id), None)
         if body is None:
             raise DocumentError(
-                f"no part body {body_id!r}; part bodies are {', '.join(body['id'] for body in parts) or 'none'}"
+                f"no part body {body_id!r}; part bodies are {', '.join(body.id for body in parts) or 'none'}"
             )
-        return {"body": body_id, **measure(body["shape"])}
+        return {"body": body_id, **measure(body.shape)}
     measured = measure(shape, params.get("handles"))
     if not params.get("handles"):
         measured["bodies"] = [
             {
-                "id": body["id"],
-                "name": body["name"],
-                "volume": round(body["shape"].volume, 9),
-                "area": round(body["shape"].area, 9),
+                "id": body.id,
+                "name": body.name,
+                "volume": round(body.shape.volume, 9),
+                "area": round(body.shape.area, 9),
             }
             for body in parts
         ]

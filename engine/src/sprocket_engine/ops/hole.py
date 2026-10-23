@@ -1,14 +1,22 @@
 import math
 
-from build123d import Align, Cone, Cylinder, Part, Plane, Vector
+from build123d import Align, Compound, Cone, Cylinder, Part, Plane, Vector, Wire
 
-from .registry import register
-from .sketch import resolve_plane, sketch_entities
+from sprocket_engine.b3d import cut, to_world
+from sprocket_engine.context import Context
+from sprocket_engine.model import HoleFeature, JSONObject, entity_point
+from sprocket_engine.ops.registry import register
+from sprocket_engine.ops.sketch import resolve_plane, sketch_entities
 
-VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
+VECTOR3: JSONObject = {
+    "type": "array",
+    "items": {"type": "number"},
+    "minItems": 3,
+    "maxItems": 3,
+}
 DOWN = (Align.CENTER, Align.CENTER, Align.MAX)
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Drills holes into a solid: simple, counterbore or countersink. Place them at `points` along "
@@ -78,21 +86,26 @@ SCHEMA = {
 }
 
 
-def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
+def _vector(values: list[float]) -> Vector:
+    return Vector(values[0], values[1], values[2])
+
+
+def _centres(feature: HoleFeature, ctx: Context) -> list[tuple[Vector, Vector]]:
     """Each hole as (centre, drilling direction) in world space."""
     if "points" in feature:
-        direction = Vector(*feature.get("direction", (0, 0, -1))).normalized()
-        return [(Vector(*point), direction) for point in feature["points"]]
-    sketch = ctx.features.get(feature["sketch"])
-    if sketch is None or sketch.get("type") != "sketch":
+        direction = _vector(feature.get("direction", [0, 0, -1])).normalized()
+        return [(_vector(point), direction) for point in feature["points"]]
+    sketch_id = feature.get("sketch", "")
+    sketch = ctx.sketch(sketch_id)
+    if sketch is None:
         raise ValueError(
-            f"hole sketch {feature['sketch']!r} is not a sketch earlier in the document"
+            f"hole sketch {sketch_id!r} is not a sketch earlier in the document"
         )
     plane = resolve_plane(sketch["plane"], ctx)
     if "entities" in sketch:
         wanted = feature.get("entities")
         uvs = [
-            entity["c"]
+            entity_point(entity, "c")
             for entity in sketch_entities(sketch)
             if entity["kind"] == "circle"
             and (
@@ -106,14 +119,20 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
     else:
         uvs = []
     if not uvs:
-        raise ValueError(
-            f"sketch {feature['sketch']!r} has no circles to place holes at"
-        )
+        raise ValueError(f"sketch {sketch_id!r} has no circles to place holes at")
     direction = -plane.z_dir
-    return [(plane.from_local_coords((u, v)), direction) for u, v in uvs]
+    return [(to_world(plane, u, v), direction) for u, v in uvs]
 
 
-def _tool(feature: dict, depth: float):
+def _solid(shape: Compound | Wire) -> Compound:
+    # A fuse of two solids is a solid; build123d's `+` is typed for wires too.
+    if not isinstance(shape, Compound):
+        msg = "a hole tool came out as a wire"
+        raise TypeError(msg)
+    return shape
+
+
+def _tool(feature: HoleFeature, depth: float) -> Compound:
     """One hole in its own frame: the surface at z = 0, drilled toward -Z."""
     radius = feature["diameter"] / 2
     tool = Cylinder(radius, depth, align=DOWN)
@@ -121,21 +140,23 @@ def _tool(feature: dict, depth: float):
     if kind == "simple":
         return tool
     if "head_diameter" not in feature:
-        raise ValueError(f"a {kind} hole needs head_diameter")
+        msg = f"a {kind} hole needs head_diameter"
+        raise ValueError(msg)
     head_radius = feature["head_diameter"] / 2
     if head_radius <= radius:
         raise ValueError("head_diameter must be larger than diameter")
     if kind == "counterbore":
         if "head_depth" not in feature:
             raise ValueError("a counterbore hole needs head_depth")
-        return tool + Cylinder(head_radius, feature["head_depth"], align=DOWN)
+        return _solid(tool + Cylinder(head_radius, feature["head_depth"], align=DOWN))
     half_angle = math.radians(feature.get("head_angle", 90)) / 2
     height = (head_radius - radius) / math.tan(half_angle)
-    return tool + Cone(radius, head_radius, height, align=DOWN)
+    return _solid(tool + Cone(radius, head_radius, height, align=DOWN))
 
 
 @register("hole", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: HoleFeature, ctx: Context) -> Compound:
+    """Drill the holes into the base."""
     base = ctx.results[feature["base"]]
     if feature.get("through"):
         depth = 2 * base.bounding_box().diagonal
@@ -148,5 +169,5 @@ def apply(feature: dict, ctx):
         Plane(origin=centre, z_dir=-direction) * shape
         for centre, direction in _centres(feature, ctx)
     ]
-    result = base.cut(*tools)
+    result = cut(base, *tools)
     return Part(result.solids())
