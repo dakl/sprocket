@@ -35,12 +35,17 @@ class SelectorStep(TypedDict, total=False):
     points: list[list[float]]
 
 
-@final
-class Selector(TypedDict):
-    """A query for faces, edges or vertices, re-resolved on every rebuild."""
-
-    select: list[SelectorStep]
-    expected_count: NotRequired[int]
+# A query for faces, edges or vertices, re-resolved on every rebuild. The
+# functional form, because `from` is a Python keyword: a synthesised selector
+# says `"from": "part"`, which the engine does not read.
+Selector = TypedDict(
+    "Selector",
+    {
+        "select": list[SelectorStep],
+        "expected_count": NotRequired[int],
+        "from": NotRequired[str],
+    },
+)
 
 
 # ---- planes and axes ------------------------------------------------------
@@ -554,3 +559,15 @@ def sketch_feature(feature: JSONObject) -> SketchFeature | None:
 def to_json(feature: SketchFeature) -> JSONObject:
     """Return a sketch feature as the plain JSON object it is."""
     return cast("JSONObject", cast("object", feature))
+
+
+def entities_json(entities: list[Entity]) -> list[JSON]:
+    """Return sketch entities as the plain JSON objects they are."""
+    return cast("list[JSON]", cast("object", entities))
+
+
+def json_objects(value: JSON, what: str) -> list[JSONObject]:
+    """Return `value` as a list of JSON objects, or raise naming `what` it should be."""
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise ValueError(f"{what} must be a list of objects")
+    return [item for item in value if isinstance(item, dict)]

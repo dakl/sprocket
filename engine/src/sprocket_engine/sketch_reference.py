@@ -58,6 +58,24 @@ class Projected(TypedDict, total=False):
 type Project = Callable[[EntityReference], Projected]
 
 
+def projected_json(fields: Projected) -> JSONObject:
+    """Return a projection's fields as a JSON object, to store on an entity."""
+    found: JSONObject = {"kind": fields["kind"]}
+    if "p0" in fields:
+        found["p0"] = [*fields["p0"]]
+    if "p1" in fields:
+        found["p1"] = [*fields["p1"]]
+    if "c" in fields:
+        found["c"] = [*fields["c"]]
+    if "r" in fields:
+        found["r"] = fields["r"]
+    if "a0" in fields:
+        found["a0"] = fields["a0"]
+    if "a1" in fields:
+        found["a1"] = fields["a1"]
+    return found
+
+
 def has_references(feature: JSONObject) -> bool:
     """Whether any entity of the sketch is a projected reference."""
     entities = feature.get("entities")

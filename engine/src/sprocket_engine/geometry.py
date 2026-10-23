@@ -13,8 +13,14 @@ face a human sees highlighted.
 """
 
 import math
+from collections.abc import Sequence
+from typing import Literal, NotRequired, TypedDict, final
 
-from build123d import GeomType
+from build123d import BoundBox, Compound, Edge, Face, GeomType, Vector
+
+from sprocket_engine.b3d import distance_between
+from sprocket_engine.model import JSON
+from sprocket_engine.selectors import coordinate
 
 AXIS_NAMES = (
     ((1, 0, 0), "+X"),
@@ -34,11 +40,80 @@ AXIS_TOLERANCE = 1e-6
 EXTREME_TOLERANCE = 1e-6
 
 
-def _xyz(vector) -> list[float]:
+@final
+class FaceDescription(TypedDict):
+    """One face as an agent reads it."""
+
+    handle: str
+    kind: str
+    area: float
+    centre: list[float]
+    normal: NotRequired[list[float]]
+    description: str
+
+
+@final
+class EdgeDescription(TypedDict):
+    """One edge as an agent reads it."""
+
+    handle: str
+    kind: str
+    length: float
+    centre: list[float]
+    description: str
+
+
+@final
+class Counts(TypedDict):
+    """How many of each topological item a shape has."""
+
+    faces: int
+    edges: int
+    vertices: int
+    solids: int
+
+
+@final
+class Description(TypedDict):
+    """Every face and edge of a shape, with handles, and its counts."""
+
+    faces: list[FaceDescription]
+    edges: list[EdgeDescription]
+    counts: Counts
+
+
+@final
+class Box(TypedDict):
+    """An axis-aligned bounding box."""
+
+    min: list[float]
+    max: list[float]
+    size: list[float]
+
+
+@final
+class Measurement(TypedDict, total=False):
+    """What `measure` found. Which fields it has depends on how many handles it got."""
+
+    volume: float
+    area: float
+    length: float
+    bounding_box: Box
+    centre_of_mass: list[float]
+    handle: str
+    handles: list[str]
+    centre: list[float]
+    distance: float
+    centre_distance: float
+    centre_delta: list[float]
+    angle: float
+
+
+def _xyz(vector: Vector) -> list[float]:
     return [round(vector.X, 9), round(vector.Y, 9), round(vector.Z, 9)]
 
 
-def _axis_name(normal) -> str | None:
+def _axis_name(normal: Vector) -> str | None:
     for axis, name in AXIS_NAMES:
         if (
             abs(normal.X - axis[0]) < AXIS_TOLERANCE
@@ -49,7 +124,9 @@ def _axis_name(normal) -> str | None:
     return None
 
 
-def _position_word(centre, box, normal_axis: str | None) -> str | None:
+def _position_word(
+    centre: Vector, box: BoundBox, normal_axis: str | None
+) -> str | None:
     """Names where a face sits, but only along its own normal.
 
     A +Z face at the top of the box is "the top". A +Z face halfway up is a
@@ -64,29 +141,32 @@ def _position_word(centre, box, normal_axis: str | None) -> str | None:
         "+Y": "back",
         "-Y": "front",
     }
-    if normal_axis not in words:
+    if normal_axis is None or normal_axis not in words:
         return None
     axis = normal_axis[1]
-    value = getattr(centre, axis)
-    high = getattr(box.max, axis)
-    low = getattr(box.min, axis)
+    value = coordinate(centre, axis)
+    high = coordinate(box.max, axis)
+    low = coordinate(box.min, axis)
     wanted = high if normal_axis[0] == "+" else low
     if abs(value - wanted) > EXTREME_TOLERANCE * max(1.0, abs(wanted)):
         return None
     return words[normal_axis]
 
 
-def describe_faces(shape) -> list[dict]:
+def describe_faces(shape: Compound) -> list[FaceDescription]:
+    """Every face of `shape`, with a handle and a sentence."""
     box = shape.bounding_box()
-    described = []
+    described: list[FaceDescription] = []
     for index, face in enumerate(shape.faces()):
         kind = face.geom_type.name
         centre = face.center()
-        entry = {
+        area = round(face.area, 9)
+        entry: FaceDescription = {
             "handle": f"f{index}",
             "kind": kind,
-            "area": round(face.area, 9),
+            "area": area,
             "centre": _xyz(centre),
+            "description": "",
         }
         axis = None
         if kind == "PLANE":
@@ -94,7 +174,7 @@ def describe_faces(shape) -> list[dict]:
             axis = _axis_name(normal)
             entry["normal"] = _xyz(normal)
         position = _position_word(centre, box, axis)
-        entry["description"] = _face_sentence(kind, axis, entry["area"], position)
+        entry["description"] = _face_sentence(kind, axis, area, position)
         described.append(entry)
     return described
 
@@ -111,7 +191,8 @@ def _face_sentence(
     return ", ".join(words)
 
 
-def describe_edges(shape) -> list[dict]:
+def describe_edges(shape: Compound) -> list[EdgeDescription]:
+    """Every edge of `shape`, with a handle and a sentence."""
     return [
         {
             "handle": f"e{index}",
@@ -124,7 +205,8 @@ def describe_edges(shape) -> list[dict]:
     ]
 
 
-def describe(shape) -> dict:
+def describe(shape: Compound) -> Description:
+    """Every face and edge of `shape`, and its counts."""
     return {
         "faces": describe_faces(shape),
         "edges": describe_edges(shape),
@@ -137,9 +219,18 @@ def describe(shape) -> dict:
     }
 
 
-def _resolve_handle(shape, handle: str):
+def _handle(handle: JSON) -> str:
     if not isinstance(handle, str) or len(handle) < 2 or handle[0] not in "fe":
         raise ValueError(f"handle {handle!r} must look like 'f0' or 'e3'")
+    return handle
+
+
+def resolve_handle(shape: Compound, handle: JSON) -> Face | Edge:
+    """The face or edge a handle such as "f3" or "e0" names."""
+    return _resolve_handle(shape, _handle(handle))
+
+
+def _resolve_handle(shape: Compound, handle: str) -> Face | Edge:
     try:
         index = int(handle[1:])
     except ValueError:
@@ -152,7 +243,7 @@ def _resolve_handle(shape, handle: str):
     return items[index]
 
 
-def measure(shape, handles: list[str] | None = None) -> dict:
+def measure(shape: Compound, handles: Sequence[JSON] | None = None) -> Measurement:
     """Measures the whole shape, one handle, or the gap between two.
 
     Two handles give `distance`, the closest the two pieces of geometry come,
@@ -160,8 +251,8 @@ def measure(shape, handles: list[str] | None = None) -> dict:
     often asks ("how far is this hole from that edge"). Where both have a
     direction (flat faces, straight edges) they also give `angle`.
     """
-    handles = handles or []
-    if not handles:
+    names = [_handle(handle) for handle in handles or []]
+    if not names:
         box = shape.bounding_box()
         return {
             "volume": round(shape.volume, 9),
@@ -174,47 +265,50 @@ def measure(shape, handles: list[str] | None = None) -> dict:
             "centre_of_mass": _xyz(shape.center()),
         }
 
-    items = [_resolve_handle(shape, handle) for handle in handles]
+    items = [_resolve_handle(shape, name) for name in names]
     if len(items) == 1:
         item = items[0]
-        measured = {"handle": handles[0], "centre": _xyz(item.center())}
-        measured["area" if handles[0][0] == "f" else "length"] = round(
-            item.area if handles[0][0] == "f" else item.length, 9
-        )
+        measured: Measurement = {"handle": names[0], "centre": _xyz(item.center())}
+        if isinstance(item, Face):
+            measured["area"] = round(item.area, 9)
+        else:
+            measured["length"] = round(item.length, 9)
         return measured
     if len(items) == 2:
         first, second = (item.center() for item in items)
         measured = {
-            "handles": handles,
-            "distance": round(items[0].distance_to(items[1]), 9),
+            "handles": names,
+            "distance": round(distance_between(items[0], items[1]), 9),
             "centre_distance": round((second - first).length, 9),
             "centre_delta": _xyz(second - first),
         }
-        angle = _angle(*items)
+        angle = _angle(items[0], items[1])
         if angle is not None:
             measured["angle"] = angle
         return measured
     raise ValueError("measure takes no handles, one handle, or two")
 
 
-def _direction(item):
+def _direction(
+    item: Face | Edge,
+) -> tuple[Literal["normal", "line"], Vector] | None:
     """('normal', n) for a flat face, ('line', d) for a straight edge, else None."""
-    if item.geom_type == GeomType.PLANE:
+    if isinstance(item, Face) and item.geom_type == GeomType.PLANE:
         return "normal", item.normal_at(item.center())
-    if item.geom_type == GeomType.LINE:
+    if isinstance(item, Edge) and item.geom_type == GeomType.LINE:
         return "line", (item.position_at(1) - item.position_at(0)).normalized()
     return None
 
 
-def _angle(a, b) -> float | None:
+def _angle(a: Face | Edge, b: Face | Edge) -> float | None:
     """Degrees. Two flat faces: between their normals, 0 to 180, so faces that
     face each other read 180. Two straight edges: 0 to 90, since a line has no
     way round. A face and an edge: the line's angle to the plane, 0 to 90.
     """
-    found = _direction(a), _direction(b)
-    if None in found:
+    found_a, found_b = _direction(a), _direction(b)
+    if found_a is None or found_b is None:
         return None
-    (kind_a, vector_a), (kind_b, vector_b) = found
+    (kind_a, vector_a), (kind_b, vector_b) = found_a, found_b
     cosine = max(-1.0, min(1.0, vector_a.dot(vector_b)))
     degrees = math.degrees(math.acos(cosine))
     if kind_a == kind_b == "normal":

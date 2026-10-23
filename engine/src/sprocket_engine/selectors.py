@@ -14,7 +14,7 @@ from build123d import Axis, Compound, Edge, Face, GeomType, ShapeList, Vector, V
 
 from sprocket_engine.b3d import is_same
 from sprocket_engine.context import Context
-from sprocket_engine.model import Selector, SelectorStep
+from sprocket_engine.model import JSON, Selector, SelectorStep
 
 type Item = Face | Edge | Vertex
 type Starter = Literal["faces", "edges", "vertices"]
@@ -131,17 +131,17 @@ def _at_end(current: ShapeList[Item], axis: str, end: str) -> ShapeList[Item]:
         raise SelectorError(f"at_end 'end' must be 'max' or 'min', not {end!r}")
     if not current:
         return ShapeList(current)
-    values = [_coordinate(item.center(), axis) for item in current]
+    values = [coordinate(item.center(), axis) for item in current]
     edge = max(values) if end == "max" else min(values)
     return ShapeList(
         [item for item, value in zip(current, values) if abs(value - edge) <= LEVEL]
     )
 
 
-def _coordinate(point: Vector, axis: str) -> float:
+def coordinate(point: Vector, axis: str) -> float:
+    """The point's X, Y or Z, named by `axis`."""
     if axis not in AXES:
-        msg = f"at_end 'axis' must be X, Y or Z, not {axis!r}"
-        raise SelectorError(msg)
+        raise SelectorError(f"an axis must be X, Y or Z, not {axis!r}")
     return {"X": point.X, "Y": point.Y, "Z": point.Z}[axis]
 
 
@@ -185,7 +185,7 @@ def _new_since(
         raise SelectorError(
             f"new_since {feature_id!r}: its base {base_id!r} has no result"
         )
-    olds = [_signature(old) for old in _items(before, starter)]
+    olds = [_signature(old) for old in items_of(before, starter)]
     # A ShapeList, so the steps after this one can still sort and filter.
     return ShapeList([item for item in current if not _unchanged(item, olds)])
 
@@ -213,7 +213,7 @@ def _numbers(step: SelectorStep, name: Literal["point", "box"]) -> list[float]:
     return value
 
 
-def _items(shape: Compound, starter: Starter) -> ShapeList[Item]:
+def items_of(shape: Compound, starter: Starter) -> ShapeList[Item]:
     """Every face, edge or vertex of `shape`."""
     if starter == "faces":
         return ShapeList[Item](shape.faces())
@@ -246,7 +246,7 @@ def resolve_selector(
         raise SelectorError(msg)
 
     starter = _starter(steps[0]["op"])
-    current = _items(shape, starter)
+    current = items_of(shape, starter)
     for step in steps[1:]:
         op = step["op"]
         if op == "filter_by":
@@ -309,3 +309,46 @@ def resolve_edges(
             f"edge selector matched {sorted(other_kinds)}, expected edges"
         )
     return [item for item in matched if isinstance(item, Edge)]
+
+
+def _numbers_of(value: JSON, what: str) -> list[float]:
+    if not isinstance(value, list) or not all(
+        isinstance(item, int | float) and not isinstance(item, bool) for item in value
+    ):
+        raise SelectorError(f"{what} must be a list of numbers")
+    return [float(item) for item in value if isinstance(item, int | float)]
+
+
+def parse_selector(value: JSON) -> Selector:
+    """A selector from JSON that no schema has checked, such as an edit's argument."""
+    if not isinstance(value, dict):
+        raise SelectorError("a selector must be an object")
+    steps = value.get("select")
+    if not isinstance(steps, list):
+        raise SelectorError("a selector needs a 'select' list")
+    selector: Selector = {"select": [_parse_step(step) for step in steps]}
+    count = value.get("expected_count")
+    if isinstance(count, int) and not isinstance(count, bool):
+        selector["expected_count"] = count
+    return selector
+
+
+def _parse_step(value: JSON) -> SelectorStep:
+    if not isinstance(value, dict) or not isinstance(op := value.get("op"), str):
+        raise SelectorError("every selector step is an object with an 'op'")
+    step: SelectorStep = {"op": op}
+    for key in ("axis", "end", "feature"):
+        text = value.get(key)
+        if isinstance(text, str):
+            step[key] = text
+    for key in ("start", "stop"):
+        index = value.get(key)
+        if isinstance(index, int) and not isinstance(index, bool):
+            step[key] = index
+    for key in ("point", "normal", "box"):
+        if key in value:
+            step[key] = _numbers_of(value[key], f"{op} {key!r}")
+    points = value.get("points")
+    if isinstance(points, list):
+        step["points"] = [_numbers_of(point, f"{op} 'points'") for point in points]
+    return step

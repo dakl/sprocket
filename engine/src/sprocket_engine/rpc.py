@@ -38,7 +38,7 @@ from .document import (
     reference_digest,
     validate_feature,
 )
-from .geometry import _resolve_handle, describe, measure
+from .geometry import describe, measure, resolve_handle
 from .ops import REGISTRY
 from .ops.construct import CONSTRUCT_TYPES, construct_geometry
 from .ops.sketch import sketch_profiles
@@ -943,7 +943,7 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
         raise DocumentError("'handle' must be a face handle like 'f3'")
     shape = daemon.session.require_shape()
     try:
-        face = _resolve_handle(shape, handle)
+        face = resolve_handle(shape, handle)
     except ValueError as exc:
         raise DocumentError(str(exc)) from None
     entries = []
@@ -1189,9 +1189,9 @@ def _preview_mesh(shape) -> dict:
     for solid in shape.solids():
         instance = tessellate(solid)
         offset = len(vertices) // 3
-        triangles.extend((instance["triangles"].reshape(-1) + offset).tolist())
-        vertices.extend(instance["vertices"].reshape(-1).round(4).tolist())
-        edges.extend(instance["edges"].reshape(-1).round(4).tolist())
+        triangles.extend((instance.triangles.reshape(-1) + offset).tolist())
+        vertices.extend(instance.vertices.reshape(-1).round(4).tolist())
+        edges.extend(instance.edges.reshape(-1).round(4).tolist())
     return {"vertices": vertices, "triangles": triangles, "edges": edges}
 
 
@@ -1243,7 +1243,7 @@ def _face_edges(daemon: Daemon, params: dict) -> dict:
         raise DocumentError("'handle' must be a face handle like 'f3'")
     shape = daemon.session.require_shape()
     try:
-        face = _resolve_handle(shape, handle)
+        face = resolve_handle(shape, handle)
     except ValueError as exc:
         raise DocumentError(str(exc)) from None
     bounding = face.edges()
@@ -1359,7 +1359,7 @@ def _selection_keys(daemon: Daemon) -> dict[str, tuple]:
     keys = {}
     for handle in handles:
         try:
-            keys[handle] = _geometry_key(_resolve_handle(shape, handle))
+            keys[handle] = _geometry_key(resolve_handle(shape, handle))
         except ValueError:
             pass
     return keys
@@ -1554,7 +1554,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError("'handle' must be a face handle like 'f3'")
     shape = daemon.session.require_shape()
     try:
-        face = _resolve_handle(shape, handle)
+        face = resolve_handle(shape, handle)
     except ValueError as exc:
         raise DocumentError(str(exc)) from None
     ctx = daemon.session.context()
@@ -1611,7 +1611,7 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
         raise DocumentError("'handle' must be a face or edge handle like 'f3' or 'e7'")
     shape = daemon.session.require_shape()
     try:
-        picked = _resolve_handle(shape, handle)
+        picked = resolve_handle(shape, handle)
     except ValueError as exc:
         raise DocumentError(str(exc)) from None
     ctx = daemon.session.context()
@@ -1659,7 +1659,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
     """
     shape = daemon.session.require_shape()
     try:
-        edge = _resolve_handle(shape, handle)
+        edge = resolve_handle(shape, handle)
     except ValueError as exc:
         raise DocumentError(str(exc)) from None
     ctx = daemon.session.context()
@@ -1724,7 +1724,7 @@ def _highlight(daemon: Daemon, params: dict) -> dict:
     if handles:
         shape = daemon.session.require_shape()
         for handle in handles:
-            _resolve_handle(shape, handle)
+            resolve_handle(shape, handle)
     sketches = _sketch_ids(daemon, params)
     daemon.broadcast("highlight", {"handles": handles, "sketches": sketches})
     return {"handles": handles, "sketches": sketches}
