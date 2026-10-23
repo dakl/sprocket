@@ -61,7 +61,11 @@
         "rules": {
           "style": {
             "noTernary": "off",
-            "noCommonJs": "off"
+            "noCommonJs": "off",
+            // A three.js CAD viewer is built from literal coordinates, colours,
+            // sizes and tolerances, so naming each one would not make it
+            // clearer. Daniel's call, 2026-10-23.
+            "noMagicNumbers": "off"
           },
           "correctness": {
             "useQwikValidLexicalScope": "off"
