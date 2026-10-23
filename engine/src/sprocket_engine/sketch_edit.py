@@ -11,42 +11,71 @@ when two clients edit at once, and an id does not.
 """
 
 import copy
+from collections.abc import Callable
 
-from .ops.sketch import CONSTRAINT_FIELDS, check_entities
-from .sketch_reference import has_references, with_references_updated
+from sprocket_engine.model import (
+    JSON,
+    JSONObject,
+    entities_json,
+    json_objects,
+    sketch_feature,
+)
+from sprocket_engine.ops.sketch import CONSTRAINT_FIELDS, check_entities
+from sprocket_engine.sketch_reference import (
+    Project,
+    has_references,
+    parse_reference,
+    projected_json,
+    with_references_updated,
+)
 
 ENTITY_KINDS = ("line", "arc", "circle")
 # What an update may not change: the id is the address, and a different kind
 # is a different shape, which is a remove and an add.
 FIXED_KEYS = ("id", "kind", "reference")
 
+type Action = Callable[[JSONObject, JSONObject, Project | None], JSONObject]
 
-def next_id(items: list[dict], prefix: str) -> str:
+
+def next_id(items: list[JSONObject], prefix: str) -> str:
     """`<prefix><n>`, one past the highest in use, so a deleted id does not come back on another shape."""
     used = [
-        int(item["id"][len(prefix) :])
+        int(item_id[len(prefix) :])
         for item in items
-        if item.get("id", "").startswith(prefix) and item["id"][len(prefix) :].isdigit()
+        if isinstance(item_id := item.get("id", ""), str)
+        and item_id.startswith(prefix)
+        and item_id[len(prefix) :].isdigit()
     ]
     return f"{prefix}{max(used, default=0) + 1}"
 
 
-def assign_constraint_ids(feature: dict) -> None:
+def _list(feature: JSONObject, key: str) -> list[JSONObject]:
+    """The feature's `key` list. Its items are the feature's own objects, so
+    changing one changes the feature; a list that gains or loses an item is
+    written back with `_put`."""
+    return json_objects(feature.get(key, []), repr(key))
+
+
+def _put(feature: JSONObject, key: str, items: list[JSONObject]) -> None:
+    feature[key] = [*items]
+
+
+def assign_constraint_ids(feature: JSONObject) -> None:
     """Gives every constraint without an id one. Documents from before M3.8 have none."""
-    constraints = feature.get("constraints", [])
+    constraints = json_objects(feature.get("constraints", []), "'constraints'")
     for constraint in constraints:
         if "id" not in constraint:
             constraint["id"] = next_id(constraints, "c")
 
 
-def _index_of(items: list[dict], item_id, what: str) -> int:
+def _index_of(items: list[JSONObject], item_id: JSON, what: str) -> int:
     for index, item in enumerate(items):
-        if item["id"] == item_id:
+        if item.get("id") == item_id:
             return index
     raise ValueError(f"no {what} {item_id!r}")
 
 
-def _changes(edit: dict) -> dict:
+def _changes(edit: JSONObject) -> JSONObject:
     changes = edit.get("changes")
     if not isinstance(changes, dict) or not changes:
         raise ValueError("'changes' must be an object with at least one field")
@@ -56,27 +85,32 @@ def _changes(edit: dict) -> dict:
     return changes
 
 
-def _object(edit: dict, key: str) -> dict:
+def _object(edit: JSONObject, key: str) -> JSONObject:
     value = edit.get(key)
     if not isinstance(value, dict):
         raise ValueError(f"'{key}' must be an object")
     return dict(value)
 
 
-def _add_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _add_constraint(
+    feature: JSONObject, edit: JSONObject, _project: Project | None = None
+) -> JSONObject:
     constraint = _object(edit, "constraint")
-    if constraint.get("kind") not in CONSTRAINT_FIELDS:
+    kind = constraint.get("kind")
+    if not isinstance(kind, str) or kind not in CONSTRAINT_FIELDS:
         raise ValueError(
-            f"constraint kind {constraint.get('kind')!r} is not one of {', '.join(sorted(CONSTRAINT_FIELDS))}"
+            f"constraint kind {kind!r} is not one of {', '.join(sorted(CONSTRAINT_FIELDS))}"
         )
-    constraints = feature.setdefault("constraints", [])
-    constraint.setdefault("id", next_id(constraints, "c"))
-    constraints.append(constraint)
+    constraints = _list(feature, "constraints")
+    _ = constraint.setdefault("id", next_id(constraints, "c"))
+    _put(feature, "constraints", [*constraints, constraint])
     return {"constraint_id": constraint["id"]}
 
 
-def _update_constraint(feature: dict, edit: dict, project=None) -> dict:
-    constraints = feature.get("constraints", [])
+def _update_constraint(
+    feature: JSONObject, edit: JSONObject, _project: Project | None = None
+) -> JSONObject:
+    constraints = _list(feature, "constraints")
     constraint = constraints[
         _index_of(constraints, edit.get("constraint_id"), "constraint")
     ]
@@ -84,13 +118,18 @@ def _update_constraint(feature: dict, edit: dict, project=None) -> dict:
     return {"constraint_id": constraint["id"]}
 
 
-def _remove_constraint(feature: dict, edit: dict, project=None) -> dict:
-    constraints = feature.get("constraints", [])
+def _remove_constraint(
+    feature: JSONObject, edit: JSONObject, _project: Project | None = None
+) -> JSONObject:
+    constraints = _list(feature, "constraints")
     del constraints[_index_of(constraints, edit.get("constraint_id"), "constraint")]
+    _put(feature, "constraints", constraints)
     return {"constraint_id": edit["constraint_id"]}
 
 
-def _add_entity(feature: dict, edit: dict, project=None) -> dict:
+def _add_entity(
+    feature: JSONObject, edit: JSONObject, _project: Project | None = None
+) -> JSONObject:
     entity = _object(edit, "entity")
     if "reference" in entity:
         raise ValueError(
@@ -100,39 +139,44 @@ def _add_entity(feature: dict, edit: dict, project=None) -> dict:
         raise ValueError(
             f"entity kind {entity.get('kind')!r} is not one of {', '.join(ENTITY_KINDS)}"
         )
-    entity.setdefault("id", next_id(feature["entities"], "e"))
-    feature["entities"].append(entity)
+    entities = _list(feature, "entities")
+    _ = entity.setdefault("id", next_id(entities, "e"))
+    _put(feature, "entities", [*entities, entity])
     return {"entity_id": entity["id"]}
 
 
-def _add_reference(feature: dict, edit: dict, project=None) -> dict:
+def _add_reference(
+    feature: JSONObject, edit: JSONObject, project: Project | None = None
+) -> JSONObject:
     """Projects an edge of an earlier sketch or body into this sketch, locked, as a construction entity."""
     source = _object(edit, "source")
     if project is None:
         raise ValueError(
             "projecting needs the document's earlier features to project from"
         )
-    for entity in feature["entities"]:
+    entities = _list(feature, "entities")
+    for entity in entities:
         if entity.get("reference") == source:
             raise ValueError(f"that is already projected as {entity['id']!r}")
     try:
-        fields = project(source)
+        fields = project(parse_reference(source))
     except Exception as exc:
         raise ValueError(f"cannot project that: {exc}") from None
-    entity = {
-        "id": next_id(feature["entities"], "e"),
-        **fields,
+    entity: JSONObject = {
+        "id": next_id(entities, "e"),
+        **projected_json(fields),
         "construction": True,
         "reference": source,
     }
-    feature["entities"].append(entity)
+    _put(feature, "entities", [*entities, entity])
     return {"entity_id": entity["id"]}
 
 
-def _update_entity(feature: dict, edit: dict, project=None) -> dict:
-    entity = feature["entities"][
-        _index_of(feature["entities"], edit.get("entity_id"), "entity")
-    ]
+def _update_entity(
+    feature: JSONObject, edit: JSONObject, _project: Project | None = None
+) -> JSONObject:
+    entities = _list(feature, "entities")
+    entity = entities[_index_of(entities, edit.get("entity_id"), "entity")]
     if entity.get("reference"):
         raise ValueError(
             f"{entity['id']!r} is a projected reference and is locked: remove it, or change its source"
@@ -141,27 +185,32 @@ def _update_entity(feature: dict, edit: dict, project=None) -> dict:
     return {"entity_id": entity["id"]}
 
 
-def _remove_entity(feature: dict, edit: dict, project=None) -> dict:
+def _remove_entity(
+    feature: JSONObject, edit: JSONObject, _project: Project | None = None
+) -> JSONObject:
     """Removes the entity and every constraint that mentions it, as the viewer does."""
     entity_id = edit.get("entity_id")
-    del feature["entities"][_index_of(feature["entities"], entity_id, "entity")]
+    entities = _list(feature, "entities")
+    del entities[_index_of(entities, entity_id, "entity")]
+    _put(feature, "entities", entities)
 
-    def mentions(constraint: dict) -> bool:
+    def mentions(constraint: JSONObject) -> bool:
         return any(
-            entity_id == constraint[key].split(".")[0]
+            isinstance(reference := constraint.get(key), str)
+            and entity_id == reference.split(".")[0]
             for key in ("a", "b", "e")
-            if key in constraint
         )
 
-    feature["constraints"] = [
+    kept = [
         constraint
-        for constraint in feature.get("constraints", [])
+        for constraint in _list(feature, "constraints")
         if not mentions(constraint)
     ]
+    _put(feature, "constraints", kept)
     return {"entity_id": entity_id}
 
 
-ACTIONS = {
+ACTIONS: dict[str, Action] = {
     "add_constraint": _add_constraint,
     "update_constraint": _update_constraint,
     "remove_constraint": _remove_constraint,
@@ -172,17 +221,12 @@ ACTIONS = {
 }
 
 
-def _solve(sketch: dict) -> dict:
-    try:
-        from . import solver
-    except ImportError:
-        raise ValueError(
-            "editing a sketch needs the constraint solver: install sprocket-engine[solver]"
-        ) from None
-    return solver.solve(sketch)
-
-
-def edit_sketch(feature: dict, edit: dict, resolve, project=None) -> dict:
+def edit_sketch(
+    feature: JSONObject,
+    edit: JSONObject,
+    resolve: Callable[[JSONObject], JSONObject],
+    project: Project | None = None,
+) -> JSONObject:
     """Applies `edit` to the sketch `feature` in place, solves, and returns what changed.
 
     `resolve` turns a feature into one with its parameter expressions worked
@@ -196,24 +240,39 @@ def edit_sketch(feature: dict, edit: dict, resolve, project=None) -> dict:
     A sketch that cannot be solved raises ValueError naming the constraints
     that conflict, and `feature` is left as it was.
     """
-    action = ACTIONS.get(edit.get("action"))
+    action_name = edit.get("action")
+    action = ACTIONS.get(action_name) if isinstance(action_name, str) else None
     if action is None:
         raise ValueError(
-            f"unknown sketch action {edit.get('action')!r} (known: {', '.join(ACTIONS)})"
+            f"unknown sketch action {action_name!r} (known: {', '.join(ACTIONS)})"
         )
 
     draft = copy.deepcopy(feature)
     assign_constraint_ids(draft)
     detail = action(draft, edit, project)
-    check_entities(draft)
+    stored = sketch_feature(draft)
+    if stored is None:
+        raise ValueError("only a sketch takes sketch edits")
+    # The draft may still hold "=param" strings in its numbers. check_entities
+    # reads only ids, kinds and which fields are present, never a number.
+    check_entities(stored)
 
-    constraints = draft.get("constraints", [])
-    resolved = resolve(draft)
-    if project is not None and has_references(resolved):
+    constraints = json_objects(draft.get("constraints", []), "'constraints'")
+    resolved_json = resolve(draft)
+    resolved = sketch_feature(resolved_json)
+    if resolved is None:
+        raise ValueError("only a sketch takes sketch edits")
+    if project is not None and has_references(resolved_json):
         resolved = with_references_updated(resolved, project)
-    result = _solve(
+    try:
+        from sprocket_engine.solver import solve  # noqa: PLC0415 -- planegcs is an optional extra and slow to load
+    except ImportError:
+        raise ValueError(
+            "editing a sketch needs the constraint solver: install sprocket-engine[solver]"
+        ) from None
+    result = solve(
         {
-            "entities": resolved["entities"],
+            "entities": resolved.get("entities", []),
             "constraints": resolved.get("constraints", []),
         }
     )
@@ -228,12 +287,13 @@ def edit_sketch(feature: dict, edit: dict, resolve, project=None) -> dict:
             else "the sketch has no solution"
         )
 
-    draft["entities"] = result["sketch"]["entities"]
+    draft["entities"] = entities_json(result["sketch"]["entities"])
     feature.clear()
     feature.update(draft)
+    redundant: list[JSON] = [constraints[index]["id"] for index in result["redundant"]]
     return {
         **detail,
-        "action": edit["action"],
+        "action": action_name,
         "dof": result["dof"],
-        "redundant": [constraints[index]["id"] for index in result["redundant"]],
+        "redundant": redundant,
     }

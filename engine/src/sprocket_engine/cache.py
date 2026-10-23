@@ -8,12 +8,16 @@ import hashlib
 import json
 from pathlib import Path
 
-from build123d import Part, Shape, Sketch, export_brep, import_brep
+from build123d import Compound, Part, Sketch
+from OCP.TopoDS import TopoDS
 
-from . import ENGINE_VERSIONS
+from sprocket_engine.versions import ENGINE_VERSIONS
+from sprocket_engine.b3d import export_brep, import_brep
+from sprocket_engine.model import JSONObject
 
 
-def feature_cache_key(feature: dict, upstream_key: str) -> str:
+def feature_cache_key(feature: JSONObject, upstream_key: str) -> str:
+    """The cache key of `feature` built on top of `upstream_key`."""
     payload = json.dumps(
         {"feature": feature, "upstream": upstream_key, "engine": ENGINE_VERSIONS},
         sort_keys=True,
@@ -22,14 +26,17 @@ def feature_cache_key(feature: dict, upstream_key: str) -> str:
 
 
 class BrepCache:
-    def __init__(self, cache_dir: Path):
-        self.cache_dir = cache_dir
+    """One BREP file per feature result, named by its cache key."""
+
+    def __init__(self, cache_dir: Path) -> None:
+        """Use `cache_dir`, making it if it does not exist."""
+        self.cache_dir: Path = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _path(self, key: str) -> Path:
         return self.cache_dir / f"{key}.brep"
 
-    def get(self, key: str) -> Shape | None:
+    def get(self, key: str) -> Compound | None:
         """A cached shape has to come back as the build123d class its algebra
         operators expect, not the generic Compound that import_brep returns.
 
@@ -45,7 +52,10 @@ class BrepCache:
         if not path.exists():
             return None
         shape = import_brep(path)
-        return (Part if shape.solids() else Sketch)(shape.wrapped)
+        # Every op's result is a Compound, so that is what the file holds.
+        compound = TopoDS.Compound(shape.wrapped)
+        return (Part if shape.solids() else Sketch)(compound)
 
-    def put(self, key: str, shape: Shape) -> None:
-        export_brep(shape, self._path(key))
+    def put(self, key: str, shape: Compound) -> None:
+        """Stores `shape` under `key`."""
+        _ = export_brep(shape, self._path(key))

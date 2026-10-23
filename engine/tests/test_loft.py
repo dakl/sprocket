@@ -73,7 +73,7 @@ def test_cut_mode_removes_the_loft_from_the_base():
     }
     part, ctx = build(block + [square("a", 0, 20), square("b", 10, 10), loft])
     assert part.volume == pytest.approx(30 * 30 * 10 - 7000 / 3, rel=1e-6)
-    assert [body["id"] for body in ctx.bodies] == ["block"]
+    assert [body.id for body in ctx.bodies] == ["block"]
 
 
 def test_a_sketch_goes_on_the_flat_side_of_a_ruled_loft():

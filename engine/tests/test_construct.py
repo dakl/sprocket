@@ -6,7 +6,7 @@ import pytest
 from conftest import running
 
 from sprocket_engine.document import Document, DocumentError
-from sprocket_engine.replay import build_shape, replay
+from sprocket_engine.replay import build_shape, failed_feature, replay
 from sprocket_engine.rpc import Client
 
 BOX = [
@@ -35,7 +35,7 @@ def test_construct_features_make_no_body_and_a_document_of_them_is_empty():
     )
     assert shape is None and failed is None
     shape, ctx = build(BOX + [YZ_AT_X30, {"id": "z", "type": "axis", "axis": "Z"}])
-    assert [body["id"] for body in ctx.bodies] == ["box"]
+    assert [body.id for body in ctx.bodies] == ["box"]
     assert shape.volume == pytest.approx(12000)
 
 
@@ -200,7 +200,9 @@ def test_an_axis_that_does_not_resolve_fails_that_feature_by_name():
     }
     with pytest.raises(Exception) as caught:
         build(BOX + [bad])
-    assert caught.value.feature_id == "a"
+    failed = failed_feature(caught.value)
+    assert failed is not None
+    assert failed.feature_id == "a"
     curved = {
         "id": "c",
         "type": "axis",

@@ -1,8 +1,15 @@
-from build123d import Part, ShapeList
+from collections.abc import Callable
 
-from .registry import register
+from build123d import Compound, Part, ShapeList
+from build123d.topology import Shape
+from OCP.TopoDS import TopoDS_Shape
 
-SCHEMA = {
+from sprocket_engine.b3d import cut, fuse, intersect
+from sprocket_engine.context import Context
+from sprocket_engine.model import BooleanFeature, JSONObject
+from sprocket_engine.ops.registry import register
+
+SCHEMA: JSONObject = {
     "type": "object",
     "description": "Combines two earlier features, by union, subtract or intersect.",
     "required": ["id", "type", "operation", "base", "tool"],
@@ -15,15 +22,17 @@ SCHEMA = {
     },
 }
 
-OPERATIONS = {
-    "union": lambda base, tool: base.fuse(tool),
-    "subtract": lambda base, tool: base.cut(tool),
-    "intersect": lambda base, tool: base.intersect(tool),
+type Combined = Compound | ShapeList[Shape[TopoDS_Shape]] | None
+
+OPERATIONS: dict[str, Callable[[Compound, Compound], Combined]] = {
+    "union": fuse,
+    "subtract": cut,
+    "intersect": intersect,
 }
 
 
 @register("boolean", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: BooleanFeature, ctx: Context) -> Compound:
     """Operands are feature ids, because every earlier feature's shape is
     already in `ctx.results` whether or not anything consumed it. An extrude
     nothing else refers to is a second body in all but name, so a boolean can
@@ -37,7 +46,7 @@ def apply(feature: dict, ctx):
     # return one Part, because that is what replay stores and the tessellator
     # reads.
     if result is None:
-        solids = []
+        solids: list[Compound] | list[Shape[TopoDS_Shape]] = []
     elif isinstance(result, ShapeList):
         solids = list(result)
     else:

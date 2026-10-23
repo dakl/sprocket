@@ -35,6 +35,7 @@ sprocket = "sprocket_engine:main"
 [dependency-groups]
 dev = [
     "basedpyright==1.40.2",
+    "cadquery-ocp-stubs==8.0.1.0.0",
     "hypothesis>=6.168.3",
     "pytest>=9.1.1",
     "ruff==0.17.0",
@@ -45,7 +46,8 @@ requires = ["uv_build>=0.12.1,<0.13.0"]
 build-backend = "uv_build"
 
 # Strict on purpose, old code included: `make lint` fails until the old code
-# meets it. Ignore a rule here only when it conflicts with another one.
+# meets it. Ignore a rule here only when it conflicts with another one, or
+# when Daniel decided it is wrong for this repo; the reason sits beside it.
 [tool.ruff]
 target-version = "py312"
 
@@ -56,11 +58,27 @@ ignore = [
     "D213",   # conflicts with D212 (summary on the docstring's first line)
     "COM812", # conflicts with the formatter
     "CPY001", # a private repo with no licence header convention
+    # The docstrings here open with what a thing is or does ("A cached shape
+    # has to come back as ..."), not an imperative. Daniel's call, 2026-10-23.
+    "D401",
+    # Exception messages are written inline, in the raise, as sentences for a
+    # person or an agent. These ask for every one to go through a variable
+    # first. Daniel's call, 2026-10-23.
+    "TRY003",
+    "EM101",
+    "EM102",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# pytest checks with bare `assert`.
-"tests/**" = ["S101"]
+"tests/**" = [
+    "S101",    # pytest checks with bare `assert`
+    # A test's name says what it checks, so a docstring would repeat it.
+    "D1",
+    # A pinned expected number is the point of a test.
+    "PLR2004",
+    # pytest collects tests/ as rootdir modules, with no __init__.py on purpose.
+    "INP001",
+]
 
 # "all" turns every rule on, reportAny and reportExplicitAny among them, so a
 # `dict[str, Any]` is an error: a domain object gets a dataclass, a pydantic

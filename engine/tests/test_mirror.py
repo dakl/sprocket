@@ -33,7 +33,7 @@ def test_without_a_base_the_original_and_its_mirror_are_a_new_body_and_the_tool_
     part, ctx = build(
         PLATE + PEG + [{"id": "m", "type": "mirror", "tool": "peg", "plane": "YZ"}]
     )
-    assert [body["id"] for body in ctx.bodies] == ["plate", "m"]
+    assert [body.id for body in ctx.bodies] == ["plate", "m"]
     pegs = ctx.results["m"]
     assert len(pegs.solids()) == 2
     assert pegs.volume == pytest.approx(16)
@@ -97,7 +97,7 @@ def test_cut_removes_the_original_and_the_mirror_from_the_base():
     assert part.volume == pytest.approx(
         40 * 10 * 3 - 2 * 3.141592653589793 * 3, rel=1e-6
     )
-    assert [body["id"] for body in ctx.bodies] == ["wide"]
+    assert [body.id for body in ctx.bodies] == ["wide"]
 
 
 def test_the_mirror_plane_feature_is_a_reference_that_cannot_be_deleted():

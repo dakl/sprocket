@@ -15,45 +15,94 @@ import json
 import sys
 from pathlib import Path
 
-from .document import Document, DocumentError
-from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
-from .mesh import export_mesh
-from .replay import build_shape, with_settings
+from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.export import (
+    ExportError,
+    write_3mf,
+    write_step,
+    write_stl,
+    write_stl_dir,
+)
+from sprocket_engine.mesh import MeshHeader, export_mesh
+from sprocket_engine.model import JSON, parse_json
+from sprocket_engine.ops import REGISTRY
+from sprocket_engine.replay import build_shape, failed_feature, with_settings
+
+
+def _out(text: str) -> None:
+    """A line of the command's own output, on stdout."""
+    _ = sys.stdout.write(f"{text}\n")
+    _ = sys.stdout.flush()
+
+
+def _err(text: str) -> None:
+    """A line about a failure, on stderr."""
+    _ = sys.stderr.write(f"{text}\n")
+
+
+# argparse gives every argument as Any. These read one, and say what it is.
+
+
+def _path(args: argparse.Namespace, name: str) -> Path | None:
+    value: object = getattr(args, name, None)
+    if value is None or isinstance(value, Path):
+        return value
+    raise TypeError(f"--{name} is not a path")
+
+
+def _required_path(args: argparse.Namespace, name: str) -> Path:
+    value = _path(args, name)
+    if value is None:
+        raise TypeError(f"{name} is required")
+    return value
+
+
+def _flag(args: argparse.Namespace, name: str) -> bool:
+    value: object = getattr(args, name, False)
+    return bool(value)
+
+
+def _number(args: argparse.Namespace, name: str) -> int:
+    value: object = getattr(args, name, None)
+    if not isinstance(value, int):
+        raise TypeError(f"--{name} is not a number")
+    return value
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run one `sprocket` command and return its exit code."""
     parser = argparse.ArgumentParser(
         prog="sprocket", description="Replay a Sprocket document and export the result."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="replay a document and export STEP/STL")
-    build.add_argument("document", type=Path, help="path to a document JSON file")
-    build.add_argument("--step", type=Path, help="write STEP to this path")
-    build.add_argument(
+    _ = build.add_argument("document", type=Path, help="path to a document JSON file")
+    _ = build.add_argument("--step", type=Path, help="write STEP to this path")
+    _ = build.add_argument(
         "--stl", type=Path, help="write STL to this path, every body in one file"
     )
-    build.add_argument(
+    _ = build.add_argument(
         "--stl-dir",
         type=Path,
         help="write one STL per body into this existing directory",
     )
-    build.add_argument(
+    _ = build.add_argument(
         "--3mf", dest="three_mf", type=Path, help="write a 3MF with one object per body"
     )
-    build.add_argument(
+    _ = build.add_argument(
         "--mesh",
         type=Path,
         help="write the viewer's tessellated mesh file to this path",
     )
-    build.add_argument(
+    _ = build.add_argument(
         "--cache-dir",
         type=Path,
         default=None,
         help="BREP cache directory (default: <document dir>/cache)",
     )
 
-    sub.add_parser(
+    _ = sub.add_parser(
         "serve",
         help="read one JSON build request per line from stdin, keep build123d warm between builds",
     )
@@ -62,28 +111,28 @@ def main(argv: list[str] | None = None) -> int:
         "daemon",
         help="serve one document over a Unix socket, for the app, the viewer and agents",
     )
-    daemon.add_argument("document", type=Path, help="path to a document JSON file")
-    daemon.add_argument(
+    _ = daemon.add_argument("document", type=Path, help="path to a document JSON file")
+    _ = daemon.add_argument(
         "--socket",
         type=Path,
         default=None,
         help="socket path (default: <document>.sock)",
     )
-    daemon.add_argument(
+    _ = daemon.add_argument(
         "--cache-dir", type=Path, default=None, help="BREP cache directory"
     )
-    daemon.add_argument(
+    _ = daemon.add_argument(
         "--viewer-dir",
         type=Path,
         default=None,
         help="write part.mesh, features.json and schemas.json here after every change, for a viewer opened from disk",
     )
-    daemon.add_argument(
+    _ = daemon.add_argument(
         "--no-autosave",
         action="store_true",
         help="keep edits in memory instead of writing the document after each one",
     )
-    daemon.add_argument(
+    _ = daemon.add_argument(
         "--recovery",
         type=Path,
         default=None,
@@ -94,35 +143,35 @@ def main(argv: list[str] | None = None) -> int:
         "web",
         help="serve one document to the viewer in a plain browser, and to agents over the daemon socket",
     )
-    web.add_argument("document", type=Path, help="path to a document JSON file")
-    web.add_argument(
+    _ = web.add_argument("document", type=Path, help="path to a document JSON file")
+    _ = web.add_argument(
         "--port",
         type=int,
         default=8765,
         help="HTTP port on 127.0.0.1 (0 picks a free one)",
     )
-    web.add_argument(
+    _ = web.add_argument(
         "--socket",
         type=Path,
         default=None,
         help="daemon socket path (default: <document>.sock)",
     )
-    web.add_argument(
+    _ = web.add_argument(
         "--cache-dir", type=Path, default=None, help="BREP cache directory"
     )
-    web.add_argument(
+    _ = web.add_argument(
         "--viewer-dir",
         type=Path,
         default=None,
         help="the viewer's static files (default: the repo's viewer/)",
     )
-    web.add_argument(
+    _ = web.add_argument(
         "--no-autosave",
         action="store_true",
         help="keep edits in memory instead of writing the document after each one",
     )
 
-    sub.add_parser(
+    _ = sub.add_parser(
         "schemas",
         help="print every op's JSON Schema, which the viewer builds its parameter forms from",
     )
@@ -130,24 +179,25 @@ def main(argv: list[str] | None = None) -> int:
     mcp = sub.add_parser(
         "mcp", help="expose a running daemon's document as MCP tools over stdio"
     )
-    mcp.add_argument(
+    _ = mcp.add_argument(
         "--socket",
         type=Path,
         help="socket path of a running daemon (default: the newest running app)",
     )
 
     args = parser.parse_args(argv)
-    if args.command == "build":
+    command: object = getattr(args, "command", None)
+    if command == "build":
         return _build(args)
-    if args.command == "serve":
+    if command == "serve":
         return _serve()
-    if args.command == "daemon":
+    if command == "daemon":
         return _daemon(args)
-    if args.command == "web":
+    if command == "web":
         return _web(args)
-    if args.command == "schemas":
+    if command == "schemas":
         return _schemas()
-    if args.command == "mcp":
+    if command == "mcp":
         return _mcp(args)
     return 1
 
@@ -183,16 +233,15 @@ def _build_document(
         Path(cache_dir) if cache_dir else Path(document_path).parent / "cache"
     )
 
-    replayable = document.for_replay()
-    features = replayable["features"]
-    rollback_index = replayable["rollback_index"]
+    features = document.for_replay()["features"]
 
     try:
         result, failed_id, context = build_shape(
-            features, rollback_index, resolved_cache_dir
+            features, document.rollback_index, resolved_cache_dir
         )
     except Exception as exc:
-        return False, f"error: {exc}", getattr(exc, "feature_id", None)
+        failed = failed_feature(exc)
+        return False, f"error: {exc}", failed.feature_id if failed else None
 
     if result is None:
         # rollback_index=0: a valid empty document, not a failure. Clear any
@@ -202,8 +251,8 @@ def _build_document(
                 Path(path).unlink()
         return True, "replayed ok: empty document", failed_id
 
-    bodies = with_settings(context.bodies, document.bodies)
-    messages = []
+    bodies = with_settings(context.bodies, {**document.bodies})
+    messages: list[str] = []
     if failed_id:
         messages.append(
             f"feature {failed_id!r} no longer builds, showing the part before it"
@@ -220,7 +269,7 @@ def _build_document(
         if three_mf:
             write_3mf(bodies, three_mf)
             messages.append(f"wrote {three_mf}")
-        header = (
+        header: MeshHeader | None = (
             export_mesh(result, Path(mesh), document.appearances, bodies)
             if mesh
             else None
@@ -228,7 +277,8 @@ def _build_document(
     except ExportError as exc:
         return False, f"error: {exc}", failed_id
     except OSError as exc:
-        return False, f"error: cannot write {exc.filename}: {exc.strerror}", failed_id
+        filename: object = getattr(exc, "filename", None)
+        return False, f"error: cannot write {filename}: {exc.strerror}", failed_id
     if header:
         counts = header["counts"]
         messages.append(
@@ -236,7 +286,7 @@ def _build_document(
         )
     if len(bodies) > 1:
         messages.append(
-            f"{len(bodies)} bodies: {', '.join(body['name'] for body in bodies)}"
+            f"{len(bodies)} bodies: {', '.join(body.name for body in bodies)}"
         )
     if not any((step, stl, mesh, stl_dir, three_mf)):
         messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")
@@ -245,19 +295,30 @@ def _build_document(
 
 def _build(args: argparse.Namespace) -> int:
     success, output, _ = _build_document(
-        args.document,
-        args.step,
-        args.stl,
-        args.cache_dir,
-        args.mesh,
-        args.stl_dir,
-        args.three_mf,
+        _required_path(args, "document"),
+        _path(args, "step"),
+        _path(args, "stl"),
+        _path(args, "cache_dir"),
+        _path(args, "mesh"),
+        _path(args, "stl_dir"),
+        _path(args, "three_mf"),
     )
     if not success:
-        print(output, file=sys.stderr)
+        _err(output)
         return 1
-    print(output)
+    _out(output)
     return 0
+
+
+def _request_path(request: JSON, key: str) -> Path | None:
+    if not isinstance(request, dict):
+        raise TypeError("a build request must be a JSON object")
+    value = request[key] if key == "document" else request.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{key!r} must be a path")
+    return Path(value)
 
 
 def _serve() -> int:
@@ -266,21 +327,23 @@ def _serve() -> int:
         if not line:
             continue
         try:
-            request = json.loads(line)
+            request = parse_json(line)
+            document = _request_path(request, "document")
+            if document is None:
+                raise TypeError("'document' must be a path")
             success, output, failed_id = _build_document(
-                request["document"],
-                request.get("step"),
-                request.get("stl"),
-                request.get("cache_dir"),
-                request.get("mesh"),
+                document,
+                _request_path(request, "step"),
+                _request_path(request, "stl"),
+                _request_path(request, "cache_dir"),
+                _request_path(request, "mesh"),
             )
         except Exception as exc:
             success, output, failed_id = False, f"error: {exc}", None
-        print(
+        _out(
             json.dumps(
                 {"success": success, "output": output, "failed_feature": failed_id}
-            ),
-            flush=True,
+            )
         )
     return 0
 
@@ -288,28 +351,29 @@ def _serve() -> int:
 def _daemon(args: argparse.Namespace) -> int:
     # Imported here, not at module scope, so `sprocket build` keeps starting
     # without paying for the socket machinery it never uses.
-    from .rpc import Daemon, Session
+    from sprocket_engine.rpc import Daemon, Session  # noqa: PLC0415 -- `sprocket build` must start without the daemon's socket machinery
 
+    document_path = _required_path(args, "document")
     try:
-        document = Document.load(args.document)
+        document = Document.load(document_path)
     except DocumentError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _err(f"error: {exc}")
         return 1
 
-    socket_path = args.socket or Path(str(args.document) + ".sock")
-    session = Session(document, args.cache_dir)
+    socket_path = _path(args, "socket") or Path(str(document_path) + ".sock")
+    session = Session(document, _path(args, "cache_dir"))
     server = Daemon(
         session,
         socket_path,
-        autosave=not args.no_autosave,
-        viewer_dir=args.viewer_dir,
-        recovery_path=args.recovery,
+        autosave=not _flag(args, "no_autosave"),
+        viewer_dir=_path(args, "viewer_dir"),
+        recovery_path=_path(args, "recovery"),
     )
-    server.publish_viewer_files()
+    _ = server.publish_viewer_files()
     # A script, `sprocket build`, git or another editor can rewrite the file
     # while the app has it open. See Daemon.check_file for the rule.
     server.start_watching()
-    print(f"listening on {socket_path} (revision {document.revision})", flush=True)
+    _out(f"listening on {socket_path} (revision {document.revision})")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -318,39 +382,41 @@ def _daemon(args: argparse.Namespace) -> int:
 
 
 def _schemas() -> int:
-    from .ops import REGISTRY
-
-    print(
+    _out(
         json.dumps({name: op.schema for name, op in sorted(REGISTRY.items())}, indent=2)
     )
     return 0
 
 
 def _web(args: argparse.Namespace) -> int:
-    from .rpc import Daemon, Session
-    from .web import WebApp, make_server
+    from sprocket_engine.rpc import Daemon, Session  # noqa: PLC0415 -- `sprocket build` must start without the daemon's socket machinery
+    from sprocket_engine.web import WebApp, make_server  # noqa: PLC0415 -- only `sprocket web` needs the HTTP server
 
+    document_path = _required_path(args, "document")
     try:
-        document = Document.load(args.document)
+        document = Document.load(document_path)
     except DocumentError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        _err(f"error: {exc}")
         return 1
 
-    viewer_dir = args.viewer_dir or Path(__file__).resolve().parents[3] / "viewer"
+    viewer_dir = (
+        _path(args, "viewer_dir") or Path(__file__).resolve().parents[3] / "viewer"
+    )
     if not (viewer_dir / "index.html").exists():
-        print(f"error: no viewer at {viewer_dir}: pass --viewer-dir", file=sys.stderr)
+        _err(f"error: no viewer at {viewer_dir}: pass --viewer-dir")
         return 1
 
-    socket_path = args.socket or Path(str(args.document) + ".sock")
+    socket_path = _path(args, "socket") or Path(str(document_path) + ".sock")
     daemon = Daemon(
-        Session(document, args.cache_dir), socket_path, autosave=not args.no_autosave
+        Session(document, _path(args, "cache_dir")),
+        socket_path,
+        autosave=not _flag(args, "no_autosave"),
     )
     daemon.start_in_background()
     daemon.start_watching()
-    server = make_server(WebApp(daemon, viewer_dir), args.port)
-    print(
-        f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at {socket_path})",
-        flush=True,
+    server = make_server(WebApp(daemon, viewer_dir), _number(args, "port"))
+    _out(
+        f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at {socket_path})"
     )
     try:
         server.serve_forever()
@@ -363,9 +429,9 @@ def _web(args: argparse.Namespace) -> int:
 
 
 def _mcp(args: argparse.Namespace) -> int:
-    from .mcp_server import run
+    from sprocket_engine.mcp_server import run  # noqa: PLC0415 -- the mcp extra is optional
 
-    return run(args.socket)
+    return run(_path(args, "socket"))
 
 
 if __name__ == "__main__":

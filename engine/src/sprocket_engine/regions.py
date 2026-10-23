@@ -13,12 +13,18 @@ The caller moves a region onto the sketch plane.
 import math
 from dataclasses import dataclass
 
-from build123d import Compound, Edge, Face, Plane, Vector, Wire
+from build123d import BoundBox, Compound, Edge, Face, Plane, Vector, Wire
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Splitter
 from OCP.BRepClass import BRepClass_FaceClassifier
+from OCP.collections import List_TopoDS_Shape as ShapeList
 from OCP.gp import gp_Pnt
-from OCP.OCP.collections import List_TopoDS_Shape as ShapeList
 from OCP.TopAbs import TopAbs_IN
+from OCP.TopoDS import TopoDS
+
+from sprocket_engine.b3d import distance_to, faces_of
+from sprocket_engine.model import Entity, ProfileRef, entity_number, entity_point
+
+type Point2 = tuple[float, float]
 
 # Endpoints the solver leaves a hair apart still have to meet, or a closed
 # rectangle reads as four loose lines and yields no region.
@@ -29,11 +35,13 @@ TWO_PI = 2 * math.pi
 
 
 class ProfileError(Exception):
-    pass
+    """A profile that names no region, or more than one."""
 
 
 @dataclass
 class Region:
+    """One closed region of a sketch, named by the entities around it."""
+
     face: Face  # in the sketch frame, normal +Z
     bounded_by: list[str]  # sorted entity ids
     inside: tuple[
@@ -44,24 +52,28 @@ class Region:
     area: float
 
 
-def entity_edge(entity: dict) -> Edge:
+def entity_edge(entity: Entity) -> Edge:
+    """Return the entity as an edge in the sketch's own frame."""
     kind = entity["kind"]
     if kind == "line":
-        return Edge.make_line(tuple(entity["p0"]), tuple(entity["p1"]))
-    centre = entity["c"]
+        return Edge.make_line(
+            tuple(entity_point(entity, "p0")), tuple(entity_point(entity, "p1"))
+        )
+    centre = entity_point(entity, "c")
     frame = Plane(origin=(centre[0], centre[1], 0))
+    radius = entity_number(entity, "r")
     if kind == "circle":
-        return Edge.make_circle(entity["r"], frame)
-    start = entity["a0"]
-    end = entity["a1"]
+        return Edge.make_circle(radius, frame)
+    start = entity_number(entity, "a0")
+    end = entity_number(entity, "a1")
     while end <= start:
         end += TWO_PI
     return Edge.make_circle(
-        entity["r"], frame, start_angle=math.degrees(start), end_angle=math.degrees(end)
+        radius, frame, start_angle=math.degrees(start), end_angle=math.degrees(end)
     )
 
 
-def _split(edges: list[Edge]):
+def _split(edges: list[Edge]) -> tuple[list[Face], BoundBox]:
     """The cells of the arrangement, plus the frame they were cut from."""
     box = Compound(edges).bounding_box()
     margin = max(box.size.X, box.size.Y) * 0.25 + 1
@@ -72,9 +84,9 @@ def _split(edges: list[Edge]):
         Plane(origin=(centre.X, centre.Y, 0)),
     )
     frame_arguments, tools = ShapeList(), ShapeList()
-    frame_arguments.Append(frame.wrapped)
+    _ = frame_arguments.Append(frame.wrapped)
     for edge in edges:
-        tools.Append(edge.wrapped)
+        _ = tools.Append(edge.wrapped)
     splitter = BRepAlgoAPI_Splitter()
     splitter.SetArguments(frame_arguments)
     splitter.SetTools(tools)
@@ -82,10 +94,10 @@ def _split(edges: list[Edge]):
     splitter.Build()
     if not splitter.IsDone():
         raise ProfileError("could not find the closed regions of this sketch")
-    return list(Compound(splitter.Shape()).faces()), frame.bounding_box()
+    return list(faces_of(splitter.Shape())), frame.bounding_box()
 
 
-def _touches(cell: Face, frame_box) -> bool:
+def _touches(cell: Face, frame_box: BoundBox) -> bool:
     """The outside cell runs to the frame. A real region never does, because
     the frame is a quarter of the sketch wider on every side.
     """
@@ -107,13 +119,11 @@ def _clean(cell: Face) -> Face:
         cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed]
     )
     return (
-        face
-        if face.normal_at().Z > 0
-        else Face(Wire(face.outer_wire().edges()).reversed(), face.inner_wires())
+        face if face.normal_at().Z > 0 else Face(TopoDS.Face(face.wrapped.Reversed()))
     )
 
 
-def _points(wire: Wire) -> list[tuple[float, float]]:
+def _points(wire: Wire) -> list[Point2]:
     """A wire as a polyline, one vertex per tessellation step, in wire order.
 
     An edge may be stored in either direction, so each one is laid down from
@@ -124,8 +134,8 @@ def _points(wire: Wire) -> list[tuple[float, float]]:
     The first edge has nothing before it, so it is judged against the second.
     """
     edges = wire.edges()
-    points: list[tuple[float, float]] = []
-    for index, edge in enumerate(edges):
+    points: list[Point2] = []
+    for edge in edges:
         steps = 1 if edge.geom_type.name == "LINE" else 24
         along = [edge.position_at(step / steps) for step in range(steps + 1)]
         if points:
@@ -142,7 +152,7 @@ def _points(wire: Wire) -> list[tuple[float, float]]:
     return points
 
 
-def _signed_area(points) -> float:
+def _signed_area(points: list[Point2]) -> float:
     return (
         sum(
             x1 * y2 - x2 * y1
@@ -152,16 +162,17 @@ def _signed_area(points) -> float:
     )
 
 
-def _counter_clockwise(points):
+def _counter_clockwise(points: list[Point2]) -> list[Point2]:
     return points if _signed_area(points) >= 0 else points[::-1]
 
 
-def _interior_point(face: Face) -> tuple[float, float]:
+def _interior_point(face: Face) -> Point2:
     """The centre of the face's largest triangle. A face's own centre can sit
     outside it: a crescent's does.
     """
     vertices, triangles = face.tessellate(0.01)
-    best, best_area = None, -1.0
+    best: Point2 | None = None
+    best_area = -1.0
     for a, b, c in triangles:
         area = abs(
             (vertices[b].X - vertices[a].X) * (vertices[c].Y - vertices[a].Y)
@@ -173,6 +184,9 @@ def _interior_point(face: Face) -> tuple[float, float]:
                 (vertices[a].X + vertices[b].X + vertices[c].X) / 3,
                 (vertices[a].Y + vertices[b].Y + vertices[c].Y) / 3,
             )
+    if best is None:
+        msg = "a sketch region has no area to find a point inside"
+        raise ProfileError(msg)
     return best
 
 
@@ -181,13 +195,13 @@ def _owner(edge: Edge, source: list[tuple[str, Edge]]) -> str | None:
     midpoint = edge.position_at(0.5)
     nearest_id, nearest = None, ON_ENTITY
     for entity_id, source_edge in source:
-        distance = source_edge.distance_to(midpoint)
+        distance = distance_to(source_edge, midpoint)
         if distance < nearest:
             nearest_id, nearest = entity_id, distance
     return nearest_id
 
 
-def find_regions(entities: list[dict]) -> list[Region]:
+def find_regions(entities: list[Entity]) -> list[Region]:
     """Every closed region of `entities`, construction geometry ignored.
 
     Ordered by bounding ids then position, so two runs agree. The order is for
@@ -202,12 +216,13 @@ def find_regions(entities: list[dict]) -> list[Region]:
         return []
     cells, frame_box = _split([edge for _, edge in source])
 
-    regions = []
+    regions: list[Region] = []
     for cell in cells:
         if _touches(cell, frame_box):
             continue
         face = _clean(cell)
-        bounded_by = sorted({_owner(edge, source) for edge in face.edges()} - {None})
+        owners = {_owner(edge, source) for edge in face.edges()}
+        bounded_by = sorted(owner for owner in owners if owner is not None)
         regions.append(
             Region(
                 face=face,
@@ -228,14 +243,14 @@ def find_regions(entities: list[dict]) -> list[Region]:
     return regions
 
 
-def _contains(region: Region, point: tuple[float, float]) -> bool:
+def _contains(region: Region, point: Point2) -> bool:
     classifier = BRepClass_FaceClassifier(
         region.face.wrapped, gp_Pnt(point[0], point[1], 0), FUZZY
     )
     return classifier.State() == TopAbs_IN
 
 
-def pick_region(regions: list[Region], reference: dict) -> Region:
+def pick_region(regions: list[Region], reference: ProfileRef) -> Region:
     """Resolves `{"bounded_by": [...], "inside": [u, v]}` to one region.
 
     `bounded_by` alone can match two regions: a circle across one side of a
@@ -252,7 +267,9 @@ def pick_region(regions: list[Region], reference: dict) -> Region:
             raise ProfileError(
                 f"profile bounded by {wanted} matches {len(matches)} regions, and gives no 'inside' point to choose one"
             )
-        matches = [region for region in matches if _contains(region, tuple(point))]
+        matches = [
+            region for region in matches if _contains(region, (point[0], point[1]))
+        ]
     if len(matches) != 1:
         raise ProfileError(
             f"profile bounded by {wanted} matches {len(matches)} regions, expected exactly 1"

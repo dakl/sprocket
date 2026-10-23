@@ -1,5 +1,6 @@
-# Import op modules so their @register decorators run.
-from . import (
+"""The ops. Importing each op module runs its @register, which fills REGISTRY."""
+
+from sprocket_engine.ops import (
     boolean,
     chamfer,
     construct,
@@ -19,6 +20,28 @@ from . import (
     sweep,
     thread,
 )
-from .registry import REGISTRY, Op, register
+from sprocket_engine.ops.registry import REGISTRY, Op, register
 
-__all__ = ["REGISTRY", "Op", "register"]
+__all__ = [
+    "REGISTRY",
+    "Op",
+    "boolean",
+    "chamfer",
+    "construct",
+    "draft",
+    "extrude",
+    "extrude_face",
+    "fillet",
+    "hole",
+    "loft",
+    "mirror",
+    "pattern",
+    "reference",
+    "register",
+    "revolve",
+    "shell",
+    "sketch",
+    "split",
+    "sweep",
+    "thread",
+]

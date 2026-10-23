@@ -1,9 +1,12 @@
+from build123d import Compound
 from build123d import fillet as b3d_fillet
 
-from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
-from .registry import register
+from sprocket_engine.context import Context
+from sprocket_engine.model import FilletFeature, JSONObject
+from sprocket_engine.ops.registry import register
+from sprocket_engine.selectors import SELECTOR_DESCRIPTION, resolve_edges
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": "Rounds the selected edges of a solid.",
     "required": ["id", "type", "base", "edges", "radius"],
@@ -18,7 +21,7 @@ SCHEMA = {
 
 
 @register("fillet", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: FilletFeature, ctx: Context) -> Compound:
     """Unlike extrude_face, this takes however many edges the selector matches.
     Rounding every top edge in one feature is the normal case, not an
     exception, so only an empty match is an error.

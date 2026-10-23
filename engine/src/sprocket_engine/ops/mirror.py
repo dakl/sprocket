@@ -1,9 +1,12 @@
-from build123d import Part, ShapeList
+from build123d import Compound, Part
 
-from .registry import register
-from .sketch import PLANE_SCHEMA, resolve_plane
+from sprocket_engine.b3d import cut, fuse
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, MirrorFeature
+from sprocket_engine.ops.registry import register
+from sprocket_engine.ops.sketch import PLANE_SCHEMA, resolve_plane
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Mirrors the solid an earlier feature made about a plane, and combines the original and its mirror "
@@ -32,19 +35,20 @@ SCHEMA = {
 
 
 @register("mirror", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: MirrorFeature, ctx: Context) -> Compound:
+    """Mirror the tool about the plane, and combine both with the base."""
     tool = ctx.results[feature["tool"]]
     if not tool.solids():
         raise ValueError(f"mirror tool {feature['tool']!r} is not a solid")
     mirrored = tool.mirror(resolve_plane(feature["plane"], ctx))
     base_id = feature.get("base")
     if base_id is None:
-        result = tool.fuse(mirrored)
+        result = fuse(tool, mirrored)
     elif feature.get("mode") == "cut":
-        result = ctx.results[base_id].cut(tool, mirrored)
+        result = cut(ctx.results[base_id], tool, mirrored)
     else:
-        result = ctx.results[base_id].fuse(tool, mirrored)
-    solids = list(result) if isinstance(result, ShapeList) else result.solids()
+        result = fuse(ctx.results[base_id], tool, mirrored)
+    solids = result.solids()
     if not solids:
         raise ValueError(f"mirror {feature['id']} left an empty solid")
     return Part(solids)

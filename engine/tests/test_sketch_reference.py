@@ -12,7 +12,7 @@ import math
 import pytest
 
 from sprocket_engine.document import Document, DocumentError
-from sprocket_engine.replay import replay
+from sprocket_engine.replay import failed_feature, replay
 
 pytest.importorskip("planegcs")
 
@@ -332,7 +332,9 @@ def test_a_source_that_no_longer_exists_names_the_reference():
     doc.features[1]["entities"][-1]["reference"] = {"sketch": "f1", "entity": "e9"}
     with pytest.raises(Exception, match="reference 'e5' of sketch 'f2'") as caught:
         replay(doc.for_replay())
-    assert caught.value.feature_id == "f2"
+    failed = failed_feature(caught.value)
+    assert failed is not None
+    assert failed.feature_id == "f2"
 
 
 def test_the_sketch_a_reference_names_cannot_be_deleted():

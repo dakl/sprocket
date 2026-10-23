@@ -52,12 +52,12 @@ def test_a_referenced_document_is_a_reference_body_left_out_of_the_part(tmp_path
     _, part, ctx = build(
         tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
     )
-    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
+    assert [(body.id, body.reference) for body in ctx.bodies] == [
         ("ref", True),
         ("tray", False),
     ]
     assert part.volume == pytest.approx(20 * 20 * 4)
-    assert ctx.bodies[0]["shape"].volume == pytest.approx(200)
+    assert ctx.bodies[0].shape.volume == pytest.approx(200)
 
 
 def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
@@ -91,7 +91,7 @@ def test_a_step_reference_moves_by_translate(tmp_path):
             }
         ],
     )
-    assert pytest.approx(5) == ctx.bodies[0]["shape"].center().X
+    assert pytest.approx(5) == ctx.bodies[0].shape.center().X
 
 
 def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
@@ -107,7 +107,7 @@ def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
         tmp_path,
         [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY + [cut],
     )
-    assert [body["id"] for body in ctx.bodies] == ["ref", "tray"]
+    assert [body.id for body in ctx.bodies] == ["ref", "tray"]
     assert part.volume == pytest.approx(
         1600 - 10 * 10 * 1
     )  # the board's lower 1 mm is inside the tray
@@ -182,12 +182,12 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
         Path(__file__).parents[2] / "examples" / "orangepi-case.sprocket"
     )
     part, ctx = replay(document.for_replay(), return_context=True)
-    assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
+    assert [(body.id, body.reference) for body in ctx.bodies] == [
         ("board", True),
         ("block", False),
         ("lid_block", False),
     ]
-    board, base, lid = (body["shape"] for body in ctx.bodies)
+    board, base, lid = (body.shape for body in ctx.bodies)
     assert part.volume == pytest.approx(base.volume + lid.volume)
     for case in (base, lid):
         assert len(case.solids()) == 1 and case.is_valid
@@ -260,7 +260,7 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     vertices = buffers["vertices"].reshape(-1, 3)[used]
     normals = buffers["normals"].reshape(-1, 3)[used]
 
-    box = ctx.bodies[0]["shape"].bounding_box()
+    box = ctx.bodies[0].shape.bounding_box()
     assert vertices.min(axis=0) == pytest.approx(
         [box.min.X, box.min.Y, box.min.Z], abs=1e-3
     )
@@ -269,7 +269,7 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     )
     # Normals turn with the part: each one is the normal of a face of the moved board.
     face_normals = np.array(
-        [tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()]
+        [tuple(face.normal_at()) for face in ctx.bodies[0].shape.faces()]
     )
     nearest = np.abs(normals @ face_normals.T).max(axis=1)
     assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)

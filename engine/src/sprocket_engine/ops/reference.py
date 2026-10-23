@@ -1,12 +1,21 @@
+from collections.abc import Callable
 from pathlib import Path
 
-from build123d import Axis, Part, Pos, import_step
+from build123d import Axis, Compound, Part, Pos
 
-from .registry import register
+from sprocket_engine.b3d import import_step
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSONObject, ReferenceFeature
+from sprocket_engine.ops.registry import register
 
-VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
+VECTOR3: JSONObject = {
+    "type": "array",
+    "items": {"type": "number"},
+    "minItems": 3,
+    "maxItems": 3,
+}
 
-SCHEMA = {
+SCHEMA: JSONObject = {
     "type": "object",
     "description": (
         "Brings in another .sprocket document or a STEP file as a reference body: shown translucent, not "
@@ -30,29 +39,29 @@ SCHEMA = {
     },
 }
 
-# Documents being read right now, so a document that includes itself fails
-# with a message instead of recursing until the stack runs out.
-_loading: set[Path] = set()
+type DocumentLoader = Callable[[Path], Compound]
+
+# How to build a .sprocket file into one shape. `document.py` fills this in
+# when it is imported: it imports the op registry, and so this module, so this
+# module cannot import it back.
+_document_loader: list[DocumentLoader] = []
 
 
-def _load_document(path: Path):
-    from ..document import Document
-    from ..replay import replay
+def set_document_loader(loader: DocumentLoader) -> None:
+    """Set how a referenced .sprocket file is built."""
+    _document_loader[:] = [loader]
 
-    if path in _loading:
-        raise ValueError(f"reference cycle: {path.name} includes itself")
-    _loading.add(path)
-    try:
-        part = replay(Document.load(path).for_replay())
-    finally:
-        _loading.discard(path)
-    if part is None or not part.solids():
-        raise ValueError(f"referenced document {path.name} builds no solid")
-    return part
+
+def _load_document(path: Path) -> Compound:
+    if not _document_loader:
+        msg = "a .sprocket reference needs sprocket_engine.document imported"
+        raise ValueError(msg)
+    return _document_loader[0](path)
 
 
 @register("reference", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: ReferenceFeature, _ctx: Context) -> Compound:
+    """Load the referenced document or STEP file as one body, placed."""
     path = Path(feature["file"]).resolve()
     if not path.is_file():
         raise ValueError(f"reference file {feature['file']} does not exist")
@@ -66,9 +75,11 @@ def apply(feature: dict, ctx):
         )
     # One compound of solids, which the mesh tessellates as one body.
     shape = Part(shape.solids())
-    for axis, angle in zip((Axis.X, Axis.Y, Axis.Z), feature.get("rotate", (0, 0, 0))):
+    rotate = feature.get("rotate", [0, 0, 0])
+    for axis, angle in zip((Axis.X, Axis.Y, Axis.Z), rotate, strict=False):
         if angle:
             shape = shape.rotate(axis, angle)
-    if any(feature.get("translate", (0, 0, 0))):
-        shape = Pos(*feature["translate"]) * shape
+    translate = feature.get("translate", [0, 0, 0])
+    if any(translate):
+        shape = Pos(translate[0], translate[1], translate[2]) * shape
     return shape

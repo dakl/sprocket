@@ -6,7 +6,20 @@ anything upstream changes. A selector is a query that re-resolves on every
 replay instead of a stored position.
 """
 
-from build123d import Axis, Edge, Face, ShapeList
+import math
+from collections.abc import Sequence
+from typing import Literal
+
+from build123d import Axis, Compound, Edge, Face, GeomType, ShapeList, Vector, Vertex
+
+from sprocket_engine.b3d import is_same
+from sprocket_engine.context import Context
+from sprocket_engine.model import JSON, JSONObject, Selector, SelectorStep
+
+type Item = Face | Edge | Vertex
+type Starter = Literal["faces", "edges", "vertices"]
+# An item's geometry type, centre and size: see `_signature`.
+type Signature = tuple[GeomType, float, float, float, float]
 
 AXES = {"X": Axis.X, "Y": Axis.Y, "Z": Axis.Z}
 
@@ -40,24 +53,31 @@ SELECTOR_DESCRIPTION = (
 
 
 class SelectorError(Exception):
-    pass
+    """A selector that does not resolve, or resolves to the wrong count."""
 
 
-def _nearest(candidates, point, normal=None):
+def _nearest(
+    candidates: Sequence[Item],
+    point: Sequence[float],
+    normal: Sequence[float] | None = None,
+) -> Item:
     """Pick the item whose centre is closest to `point`. `normal` is a
     tie-breaker: an item whose normal points away from the given one is
     penalised, so a face pick near a shared edge doesn't jump to the wrong
     side of a thin part.
     """
 
-    def score(item):
+    def score(item: Item) -> float:
         center = item.center()
-        dist = (
+        dist = math.sqrt(
             (center.X - point[0]) ** 2
             + (center.Y - point[1]) ** 2
             + (center.Z - point[2]) ** 2
-        ) ** 0.5
+        )
         if normal is not None:
+            if not isinstance(item, Face):
+                msg = "a nearest_to normal only applies to faces"
+                raise SelectorError(msg)
             n = item.normal_at(center)
             dot = n.X * normal[0] + n.Y * normal[1] + n.Z * normal[2]
             if dot < 0.9:
@@ -73,18 +93,20 @@ SAME_GEOMETRY = 1e-5
 LEVEL = 1e-6
 
 
-def _size(item) -> float:
+def _size(item: Item) -> float:
     if isinstance(item, Face):
         return item.area
-    return getattr(item, "length", 0.0)
+    if isinstance(item, Edge):
+        return item.length
+    return 0.0
 
 
-def _signature(item) -> tuple:
+def _signature(item: Item) -> Signature:
     centre = item.center()
-    return (getattr(item, "geom_type", None), centre.X, centre.Y, centre.Z, _size(item))
+    return (item.geom_type, centre.X, centre.Y, centre.Z, _size(item))
 
 
-def _unchanged(item, old_signatures) -> bool:
+def _unchanged(item: Item, old_signatures: list[Signature]) -> bool:
     """Whether `old_signatures` (from `_signature`) holds the same face or edge as `item`.
 
     By geometry, not identity. Each feature's result is cached on its own, so a
@@ -103,20 +125,27 @@ def _unchanged(item, old_signatures) -> bool:
     return False
 
 
-def _at_end(current, axis: str, end: str):
+def _at_end(current: ShapeList[Item], axis: str, end: str) -> ShapeList[Item]:
     """Everything level with the highest ("max") or lowest ("min") item along `axis`, by centre."""
     if end not in ("max", "min"):
         raise SelectorError(f"at_end 'end' must be 'max' or 'min', not {end!r}")
     if not current:
         return ShapeList(current)
-    values = [getattr(item.center(), axis) for item in current]
+    values = [coordinate(item.center(), axis) for item in current]
     edge = max(values) if end == "max" else min(values)
     return ShapeList(
         [item for item, value in zip(current, values) if abs(value - edge) <= LEVEL]
     )
 
 
-def _within(current, box):
+def coordinate(point: Vector, axis: str) -> float:
+    """The point's X, Y or Z, named by `axis`."""
+    if axis not in AXES:
+        raise SelectorError(f"an axis must be X, Y or Z, not {axis!r}")
+    return {"X": point.X, "Y": point.Y, "Z": point.Z}[axis]
+
+
+def _within(current: ShapeList[Item], box: list[float]) -> ShapeList[Item]:
     """Items whose centre lies in the axis-aligned box [x0, y0, z0, x1, y1, z1].
 
     The edges are padded by LEVEL, so a face centred exactly on a box wall
@@ -126,7 +155,7 @@ def _within(current, box):
         raise SelectorError("within needs a box of six numbers: x0, y0, z0, x1, y1, z1")
     low, high = box[:3], box[3:]
 
-    def inside(item):
+    def inside(item: Item) -> bool:
         centre = item.center()
         return all(
             low[i] - LEVEL <= value <= high[i] + LEVEL
@@ -136,7 +165,9 @@ def _within(current, box):
     return ShapeList([item for item in current if inside(item)])
 
 
-def _new_since(current, starter: str, feature_id: str, ctx):
+def _new_since(
+    current: ShapeList[Item], starter: Starter, feature_id: str, ctx: Context | None
+) -> ShapeList[Item]:
     """What feature `feature_id` made or changed: items of `current` that were
     not in the shape it was applied to. A feature with no base starts from
     nothing, so all of it is new.
@@ -147,58 +178,107 @@ def _new_since(current, starter: str, feature_id: str, ctx):
             f"new_since names {feature_id!r}, which is not a feature before this one"
         )
     base_id = feature.get("base")
-    if not base_id:
+    if not isinstance(base_id, str) or not base_id:
         return ShapeList(current)
-    before = ctx.results.get(base_id)
+    before = ctx.results.get(base_id) if ctx is not None else None
     if before is None:
         raise SelectorError(
             f"new_since {feature_id!r}: its base {base_id!r} has no result"
         )
-    olds = [_signature(old) for old in getattr(before, starter)()]
+    olds = [_signature(old) for old in items_of(before, starter)]
     # A ShapeList, so the steps after this one can still sort and filter.
     return ShapeList([item for item in current if not _unchanged(item, olds)])
 
 
-def resolve_selector(shape, selector, ctx=None):
+def _text(step: SelectorStep, name: Literal["axis", "end", "feature"]) -> str:
+    """The step's `name` field, which its op needs."""
+    if name == "axis":
+        value = step.get("axis")
+    elif name == "end":
+        value = step.get("end")
+    else:
+        value = step.get("feature")
+    if value is None:
+        msg = f"selector step {step['op']!r} needs {name!r}"
+        raise SelectorError(msg)
+    return value
+
+
+def _numbers(step: SelectorStep, name: Literal["point", "box"]) -> list[float]:
+    """The step's `name` field, which its op needs."""
+    value = step.get("point") if name == "point" else step.get("box")
+    if value is None:
+        msg = f"selector step {step['op']!r} needs {name!r}"
+        raise SelectorError(msg)
+    return value
+
+
+def items_of(shape: Compound, starter: Starter) -> ShapeList[Item]:
+    """Every face, edge or vertex of `shape`."""
+    if starter == "faces":
+        return ShapeList[Item](shape.faces())
+    if starter == "edges":
+        return ShapeList[Item](shape.edges())
+    return ShapeList[Item](shape.vertices())
+
+
+def _starter(op: str) -> Starter:
+    if op == "faces":
+        return "faces"
+    if op == "edges":
+        return "edges"
+    if op == "vertices":
+        return "vertices"
+    msg = f"selector must start with one of {STARTERS}"
+    raise SelectorError(msg)
+
+
+def resolve_selector(
+    shape: Compound, selector: Selector, ctx: Context | None = None
+) -> list[Item]:
     """selector: {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}
 
     `ctx` is the replay context, which `new_since` needs to see earlier features.
     """
     steps = selector["select"]
-    if not steps or steps[0]["op"] not in STARTERS:
-        raise SelectorError(f"selector must start with one of {STARTERS}")
+    if not steps:
+        msg = f"selector must start with one of {STARTERS}"
+        raise SelectorError(msg)
 
-    starter = steps[0]["op"]
-    current = getattr(shape, starter)()
+    starter = _starter(steps[0]["op"])
+    current = items_of(shape, starter)
     for step in steps[1:]:
         op = step["op"]
         if op == "filter_by":
-            current = current.filter_by(AXES[step["axis"]])
+            current = current.filter_by(AXES[_text(step, "axis")])
         elif op == "sort_by":
-            current = current.sort_by(AXES[step["axis"]])
+            current = current.sort_by(AXES[_text(step, "axis")])
         elif op == "slice":
-            current = current[step.get("start") : step.get("stop")]
+            current = ShapeList[Item](current[step.get("start") : step.get("stop")])
         elif op == "first":
-            current = [current[0]]
+            current = ShapeList[Item]([current[0]])
         elif op == "last":
-            current = [current[-1]]
+            current = ShapeList[Item]([current[-1]])
         elif op == "nearest_to":
-            current = [_nearest(current, step["point"], step.get("normal"))]
+            current = ShapeList[Item](
+                [_nearest(current, _numbers(step, "point"), step.get("normal"))]
+            )
         elif op == "at_end":
-            current = _at_end(current, step["axis"], step["end"])
+            current = _at_end(current, _text(step, "axis"), _text(step, "end"))
         elif op == "new_since":
-            current = _new_since(current, starter, step["feature"], ctx)
+            current = _new_since(current, starter, _text(step, "feature"), ctx)
         elif op == "within":
-            current = _within(current, step["box"])
+            current = _within(current, _numbers(step, "box"))
         elif op == "nearest_each":
-            picked = []
-            for point in step["points"]:
+            picked: list[Item] = []
+            for point in step.get("points", []):
                 found = _nearest(current, point)
-                if not any(found.is_same(other) for other in picked):
+                if not any(is_same(found, other) for other in picked):
                     picked.append(found)
-            current = ShapeList(picked)
+            current = ShapeList[Item](picked)
         else:
-            raise SelectorError(f"unknown selector op: {op}")
+            msg = f"unknown selector op: {op}"
+            raise SelectorError(msg)
 
     expected = selector.get("expected_count")
     if expected is not None and len(current) != expected:
@@ -208,7 +288,9 @@ def resolve_selector(shape, selector, ctx=None):
     return list(current)
 
 
-def resolve_edges(shape, selector, ctx=None):
+def resolve_edges(
+    shape: Compound, selector: Selector, ctx: Context | None = None
+) -> list[Edge]:
     """Resolve a selector that has to land on edges, for fillet and chamfer.
 
     A selector that matches nothing is the topological-naming failure SPEC.md
@@ -226,4 +308,72 @@ def resolve_edges(shape, selector, ctx=None):
         raise SelectorError(
             f"edge selector matched {sorted(other_kinds)}, expected edges"
         )
-    return matched
+    return [item for item in matched if isinstance(item, Edge)]
+
+
+def _numbers_of(value: JSON, what: str) -> list[float]:
+    if not isinstance(value, list) or not all(
+        isinstance(item, int | float) and not isinstance(item, bool) for item in value
+    ):
+        raise SelectorError(f"{what} must be a list of numbers")
+    return [float(item) for item in value if isinstance(item, int | float)]
+
+
+def parse_selector(value: JSON) -> Selector:
+    """A selector from JSON that no schema has checked, such as an edit's argument."""
+    if not isinstance(value, dict):
+        raise SelectorError("a selector must be an object")
+    steps = value.get("select")
+    if not isinstance(steps, list):
+        raise SelectorError("a selector needs a 'select' list")
+    selector: Selector = {"select": [_parse_step(step) for step in steps]}
+    count = value.get("expected_count")
+    if isinstance(count, int) and not isinstance(count, bool):
+        selector["expected_count"] = count
+    return selector
+
+
+def _parse_step(value: JSON) -> SelectorStep:
+    if not isinstance(value, dict) or not isinstance(op := value.get("op"), str):
+        raise SelectorError("every selector step is an object with an 'op'")
+    step: SelectorStep = {"op": op}
+    for key in ("axis", "end", "feature"):
+        text = value.get(key)
+        if isinstance(text, str):
+            step[key] = text
+    for key in ("start", "stop"):
+        index = value.get(key)
+        if isinstance(index, int) and not isinstance(index, bool):
+            step[key] = index
+    for key in ("point", "normal", "box"):
+        if key in value:
+            step[key] = _numbers_of(value[key], f"{op} {key!r}")
+    points = value.get("points")
+    if isinstance(points, list):
+        step["points"] = [_numbers_of(point, f"{op} 'points'") for point in points]
+    return step
+
+
+def selector_json(selector: Selector) -> JSONObject:
+    """A selector as the plain JSON object a feature stores."""
+    steps: list[JSON] = []
+    for step in selector["select"]:
+        found: JSONObject = {"op": step["op"]}
+        for key in ("axis", "end", "feature"):
+            if (text := step.get(key)) is not None:
+                found[key] = text
+        for key in ("start", "stop"):
+            if (index := step.get(key)) is not None:
+                found[key] = index
+        for key in ("point", "normal", "box"):
+            if (numbers := step.get(key)) is not None:
+                found[key] = [*numbers]
+        if (points := step.get("points")) is not None:
+            found["points"] = [[*point] for point in points]
+        steps.append(found)
+    result: JSONObject = {"select": steps}
+    if "expected_count" in selector:
+        result["expected_count"] = selector["expected_count"]
+    if "from" in selector:
+        result["from"] = selector["from"]
+    return result

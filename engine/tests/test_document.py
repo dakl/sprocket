@@ -11,7 +11,7 @@ from sprocket_engine.document import (
     REFERENCE_FIELDS,
     Document,
     DocumentError,
-    StaleRevision,
+    StaleRevisionError,
     resolve_parameters,
 )
 from sprocket_engine.ops import REGISTRY
@@ -67,7 +67,7 @@ def test_a_sketch_whose_region_an_extrude_picked_cannot_be_deleted():
 
 def test_a_stale_base_revision_is_refused_with_both_numbers():
     document = build()
-    with pytest.raises(StaleRevision) as caught:
+    with pytest.raises(StaleRevisionError) as caught:
         document.apply_edits([{"op": "set_rollback", "index": 1}], 0, "test")
     assert (caught.value.based_on, caught.value.current) == (0, 2)
     assert document.revision == 2
