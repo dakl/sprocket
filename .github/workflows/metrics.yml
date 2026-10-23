@@ -1,0 +1,69 @@
+name: metrics
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Reports only. A number that moves the wrong way is explained in the PR, never
+# gated: tools/metrics.py says why.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: make metrics
+      # This branch's script measures the base too, so a change to the script
+      # cannot read as a change to the code.
+      - name: Measure the base
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --depth=1 origin "$BASE"
+          git worktree add ../base "$BASE"
+          uv run --script tools/metrics.py --root ../base --out base.json
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+      - name: Write the report
+        run: |
+          if [ -f base.json ]; then base="--base base.json"; fi
+          uv run --script tools/metrics.py report metrics.json $base > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      # One comment per PR, found by its marker and edited on every push.
+      - name: Comment on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          marker="<!-- sprocket-metrics -->"
+          {
+            echo "$marker"
+            echo "### Code metrics at ${SHA:0:7}"
+            echo
+            cat report.md
+            echo
+            # The raw numbers, for an agent to parse instead of the table.
+            echo "<details><summary>metrics.json (head, then base)</summary>"
+            echo
+            echo '```json'
+            jq -n --slurpfile head metrics.json --slurpfile base <(cat base.json 2>/dev/null || echo null) \
+              '{head: $head[0], base: $base[0]}'
+            echo '```'
+            echo "</details>"
+          } > comment.md
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            -q ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else
+            gh pr comment "$PR" --body-file comment.md
+          fi
