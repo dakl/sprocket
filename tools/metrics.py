@@ -84,11 +84,19 @@ def source_files(root, part):
 
 
 def inline_script(root, scratch):
-    """index.html's inline <script> is most of the viewer, so it is measured as a file."""
+    """index.html's inline <script> blocks, as one file, or None when it has none.
+
+    Most of the viewer once lived inline, and a base branch may still have it
+    there while the head has moved it to main.js. An inline tag the pattern did
+    not capture stops the run, so a changed tag cannot drop code unmeasured.
+    """
     html = (root / "viewer/index.html").read_text()
-    blocks = re.findall(r"<script>\n(.*?)</script>", html, re.S)
+    tags = [tag for tag in re.findall(r"<script\b[^>]*>", html) if "src=" not in tag]
+    blocks = re.findall(r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)
+    if len(blocks) != len(tags):
+        sys.exit(f"viewer/index.html has {len(tags)} inline <script> tags, but {len(blocks)} were read")
     if not blocks:
-        sys.exit("found no inline <script> in viewer/index.html")
+        return None
     path = scratch / "index-inline.js"
     path.write_text("\n".join(blocks))
     return path
@@ -279,7 +287,8 @@ def measure(root):
         for name, part in PARTS.items():
             files = source_files(root, part)
             if name == "viewer":
-                files.append(inline_script(root, scratch))
+                inline = inline_script(root, scratch)
+                files += [inline] if inline else []
             language = part["language"]
             if language == "javascript":
                 messages = [m for f in files for m in eslint(root, f)]
@@ -323,7 +332,7 @@ def report(head, base=None):
     lines.append("")
     lines.append(
         f"{note}Counts, not targets: a number that moves the wrong way gets a sentence "
-        "in the PR, not a refactor. The viewer includes index.html's inline script."
+        "in the PR, not a refactor. The viewer includes any inline script in index.html."
     )
     return "\n".join(lines)
 
