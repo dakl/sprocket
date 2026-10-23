@@ -136,7 +136,12 @@ class Daemon:
     """Owns the socket, the session lock and the connected clients."""
 
     def __init__(
-        self, session: Session, socket_path: Path, autosave: bool = True, viewer_dir: Path | None = None
+        self,
+        session: Session,
+        socket_path: Path,
+        autosave: bool = True,
+        viewer_dir: Path | None = None,
+        recovery_path: Path | None = None,
     ):
         self.session = session
         # When set, the viewer's files are rewritten after every change (see
@@ -144,6 +149,10 @@ class Daemon:
         self.viewer_dir = Path(viewer_dir) if viewer_dir else None
         self.socket_path = Path(socket_path)
         self.autosave = autosave
+        # With autosave off, unsaved edits are copied here after every change and
+        # the file is deleted once they are saved, so a crash loses nothing. The
+        # app offers what it finds on its next launch (see `restore_recovery`).
+        self.recovery_path = Path(recovery_path) if recovery_path else None
         self.lock = threading.RLock()
         # Snapshots of the editable state, one per undoable edit. Shared by
         # every client, so an undo undoes the newest edit whoever made it.
@@ -224,6 +233,7 @@ class Daemon:
         viewer_error = self.publish_viewer_files()
         document = self.session.document
         self._note_references()
+        self.write_recovery()
         entries = []
         for entry in reversed(document.log):
             if entry.get("revision") != document.revision:
@@ -237,6 +247,7 @@ class Daemon:
                 "rollback_index": document.rollback_index,
                 "path": str(document.path) if document.path else None,
                 "opened": opened,
+                "unsaved": self.unsaved,
                 "viewer_error": viewer_error,
                 "author": author or (entries[-1].get("author") if entries else None),
                 # A body's id is the id of the feature that starts it.
@@ -270,6 +281,19 @@ class Daemon:
         self.unsaved = False
         self.conflict = None
         return True
+
+    def write_recovery(self) -> None:
+        """Copies unsaved edits to `recovery_path`, or deletes it when there are none."""
+        if self.recovery_path is None:
+            return
+        if not self.unsaved:
+            self.recovery_path.unlink(missing_ok=True)
+            return
+        document = self.session.document
+        data = {"path": str(document.path) if document.path else None, "snapshot": document.snapshot()}
+        temporary = self.recovery_path.with_name(self.recovery_path.name + ".tmp")
+        temporary.write_text(json.dumps(data))
+        temporary.replace(self.recovery_path)
 
     def _enter_conflict(self, on_disk: str) -> None:
         if self.conflict and self.conflict["file_sha256"] == on_disk:
@@ -347,6 +371,7 @@ class Daemon:
         self.redo_stack.clear()
         revision = document.restore(fresh.snapshot(), "file", action="reload")
         document.saved_sha256 = fresh.saved_sha256
+        document.saved_snapshot = fresh.saved_snapshot
         self.unsaved = False
         self.conflict = None
         return _commit(self, revision, save=False)
@@ -556,7 +581,8 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
         if daemon.autosave and daemon.conflict is None:
             daemon.save_document()
         else:
-            daemon.unsaved = True
+            # Exact, not sticky: an undo back to what the file holds is not an unsaved edit.
+            daemon.unsaved = session.document.has_unsaved_changes()
     _carry_selection(daemon)
     daemon.announce_change(opened=opened)
 
@@ -639,6 +665,48 @@ def _save_as(daemon: Daemon, params: dict) -> dict:
     daemon.conflict = None
     daemon.announce_change()
     return {"path": str(path), "revision": document.revision}
+
+
+def _save(daemon: Daemon, params: dict) -> dict:
+    """Writes the open document to its own file. The app calls it on Save when
+    the daemon runs with `--no-autosave`. A file changed on disk since the last
+    save is refused, not overwritten: that is `resolve_conflict`'s choice."""
+    document = daemon.session.document
+    if document.path is None:
+        raise DocumentError("this document has no file yet: use save_as")
+    if not daemon.save_document():
+        raise DocumentError(daemon.conflict["message"])
+    daemon.announce_change()
+    return {"path": str(document.path), "revision": document.revision}
+
+
+def _document_moved(daemon: Daemon, params: dict) -> dict:
+    """The file was renamed or moved by the app. Follows it without writing,
+    so unsaved edits stay unsaved."""
+    path = _file_path(params)
+    if not path.exists():
+        raise DocumentError(f"{path} does not exist")
+    daemon.session.document.path = path
+    daemon.session.moved()
+    return {"path": str(path)}
+
+
+def _restore_recovery(daemon: Daemon, params: dict) -> dict:
+    """Puts back the edits a recovery file holds (see `Daemon.write_recovery`)
+    as one undoable step. They stay unsaved until the person saves them."""
+    raw = params.get("file")
+    if not raw:
+        raise DocumentError("this needs a 'file'")
+    try:
+        snapshot = json.loads(Path(raw).read_text())["snapshot"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise DocumentError(f"cannot read the recovery file {raw}: {exc}") from exc
+    document = daemon.session.document
+    daemon.undo_stack.append(document.snapshot())
+    del daemon.undo_stack[:-UNDO_LIMIT]
+    daemon.redo_stack.clear()
+    revision = document.restore(snapshot, params.get("author", "app"), action="recover")
+    return _commit(daemon, revision)
 
 
 def _get_timeline(daemon: Daemon, params: dict) -> dict:
@@ -1148,7 +1216,11 @@ class FileWatcher:
     read after it finishes. Polling, not FSEvents: stdlib only, it survives an
     atomic rename (a new inode), and a few stat calls a second cost nothing.
     `paths_of()` is asked every interval, so the set can change: Save As,
-    Open, or a reference added."""
+    Open, or a reference added. Each path is checked the first time it is
+    polled, the ones there at start included: it may have changed between the
+    daemon noting it and this thread's first stat, and a stat taken after the
+    change would hide it for good. The callbacks compare content hashes, so a
+    check of an unchanged file is a no-op."""
 
     def __init__(self, paths_of, on_change, interval: float = 0.25):
         self.paths_of = paths_of
@@ -1172,21 +1244,19 @@ class FileWatcher:
         self._stop.set()
 
     def _run(self) -> None:
-        seen = {path: self._stat(path) for path in self.paths_of()}
+        seen: dict = {}  # empty, so the first poll checks every path
         pending: dict = {}
         while not self._stop.wait(self.interval):
             paths = list(self.paths_of())
             for path in paths:
-                if path not in seen:  # newly watched: start from what is there
-                    seen[path] = self._stat(path)
-                    continue
                 now = self._stat(path)
-                if now == seen[path]:
-                    pending.pop(path, None)
-                    continue
-                if pending.get(path) != now:  # still moving: wait one more interval
-                    pending[path] = now
-                    continue
+                if path in seen:
+                    if now == seen[path]:
+                        pending.pop(path, None)
+                        continue
+                    if pending.get(path) != now:  # still moving: wait one more interval
+                        pending[path] = now
+                        continue
                 seen[path] = now
                 pending.pop(path, None)
                 try:
@@ -1512,6 +1582,9 @@ METHODS = {
     "open_document": _open_document,
     "new_document": _new_document,
     "save_as": _save_as,
+    "save": _save,
+    "document_moved": _document_moved,
+    "restore_recovery": _restore_recovery,
     "get_timeline": _get_timeline,
     "apply_edit": _apply_edit,
     "set_rollback": _set_rollback,

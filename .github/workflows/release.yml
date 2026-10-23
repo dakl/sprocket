@@ -1,45 +1,90 @@
 name: release
 
-# Push a tag like v0.2.0 to publish the engine wheel, the example documents and
-# the app as a DMG. The DMG is unsigned until phase 3 of docs/PACKAGING.md, so
-# Gatekeeper blocks it on other Macs.
+# Run this workflow on main to publish a release. Pick which part of the
+# version to raise (patch, minor or major):
 #
-# Run the workflow by hand ("Run workflow") to try the DMG build with no tag. It
-# then skips the release and keeps the DMG as a build artifact.
+#   gh workflow run release --ref main -f bump=minor
+#
+# It runs the engine tests, raises the version in engine/pyproject.toml and
+# engine/uv.lock, commits that to main as "chore: release X.Y.Z", tags it
+# vX.Y.Z and publishes the engine wheel, the example documents and the app as
+# a DMG. The DMG is unsigned until phase 3 of docs/PACKAGING.md, so Gatekeeper
+# blocks it on other Macs.
+#
+# Give it a `release` (such as v0.10.0) to raise no version and build that
+# existing release's DMG again from its tag, for when a DMG job failed.
+#
+# The DMG goes to the release only, not to artifact storage as well: a full
+# artifact quota failed the v0.10.0 DMG job before it reached the release.
+#
+# The DMG also goes, signed for Sparkle, to the public repo
+# dakl/sprocket-releases with a one-item appcast.xml. Installed apps read
+# that feed (docs/PACKAGING.md, "Auto-update"). It needs two secrets:
+# SPARKLE_PRIVATE_KEY (`generate_keys --account sprocket -x <file>`) and
+# RELEASES_TOKEN (a fine-grained token with contents write on that repo only).
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Part of the version to raise"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      release:
+        description: "Instead, build the DMG again for this existing release (e.g. v0.10.0)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
   release:
-    if: github.ref_type == 'tag'
+    if: inputs.release == ''
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
     steps:
+      - name: Check the run is on main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "run the release on main, not $GITHUB_REF_NAME"
+          exit 1
+
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.12"
-
-      # A tag that disagrees with pyproject.toml would publish a wheel whose
-      # filename names a different version than the release.
-      - name: Check the tag matches the engine version
-        run: |
-          version=$(grep -m1 '^version' engine/pyproject.toml | cut -d'"' -f2)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "tag $GITHUB_REF_NAME does not match engine version v$version"
-            exit 1
-          fi
 
       - name: Run the tests
         working-directory: engine
         run: |
           uv sync --extra mcp
           uv run pytest
+
+      # The engine's version is the release version: the app reads it too.
+      - name: Raise the version
+        id: bump
+        working-directory: engine
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          uv version --bump "$BUMP" --no-sync
+          echo "tag=v$(uv version --short)" >> "$GITHUB_OUTPUT"
+
+      # --atomic pushes both or neither. If main moved after the checkout the
+      # push fails and nothing is published: run the workflow again.
+      - name: Commit and tag the version
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add engine/pyproject.toml engine/uv.lock
+          git commit -m "chore: release ${TAG#v}"
+          git tag "$TAG"
+          git push --atomic origin HEAD:main "$TAG"
 
       - name: Build the wheel and sdist
         working-directory: engine
@@ -48,34 +93,61 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.bump.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "$TAG" \
             --generate-notes \
             engine/dist/*.whl engine/dist/*.tar.gz examples/*.sprocket
 
   dmg:
     needs: release
-    # Also runs when the release job was skipped (a manual run).
+    # Also runs when the release job was skipped (a DMG rebuild).
     if: ${{ !cancelled() && needs.release.result != 'failure' }}
     runs-on: macos-14
+    env:
+      RELEASE: ${{ inputs.release || needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE }}
       - uses: astral-sh/setup-uv@v3
 
       - name: Build the DMG
         run: app/make_dmg.sh
 
       - name: Name the DMG after the version
-        run: cp app/.build/Sprocket.dmg "Sprocket-${GITHUB_REF_NAME//\//-}.dmg"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dmg
-          path: Sprocket-*.dmg
+        run: cp app/.build/Sprocket.dmg "Sprocket-$RELEASE.dmg"
 
       - name: Add the DMG to the release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" Sprocket-*.dmg
+        run: gh release upload "$RELEASE" Sprocket-*.dmg --clobber
+
+      # The appcast holds only this release: Sparkle needs nothing older. The
+      # release notes go in as preformatted text, because they are markdown.
+      - name: Publish the update to dakl/sprocket-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          SOURCE_TOKEN: ${{ github.token }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          mkdir feed
+          cp Sprocket-*.dmg feed/
+          {
+            echo "<pre>"
+            GH_TOKEN="$SOURCE_TOKEN" gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json body -q .body \
+              | sed 's/&/\&amp;/g; s/</\&lt;/g'
+            echo "</pre>"
+          } > "feed/$(basename feed/Sprocket-*.dmg .dmg).html"
+          echo "$SPARKLE_PRIVATE_KEY" | app/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+            --ed-key-file - --embed-release-notes \
+            --download-url-prefix "https://github.com/dakl/sprocket-releases/releases/download/$RELEASE/" \
+            feed
+          if gh release view "$RELEASE" --repo dakl/sprocket-releases > /dev/null 2>&1; then
+            gh release upload "$RELEASE" --repo dakl/sprocket-releases --clobber feed/*.dmg feed/appcast.xml
+          else
+            gh release create "$RELEASE" --repo dakl/sprocket-releases --title "$RELEASE" \
+              --notes "Sprocket $RELEASE." --latest feed/*.dmg feed/appcast.xml
+          fi

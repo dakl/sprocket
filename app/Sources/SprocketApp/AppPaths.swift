@@ -39,6 +39,27 @@ enum AppPaths {
         try manager.copyItem(at: resources.appendingPathComponent("viewer"), to: viewerDir)
     }
 
+    private static var support: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Sprocket", isDirectory: true)
+    }
+
+    /// Where a new document lives until Save gives it a name. The daemon needs a
+    /// file to open, and nothing is written there after the first empty one.
+    static var untitledDir: URL { support.appendingPathComponent("Untitled", isDirectory: true) }
+
+    /// Unsaved edits, one file per open document, written by its daemon
+    /// (`--recovery`). One left behind by a dead process means a crash.
+    static var recoveryDir: URL { support.appendingPathComponent("Recovery", isDirectory: true) }
+
+    /// Each open document's `part.mesh`, `features.json` and `schemas.json`, in a
+    /// folder of its own. The window's web view reads them through
+    /// ViewerSchemeHandler, which serves everything else from `viewerDir`.
+    static var documentDataRoot: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("dev.sprocket.app/documents", isDirectory: true)
+    }
+
     /// The executable and arguments that start `sprocket daemon`.
     static var engineLaunch: (executable: URL, arguments: [String]) {
         if isBundled {

@@ -66,6 +66,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="keep edits in memory instead of writing the document after each one",
     )
+    daemon.add_argument(
+        "--recovery",
+        type=Path,
+        default=None,
+        help="with --no-autosave, copy unsaved edits here after every change, and delete the file once they are saved",
+    )
 
     web = sub.add_parser(
         "web", help="serve one document to the viewer in a plain browser, and to agents over the daemon socket"
@@ -224,7 +230,9 @@ def _daemon(args: argparse.Namespace) -> int:
 
     socket_path = args.socket or Path(str(args.document) + ".sock")
     session = Session(document, args.cache_dir)
-    server = Daemon(session, socket_path, autosave=not args.no_autosave, viewer_dir=args.viewer_dir)
+    server = Daemon(
+        session, socket_path, autosave=not args.no_autosave, viewer_dir=args.viewer_dir, recovery_path=args.recovery
+    )
     server.publish_viewer_files()
     # A script, `sprocket build`, git or another editor can rewrite the file
     # while the app has it open. See Daemon.check_file for the rule.

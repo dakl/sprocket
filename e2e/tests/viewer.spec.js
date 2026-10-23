@@ -5,7 +5,7 @@
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
 
-const { rpc, resetDocument, settled } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, fixture);
@@ -63,7 +63,6 @@ test("a selected face is extruded from the toolbar, with no floating panel", asy
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
-  await expect(page.locator("#tool-extrude")).toBeDisabled();
   await page.mouse.click(point.x, point.y);
   await expect(page.locator("#tool-extrude")).toBeEnabled();
   await expect(page.locator("#selection-panel")).toHaveCount(0);
@@ -568,7 +567,6 @@ async function undoOnce(page) {
 
 test("fillet: Shift-click two edges, set a radius, see the preview, Enter applies, undo removes it", async ({ page, request }) => {
   const [first, second] = await topEdgePoints(page, request, 2);
-  await expect(page.locator("#tool-fillet")).toBeDisabled();
   await page.mouse.click(first.x, first.y);
   await page.keyboard.down("Shift");
   await page.mouse.click(second.x, second.y);
@@ -614,21 +612,14 @@ test("fillet: a radius the part cannot take shows the reason and cannot be appli
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
 });
 
-test("fillet: a selected face rounds all its edges", async ({ page, request }) => {
+test("fillet: a selected face is not an input, so F asks for an edge", async ({ page, request }) => {
   await clickTopFace(page, request);
-  await expect(page.locator("#tool-fillet")).toBeEnabled();
   await page.keyboard.press("f");
-  await previewReady(page);
-  await page.locator("#modify-radius").fill("1");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === 1 && window.__tcad.modifying.ok, null, SLOW);
-  await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
-  await settled(page);
-  const feature = (await rpc(request, "get_document")).features[2];
-  expect(feature.edges.expected_count).toBe(4);
-  // A 1 mm round along the 140 mm perimeter removes 1 * (1 - pi/4) of cross section.
-  expect(12000 - (await rpc(request, "measure")).volume).toBeCloseTo(140 * (1 - Math.PI / 4), 0); // the four corners overlap a little: 0.38 less
-  await undoOnce(page);
+  await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("fillet");
+  expect(await page.evaluate(() => window.__tcad.selection.face)).toBeNull();
+  await expect(page.locator("#modify-panel")).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBeNull();
 });
 
 test("chamfer: C on a selected edge previews and applies a distance", async ({ page, request }) => {
@@ -889,4 +880,33 @@ test("revolve: a selected sketch turns about an axis, previews, applies, and und
   expect((await rpc(request, "measure")).volume).toBeCloseTo(Math.PI * 300 * 10, 1);
   await page.keyboard.press("Meta+z");
   await page.waitForFunction(() => window.__tcad.timeline.length === 1, null, SLOW);
+});
+
+test("wheel zoom follows the distance scrolled, and the zoom setting scales it", async ({ page }) => {
+  await cameraStill(page);
+  const distance = () =>
+    page.evaluate(() => {
+      const { position, target } = window.__tcad.camera;
+      return Math.hypot(...position.map((value, i) => value - target[i]));
+    });
+  // Away from the timeline and the toolbar, so the wheel lands on the canvas.
+  await page.mouse.move(640, 300);
+  const zoomBy = async (deltas) => {
+    const before = await distance();
+    for (const delta of deltas) await page.mouse.wheel(0, delta);
+    await expect.poll(async () => (await distance()) !== before).toBe(true);
+    return Math.log((await distance()) / before);
+  };
+
+  // One 100 px event, then twenty of 5 px: the same zoom. OrbitControls' own
+  // fixed step made the twenty zoom twenty times as far.
+  const one = await zoomBy([100]);
+  const twenty = await zoomBy(Array(20).fill(5));
+  expect(twenty).toBeCloseTo(one, 3);
+  expect(one).toBeCloseTo(0.05, 3);
+
+  // What the app's Settings window sends.
+  await page.evaluate(() => window.__applySettings({ zoomSensitivity: 2 }));
+  expect(await page.evaluate(() => window.__tcad.zoomSensitivity)).toBe(2);
+  expect(await zoomBy([-100])).toBeCloseTo(-0.1, 3);
 });
