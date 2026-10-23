@@ -55,7 +55,7 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
 3. **Signed (item 7).** Sign every Mach-O file (native binary), inner files first, the app last.
    Turn on the hardened runtime, then notarise with `notarytool`.
    Exit check: `spctl --assess` passes on a machine that never built the app.
-   `release.yml` builds the DMG on a `macos-14` runner for each release and adds it to the release. A run with `release` set builds an existing release's DMG again from its tag. It is unsigned. A pull-request run on 2026-10-02 passed in 51 s and produced a 275 MB artifact. Nobody has opened that DMG on a Mac yet.
+   `release.yml` builds the DMG on a `macos-14` runner for each release and adds it to the release. A run with `release` set builds an existing release's DMG again from its tag. It is unsigned. A pull-request run on 2026-10-02 passed in 51 s and produced a 275 MB artifact. The release DMGs install and run on the Mac that develops Sprocket (checked 2026-10-20). Only a machine that never built the app is still untested.
 4. **Verified (item 8).** See the golden-test risk below.
 
 ## Risks
