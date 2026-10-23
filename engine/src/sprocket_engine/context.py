@@ -10,7 +10,13 @@ from typing import cast
 
 from build123d import Compound
 
-from .model import AxisFeature, JSONObject, PlaneFeature, SketchFeature
+from sprocket_engine.model import (
+    AxisFeature,
+    JSONObject,
+    PlaneFeature,
+    SketchFeature,
+    sketch_feature,
+)
 
 
 @dataclass
@@ -63,10 +69,7 @@ class Context:
     def sketch(self, feature_id: str) -> SketchFeature | None:
         """The sketch feature replayed as `feature_id`, or None if that is not a sketch."""
         feature = self.features.get(feature_id)
-        if feature is None or feature.get("type") != "sketch":
-            return None
-        # Replay checked it against the sketch op's schema before storing it.
-        return cast("SketchFeature", cast("object", feature))
+        return None if feature is None else sketch_feature(feature)
 
     def plane_feature(self, feature_id: str) -> PlaneFeature | None:
         """The plane feature replayed as `feature_id`, or None if that is not one."""

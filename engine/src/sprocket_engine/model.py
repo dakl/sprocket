@@ -11,7 +11,7 @@ Every TypedDict is `@final`, so a type checker can tell the forms of a union
 apart by a key: `"name" in plane` picks the named plane.
 """
 
-from typing import Literal, NotRequired, Required, TypedDict, final
+from typing import Literal, NotRequired, Required, TypedDict, cast, final
 
 type JSON = None | bool | int | float | str | list[JSON] | dict[str, JSON]
 type JSONObject = dict[str, JSON]
@@ -538,3 +538,19 @@ def entity_number(entity: Entity, name: Literal["r", "a0", "a1"]) -> float:
         msg = f"{entity['kind']} {entity['id']!r} needs {name}"
         raise ValueError(msg)
     return value
+
+
+def sketch_feature(feature: JSONObject) -> SketchFeature | None:
+    """Return the feature as a sketch, or None if it is another op's.
+
+    Only for a feature its op's schema has checked: replay validates every
+    feature before it runs, and a document validates every edit.
+    """
+    if feature.get("type") != "sketch":
+        return None
+    return cast("SketchFeature", cast("object", feature))
+
+
+def to_json(feature: SketchFeature) -> JSONObject:
+    """Return a sketch feature as the plain JSON object it is."""
+    return cast("JSONObject", cast("object", feature))

@@ -16,27 +16,64 @@ dimension to it survives a change in the sketch it came from.
 
 import copy
 import math
+from collections.abc import Callable
+from typing import Required, TypedDict, final
 
-from build123d import GeomType, Vector
+from build123d import Edge, GeomType, Plane, Vector
 
-from .ops.sketch import resolve_plane, sketch_entities
-from .regions import entity_edge
-from .selectors import resolve_selector
+from sprocket_engine.b3d import to_local
+from sprocket_engine.context import Context
+from sprocket_engine.model import (
+    Entity,
+    EntityKind,
+    EntityReference,
+    JSONObject,
+    PlaneRef,
+    SketchFeature,
+    sketch_feature,
+    to_json,
+)
+from sprocket_engine.ops.sketch import resolve_plane, sketch_entities
+from sprocket_engine.regions import entity_edge
+from sprocket_engine.selectors import resolve_selector
 
 TWO_PI = 2 * math.pi
 # How parallel an edge's plane must be to the sketch plane for a circle to stay a circle.
 FLAT = 1 - 1e-6
 
 
-def has_references(feature: dict) -> bool:
-    return any(entity.get("reference") for entity in feature.get("entities", []))
+@final
+class Projected(TypedDict, total=False):
+    """An entity's kind and geometry, as a projection gives them: no id."""
+
+    kind: Required[EntityKind]
+    p0: list[float]
+    p1: list[float]
+    c: list[float]
+    r: float
+    a0: float
+    a1: float
 
 
-def source_edge(source: dict, ctx):
+type Project = Callable[[EntityReference], Projected]
+
+
+def has_references(feature: JSONObject) -> bool:
+    """Whether any entity of the sketch is a projected reference."""
+    entities = feature.get("entities")
+    if not isinstance(entities, list):
+        return False
+    return any(
+        isinstance(entity, dict) and bool(entity.get("reference"))
+        for entity in entities
+    )
+
+
+def source_edge(source: EntityReference, ctx: Context) -> Edge:
     """The edge `source` names, in world coordinates, found in what replay has built so far."""
     if "sketch" in source:
-        sketch = ctx.features.get(source["sketch"])
-        if sketch is None or sketch.get("type") != "sketch" or "entities" not in sketch:
+        sketch = ctx.sketch(source["sketch"])
+        if sketch is None or "entities" not in sketch:
             raise ValueError(
                 f"{source['sketch']!r} is not a sketch of entities built before this one"
             )
@@ -59,7 +96,10 @@ def source_edge(source: dict, ctx):
             raise ValueError(
                 f"the edge selector matched {len(edges)} edges of {source['feature']!r}, expected exactly 1"
             )
-        return edges[0]
+        edge = edges[0]
+        if not isinstance(edge, Edge):
+            raise ValueError("a reference's edge selector must match an edge")
+        return edge
     raise ValueError("a reference names {'sketch', 'entity'} or {'feature', 'edge'}")
 
 
@@ -67,7 +107,7 @@ def _sweep(start: float, end: float) -> float:
     return (end - start) % TWO_PI
 
 
-def project_edge(edge, plane) -> dict:
+def project_edge(edge: Edge, plane: Plane) -> Projected:
     """The entity fields (kind and geometry) of `edge` seen in `plane`'s own [u, v].
 
     A straight edge projects whatever its angle to the plane. A circle only
@@ -75,8 +115,8 @@ def project_edge(edge, plane) -> dict:
     be an ellipse, which a sketch cannot hold.
     """
 
-    def local(point) -> list[float]:
-        found = plane.to_local_coords(Vector(point))
+    def local(point: Vector) -> list[float]:
+        found = to_local(plane, point)
         return [round(found.X, 9) + 0.0, round(found.Y, 9) + 0.0]
 
     if edge.geom_type == GeomType.LINE:
@@ -100,7 +140,7 @@ def project_edge(edge, plane) -> dict:
         return {"kind": "circle", "c": centre, "r": radius}
     start, middle, end = (local(edge.position_at(t)) for t in (0.0, 0.5, 1.0))
 
-    def angle(point) -> float:
+    def angle(point: list[float]) -> float:
         return math.atan2(point[1] - centre[1], point[0] - centre[0])
 
     a0, a1 = angle(start), angle(end)
@@ -112,16 +152,16 @@ def project_edge(edge, plane) -> dict:
     return {"kind": "arc", "c": centre, "r": radius, "a0": a0, "a1": a1}
 
 
-def projector(plane_reference, ctx):
+def projector(plane_reference: PlaneRef, ctx: Context) -> Project:
     """A function from a source to entity fields, for a sketch on `plane_reference`."""
     plane = resolve_plane(plane_reference, ctx)
     return lambda source: project_edge(source_edge(source, ctx), plane)
 
 
-def with_references_updated(feature: dict, project) -> dict:
+def with_references_updated(feature: SketchFeature, project: Project) -> SketchFeature:
     """A copy of `feature` whose reference entities are projected again. Nothing is solved."""
     updated = copy.deepcopy(feature)
-    for entity in updated["entities"]:
+    for entity in updated.get("entities", []):
         source = entity.get("reference")
         if not source:
             continue
@@ -135,25 +175,46 @@ def with_references_updated(feature: dict, project) -> dict:
             raise ValueError(
                 f"reference {entity['id']!r} of sketch {feature['id']!r} was a {entity['kind']} and its source is now a {fields['kind']}"
             )
-        entity.update(fields)
+        _take(entity, fields)
     return updated
 
 
-def refresh_references(feature: dict, ctx) -> dict:
+def _take(entity: Entity, fields: Projected) -> None:
+    """Copy a projection's kind and geometry onto `entity`."""
+    entity["kind"] = fields["kind"]
+    if "p0" in fields:
+        entity["p0"] = fields["p0"]
+    if "p1" in fields:
+        entity["p1"] = fields["p1"]
+    if "c" in fields:
+        entity["c"] = fields["c"]
+    if "r" in fields:
+        entity["r"] = fields["r"]
+    if "a0" in fields:
+        entity["a0"] = fields["a0"]
+    if "a1" in fields:
+        entity["a1"] = fields["a1"]
+
+
+def refresh_references(feature: JSONObject, ctx: Context) -> JSONObject:
     """`feature` with its projected entities brought up to date and the sketch solved around them.
 
     `feature` is resolved, numbers only. Without the solver the entities are
     still refreshed, but nothing else moves until a viewer or an agent edits the sketch.
     """
-    if not has_references(feature):
+    sketch = sketch_feature(feature)
+    if sketch is None or not has_references(feature):
         return feature
-    updated = with_references_updated(feature, projector(feature["plane"], ctx))
+    updated = with_references_updated(sketch, projector(sketch["plane"], ctx))
     try:
-        from . import solver
+        from sprocket_engine import solver
     except ImportError:
-        return updated
+        return to_json(updated)
     result = solver.solve(
-        {"entities": updated["entities"], "constraints": updated.get("constraints", [])}
+        {
+            "entities": updated.get("entities", []),
+            "constraints": updated.get("constraints", []),
+        }
     )
     if not result["ok"]:
         constraints = updated.get("constraints", [])
@@ -165,4 +226,5 @@ def refresh_references(feature: dict, ctx) -> dict:
             f"sketch {feature['id']!r} has no solution now that its references moved"
             + (f": {names} conflict" if names else "")
         )
-    return {**updated, "entities": result["sketch"]["entities"]}
+    solved: SketchFeature = {**updated, "entities": result["sketch"]["entities"]}
+    return to_json(solved)
