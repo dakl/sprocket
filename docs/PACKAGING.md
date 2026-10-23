@@ -52,10 +52,12 @@ Item 1 needed no engine change: `sprocket daemon` already takes `--viewer-dir`.
    The engine suite passes on the pruned bundled Python: 228 passed.
    What is left: OCP 221 MB, scipy 58 MB, sklearn 28 MB, numpy 15 MB, PIL 12 MB, ezdxf 10 MB, Python itself 40 MB.
    The engine uses none of scipy and sklearn directly. build123d imports them at load time (`brep_from_stl.py`, `objects_part.py` and others), so removing them means patching build123d. OCP's libraries are linked into one extension, so they cannot be dropped one by one.
-3. **Signed (item 7).** Sign every Mach-O file (native binary), inner files first, the app last.
-   Turn on the hardened runtime, then notarise with `notarytool`.
+3. **Signed (item 7). Built, not yet run in CI.** `app/sign.sh` signs every Mach-O file in `Resources` (found by header, 335 in the unpruned bundle), then Sparkle's parts in the order Sparkle's documentation gives, then the app. Each signature has the hardened runtime and a secure timestamp. One identity signs everything, so library validation passes and the app needs no entitlements. `make_dmg.sh` calls it when `SIGN_IDENTITY` is set and signs the DMG too. `app/notarize.sh` notarises the DMG with `notarytool` and staples it.
+   `release.yml` imports the Developer ID certificate from the secrets codez and papershelf use (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID` and `APPLE_TEAM_ID`; the app-specific password is `SPROCKET_APP_SPECIFIC_PASSWORD` here), notarises before the Sparkle step (stapling changes the DMG, and the EdDSA signature must cover the final file), then runs `spctl --assess` on the DMG. Without `CSC_LINK` it builds unsigned with a warning.
+   `sign.sh <app> -` signs ad hoc with the same layout, to test without a certificate. An ad-hoc signature has no Team ID, so that build turns library validation off on the app and the interpreter; without it `import OCP` fails with "different Team IDs". Checked 2026-10-23 on the unpruned bundle: the ad-hoc runtime build opened `examples/box.sprocket` and the engine served its mesh.
+   The bundled Python writes its bytecode to `~/Library/Caches/dev.sprocket.app/pycache` (`PYTHONPYCACHEPREFIX`, set in `EngineDaemon`). Without it, the first run writes `__pycache__` folders into the app and breaks its seal.
    Exit check: `spctl --assess` passes on a machine that never built the app.
-   `release.yml` builds the DMG on a `macos-14` runner for each release and adds it to the release. A run with `release` set builds an existing release's DMG again from its tag. It is unsigned. A pull-request run on 2026-10-02 passed in 51 s and produced a 275 MB artifact. The release DMGs install and run on the Mac that develops Sprocket (checked 2026-10-20). Only a machine that never built the app is still untested.
+   `release.yml` builds the DMG on a `macos-14` runner for each release and adds it to the release. A run with `release` set builds an existing release's DMG again from its tag. A pull-request run on 2026-10-02 passed in 51 s and produced a 275 MB artifact.
 4. **Verified (item 8).** See the golden-test risk below.
 
 ## Risks
@@ -90,4 +92,3 @@ Checked on 2026-10-20 with a localhost feed: an ad-hoc signed release bundle fou
 ## Open questions
 
 - Is a 211 MB download acceptable, or is the patched build123d worth maintaining? (`ocp-tessellate` is needed: `mesh.py` imports it. scipy and sklearn come from build123d.)
-- Is a paid Developer Program membership available for the release?

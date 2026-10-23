@@ -60,6 +60,13 @@ enum AppPaths {
             .appendingPathComponent("dev.sprocket.app/documents", isDirectory: true)
     }
 
+    /// Where the bundled Python writes its bytecode. By default it writes
+    /// `__pycache__` folders inside the app, which breaks the app's signature.
+    static var pycacheDir: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("dev.sprocket.app/pycache", isDirectory: true)
+    }
+
     /// The executable and arguments that start `sprocket daemon`.
     static var engineLaunch: (executable: URL, arguments: [String]) {
         if isBundled {
