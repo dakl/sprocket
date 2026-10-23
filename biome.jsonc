@@ -65,7 +65,11 @@
             // A three.js CAD viewer is built from literal coordinates, colours,
             // sizes and tolerances, so naming each one would not make it
             // clearer. Daniel's call, 2026-10-23.
-            "noMagicNumbers": "off"
+            "noMagicNumbers": "off",
+            // main.js is one file because the viewer is classic scripts with no
+            // module system; splitting it is a design change, not a lint fix.
+            // Daniel's call, 2026-10-23.
+            "noExcessiveLinesPerFile": "off"
           },
           "correctness": {
             "useQwikValidLexicalScope": "off"
