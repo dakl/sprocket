@@ -11,6 +11,12 @@ name: release
 #
 # A tag's DMG goes to the release only, not to artifact storage as well: a full
 # artifact quota failed the v0.10.0 DMG job before it reached the release.
+#
+# A DMG that goes to a release also goes, signed for Sparkle, to the public
+# repo dakl/sprocket-releases with a one-item appcast.xml. Installed apps read
+# that feed (docs/PACKAGING.md, "Auto-update"). It needs two secrets:
+# SPARKLE_PRIVATE_KEY (`generate_keys --account sprocket -x <file>`) and
+# RELEASES_TOKEN (a fine-grained token with contents write on that repo only).
 
 on:
   push:
@@ -93,3 +99,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE: ${{ inputs.release || github.ref_name }}
         run: gh release upload "$RELEASE" Sprocket-*.dmg --clobber
+
+      # The appcast holds only this release: Sparkle needs nothing older. The
+      # release notes go in as preformatted text, because they are markdown.
+      - name: Publish the update to dakl/sprocket-releases
+        if: github.ref_type == 'tag' || inputs.release != ''
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          SOURCE_TOKEN: ${{ github.token }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          RELEASE: ${{ inputs.release || github.ref_name }}
+        run: |
+          mkdir feed
+          cp Sprocket-*.dmg feed/
+          {
+            echo "<pre>"
+            GH_TOKEN="$SOURCE_TOKEN" gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" --json body -q .body \
+              | sed 's/&/\&amp;/g; s/</\&lt;/g'
+            echo "</pre>"
+          } > "feed/$(basename feed/Sprocket-*.dmg .dmg).html"
+          echo "$SPARKLE_PRIVATE_KEY" | app/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+            --ed-key-file - --embed-release-notes \
+            --download-url-prefix "https://github.com/dakl/sprocket-releases/releases/download/$RELEASE/" \
+            feed
+          if gh release view "$RELEASE" --repo dakl/sprocket-releases > /dev/null 2>&1; then
+            gh release upload "$RELEASE" --repo dakl/sprocket-releases --clobber feed/*.dmg feed/appcast.xml
+          else
+            gh release create "$RELEASE" --repo dakl/sprocket-releases --title "$RELEASE" \
+              --notes "Sprocket $RELEASE." --latest feed/*.dmg feed/appcast.xml
+          fi
