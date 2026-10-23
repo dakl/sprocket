@@ -243,49 +243,49 @@
     return values;
   }
 
-  /// The feature (without an id) for `kind` from the panel's `values`, or
-  /// {error}. `target` is {base, edges?, open?, point?, normal?}: the feature
-  /// it builds on and what was picked, already turned into selectors.
-  function featureFor(kind, values, target) {
-    for (const field of TOOLS[kind].fields) {
-      if (field.type !== "number" || !visible(field, values)) {
-        continue;
-      }
-      const value = parseNumber(values[field.name]);
-      if (field.integer && !(Number.isInteger(value) && value >= field.min)) {
-        return { error: `${field.label} must be a whole number, at least ${field.min}` };
-      }
-      if (field.integer) {
-        continue;
-      }
-      if (field.anyNumber && !Number.isFinite(value)) {
-        return { error: `${field.label} must be a number` };
-      }
-      if (field.anyNumber) {
-        continue;
-      }
-      if (field.signed && !(Number.isFinite(value) && value !== 0)) {
-        return { error: `${field.label} must be a number, not 0` };
-      }
-      if (field.signed) {
-        continue;
-      }
-      if (!POSITIVE(value)) {
-        return { error: `${field.label} must be a number above 0` };
-      }
+  /// Why `value` is not acceptable in the number `field`, or null when it is.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one check per kind of number field; split up, the rules would no longer read as one list
+  function fieldError(field, value) {
+    if (field.integer) {
+      return Number.isInteger(value) && value >= field.min
+        ? null
+        : `${field.label} must be a whole number, at least ${field.min}`;
     }
-    const number = (name) => parseNumber(values[name]);
-    const choice = (name) => {
-      const found = target.choices?.[name]?.[values[name]];
-      return found === undefined ? null : found;
-    };
-    if (kind === "fillet") {
-      return { type: "fillet", base: target.base, edges: target.edges, radius: number("radius") };
+    if (field.anyNumber) {
+      return Number.isFinite(value) ? null : `${field.label} must be a number`;
     }
-    if (kind === "chamfer") {
-      return { type: "chamfer", base: target.base, edges: target.edges, length: number("length") };
+    if (field.signed) {
+      return Number.isFinite(value) && value !== 0
+        ? null
+        : `${field.label} must be a number, not 0`;
     }
-    if (kind === "revolve") {
+    return POSITIVE(value) ? null : `${field.label} must be a number above 0`;
+  }
+
+  const rounded = (value) => Math.round(value * 1e4) / 1e4;
+
+  /// Where a copy tool's result goes. "Into" is the body the copies join or are cut from.
+  function copyTarget(values, target) {
+    const into = values.into === "same" ? target.tool : values.into;
+    const mode = values.into !== "same" && values.mode === "cut" ? { mode: "cut" } : {};
+    return { into, mode };
+  }
+
+  /// One builder per tool: (values, target, number, choice) to the feature or {error}.
+  const BUILDERS = {
+    fillet: (_values, target, number) => ({
+      type: "fillet",
+      base: target.base,
+      edges: target.edges,
+      radius: number("radius"),
+    }),
+    chamfer: (_values, target, number) => ({
+      type: "chamfer",
+      base: target.base,
+      edges: target.edges,
+      length: number("length"),
+    }),
+    revolve: (values, target, number) => {
       const angle = number("angle");
       if (angle > 360) {
         return { error: "Angle must be 360 or less" };
@@ -296,8 +296,8 @@
         axis: values.axis,
         ...(angle === 360 ? {} : { angle }),
       };
-    }
-    if (kind === "shell") {
+    },
+    shell: (values, target, number) => {
       const feature = { type: "shell", base: target.base, thickness: number("thickness") };
       if (target.open && !values.closed) {
         feature.open = target.open;
@@ -306,8 +306,8 @@
         feature.outward = true;
       }
       return feature;
-    }
-    if (kind === "hole") {
+    },
+    hole: (values, target, number) => {
       const feature = {
         type: "hole",
         base: target.base,
@@ -333,49 +333,46 @@
         }
       }
       return feature;
-    }
-    const rounded = (value) => Math.round(value * 1e4) / 1e4;
-    if (kind === "plane") {
+    },
+    plane: (_values, _target, number, choice) => {
       const plane = choice("plane");
       if (plane === null) {
         return { error: "Pick the plane to start from" };
       }
       return { type: "plane", plane, offset: number("offset") };
-    }
-    if (kind === "axis") {
+    },
+    axis: (_values, target) => {
       if (!target.axis) {
         return { error: "Pick a round face or an edge first" };
       }
       return { type: "axis", axis: target.axis };
-    }
-    if (kind === "point") {
-      return {
-        type: "point",
-        at: [rounded(number("x")), rounded(number("y")), rounded(number("z"))],
-      };
-    }
-    if (kind === "combine") {
+    },
+    point: (_values, _target, number) => ({
+      type: "point",
+      at: [rounded(number("x")), rounded(number("y")), rounded(number("z"))],
+    }),
+    combine: (values) => {
       if (values.target === values.tool) {
         return { error: "Target and tool must be different bodies" };
       }
       const operation = { join: "union", cut: "subtract", intersect: "intersect" }[values.mode];
       return { type: "boolean", operation, base: values.target, tool: values.tool };
-    }
-    // Mirror and the patterns act on the picked body's solid. "Into" is the body the copies join or are cut from.
-    const into = values.into === "same" ? target.tool : values.into;
-    const mode = values.into !== "same" && values.mode === "cut" ? { mode: "cut" } : {};
-    if (kind === "mirror") {
+    },
+    // Mirror and the patterns act on the picked body's solid.
+    mirror: (values, target, _number, choice) => {
       const plane = choice("plane");
       if (plane === null) {
         return { error: "Pick the plane to mirror across" };
       }
+      const { into, mode } = copyTarget(values, target);
       return { type: "mirror", tool: target.tool, base: into, plane, ...mode };
-    }
-    if (kind === "linear") {
+    },
+    linear: (values, target, number, choice) => {
       const direction = choice("direction");
       if (direction === null) {
         return { error: "Pick the direction" };
       }
+      const { into, mode } = copyTarget(values, target);
       return {
         type: "pattern",
         tool: target.tool,
@@ -383,8 +380,8 @@
         linear: { direction, count: number("count"), spacing: number("spacing") },
         ...mode,
       };
-    }
-    if (kind === "circular") {
+    },
+    circular: (values, target, number, choice) => {
       const axis = choice("axis");
       if (axis === null) {
         return { error: "Pick the axis" };
@@ -393,6 +390,7 @@
       if (!(angle > 0 && angle <= 360)) {
         return { error: "Angle must be above 0 and at most 360" };
       }
+      const { into, mode } = copyTarget(values, target);
       return {
         type: "pattern",
         tool: target.tool,
@@ -400,8 +398,32 @@
         circular: { axis, count: number("count"), ...(angle === 360 ? {} : { angle }) },
         ...mode,
       };
+    },
+  };
+
+  /// The feature (without an id) for `kind` from the panel's `values`, or
+  /// {error}. `target` is {base, edges?, open?, point?, normal?}: the feature
+  /// it builds on and what was picked, already turned into selectors.
+  function featureFor(kind, values, target) {
+    for (const field of TOOLS[kind].fields) {
+      if (field.type !== "number" || !visible(field, values)) {
+        continue;
+      }
+      const error = fieldError(field, parseNumber(values[field.name]));
+      if (error) {
+        return { error };
+      }
     }
-    return { error: `unknown tool ${kind}` };
+    const build = BUILDERS[kind];
+    if (!build) {
+      return { error: `unknown tool ${kind}` };
+    }
+    const number = (name) => parseNumber(values[name]);
+    const choice = (name) => {
+      const found = target.choices?.[name]?.[values[name]];
+      return found === undefined ? null : found;
+    };
+    return build(values, target, number, choice);
   }
 
   const api = { TOOLS, CONSTRUCT_KINDS, SAME, defaults, featureFor, nice, parseNumber, visible };
