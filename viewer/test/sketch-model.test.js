@@ -9,12 +9,16 @@ test.before(async () => {
   gcs = await globalThis.Planegcs.createSolver();
 });
 
-const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6, `expected ${expected}, got ${actual}`);
+const near = (actual, expected) =>
+  assert.ok(Math.abs(actual - expected) < 1e-6, `expected ${expected}, got ${actual}`);
 
 test("ids count on from the highest in use and are never reused after a delete", () => {
   let { sketch } = model.addLine(model.emptySketch(), [0, 0], [1, 0]);
   sketch = model.addLine(sketch, [1, 0], [1, 1]).sketch;
-  assert.deepEqual(sketch.entities.map((entity) => entity.id), ["e1", "e2"]);
+  assert.deepEqual(
+    sketch.entities.map((entity) => entity.id),
+    ["e1", "e2"],
+  );
   const gap = model.deleteEntities(sketch, ["e1"]);
   assert.equal(model.nextId(gap), "e3");
 });
@@ -22,8 +26,14 @@ test("ids count on from the highest in use and are never reused after a delete",
 test("a rectangle is four joined, level and upright lines that solve to a rectangle", () => {
   const { sketch, ids } = model.addRectangle(model.emptySketch(), [0, 0], [40, 20]);
   assert.deepEqual(ids, ["e1", "e2", "e3", "e4"]);
-  assert.equal(sketch.constraints.filter((constraint) => constraint.kind === "coincident").length, 4);
-  assert.equal(sketch.constraints.filter((constraint) => constraint.kind === "horizontal").length, 2);
+  assert.equal(
+    sketch.constraints.filter((constraint) => constraint.kind === "coincident").length,
+    4,
+  );
+  assert.equal(
+    sketch.constraints.filter((constraint) => constraint.kind === "horizontal").length,
+    2,
+  );
   assert.equal(sketch.constraints.filter((constraint) => constraint.kind === "vertical").length, 2);
   const solved = solve(gcs, sketch);
   assert.ok(solved.ok);
@@ -58,7 +68,11 @@ test("snapTarget finds the nearest point in range and can skip one", () => {
   const { sketch } = model.addLine(model.emptySketch(), [0, 0], [10, 0]);
   assert.equal(model.snapTarget(sketch, [9.5, 0.2], 1).reference, "e1.p1");
   assert.equal(model.snapTarget(sketch, [5, 5], 1), null);
-  assert.equal(model.snapTarget(sketch, [0.1, 0], 1, ["e1.p0"]).reference, "origin", "the origin sits under the line's start");
+  assert.equal(
+    model.snapTarget(sketch, [0.1, 0], 1, ["e1.p0"]).reference,
+    "origin",
+    "the origin sits under the line's start",
+  );
   assert.equal(model.snapTarget(sketch, [0.1, 0], 1, ["e1.p0", "origin"]), null);
 });
 
@@ -67,12 +81,28 @@ test("hit prefers a point to the entity it sits on, and finds circles and arcs b
   sketch = model.addCircle(sketch, [20, 0], 5).sketch;
   sketch = model.addArc(sketch, [-1, 0], [1, 0], [0, 1]).sketch; // e3
   assert.deepEqual(model.hit(sketch, [0.1, 0.1], 0.5), { kind: "point", reference: "e1.p0" });
-  assert.deepEqual(model.hit(sketch, [5, 0.2], 0.5), { kind: "entity", reference: "e1", gap: model.hit(sketch, [5, 0.2], 0.5).gap });
+  assert.deepEqual(model.hit(sketch, [5, 0.2], 0.5), {
+    kind: "entity",
+    reference: "e1",
+    gap: model.hit(sketch, [5, 0.2], 0.5).gap,
+  });
   assert.equal(model.hit(sketch, [20, 5.2], 0.5).reference, "e2");
-  assert.deepEqual(model.hit(sketch, [20, 0], 0.5), { kind: "point", reference: "e2.c" }, "the middle of a circle is its centre point");
-  assert.equal(model.hit(sketch, [22, 0], 0.5), null, "the space inside a circle is not the circle");
+  assert.deepEqual(
+    model.hit(sketch, [20, 0], 0.5),
+    { kind: "point", reference: "e2.c" },
+    "the middle of a circle is its centre point",
+  );
+  assert.equal(
+    model.hit(sketch, [22, 0], 0.5),
+    null,
+    "the space inside a circle is not the circle",
+  );
   assert.equal(model.hit(sketch, [0, 1.1], 0.5).reference, "e3");
-  assert.equal(model.hit(sketch, [0, -1.1], 0.5), null, "the missing half of an arc is not the arc");
+  assert.equal(
+    model.hit(sketch, [0, -1.1], 0.5),
+    null,
+    "the missing half of an arc is not the arc",
+  );
 });
 
 test("alignment snaps near-level and near-upright lines only", () => {
@@ -86,14 +116,32 @@ test("constraintFor builds each constraint from the right selection and says wha
   let { sketch } = model.addLine(model.emptySketch(), [0, 0], [10, 0]);
   sketch = model.addLine(sketch, [0, 5], [10, 6]).sketch;
   sketch = model.addCircle(sketch, [30, 0], 4).sketch;
-  assert.deepEqual(model.constraintFor(sketch, "horizontal", ["e1"]), { kind: "horizontal", e: "e1" });
-  assert.deepEqual(model.constraintFor(sketch, "coincident", ["e1.p1", "e2.p0"]), { kind: "coincident", a: "e1.p1", b: "e2.p0" });
-  assert.deepEqual(model.constraintFor(sketch, "parallel", ["e1", "e2"]), { kind: "parallel", a: "e1", b: "e2" });
-  assert.deepEqual(model.constraintFor(sketch, "tangent", ["e1", "e3"]), { kind: "tangent", a: "e1", b: "e3" });
+  assert.deepEqual(model.constraintFor(sketch, "horizontal", ["e1"]), {
+    kind: "horizontal",
+    e: "e1",
+  });
+  assert.deepEqual(model.constraintFor(sketch, "coincident", ["e1.p1", "e2.p0"]), {
+    kind: "coincident",
+    a: "e1.p1",
+    b: "e2.p0",
+  });
+  assert.deepEqual(model.constraintFor(sketch, "parallel", ["e1", "e2"]), {
+    kind: "parallel",
+    a: "e1",
+    b: "e2",
+  });
+  assert.deepEqual(model.constraintFor(sketch, "tangent", ["e1", "e3"]), {
+    kind: "tangent",
+    a: "e1",
+    b: "e3",
+  });
   assert.deepEqual(model.constraintFor(sketch, "fix", ["e3"]), { kind: "fix", e: "e3" });
   assert.throws(() => model.constraintFor(sketch, "coincident", ["e1"]), /two points/);
   assert.throws(() => model.constraintFor(sketch, "parallel", ["e1", "e3"]), /two lines/);
-  assert.throws(() => model.constraintFor(sketch, "equal", ["e1", "e3"]), /two lines, or two circles/);
+  assert.throws(
+    () => model.constraintFor(sketch, "equal", ["e1", "e3"]),
+    /two lines, or two circles/,
+  );
   assert.throws(() => model.constraintFor(sketch, "tangent", ["e1", "e2"]), /circle or arc/);
 });
 
@@ -109,8 +157,20 @@ test("a suggested dimension carries the measured value, so accepting it moves no
   assert.equal(model.suggestDimension(sketch, []), null);
 
   // Every kind, applied unchanged, leaves the geometry where it was.
-  const constraints = [["e1"], ["e3"], ["e1.p0", "e2.p1"], ["e1", "e2"]].map((selection) => model.suggestDimension(sketch, selection).constraint);
-  const solved = solve(gcs, { ...sketch, constraints: [{ kind: "fix", e: "e1" }, { kind: "coincident", a: "e1.p0", b: "e2.p0" }, ...constraints.filter((constraint) => constraint.kind !== "distance" || constraint.a !== "e1.p0" || constraint.b !== "e2.p1")] });
+  const constraints = [["e1"], ["e3"], ["e1.p0", "e2.p1"], ["e1", "e2"]].map(
+    (selection) => model.suggestDimension(sketch, selection).constraint,
+  );
+  const solved = solve(gcs, {
+    ...sketch,
+    constraints: [
+      { kind: "fix", e: "e1" },
+      { kind: "coincident", a: "e1.p0", b: "e2.p0" },
+      ...constraints.filter(
+        (constraint) =>
+          constraint.kind !== "distance" || constraint.a !== "e1.p0" || constraint.b !== "e2.p1",
+      ),
+    ],
+  });
   assert.ok(solved.ok);
   near(solved.sketch.entities[1].p1[0], -4);
   near(solved.sketch.entities[1].p1[1], 3);
@@ -127,8 +187,14 @@ test("deleting an entity takes every constraint that mentions it", () => {
   const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [4, 4]);
   const smaller = model.deleteEntities(sketch, ["e1"]);
   assert.equal(smaller.entities.length, 3);
-  assert.ok(smaller.constraints.every((constraint) => JSON.stringify(constraint).indexOf('"e1') === -1));
-  assert.equal(smaller.constraints.length, sketch.constraints.length - 3, "the coincident on each of e1's ends, and its horizontal");
+  assert.ok(
+    smaller.constraints.every((constraint) => JSON.stringify(constraint).indexOf('"e1') === -1),
+  );
+  assert.equal(
+    smaller.constraints.length,
+    sketch.constraints.length - 3,
+    "the coincident on each of e1's ends, and its horizontal",
+  );
 });
 
 test("adding the same constraint twice keeps one, but two dimensions with different values both stay", () => {
@@ -137,7 +203,10 @@ test("adding the same constraint twice keeps one, but two dimensions with differ
   sketch = model.withConstraint(model.withConstraint(sketch, fix), fix);
   assert.equal(sketch.constraints.length, 1);
   const width = { kind: "distance", a: "e1.p0", b: "e1.p1" };
-  sketch = model.withConstraint(model.withConstraint(sketch, { ...width, value: 10 }), { ...width, value: 12 });
+  sketch = model.withConstraint(model.withConstraint(sketch, { ...width, value: 10 }), {
+    ...width,
+    value: 12,
+  });
   assert.equal(sketch.constraints.length, 3);
 });
 
@@ -153,15 +222,34 @@ test("snap prefers a point, then a spot on a curve, then the raw position", () =
   let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
   sketch = model.addCircle(sketch, [20, 20], 5).sketch; // e2
   const radius = 0.5;
-  assert.deepEqual(model.snap(sketch, [10.2, 0.1], radius), { uv: [10, 0], reference: "e1.p0", curve: null });
-  assert.deepEqual(model.snap(sketch, [0.2, -0.1], radius), { uv: [0, 0], reference: "origin", curve: null }, "the origin is a point");
-  assert.deepEqual(model.snap(sketch, [20, 20.1], radius), { uv: [20, 20], reference: "e2.c", curve: null });
+  assert.deepEqual(model.snap(sketch, [10.2, 0.1], radius), {
+    uv: [10, 0],
+    reference: "e1.p0",
+    curve: null,
+  });
+  assert.deepEqual(
+    model.snap(sketch, [0.2, -0.1], radius),
+    { uv: [0, 0], reference: "origin", curve: null },
+    "the origin is a point",
+  );
+  assert.deepEqual(model.snap(sketch, [20, 20.1], radius), {
+    uv: [20, 20],
+    reference: "e2.c",
+    curve: null,
+  });
   const onLine = model.snap(sketch, [20, 0.3], radius);
   assert.deepEqual([onLine.uv, onLine.reference, onLine.curve], [[20, 0], null, "e1"]);
   const onCircle = model.snap(sketch, [25.2, 20.1], radius);
   assert.equal(onCircle.curve, "e2");
-  assert.ok(Math.abs(Math.hypot(onCircle.uv[0] - 20, onCircle.uv[1] - 20) - 5) < 1e-9, "the snapped spot is on the circle");
-  assert.deepEqual(model.snap(sketch, [50, 50], radius), { uv: [50, 50], reference: null, curve: null });
+  assert.ok(
+    Math.abs(Math.hypot(onCircle.uv[0] - 20, onCircle.uv[1] - 20) - 5) < 1e-9,
+    "the snapped spot is on the circle",
+  );
+  assert.deepEqual(model.snap(sketch, [50, 50], radius), {
+    uv: [50, 50],
+    reference: null,
+    curve: null,
+  });
 });
 
 test("a curve snap stops at the end of an arc instead of reaching the missing half", () => {
@@ -183,14 +271,33 @@ test("joining a click to what it snapped to adds coincident for a point and poin
 test("point_on takes a point and a curve in either order, and the origin takes a coincident or a dimension but not a fix", () => {
   let { sketch } = model.addLine(model.emptySketch(), [10, 0], [30, 0]);
   sketch = model.addCircle(sketch, [20, 20], 5).sketch;
-  assert.deepEqual(model.constraintFor(sketch, "point_on", ["e2.c", "e1"]), { kind: "point_on", a: "e2.c", b: "e1" });
-  assert.deepEqual(model.constraintFor(sketch, "point_on", ["e1", "e2.c"]), { kind: "point_on", a: "e2.c", b: "e1" });
-  assert.throws(() => model.constraintFor(sketch, "point_on", ["e1.p0", "e1"]), /Select a point and a line/, "a line's own end is on it already");
+  assert.deepEqual(model.constraintFor(sketch, "point_on", ["e2.c", "e1"]), {
+    kind: "point_on",
+    a: "e2.c",
+    b: "e1",
+  });
+  assert.deepEqual(model.constraintFor(sketch, "point_on", ["e1", "e2.c"]), {
+    kind: "point_on",
+    a: "e2.c",
+    b: "e1",
+  });
+  assert.throws(
+    () => model.constraintFor(sketch, "point_on", ["e1.p0", "e1"]),
+    /Select a point and a line/,
+    "a line's own end is on it already",
+  );
   assert.throws(() => model.constraintFor(sketch, "point_on", ["e1", "e2"]), /Select a point/);
   assert.throws(() => model.constraintFor(sketch, "point_on", ["e1.p0"]), /Select a point/);
-  assert.deepEqual(model.constraintFor(sketch, "coincident", ["origin", "e2.c"]), { kind: "coincident", a: "origin", b: "e2.c" });
+  assert.deepEqual(model.constraintFor(sketch, "coincident", ["origin", "e2.c"]), {
+    kind: "coincident",
+    a: "origin",
+    b: "e2.c",
+  });
   assert.throws(() => model.constraintFor(sketch, "fix", ["origin"]), /already fixed/);
-  assert.equal(model.suggestDimension(sketch, ["origin", "e2.c"]).constraint.value, Math.hypot(20, 20));
+  assert.equal(
+    model.suggestDimension(sketch, ["origin", "e2.c"]).constraint.value,
+    Math.hypot(20, 20),
+  );
 });
 
 test("deleting an entity leaves a constraint on the origin that names no deleted entity alone", () => {
@@ -202,22 +309,34 @@ test("deleting an entity leaves a constraint on the origin that names no deleted
 });
 
 test("snap reaches a shown axis, only when told it is shown, and a curve wins when it is nearer", () => {
-  const axes = [{ ref: "axis_u", name: "X axis" }, { ref: "axis_v", name: "Y axis" }];
+  const axes = [
+    { ref: "axis_u", name: "X axis" },
+    { ref: "axis_v", name: "Y axis" },
+  ];
   const { sketch } = model.addLine(model.emptySketch(), [10, 5], [30, 5]);
   const onX = model.snap(sketch, [50, 0.3], 0.5, axes);
   assert.deepEqual([onX.uv, onX.curve, onX.label], [[50, 0], "axis_u", "On X axis"]);
   const onY = model.snap(sketch, [-0.3, 40], 0.5, axes);
   assert.deepEqual([onY.uv, onY.curve, onY.label], [[0, 40], "axis_v", "On Y axis"]);
-  assert.equal(model.snap(sketch, [50, 0.3], 0.5).curve, null, "an axis that is hidden is not there");
+  assert.equal(
+    model.snap(sketch, [50, 0.3], 0.5).curve,
+    null,
+    "an axis that is hidden is not there",
+  );
   assert.equal(model.snap(sketch, [20, 5.1], 0.5, axes).curve, "e1");
   const crowded = model.snap(sketch, [20, 4.9], 5, [{ ref: "axis_u", name: "X axis" }]);
   assert.equal(crowded.curve, "e1", "the line is 0.1 away and the axis 4.9");
-  assert.deepEqual(model.join(sketch, onX, "e1.p1").constraints, [{ kind: "point_on", a: "e1.p1", b: "axis_u", id: "c1" }]);
+  assert.deepEqual(model.join(sketch, onX, "e1.p1").constraints, [
+    { kind: "point_on", a: "e1.p1", b: "axis_u", id: "c1" },
+  ]);
 });
 
 test("constraints get ids, and a deleted constraint's id does not come back on another", () => {
   let { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [10, 5]);
-  assert.deepEqual(sketch.constraints.map((constraint) => constraint.id), ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]);
+  assert.deepEqual(
+    sketch.constraints.map((constraint) => constraint.id),
+    ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"],
+  );
   sketch = model.removeConstraintById(sketch, "c8");
   sketch = model.withConstraint(sketch, { kind: "fix", e: "e1.p0" });
   assert.equal(sketch.constraints.at(-1).id, "c8");
@@ -227,25 +346,46 @@ test("constraints get ids, and a deleted constraint's id does not come back on a
 });
 
 test("a document from before ids gets them without changing the order", () => {
-  const old = { entities: [], constraints: [{ kind: "fix", e: "e1.p0" }, { kind: "fix", e: "e2.p0" }] };
-  assert.deepEqual(model.withConstraintIds(old).constraints.map((constraint) => constraint.id), ["c1", "c2"]);
+  const old = {
+    entities: [],
+    constraints: [
+      { kind: "fix", e: "e1.p0" },
+      { kind: "fix", e: "e2.p0" },
+    ],
+  };
+  assert.deepEqual(
+    model.withConstraintIds(old).constraints.map((constraint) => constraint.id),
+    ["c1", "c2"],
+  );
 });
 
 test("replacing a dimension keeps its id", () => {
-  let sketch = model.withConstraint({ entities: [], constraints: [] }, { kind: "radius", e: "e1", value: 5 });
+  let sketch = model.withConstraint(
+    { entities: [], constraints: [] },
+    { kind: "radius", e: "e1", value: 5 },
+  );
   sketch = model.replaceConstraint(sketch, 0, { kind: "radius", e: "e1", value: 7 });
   assert.deepEqual(sketch.constraints, [{ kind: "radius", e: "e1", value: 7, id: "c1" }]);
 });
 
 test("a constraint names the entities it acts on, and not the origin", () => {
   const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [10, 5]);
-  assert.deepEqual(model.constraintEntities(sketch, { kind: "coincident", a: "e1.p1", b: "e2.p0" }), ["e1", "e2"]);
-  assert.deepEqual(model.constraintEntities(sketch, { kind: "coincident", a: "e1.p0", b: "origin" }), ["e1"]);
+  assert.deepEqual(
+    model.constraintEntities(sketch, { kind: "coincident", a: "e1.p1", b: "e2.p0" }),
+    ["e1", "e2"],
+  );
+  assert.deepEqual(
+    model.constraintEntities(sketch, { kind: "coincident", a: "e1.p0", b: "origin" }),
+    ["e1"],
+  );
 });
 
 test("a constraint between two shapes has a glyph beside each", () => {
   const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [10, 5]);
-  assert.deepEqual(model.glyphAnchors(sketch, { kind: "parallel", a: "e1", b: "e3" }), [[5, 0], [5, 5]]);
+  assert.deepEqual(model.glyphAnchors(sketch, { kind: "parallel", a: "e1", b: "e3" }), [
+    [5, 0],
+    [5, 5],
+  ]);
   assert.deepEqual(model.glyphAnchors(sketch, { kind: "horizontal", e: "e1" }), [[5, 0]]);
 });
 
@@ -254,7 +394,11 @@ test("a constraint between two shapes has a glyph beside each", () => {
 /// The user's case: an inner rectangle, and the outer one's left edge projected beside it.
 function innerWithProjectedEdge() {
   let { sketch } = model.addRectangle(model.emptySketch(), [10, 10], [70, 40]);
-  const added = model.addReference(sketch, { sketch: "f1", entity: "e4" }, { kind: "line", p0: [0, 60], p1: [0, 0] });
+  const added = model.addReference(
+    sketch,
+    { sketch: "f1", entity: "e4" },
+    { kind: "line", p0: [0, 60], p1: [0, 0] },
+  );
   return { sketch: added.sketch, reference: added.id };
 }
 
@@ -263,7 +407,11 @@ test("a projected edge is a locked construction entity that remembers its source
   const entity = sketch.entities.find((item) => item.id === reference);
   assert.equal(entity.construction, true);
   assert.deepEqual(entity.reference, { sketch: "f1", entity: "e4" });
-  assert.equal(model.addReference(sketch, { sketch: "f1", entity: "e4" }, entity), null, "the same edge twice adds nothing");
+  assert.equal(
+    model.addReference(sketch, { sketch: "f1", entity: "e4" }, entity),
+    null,
+    "the same edge twice adds nothing",
+  );
 });
 
 test("two upright lines are dimensioned across, edge to edge, with the lower one first", () => {
@@ -271,18 +419,33 @@ test("two upright lines are dimensioned across, edge to edge, with the lower one
   // e4 is the inner left edge, at u = 10. The reference is the line u = 0.
   const suggestion = model.suggestDimension(sketch, ["e4", reference]);
   assert.equal(suggestion.constraint.kind, "distance_x");
-  assert.equal(suggestion.constraint.a, reference + ".p0", "the reference is the left one, so it comes first");
+  assert.equal(
+    suggestion.constraint.a,
+    reference + ".p0",
+    "the reference is the left one, so it comes first",
+  );
   assert.equal(suggestion.constraint.b, "e4.p0");
   near(suggestion.constraint.value, 10);
   // Picked the other way round gives the same dimension.
-  assert.deepEqual(model.suggestDimension(sketch, [reference, "e4"]).constraint, suggestion.constraint);
+  assert.deepEqual(
+    model.suggestDimension(sketch, [reference, "e4"]).constraint,
+    suggestion.constraint,
+  );
 });
 
 test("the gap to a projected edge holds after the edge moves, which is what a rebuild does to it", () => {
   const { sketch, reference } = innerWithProjectedEdge();
-  const dimensioned = model.withConstraint(sketch, model.suggestDimension(sketch, ["e4", reference]).constraint);
+  const dimensioned = model.withConstraint(
+    sketch,
+    model.suggestDimension(sketch, ["e4", reference]).constraint,
+  );
   // Pin the width so the rectangle keeps its size, as a drawn one has.
-  const sized = model.withConstraint(dimensioned, { kind: "distance", a: "e1.p0", b: "e1.p1", value: 60 });
+  const sized = model.withConstraint(dimensioned, {
+    kind: "distance",
+    a: "e1.p0",
+    b: "e1.p1",
+    value: 60,
+  });
   const first = solve(gcs, sized);
   assert.ok(first.ok);
   // The outer sketch widens, so its left edge is now at u = -40: the engine re-projects it and sends the sketch back.
@@ -294,7 +457,11 @@ test("the gap to a projected edge holds after the edge moves, which is what a re
   assert.ok(again.ok);
   const left = again.sketch.entities.find((entity) => entity.id === "e4");
   near(left.p0[0], -30, "the inner left edge stays 10 right of the outer one");
-  near(again.sketch.entities.find((entity) => entity.id === "e2").p0[0], 30, "and the rectangle keeps its width");
+  near(
+    again.sketch.entities.find((entity) => entity.id === "e2").p0[0],
+    30,
+    "and the rectangle keeps its width",
+  );
 });
 
 test("two level lines are dimensioned up the page, and two points take the orientation they are asked for", () => {
@@ -306,27 +473,51 @@ test("two level lines are dimensioned up the page, and two points take the orien
   const points = ["e1.p0", "e3.p0"];
   assert.equal(model.suggestDimension(sketch, points).constraint.kind, "distance");
   const across = model.suggestDimension(sketch, ["e1.p0", "e2.p1"], "horizontal");
-  assert.deepEqual([across.constraint.kind, across.constraint.a, across.constraint.b], ["distance_x", "e1.p0", "e2.p1"]);
+  assert.deepEqual(
+    [across.constraint.kind, across.constraint.a, across.constraint.b],
+    ["distance_x", "e1.p0", "e2.p1"],
+  );
   near(across.constraint.value, 30);
   const down = model.suggestDimension(sketch, ["e3.p0", "e1.p0"], "vertical");
-  assert.deepEqual([down.constraint.a, down.constraint.b], ["e1.p0", "e3.p0"], "lower first, so the value is positive");
+  assert.deepEqual(
+    [down.constraint.a, down.constraint.b],
+    ["e1.p0", "e3.p0"],
+    "lower first, so the value is positive",
+  );
   near(down.constraint.value, 12);
 });
 
 test("a dimension label for a distance along an axis sits between its two points", () => {
   const { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [30, 12]);
-  const anchor = model.dimensionAnchor(sketch, { kind: "distance_x", a: "e1.p0", b: "e1.p1", value: 30 });
+  const anchor = model.dimensionAnchor(sketch, {
+    kind: "distance_x",
+    a: "e1.p0",
+    b: "e1.p1",
+    value: 30,
+  });
   assert.deepEqual(anchor, [15, 0]);
 });
 
 test("construction flips on the entities picked, and a projected reference is left alone", () => {
   const { sketch, reference } = innerWithProjectedEdge();
   const made = model.toggleConstruction(sketch, ["e1", "e2"]);
-  assert.deepEqual(made.entities.filter((entity) => entity.construction && !entity.reference).map((entity) => entity.id), ["e1", "e2"]);
+  assert.deepEqual(
+    made.entities
+      .filter((entity) => entity.construction && !entity.reference)
+      .map((entity) => entity.id),
+    ["e1", "e2"],
+  );
   const half = model.toggleConstruction(made, ["e1", "e3"]);
-  assert.ok(half.entities.find((entity) => entity.id === "e1").construction && half.entities.find((entity) => entity.id === "e3").construction, "a mixed pick makes all construction");
+  assert.ok(
+    half.entities.find((entity) => entity.id === "e1").construction &&
+      half.entities.find((entity) => entity.id === "e3").construction,
+    "a mixed pick makes all construction",
+  );
   const undone = model.toggleConstruction(made, ["e1", "e2"]);
-  assert.equal(undone.entities.some((entity) => "construction" in entity && !entity.reference), false);
+  assert.equal(
+    undone.entities.some((entity) => "construction" in entity && !entity.reference),
+    false,
+  );
   assert.equal(model.toggleConstruction(sketch, [reference]), null);
   assert.equal(model.toggleConstruction(sketch, []), null);
 });
@@ -341,7 +532,9 @@ test("a corner of two lines is rounded with an arc that touches both and has the
   const rounded = model.addFillet(sketch, "e1.p1", 5);
   const solved = solve(gcs, rounded.sketch);
   assert.ok(solved.ok, "the arc, two tangents and a radius leave a sketch that solves");
-  const [up, along, arc] = ["e1", "e2", rounded.id].map((id) => solved.sketch.entities.find((entity) => entity.id === id));
+  const [up, along, arc] = ["e1", "e2", rounded.id].map((id) =>
+    solved.sketch.entities.find((entity) => entity.id === id),
+  );
   // A quarter circle of radius 5 in a square corner has its centre 5 in from both lines and touches them 5 from the corner.
   near(arc.c[0], 5);
   near(arc.c[1], 5);
@@ -352,7 +545,14 @@ test("a corner of two lines is rounded with an arc that touches both and has the
   near(along.p0[1], 0);
   // A quarter turn, counter-clockwise from the touch point on the level line to the one on the upright line.
   near(arc.a1 - arc.a0, Math.PI / 2);
-  assert.equal(rounded.sketch.constraints.some((constraint) => constraint.kind === "coincident" && constraint.a === "e1.p1" && constraint.b === "e2.p0"), false, "the old corner joint is gone");
+  assert.equal(
+    rounded.sketch.constraints.some(
+      (constraint) =>
+        constraint.kind === "coincident" && constraint.a === "e1.p1" && constraint.b === "e2.p0",
+    ),
+    false,
+    "the old corner joint is gone",
+  );
 });
 
 test("rounding works for a corner at any angle, and the arc ends where the tangent length says", () => {
@@ -367,7 +567,9 @@ test("rounding works for a corner at any angle, and the arc ends where the tange
   near(reach, rounded.reach);
   const solved = solve(gcs, rounded.sketch);
   assert.ok(solved.ok);
-  const [first, other] = ["e1", "e2"].map((id) => solved.sketch.entities.find((entity) => entity.id === id));
+  const [first, other] = ["e1", "e2"].map((id) =>
+    solved.sketch.entities.find((entity) => entity.id === id),
+  );
   near(Math.hypot(first.p0[0] - apex[0], first.p0[1] - apex[1]), reach);
   near(Math.hypot(other.p0[0] - apex[0], other.p0[1] - apex[1]), reach);
 });
@@ -380,7 +582,11 @@ test("a corner that cannot be rounded says why", () => {
   assert.throws(() => model.addFillet(sketch, "e1.p0", 1), /exactly two lines/);
   assert.throws(() => model.addFillet(sketch, "e1.p1", 0), /above zero/);
   assert.equal(model.suggestFilletRadius(sketch, "e1.p0"), null);
-  assert.equal(model.suggestFilletRadius(sketch, "e1.p1"), 0.75, "a quarter of the shorter line, 3");
+  assert.equal(
+    model.suggestFilletRadius(sketch, "e1.p1"),
+    0.75,
+    "a quarter of the shorter line, 3",
+  );
 });
 
 test("rounding a corner that sits on the origin lets the lines come off it", () => {
@@ -390,7 +596,13 @@ test("rounding a corner that sits on the origin lets the lines come off it", () 
   sketch = model.connect(sketch, "e2.p0", "origin");
   const rounded = model.addFillet(sketch, "e1.p1", 5);
   assert.ok(solve(gcs, rounded.sketch).ok);
-  assert.equal(rounded.sketch.constraints.some((constraint) => constraint.kind === "coincident" && [constraint.a, constraint.b].includes("origin")), false);
+  assert.equal(
+    rounded.sketch.constraints.some(
+      (constraint) =>
+        constraint.kind === "coincident" && [constraint.a, constraint.b].includes("origin"),
+    ),
+    false,
+  );
 });
 
 // --- Mirror ---------------------------------------------------------------------------
@@ -412,7 +624,16 @@ test("mirroring across a vertical line puts each copy at its reflection, and tie
   assert.ok(solved.ok, "the symmetric constraints agree with the geometry they were made from");
   const by = (id) => solved.sketch.entities.find((entity) => entity.id === id);
   // Reflection across u = 0 negates u. Checked from the numbers, not from the function.
-  assert.deepEqual([by("e5").p0.map((v) => Math.round(v * 1e6) / 1e6), by("e5").p1.map((v) => Math.round(v * 1e6) / 1e6)], [[-5, 0], [-15, 10]]);
+  assert.deepEqual(
+    [
+      by("e5").p0.map((v) => Math.round(v * 1e6) / 1e6),
+      by("e5").p1.map((v) => Math.round(v * 1e6) / 1e6),
+    ],
+    [
+      [-5, 0],
+      [-15, 10],
+    ],
+  );
   near(by("e6").c[0], -20);
   near(by("e6").c[1], -5);
   near(by("e6").r, 3);
@@ -423,7 +644,10 @@ test("mirroring across a vertical line puts each copy at its reflection, and tie
   near(copy.p0[1], original.p1[1]);
   near(copy.p1[0], -original.p0[0]);
   near(copy.p1[1], original.p0[1]);
-  assert.equal(done.sketch.constraints.filter((constraint) => constraint.kind === "symmetric").length, 2 + 1 + 3);
+  assert.equal(
+    done.sketch.constraints.filter((constraint) => constraint.kind === "symmetric").length,
+    2 + 1 + 3,
+  );
 });
 
 function solver_endpoints(arc) {
@@ -461,5 +685,8 @@ test("mirror refuses a pick that is not shapes plus a line, and the symmetric co
   assert.throws(() => model.mirrorEntities(sketch, ["e1"], "e1"), /Select the shapes/);
   const made = model.constraintFor(sketch, "symmetric", ["e2.p0", "e1", "e2.p1"]);
   assert.deepEqual(made, { kind: "symmetric", a: "e2.p0", b: "e2.p1", e: "e1" });
-  assert.throws(() => model.constraintFor(sketch, "symmetric", ["e2.p0", "e2.p1"]), /two points and a line/);
+  assert.throws(
+    () => model.constraintFor(sketch, "symmetric", ["e2.p0", "e2.p1"]),
+    /two points and a line/,
+  );
 });

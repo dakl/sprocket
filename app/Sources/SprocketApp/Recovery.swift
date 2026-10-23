@@ -5,10 +5,13 @@ import Foundation
 /// deletes them, so one whose process is gone was left by a crash.
 enum Recovery {
     /// Files in `directory` whose process is no longer alive.
-    static func orphans(in directory: URL, isAlive: (Int32) -> Bool = EngineDaemon.isAlive) -> [URL] {
+    static func orphans(in directory: URL, isAlive: (Int32) -> Bool = EngineDaemon.isAlive) -> [URL]
+    {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.sorted().filter { name in
-            guard name.hasSuffix(".json"), let pid = Int32(name.prefix { $0 != "-" }) else { return false }
+            guard name.hasSuffix(".json"), let pid = Int32(name.prefix { $0 != "-" }) else {
+                return false
+            }
             return !isAlive(pid)
         }.map { directory.appendingPathComponent($0) }
     }
@@ -27,7 +30,7 @@ enum Recovery {
     /// be reopened.
     static func restoreTarget(for file: URL, untitledDir: URL) -> URL? {
         guard let path = documentPath(in: file), !isHoldingFile(path, untitledDir: untitledDir),
-              FileManager.default.fileExists(atPath: path.path)
+            FileManager.default.fileExists(atPath: path.path)
         else { return nil }
         return path
     }

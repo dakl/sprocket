@@ -21,7 +21,8 @@ private struct SettingsView: View {
     // @AppStorage writes UserDefaults, and every ViewerWebView watches it.
     // The slider moves in log2 steps, so 0.5x and 2x sit the same distance
     // from 1x.
-    @AppStorage(AppSettings.zoomSensitivityKey) private var zoomSensitivity = AppSettings.defaultZoomSensitivity
+    @AppStorage(AppSettings.zoomSensitivityKey) private var zoomSensitivity = AppSettings
+        .defaultZoomSensitivity
 
     private var exponent: Binding<Double> {
         Binding(
@@ -36,7 +37,9 @@ private struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Slider(
                         value: exponent,
-                        in: log2(AppSettings.zoomSensitivityRange.lowerBound)...log2(AppSettings.zoomSensitivityRange.upperBound)
+                        in: log2(
+                            AppSettings.zoomSensitivityRange.lowerBound)...log2(
+                                AppSettings.zoomSensitivityRange.upperBound)
                     ) {
                         EmptyView()
                     } minimumValueLabel: {

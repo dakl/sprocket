@@ -10,17 +10,34 @@ RADIUS = 1.0
 
 
 def top_edges(client):
-    return [f"e{index}" for index, edge in enumerate(client.call("describe_geometry")["edges"]) if edge["centre"][2] == 10]
+    return [
+        f"e{index}"
+        for index, edge in enumerate(client.call("describe_geometry")["edges"])
+        if edge["centre"][2] == 10
+    ]
 
 
 def fillet_with(selector):
-    return {"id": "r1", "type": "fillet", "base": "e1", "radius": RADIUS, "edges": selector}
+    return {
+        "id": "r1",
+        "type": "fillet",
+        "base": "e1",
+        "radius": RADIUS,
+        "edges": selector,
+    }
 
 
 def widen(client, half_width):
-    polygon = [[-half_width, -15], [half_width, -15], [half_width, 15], [-half_width, 15]]
+    polygon = [
+        [-half_width, -15],
+        [half_width, -15],
+        [half_width, 15],
+        [-half_width, 15],
+    ]
     sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": polygon}
-    return client.call("apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}])
+    return client.call(
+        "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
+    )
 
 
 def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
@@ -28,7 +45,11 @@ def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
     assert answer["strategy"] == "new_since"
     assert answer["selector"]["select"][1] == {"op": "new_since", "feature": "e1"}
     # By what is level at the top, not by how many there are.
-    assert answer["selector"]["select"][2] == {"op": "at_end", "axis": "Z", "end": "max"}
+    assert answer["selector"]["select"][2] == {
+        "op": "at_end",
+        "axis": "Z",
+        "end": "max",
+    }
     assert answer["count"] == 4
     assert answer["selector"]["expected_count"] == 4
 
@@ -38,7 +59,10 @@ def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
     wrong ones once the sketch changed, and one that named them by position
     would follow them only by luck."""
     answer = client.call("resolve_selection", handles=top_edges(client))
-    built = client.call("apply_edit", edits=[{"op": "insert", "feature": fillet_with(answer["selector"])}])["built"]
+    built = client.call(
+        "apply_edit",
+        edits=[{"op": "insert", "feature": fillet_with(answer["selector"])}],
+    )["built"]
     assert built["ok"] is True
 
     wider = widen(client, 30)["built"]
@@ -54,16 +78,25 @@ def test_a_selector_that_finds_a_different_number_fails_loudly(client):
     """A pentagon has five top edges. Rounding five when four were picked is the
     silent wrong answer expected_count exists to stop."""
     answer = client.call("resolve_selection", handles=top_edges(client))
-    client.call("apply_edit", edits=[{"op": "insert", "feature": fillet_with(answer["selector"])}])
+    client.call(
+        "apply_edit",
+        edits=[{"op": "insert", "feature": fillet_with(answer["selector"])}],
+    )
     pentagon = [[-20, -15], [20, -15], [25, 0], [20, 15], [-20, 15]]
     sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": pentagon}
-    built = client.call("apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}])["built"]
+    built = client.call(
+        "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
+    )["built"]
     assert built["ok"] is False
     assert built["failed_feature"] == "r1"
 
 
 def test_a_picked_face_resolves_to_one_face(client):
-    top = next(index for index, face in enumerate(client.call("describe_geometry")["faces"]) if face["centre"][2] == 10)
+    top = next(
+        index
+        for index, face in enumerate(client.call("describe_geometry")["faces"])
+        if face["centre"][2] == 10
+    )
     answer = client.call("resolve_selection", handles=[f"f{top}"])
     assert answer["count"] == 1
     assert answer["selector"]["select"][0] == {"op": "faces"}
@@ -73,7 +106,11 @@ def test_a_set_with_no_rule_is_named_by_position_and_says_so(client):
     """One top edge and one bottom edge on different sides have nothing in common."""
     edges = client.call("describe_geometry")["edges"]
     top = next(index for index, edge in enumerate(edges) if edge["centre"][2] == 10)
-    bottom = next(index for index, edge in enumerate(edges) if edge["centre"][2] == 0 and edge["centre"][1] < 0 and index != top)
+    bottom = next(
+        index
+        for index, edge in enumerate(edges)
+        if edge["centre"][2] == 0 and edge["centre"][1] < 0 and index != top
+    )
     answer = client.call("resolve_selection", handles=[f"e{top}", f"e{bottom}"])
     assert answer["strategy"] == "position"
     assert answer["selector"]["select"][1]["op"] == "nearest_each"

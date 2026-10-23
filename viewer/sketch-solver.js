@@ -46,15 +46,18 @@
 
   function primitivesFor(sketch) {
     const primitives = [];
-    const point = (id, [x, y], fixed = false) => primitives.push({ id, type: "point", x, y, fixed });
+    const point = (id, [x, y], fixed = false) =>
+      primitives.push({ id, type: "point", x, y, fixed });
 
     point(ORIGIN, [0, 0], true);
     for (const [id, along] of Object.entries(AXES)) point(id + "_end", along, true);
     // Points before the shapes that use them: planegcs wants lower ids first.
     for (const entity of sketch.entities) {
-      for (const name of POINTS[entity.kind]) point(entity.id + "." + name, pointOf(sketch, entity.id + "." + name));
+      for (const name of POINTS[entity.kind])
+        point(entity.id + "." + name, pointOf(sketch, entity.id + "." + name));
     }
-    for (const id of Object.keys(AXES)) primitives.push({ id, type: "line", p1_id: ORIGIN, p2_id: id + "_end" });
+    for (const id of Object.keys(AXES))
+      primitives.push({ id, type: "line", p1_id: ORIGIN, p2_id: id + "_end" });
     for (const entity of sketch.entities) {
       const at = (name) => entity.id + "." + name;
       if (entity.kind === "line") {
@@ -112,7 +115,8 @@
 
   function requireKind(sketch, id, ...kinds) {
     const entity = entityById(sketch, id);
-    if (!kinds.includes(entity.kind)) fail("expected " + kinds.join(" or ") + " but " + id + " is a " + entity.kind);
+    if (!kinds.includes(entity.kind))
+      fail("expected " + kinds.join(" or ") + " but " + id + " is a " + entity.kind);
     return entity;
   }
 
@@ -123,10 +127,17 @@
       case "coincident":
         return [{ type: "p2p_coincident", p1_id: constraint.a, p2_id: constraint.b }];
       case "point_on": {
-        if (AXES[constraint.b]) return [{ type: "point_on_line_pl", p_id: constraint.a, l_id: constraint.b }];
+        if (AXES[constraint.b])
+          return [{ type: "point_on_line_pl", p_id: constraint.a, l_id: constraint.b }];
         const curve = requireKind(sketch, constraint.b, "line", "circle", "arc");
         const field = { line: "l_id", circle: "c_id", arc: "a_id" }[curve.kind];
-        return [{ type: curve.kind === "line" ? "point_on_line_pl" : "point_on_" + curve.kind, p_id: constraint.a, [field]: curve.id }];
+        return [
+          {
+            type: curve.kind === "line" ? "point_on_line_pl" : "point_on_" + curve.kind,
+            p_id: constraint.a,
+            [field]: curve.id,
+          },
+        ];
       }
       case "horizontal":
       case "vertical": {
@@ -163,32 +174,73 @@
         // Fixing a whole circle holds its size too, as Fusion does. An arc's
         // size follows from its three fixed points.
         const whole = constraint.e.includes(".") ? null : entityById(sketch, constraint.e);
-        if (whole && whole.kind === "circle") pins.push({ type: "circle_radius", c_id: whole.id, radius: whole.r });
+        if (whole && whole.kind === "circle")
+          pins.push({ type: "circle_radius", c_id: whole.id, radius: whole.r });
         return pins;
       }
       case "symmetric":
         requireKind(sketch, constraint.e, "line");
-        return [{ type: "p2p_symmetric_ppl", p1_id: constraint.a, p2_id: constraint.b, l_id: constraint.e }];
+        return [
+          {
+            type: "p2p_symmetric_ppl",
+            p1_id: constraint.a,
+            p2_id: constraint.b,
+            l_id: constraint.e,
+          },
+        ];
       case "distance":
-        return [{ type: "p2p_distance", p1_id: constraint.a, p2_id: constraint.b, distance: constraint.value }];
+        return [
+          {
+            type: "p2p_distance",
+            p1_id: constraint.a,
+            p2_id: constraint.b,
+            distance: constraint.value,
+          },
+        ];
       case "distance_x":
       case "distance_y": {
         // b's u (or v) minus a's, which planegcs states as param2 - param1 = difference.
         const prop = kind === "distance_x" ? "x" : "y";
-        return [{ type: "difference", param1: { o_id: constraint.a, prop }, param2: { o_id: constraint.b, prop }, difference: constraint.value }];
+        return [
+          {
+            type: "difference",
+            param1: { o_id: constraint.a, prop },
+            param2: { o_id: constraint.b, prop },
+            difference: constraint.value,
+          },
+        ];
       }
       case "radius": {
         const entity = requireKind(sketch, constraint.e, "circle", "arc");
-        return [{ type: entity.kind + "_radius", [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id, radius: constraint.value }];
+        return [
+          {
+            type: entity.kind + "_radius",
+            [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id,
+            radius: constraint.value,
+          },
+        ];
       }
       case "diameter": {
         const entity = requireKind(sketch, constraint.e, "circle", "arc");
-        return [{ type: entity.kind + "_diameter", [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id, diameter: constraint.value }];
+        return [
+          {
+            type: entity.kind + "_diameter",
+            [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id,
+            diameter: constraint.value,
+          },
+        ];
       }
       case "angle":
         requireKind(sketch, constraint.a, "line");
         requireKind(sketch, constraint.b, "line");
-        return [{ type: "l2l_angle_ll", l1_id: constraint.a, l2_id: constraint.b, angle: (constraint.value * Math.PI) / 180 }];
+        return [
+          {
+            type: "l2l_angle_ll",
+            l1_id: constraint.a,
+            l2_id: constraint.b,
+            angle: (constraint.value * Math.PI) / 180,
+          },
+        ];
       default:
         return fail("unknown constraint kind '" + kind + "'");
     }
@@ -210,7 +262,8 @@
             { type: "coordinate_y", p_id: reference, y },
           ];
         });
-        if (entity.kind === "circle") pins.push({ type: "circle_radius", c_id: entity.id, radius: entity.r });
+        if (entity.kind === "circle")
+          pins.push({ type: "circle_radius", c_id: entity.id, radius: entity.r });
         return pins;
       });
   }
@@ -229,18 +282,25 @@
         constraints.push({ id, ...planegcs });
       });
     });
-    lockReferences(sketch).forEach((planegcs, index) => constraints.push({ id: "#lock" + index, ...planegcs }));
-    (extra || []).forEach((planegcs, index) => constraints.push({ id: "probe" + index, ...planegcs }));
+    lockReferences(sketch).forEach((planegcs, index) =>
+      constraints.push({ id: "#lock" + index, ...planegcs }),
+    );
+    (extra || []).forEach((planegcs, index) =>
+      constraints.push({ id: "probe" + index, ...planegcs }),
+    );
     const primitives = primitivesFor(sketch);
     for (const primitive of primitives) {
-      if (primitive.type === "point" && pinned && pinned.includes(primitive.id)) primitive.fixed = true;
+      if (primitive.type === "point" && pinned && pinned.includes(primitive.id))
+        primitive.fixed = true;
     }
     gcs.push_primitives_and_params([...primitives, ...constraints]);
     return owner;
   }
 
   function readBack(gcs, sketch) {
-    const byId = new Map(gcs.sketch_index.get_primitives().map((primitive) => [primitive.id, primitive]));
+    const byId = new Map(
+      gcs.sketch_index.get_primitives().map((primitive) => [primitive.id, primitive]),
+    );
     const moved = JSON.parse(JSON.stringify(sketch));
     for (const entity of moved.entities) {
       const at = (name) => byId.get(entity.id + "." + name);
@@ -263,7 +323,9 @@
   }
 
   function named(ids, owner) {
-    return [...new Set(ids.map((id) => owner[id]).filter((index) => index !== undefined))].sort((a, b) => a - b);
+    return [...new Set(ids.map((id) => owner[id]).filter((index) => index !== undefined))].sort(
+      (a, b) => a - b,
+    );
   }
 
   /// Moves a point, or a whole entity, to where the pointer is before solving.
@@ -317,7 +379,13 @@
       const redundant = named(gcs.get_gcs_redundant_constraints(), owner);
       if (SOLVED.includes(status) && !conflicting.length) {
         gcs.apply_solution();
-        return { ok: true, sketch: readBack(gcs, start), dof: gcs.gcs.dof(), conflicting, redundant };
+        return {
+          ok: true,
+          sketch: readBack(gcs, start),
+          dof: gcs.gcs.dof(),
+          conflicting,
+          redundant,
+        };
       }
       if (!pinned) return { ok: false, sketch, dof: null, conflicting, redundant };
     }
@@ -348,7 +416,9 @@
 
     const states = {};
     for (const entity of base.entities) {
-      let determined = POINTS[entity.kind].every((name) => removesNothing(pinned(entity.id + "." + name)));
+      let determined = POINTS[entity.kind].every((name) =>
+        removesNothing(pinned(entity.id + "." + name)),
+      );
       if (determined && entity.kind === "circle") {
         determined = removesNothing([{ type: "circle_radius", c_id: entity.id, radius: entity.r }]);
       }

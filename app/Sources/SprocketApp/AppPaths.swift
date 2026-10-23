@@ -35,7 +35,8 @@ enum AppPaths {
         guard isBundled else { return }
         let manager = FileManager.default
         try? manager.removeItem(at: viewerDir)
-        try manager.createDirectory(at: viewerDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try manager.createDirectory(
+            at: viewerDir.deletingLastPathComponent(), withIntermediateDirectories: true)
         try manager.copyItem(at: resources.appendingPathComponent("viewer"), to: viewerDir)
     }
 
@@ -63,10 +64,15 @@ enum AppPaths {
     /// The executable and arguments that start `sprocket daemon`.
     static var engineLaunch: (executable: URL, arguments: [String]) {
         if isBundled {
-            return (resources.appendingPathComponent("python/bin/python3"), ["-m", "sprocket_engine"])
+            return (
+                resources.appendingPathComponent("python/bin/python3"), ["-m", "sprocket_engine"]
+            )
         }
         let engineDir = repoRoot.appendingPathComponent("engine")
-        return (URL(fileURLWithPath: "/usr/bin/env"), ["uv", "run", "--directory", engineDir.path, "sprocket"])
+        return (
+            URL(fileURLWithPath: "/usr/bin/env"),
+            ["uv", "run", "--directory", engineDir.path, "sprocket"]
+        )
     }
 
     /// A bundle gets its Dock icon from `AppIcon.icns`, so only a checkout needs this.

@@ -11,7 +11,10 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "extrude_face"},
-        "base": {"type": "string", "description": "id of the feature this pushes off of"},
+        "base": {
+            "type": "string",
+            "description": "id of the feature this pushes off of",
+        },
         "face": {"type": "object", "description": SELECTOR_DESCRIPTION},
         "distance": {
             "type": "number",
@@ -27,7 +30,9 @@ def apply(feature: dict, ctx):
     base = ctx.results[feature["base"]]
     faces = resolve_selector(base, feature["face"], ctx)
     if len(faces) != 1:
-        raise SelectorError(f"face selector matched {len(faces)} faces, expected exactly 1")
+        raise SelectorError(
+            f"face selector matched {len(faces)} faces, expected exactly 1"
+        )
 
     distance = feature["distance"]
     tool = b3d_extrude(faces[0], amount=distance)

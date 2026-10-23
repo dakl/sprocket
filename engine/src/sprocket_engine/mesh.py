@@ -118,11 +118,25 @@ def _loc_matrix(loc):
     if not loc:
         return np.eye(3), np.zeros(3)
     (x, y, z), (qx, qy, qz, qw) = loc
-    rotation = np.array([
-        [1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * qw), 2 * (qx * qz + qy * qw)],
-        [2 * (qx * qy + qz * qw), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * qw)],
-        [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx * qx + qy * qy)],
-    ])
+    rotation = np.array(
+        [
+            [
+                1 - 2 * (qy * qy + qz * qz),
+                2 * (qx * qy - qz * qw),
+                2 * (qx * qz + qy * qw),
+            ],
+            [
+                2 * (qx * qy + qz * qw),
+                1 - 2 * (qx * qx + qz * qz),
+                2 * (qy * qz - qx * qw),
+            ],
+            [
+                2 * (qx * qz - qy * qw),
+                2 * (qy * qz + qx * qw),
+                1 - 2 * (qx * qx + qy * qy),
+            ],
+        ]
+    )
     return rotation, np.array([x, y, z])
 
 
@@ -135,9 +149,17 @@ def _place(instance: dict, location) -> None:
         return
     for key in ("vertices", "edges"):
         points = instance[key].reshape(-1, 3).astype(np.float64)
-        instance[key] = (points @ rotation.T + translation).astype(instance[key].dtype).reshape(instance[key].shape)
+        instance[key] = (
+            (points @ rotation.T + translation)
+            .astype(instance[key].dtype)
+            .reshape(instance[key].shape)
+        )
     normals = instance["normals"].reshape(-1, 3).astype(np.float64)
-    instance["normals"] = (normals @ rotation.T).astype(instance["normals"].dtype).reshape(instance["normals"].shape)
+    instance["normals"] = (
+        (normals @ rotation.T)
+        .astype(instance["normals"].dtype)
+        .reshape(instance["normals"].shape)
+    )
 
 
 def _concatenate(instances: list[dict]) -> dict:
@@ -145,7 +167,13 @@ def _concatenate(instances: list[dict]) -> dict:
     if len(instances) == 1:
         return instances[0]
     joined = {}
-    for key in ("vertices", "normals", "edges", "triangles_per_face", "segments_per_edge"):
+    for key in (
+        "vertices",
+        "normals",
+        "edges",
+        "triangles_per_face",
+        "segments_per_edge",
+    ):
         joined[key] = np.concatenate([instance[key] for instance in instances])
     triangles, offset = [], 0
     for instance in instances:
@@ -207,22 +235,33 @@ def _painted(shape, appearances):
     faces = shape.faces()
     for appearance in appearances or []:
         picked = resolve_selector(shape, appearance["select"])
-        yield appearance, [index for index, face in enumerate(faces) if any(face.is_same(item) for item in picked)]
+        yield (
+            appearance,
+            [
+                index
+                for index, face in enumerate(faces)
+                if any(face.is_same(item) for item in picked)
+            ],
+        )
 
 
 def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None:
     """(roughness, metalness) per face: the body's finish, then appearances
     that name one. None when nothing has a finish, so the buffer is left out."""
-    if not any(body.get("material") for body in bodies) and not any("material" in item for item in appearances or []):
+    if not any(body.get("material") for body in bodies) and not any(
+        "material" in item for item in appearances or []
+    ):
         return None
     values = np.full((sum(face_counts), 2), NO_MATERIAL, dtype="<f4")
     start = 0
     for body, count in zip(bodies, face_counts):
         if body.get("material"):
-            values[start:start + count] = PRESETS[body["material"]]
+            values[start : start + count] = PRESETS[body["material"]]
         start += count
     if shape is not None:
-        for appearance, indices in _painted(shape, [item for item in appearances or [] if "material" in item]):
+        for appearance, indices in _painted(
+            shape, [item for item in appearances or [] if "material" in item]
+        ):
             values[indices] = PRESETS[appearance["material"]]
     return values
 
@@ -233,7 +272,7 @@ def body_colours(bodies, face_counts, shape, appearances) -> np.ndarray:
     start = 0
     for body, count in zip(bodies, face_counts):
         if body.get("color"):
-            colours[start:start + count] = int(body["color"].lstrip("#"), 16)
+            colours[start : start + count] = int(body["color"].lstrip("#"), 16)
         start += count
     if appearances and shape is not None:
         painted = face_colours(shape, appearances)
@@ -256,26 +295,32 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
     """
     body_entries = []
     if bodies:
-        ordered = [body for body in bodies if not body["reference"]] + [body for body in bodies if body["reference"]]
+        ordered = [body for body in bodies if not body["reference"]] + [
+            body for body in bodies if body["reference"]
+        ]
         instances = [tessellate(body["shape"]) for body in ordered]
         instance = _concatenate(instances)
         face_counts = [len(item["triangles_per_face"]) for item in instances]
         for body, item, count in zip(ordered, instances, face_counts):
-            body_entries.append({
-                "id": body["id"],
-                # The newest feature of the body: what a Modify tool names as its base.
-                "tip": body.get("tip", body["id"]),
-                "name": body.get("name", body["id"]),
-                "color": body.get("color"),
-                "visible": body.get("visible", True),
-                "reference": body["reference"],
-                "faces": count,
-                "edges": len(item["segments_per_edge"]),
-                # Only when set, so a document with no finishes writes the same bytes as before.
-                **({"material": body["material"]} if body.get("material") else {}),
-            })
+            body_entries.append(
+                {
+                    "id": body["id"],
+                    # The newest feature of the body: what a Modify tool names as its base.
+                    "tip": body.get("tip", body["id"]),
+                    "name": body.get("name", body["id"]),
+                    "color": body.get("color"),
+                    "visible": body.get("visible", True),
+                    "reference": body["reference"],
+                    "faces": count,
+                    "edges": len(item["segments_per_edge"]),
+                    # Only when set, so a document with no finishes writes the same bytes as before.
+                    **({"material": body["material"]} if body.get("material") else {}),
+                }
+            )
         if appearances or any(body.get("color") for body in ordered):
-            instance["face_colors"] = body_colours(ordered, face_counts, shape, appearances)
+            instance["face_colors"] = body_colours(
+                ordered, face_counts, shape, appearances
+            )
         finishes = face_materials(ordered, face_counts, shape, appearances)
         if finishes is not None:
             instance["face_materials"] = finishes

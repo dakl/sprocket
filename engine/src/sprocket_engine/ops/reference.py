@@ -18,8 +18,14 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "reference"},
-        "file": {"type": "string", "description": "path to a .sprocket, .step or .stp file"},
-        "rotate": {**VECTOR3, "description": "degrees about world X, then Y, then Z, about the origin"},
+        "file": {
+            "type": "string",
+            "description": "path to a .sprocket, .step or .stp file",
+        },
+        "rotate": {
+            **VECTOR3,
+            "description": "degrees about world X, then Y, then Z, about the origin",
+        },
         "translate": {**VECTOR3, "description": "mm, applied after rotate"},
     },
 }
@@ -55,7 +61,9 @@ def apply(feature: dict, ctx):
     elif path.suffix.lower() in (".step", ".stp"):
         shape = import_step(path)
     else:
-        raise ValueError(f"a reference must be a .sprocket or STEP file, not {path.suffix or 'a file with no suffix'}")
+        raise ValueError(
+            f"a reference must be a .sprocket or STEP file, not {path.suffix or 'a file with no suffix'}"
+        )
     # One compound of solids, which the mesh tessellates as one body.
     shape = Part(shape.solids())
     for axis, angle in zip((Axis.X, Axis.Y, Axis.Z), feature.get("rotate", (0, 0, 0))):

@@ -16,8 +16,13 @@ test.beforeEach(async ({ page, request }) => {
 
 const chip = (page, id) => page.locator(`.timeline-chip[data-feature-id="${id}"]`);
 
-test("opens the document: the timeline lists its features and the part is built", async ({ page }) => {
-  const state = await page.evaluate(() => ({ timeline: window.__tcad.timeline, mesh: window.__tcad.mesh }));
+test("opens the document: the timeline lists its features and the part is built", async ({
+  page,
+}) => {
+  const state = await page.evaluate(() => ({
+    timeline: window.__tcad.timeline,
+    mesh: window.__tcad.mesh,
+  }));
   expect(state.timeline.map((entry) => [entry.id, entry.type, entry.active])).toEqual([
     ["f1", "sketch", true],
     ["f2", "extrude", true],
@@ -30,24 +35,34 @@ test("scrubbing the timeline rolls the part back and forward", async ({ page }) 
   // only a sketch, which builds no solid.
   await chip(page, "f2").click();
   await page.waitForFunction(() => window.__tcad.mesh === null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, false]);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
+    true,
+    false,
+  ]);
 
   // A greyed-out chip rolls forward to just past it.
   await chip(page, "f2").click();
   await page.waitForFunction(() => window.__tcad.mesh !== null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, true]);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
+    true,
+    true,
+  ]);
 });
 
-test("clicking a visible side wall selects the wall, not the sketch behind it", async ({ page, request }) => {
+test("clicking a visible side wall selects the wall, not the sketch behind it", async ({
+  page,
+  request,
+}) => {
   // The sketch sits on the underside at z=0, and its outline projects behind
   // the walls. Every visible face has to win the click.
   const { faces } = await rpc(request, "describe_geometry");
   const visible = await page.evaluate(
     (count) =>
-      Array.from({ length: count }, (_, face) => ({ face, ...window.__tcad.screenPointOf({ face }) })).filter(
-        (point) => point.visible
-      ),
-    faces.length
+      Array.from({ length: count }, (_, face) => ({
+        face,
+        ...window.__tcad.screenPointOf({ face }),
+      })).filter((point) => point.visible),
+    faces.length,
   );
   expect(visible.length).toBeGreaterThanOrEqual(3);
   for (const target of visible) {
@@ -59,7 +74,10 @@ test("clicking a visible side wall selects the wall, not the sketch behind it", 
   }
 });
 
-test("a selected face is extruded from the toolbar, with no floating panel", async ({ page, request }) => {
+test("a selected face is extruded from the toolbar, with no floating panel", async ({
+  page,
+  request,
+}) => {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
@@ -68,18 +86,24 @@ test("a selected face is extruded from the toolbar, with no floating panel", asy
   await expect(page.locator("#selection-panel")).toHaveCount(0);
 });
 
-test("clicking an edge selects the B-rep edge the engine numbers the same way", async ({ page, request }) => {
+test("clicking an edge selects the B-rep edge the engine numbers the same way", async ({
+  page,
+  request,
+}) => {
   // The mesh's edge ID map has to agree with shape.edges(), because that order
   // is what every later edge-based op will name. Only a top edge that faces
   // the camera is clickable, so take the first of those.
   const { edges } = await rpc(request, "describe_geometry");
-  const target = await page.evaluate((candidates) => {
-    for (const edge of candidates) {
-      const point = window.__tcad.screenPointOf({ edge });
-      if (point && point.visible) return { edge, x: point.x, y: point.y };
-    }
-    return null;
-  }, edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])));
+  const target = await page.evaluate(
+    (candidates) => {
+      for (const edge of candidates) {
+        const point = window.__tcad.screenPointOf({ edge });
+        if (point && point.visible) return { edge, x: point.x, y: point.y };
+      }
+      return null;
+    },
+    edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])),
+  );
   expect(target).not.toBeNull();
   await page.mouse.click(target.x, target.y);
   await expect.poll(() => page.evaluate(() => window.__tcad.selection.edge)).toBe(target.edge);
@@ -102,7 +126,10 @@ test("editing a feature's parameter by form rebuilds the part", async ({ page, r
   await expect(page.getByTestId("field-distance")).toHaveValue("25");
 });
 
-test("a value the engine refuses stays in the form with the reason, and the part is untouched", async ({ page, request }) => {
+test("a value the engine refuses stays in the form with the reason, and the part is untouched", async ({
+  page,
+  request,
+}) => {
   await chip(page, "f2").locator(".timeline-edit").click();
   const distance = page.getByTestId("field-distance");
   await distance.fill("0");
@@ -123,7 +150,10 @@ test("a number field takes a parameter expression", async ({ page, request }) =>
   expect((await rpc(request, "measure")).volume).toBeCloseTo(40 * 30 * 24, 3);
 });
 
-test("an edit made by another client, such as an agent, reaches the open viewer", async ({ page, request }) => {
+test("an edit made by another client, such as an agent, reaches the open viewer", async ({
+  page,
+  request,
+}) => {
   const feature = { ...fixture.features[1], distance: 7 };
   await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature }] });
   await page.waitForFunction(() => window.__tcad.features[1].distance === 7);
@@ -142,11 +172,15 @@ test("undo puts back the value before the last form edit", async ({ page }) => {
   await page.waitForFunction(() => window.__tcad.features[1].distance === 10);
 });
 
-test("a mesh the engine could not write is shown, and clears with the next good build", async ({ page }) => {
+test("a mesh the engine could not write is shown, and clears with the next good build", async ({
+  page,
+}) => {
   const banner = page.locator("#mesh-error");
   await expect(banner).toBeHidden();
 
-  await page.evaluate(() => window.reloadPart(window.__tcad.revision || 0, false, "ValueError: tessellation disagrees"));
+  await page.evaluate(() =>
+    window.reloadPart(window.__tcad.revision || 0, false, "ValueError: tessellation disagrees"),
+  );
   await expect(banner).toBeVisible();
   await expect(banner).toHaveText("Could not draw the part: ValueError: tessellation disagrees");
 
@@ -197,7 +231,10 @@ test("dragging the playhead rolls the part back and forward", async ({ page }) =
   await page.mouse.move(first.x + first.width + 2, grab.y, { steps: 6 });
   await page.mouse.up();
   await page.waitForFunction(() => window.__tcad.mesh === null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, false]);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
+    true,
+    false,
+  ]);
 
   // The playhead now sits between the two chips.
   const moved = await box(playhead);
@@ -211,12 +248,18 @@ test("dragging the playhead rolls the part back and forward", async ({ page }) =
   await page.mouse.move(last.x + last.width + 20, grab.y, { steps: 6 });
   await page.mouse.up();
   await page.waitForFunction(() => window.__tcad.mesh !== null);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([true, true]);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.active))).toEqual([
+    true,
+    true,
+  ]);
 });
 
 // --- M4.5: selection as conversation -----------------------------------------
 
-test("a face picked in the viewer is the selection an agent reads, with a sentence for it", async ({ page, request }) => {
+test("a face picked in the viewer is the selection an agent reads, with a sentence for it", async ({
+  page,
+  request,
+}) => {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
@@ -230,17 +273,28 @@ test("a face picked in the viewer is the selection an agent reads, with a senten
   await expect.poll(async () => (await rpc(request, "get_selection")).handles).toEqual([]);
 });
 
-test("a highlight from an agent shows in the viewer and does not touch the selection", async ({ page, request }) => {
+test("a highlight from an agent shows in the viewer and does not touch the selection", async ({
+  page,
+  request,
+}) => {
   await rpc(request, "highlight", { handles: ["f0", "e0"] });
-  await expect.poll(() => page.evaluate(() => window.__tcad.highlighted)).toEqual({ handles: ["f0", "e0"], sketches: [] });
-  expect(await page.evaluate(() => window.__tcad.selection)).toMatchObject({ face: null, edge: null });
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.highlighted))
+    .toEqual({ handles: ["f0", "e0"], sketches: [] });
+  expect(await page.evaluate(() => window.__tcad.selection)).toMatchObject({
+    face: null,
+    edge: null,
+  });
   await rpc(request, "highlight", { handles: [] });
   await expect.poll(() => page.evaluate(() => window.__tcad.highlighted.handles)).toEqual([]);
 });
 
 // --- M4: a picked face becomes a selector, not a position ----------------------
 
-test("push/pull saves the picked face as a selector, and the feature survives a change of dimension", async ({ page, request }) => {
+test("push/pull saves the picked face as a selector, and the feature survives a change of dimension", async ({
+  page,
+  request,
+}) => {
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
@@ -260,8 +314,17 @@ test("push/pull saves the picked face as a selector, and the feature survives a 
   expect(JSON.stringify(pushed.face.select)).toContain("new_since");
 
   // Widen the sketch. A selector made from a click position could land on another face.
-  const polygon = [[-30, -15], [30, -15], [30, 15], [-30, 15]];
-  const wider = await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f1", feature: { id: "f1", type: "sketch", plane: "XY", polygon } }] });
+  const polygon = [
+    [-30, -15],
+    [30, -15],
+    [30, 15],
+    [-30, 15],
+  ];
+  const wider = await rpc(request, "apply_edit", {
+    edits: [
+      { op: "update", id: "f1", feature: { id: "f1", type: "sketch", plane: "XY", polygon } },
+    ],
+  });
   expect(wider.built.ok).toBe(true);
   expect((await rpc(request, "measure")).volume).toBeCloseTo(60 * 30 * 15, 3);
 });
@@ -271,10 +334,18 @@ test("push/pull saves the picked face as a selector, and the feature survives a 
 const fs = require("fs");
 const path = require("path");
 
-const TOP = { select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }], expected_count: 1 };
+const TOP = {
+  select: [{ op: "faces" }, { op: "at_end", axis: "Z", end: "max" }],
+  expected_count: 1,
+};
 
-test("a second client's edits update the open page live, keeping camera and selection", async ({ page, request }) => {
-  await page.evaluate(() => { window.__sameLoad = true; });
+test("a second client's edits update the open page live, keeping camera and selection", async ({
+  page,
+  request,
+}) => {
+  await page.evaluate(() => {
+    window.__sameLoad = true;
+  });
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
   const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
@@ -283,7 +354,10 @@ test("a second client's edits update the open page live, keeping camera and sele
   const camera = await page.evaluate(() => window.__tcad.camera);
 
   // Face colour.
-  await rpc(request, "set_appearances", { appearances: [{ color: "#2f9e44", select: TOP }], author: "agent:test" });
+  await rpc(request, "set_appearances", {
+    appearances: [{ color: "#2f9e44", select: TOP }],
+    author: "agent:test",
+  });
   await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
   await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Updated by agent:test");
   // The top face did not move, so it is still selected, here and for an agent.
@@ -292,13 +366,18 @@ test("a second client's edits update the open page live, keeping camera and sele
   expect((await rpc(request, "get_selection")).stale).toBe(false);
 
   // Geometry, and the changed row glows.
-  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 7 } }], author: "agent:test" });
+  await rpc(request, "apply_edit", {
+    edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 7 } }],
+    author: "agent:test",
+  });
   await page.waitForFunction(() => window.__tcad.features[1].distance === 7);
   await expect(chip(page, "f2")).toHaveClass(/timeline-chip-changed/);
 
   // Body colour and visibility, in the bodies list.
   await rpc(request, "set_body", { id: "f2", color: "#123456", author: "agent:test" });
-  await page.waitForFunction(() => window.__tcad.bodies[0] && window.__tcad.bodies[0].color === "#123456");
+  await page.waitForFunction(
+    () => window.__tcad.bodies[0] && window.__tcad.bodies[0].color === "#123456",
+  );
   await expect(page.locator(".browser-swatch").first()).toHaveValue("#123456");
   await rpc(request, "set_visibility", { id: "f2", visible: false });
   await page.waitForFunction(() => window.__tcad.bodies[0].visible === false);
@@ -314,7 +393,9 @@ test("a second client's edits update the open page live, keeping camera and sele
   await settled(page);
   expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
   const after = await page.evaluate(() => window.__tcad.camera);
-  [...after.position, ...after.target].forEach((value, k) => expect(value).toBeCloseTo([...camera.position, ...camera.target][k], 6));
+  [...after.position, ...after.target].forEach((value, k) =>
+    expect(value).toBeCloseTo([...camera.position, ...camera.target][k], 6),
+  );
   await rpc(request, "set_appearances", { appearances: [] });
   await rpc(request, "set_body", { id: "f2", color: null });
 });
@@ -329,19 +410,33 @@ function rewriteOnDisk(file, change) {
 }
 
 test("the document rewritten on disk reloads in the open page", async ({ page, request }) => {
-  await page.evaluate(() => { window.__sameLoad = true; });
+  await page.evaluate(() => {
+    window.__sameLoad = true;
+  });
   const { path: file } = await rpc(request, "get_document");
-  rewriteOnDisk(file, (document) => { document.features[1].distance = 13; });
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 13, null, { timeout: 3000 });
+  rewriteOnDisk(file, (document) => {
+    document.features[1].distance = 13;
+  });
+  await page.waitForFunction(() => window.__tcad.features[1].distance === 13, null, {
+    timeout: 3000,
+  });
   await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Reloaded from disk");
   expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
 });
 
-test("an edit that races a rewrite on disk is a conflict the person settles", async ({ page, request }) => {
+test("an edit that races a rewrite on disk is a conflict the person settles", async ({
+  page,
+  request,
+}) => {
   const { path: file } = await rpc(request, "get_document");
-  rewriteOnDisk(file, (document) => { document.features[1].distance = 21; });
+  rewriteOnDisk(file, (document) => {
+    document.features[1].distance = 21;
+  });
   // Before the watcher has looked: the engine must not save over the file.
-  await rpc(request, "apply_edit", { edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 4 } }], author: "viewer" });
+  await rpc(request, "apply_edit", {
+    edits: [{ op: "update", id: "f2", feature: { ...fixture.features[1], distance: 4 } }],
+    author: "viewer",
+  });
   await expect(page.locator("#conflict")).toBeVisible();
   expect(JSON.parse(fs.readFileSync(file, "utf8")).features[1].distance).toBe(21);
   await page.locator("#conflict-file").click();
@@ -352,7 +447,10 @@ test("an edit that races a rewrite on disk is a conflict the person settles", as
 
 // --- Colour picker and right-click menu ----------------------------------------
 
-test("right-click a face, pick a colour: the face is coloured in the document and on screen", async ({ page, request }) => {
+test("right-click a face, pick a colour: the face is coloured in the document and on screen", async ({
+  page,
+  request,
+}) => {
   await rpc(request, "set_appearances", { appearances: [] });
   await settled(page);
   const { faces } = await rpc(request, "describe_geometry");
@@ -369,31 +467,44 @@ test("right-click a face, pick a colour: the face is coloured in the document an
 
   const again = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(again.x, again.y, { button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body"]);
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .toEqual(["Colour…", "Body colour…", "Hide body"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await expect(page.locator("#colour-popover")).toBeVisible();
   await page.locator('#colour-popover .palette .swatch[data-hex="#2f9e44"]').click();
 
-  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#2f9e44"]);
+  await expect
+    .poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color))
+    .toEqual(["#2f9e44"]);
   await page.waitForFunction((face) => window.__tcad.faceColour(face) === "#2f9e44", top);
   // Only that face: the box the engine gave picks it out alone.
-  const coloured = await page.evaluate((count) => Array.from({ length: count }, (_, k) => window.__tcad.faceColour(k)), faces.length);
+  const coloured = await page.evaluate(
+    (count) => Array.from({ length: count }, (_, k) => window.__tcad.faceColour(k)),
+    faces.length,
+  );
   expect(coloured.filter((hex) => hex === "#2f9e44")).toHaveLength(1);
 
   // The hex box, and the recent list remembers the green.
   const point2 = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point2.x, point2.y, { button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toContain("Clear face colour");
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .toContain("Clear face colour");
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await expect(page.locator('#colour-popover .recent .swatch[data-hex="#2f9e44"]')).toHaveCount(1);
   await page.locator("#colour-hex").fill("#d4af37");
   await page.locator("#colour-hex").press("Enter");
-  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#d4af37"]);
+  await expect
+    .poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color))
+    .toEqual(["#d4af37"]);
 
   // Undo puts the green back: it is an ordinary edit.
   await page.mouse.click(640, 790);
   await page.keyboard.press("Meta+z");
-  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color)).toEqual(["#2f9e44"]);
+  await expect
+    .poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.color))
+    .toEqual(["#2f9e44"]);
 
   // Clear.
   await settled(page);
@@ -403,32 +514,50 @@ test("right-click a face, pick a colour: the face is coloured in the document an
   await expect.poll(async () => (await rpc(request, "get_document")).appearances).toEqual([]);
 });
 
-test("a body row's right-click menu colours and hides the body; the swatch still works", async ({ page, request }) => {
-  const row = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first();
+test("a body row's right-click menu colours and hides the body; the swatch still works", async ({
+  page,
+  request,
+}) => {
+  const row = page
+    .locator(".browser-row")
+    .filter({ has: page.locator(".browser-swatch") })
+    .first();
   await row.click({ button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide"]);
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .toEqual(["Colour…", "Hide"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#d83a2e");
 
-  await page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().click({ button: "right" });
+  await page
+    .locator(".browser-row")
+    .filter({ has: page.locator(".browser-swatch") })
+    .first()
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Hide" }).click();
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].visible).toBe(false);
   await rpc(request, "set_visibility", { id: "f2", visible: true });
 
   // The swatch in the row still sends set_body by itself.
   await page.waitForFunction(() => window.__tcad.bodies[0].visible !== false);
-  await page.locator(".browser-swatch").first().evaluate((input) => {
-    input.value = "#1f6b3a";
-    input.dispatchEvent(new Event("change"));
-  });
+  await page
+    .locator(".browser-swatch")
+    .first()
+    .evaluate((input) => {
+      input.value = "#1f6b3a";
+      input.dispatchEvent(new Event("change"));
+    });
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
   await rpc(request, "set_body", { id: "f2", color: null });
 });
 
 // --- Material presets ------------------------------------------------------------
 
-test("a finish picked for a face and for a body reaches the document, the mesh and the materials drawn", async ({ page, request }) => {
+test("a finish picked for a face and for a body reaches the document, the mesh and the materials drawn", async ({
+  page,
+  request,
+}) => {
   await rpc(request, "set_appearances", { appearances: [] });
   await settled(page);
   const { faces } = await rpc(request, "describe_geometry");
@@ -439,63 +568,109 @@ test("a finish picked for a face and for a body reaches the document, the mesh a
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .finishes button[data-material="bare_metal"]').click();
 
-  await expect.poll(async () => (await rpc(request, "get_document")).appearances.map((entry) => entry.material)).toEqual(["bare_metal"]);
+  await expect
+    .poll(async () =>
+      (await rpc(request, "get_document")).appearances.map((entry) => entry.material),
+    )
+    .toEqual(["bare_metal"]);
   await page.waitForFunction((face) => window.__tcad.faceFinish(face) !== null, top);
   const finish = await page.evaluate((face) => window.__tcad.faceFinish(face), top);
   expect(finish[0]).toBeCloseTo(0.2, 5);
   expect(finish[1]).toBeCloseTo(1, 5);
-  expect(await page.evaluate(() => window.__tcad.finishMaterials)).toEqual([{ roughness: expect.any(Number), metalness: 1, hasEnvironment: true }]);
+  expect(await page.evaluate(() => window.__tcad.finishMaterials)).toEqual([
+    { roughness: expect.any(Number), metalness: 1, hasEnvironment: true },
+  ]);
 
   // The body: anodised aluminium from the tree row's menu.
-  await page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().click({ button: "right" });
+  await page
+    .locator(".browser-row")
+    .filter({ has: page.locator(".browser-swatch") })
+    .first()
+    .click({ button: "right" });
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
-  await page.locator('#colour-popover .finishes button[data-material="anodised_aluminium"]').click();
-  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].material).toBe("anodised_aluminium");
+  await page
+    .locator('#colour-popover .finishes button[data-material="anodised_aluminium"]')
+    .click();
+  await expect
+    .poll(async () => (await rpc(request, "get_bodies")).bodies[0].material)
+    .toBe("anodised_aluminium");
   await page.waitForFunction(() => window.__tcad.finishMaterials.length === 2);
 
   await rpc(request, "set_appearances", { appearances: [] });
   await rpc(request, "set_body", { id: "f2", material: null });
 });
 
-test("a referenced file rewritten on disk rebuilds the open document live", async ({ page, request }) => {
+test("a referenced file rewritten on disk rebuilds the open document live", async ({
+  page,
+  request,
+}) => {
   const { path: file } = await rpc(request, "get_document");
   const boardPath = path.join(path.dirname(file), "board.sprocket");
   const board = (extra) => ({
     features: [
-      { id: "s", type: "sketch", plane: { name: "XY", offset: 20 }, rect: { width: 10, height: 10 } },
+      {
+        id: "s",
+        type: "sketch",
+        plane: { name: "XY", offset: 20 },
+        rect: { width: 10, height: 10 },
+      },
       { id: "b", type: "extrude", profile: "s", distance: 2 },
       ...extra,
     ],
   });
   fs.writeFileSync(boardPath, JSON.stringify(board([])));
-  await resetDocument(request, { features: [...fixture.features, { id: "ref", type: "reference", file: "board.sprocket" }], rollback_index: 3 });
-  await page.evaluate(() => { window.__sameLoad = true; });
-  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 6));
+  await resetDocument(request, {
+    features: [...fixture.features, { id: "ref", type: "reference", file: "board.sprocket" }],
+    rollback_index: 3,
+  });
+  await page.evaluate(() => {
+    window.__sameLoad = true;
+  });
+  await page.waitForFunction(() =>
+    window.__tcad.bodies.some((body) => body.reference && body.faces === 6),
+  );
   const revision = (await rpc(request, "get_document")).revision;
 
   rewriteOnDisk(boardPath, (document) => {
     document.features.push(
       { id: "cs", type: "sketch", plane: { name: "XY", offset: 22 }, circle: { radius: 2 } },
-      { id: "c", type: "extrude", profile: "cs", base: "b", mode: "join", distance: 3 }
+      { id: "c", type: "extrude", profile: "cs", base: "b", mode: "join", distance: 3 },
     );
   });
-  await page.waitForFunction(() => window.__tcad.bodies.some((body) => body.reference && body.faces === 8), null, { timeout: 15000 });
-  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toBe("Rebuilt: board.sprocket changed");
+  await page.waitForFunction(
+    () => window.__tcad.bodies.some((body) => body.reference && body.faces === 8),
+    null,
+    { timeout: 15000 },
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.status))
+    .toBe("Rebuilt: board.sprocket changed");
   expect((await rpc(request, "get_document")).revision).toBe(revision);
   expect(await page.evaluate(() => window.__sameLoad)).toBe(true);
 });
 
-test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", async ({ page, request }) => {
+test("a cosmetic thread is drawn as a helix over its hole, one turn per pitch", async ({
+  page,
+  request,
+}) => {
   const threaded = require("../../engine/tests/golden/thread_cosmetic_m3/document.json");
-  await resetDocument(request, { features: threaded.features, rollback_index: threaded.features.length });
+  await resetDocument(request, {
+    features: threaded.features,
+    rollback_index: threaded.features.length,
+  });
   await settled(page);
   // 4 mm of M3 at 0.5 mm pitch is 8 turns of 24 steps: 193 points.
-  await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([{ designation: "M3", points: 193 }]);
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.threads))
+    .toEqual([{ designation: "M3", points: 193 }]);
   await rpc(request, "set_rollback", { index: threaded.features.length - 1 });
   await expect.poll(() => page.evaluate(() => window.__tcad.threads)).toEqual([]);
 });
 
-test("Measure shows the volume, then a picked face's area, and hides again", async ({ page, request }) => {
+test("Measure shows the volume, then a picked face's area, and hides again", async ({
+  page,
+  request,
+}) => {
   expect(await page.evaluate(() => window.__tcad.measure)).toBe("");
   await page.locator("#tool-measure").click();
   // The box fixture: 40 x 30 x 10.
@@ -512,10 +687,14 @@ test("Measure shows the volume, then a picked face's area, and hides again", asy
 test("Section view clips the part across an axis, flips, and turns off", async ({ page }) => {
   await page.locator("#tool-section").click();
   // The box fixture is 10 tall, so Z starts at the middle.
-  await expect.poll(() => page.evaluate(() => window.__tcad.section)).toMatchObject({ axis: "Z", offset: 5, flip: false, cap: true });
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.section))
+    .toMatchObject({ axis: "Z", offset: 5, flip: false, cap: true });
   expect((await page.evaluate(() => window.__tcad.section)).clipped).toBeGreaterThan(0);
   await page.locator('#section-panel button[data-axis="X"]').click();
-  await expect.poll(() => page.evaluate(() => window.__tcad.section)).toMatchObject({ axis: "X", offset: 0 });
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.section))
+    .toMatchObject({ axis: "X", offset: 0 });
   await page.locator("#section-flip").click();
   await expect.poll(() => page.evaluate(() => window.__tcad.section.flip)).toBe(true);
   await page.locator("#tool-section").click();
@@ -541,7 +720,7 @@ async function topEdgePoints(page, request, count) {
       }
       return found.slice(0, wanted);
     },
-    [edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])), count]
+    [edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])), count],
   );
   expect(points).toHaveLength(count);
   return points;
@@ -556,8 +735,14 @@ async function clickTopFace(page, request) {
 }
 
 const modifying = (page) => page.evaluate(() => window.__tcad.modifying);
-const previewReady = (page) => page.waitForFunction(() => window.__tcad.modifying && window.__tcad.modifying.ok && window.__tcad.modifying.preview, null, SLOW);
-const timelineTypes = (page) => page.evaluate(() => window.__tcad.timeline.map((entry) => entry.type));
+const previewReady = (page) =>
+  page.waitForFunction(
+    () => window.__tcad.modifying && window.__tcad.modifying.ok && window.__tcad.modifying.preview,
+    null,
+    SLOW,
+  );
+const timelineTypes = (page) =>
+  page.evaluate(() => window.__tcad.timeline.map((entry) => entry.type));
 
 async function undoOnce(page) {
   await page.keyboard.press("Meta+z");
@@ -565,20 +750,32 @@ async function undoOnce(page) {
   await settled(page);
 }
 
-test("fillet: Shift-click two edges, set a radius, see the preview, Enter applies, undo removes it", async ({ page, request }) => {
+test("fillet: Shift-click two edges, set a radius, see the preview, Enter applies, undo removes it", async ({
+  page,
+  request,
+}) => {
   const [first, second] = await topEdgePoints(page, request, 2);
   await page.mouse.click(first.x, first.y);
   await page.keyboard.down("Shift");
   await page.mouse.click(second.x, second.y);
   await page.keyboard.up("Shift");
-  await expect.poll(() => page.evaluate(() => window.__tcad.selectedEdges)).toEqual([first.edge, second.edge]);
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.selectedEdges))
+    .toEqual([first.edge, second.edge]);
   await expect(page.locator("#tool-fillet")).toBeEnabled();
 
   await page.locator("#tool-fillet").click();
   await expect(page.locator("#modify-panel")).toBeVisible();
   await previewReady(page);
   await page.locator("#modify-radius").fill("2");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === 2 && window.__tcad.modifying.ok, null, SLOW);
+  await page.waitForFunction(
+    () =>
+      window.__tcad.modifying.feature &&
+      window.__tcad.modifying.feature.radius === 2 &&
+      window.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
   await expect(page.locator("#modify-info")).toContainText("Preview");
   // Nothing is committed yet.
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
@@ -597,7 +794,10 @@ test("fillet: Shift-click two edges, set a radius, see the preview, Enter applie
   expect((await rpc(request, "measure")).volume).toBeCloseTo(12000, 3);
 });
 
-test("fillet: a radius the part cannot take shows the reason and cannot be applied", async ({ page, request }) => {
+test("fillet: a radius the part cannot take shows the reason and cannot be applied", async ({
+  page,
+  request,
+}) => {
   const [edge] = await topEdgePoints(page, request, 1);
   await page.mouse.click(edge.x, edge.y);
   await page.keyboard.press("f");
@@ -612,7 +812,10 @@ test("fillet: a radius the part cannot take shows the reason and cannot be appli
   expect(await timelineTypes(page)).toEqual(["sketch", "extrude"]);
 });
 
-test("fillet: a selected face is not an input, so F asks for an edge", async ({ page, request }) => {
+test("fillet: a selected face is not an input, so F asks for an edge", async ({
+  page,
+  request,
+}) => {
   await clickTopFace(page, request);
   await page.keyboard.press("f");
   await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("fillet");
@@ -629,7 +832,14 @@ test("chamfer: C on a selected edge previews and applies a distance", async ({ p
   await expect(page.locator("#modify-panel")).toBeVisible();
   await previewReady(page);
   await page.locator("#modify-length").fill("1.5");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.length === 1.5 && window.__tcad.modifying.ok, null, SLOW);
+  await page.waitForFunction(
+    () =>
+      window.__tcad.modifying.feature &&
+      window.__tcad.modifying.feature.length === 1.5 &&
+      window.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
   await page.locator("#modify-ok").click();
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
@@ -640,7 +850,10 @@ test("chamfer: C on a selected edge previews and applies a distance", async ({ p
   await undoOnce(page);
 });
 
-test("Shell and Hole enable when the part arrives after the timeline", async ({ page, request }) => {
+test("Shell and Hole enable when the part arrives after the timeline", async ({
+  page,
+  request,
+}) => {
   // The mesh file is the slow one here, so the timeline lands first. The
   // toolbar has to follow the mesh, not just the timeline and the selection.
   await page.route(/part\.mesh/, async (route) => {
@@ -654,13 +867,23 @@ test("Shell and Hole enable when the part arrives after the timeline", async ({ 
   await expect(page.locator("#tool-shell")).toBeEnabled({ timeout: 2000 });
 });
 
-test("shell: the picked face is left open, and with none the part becomes a closed hollow", async ({ page, request }) => {
+test("shell: the picked face is left open, and with none the part becomes a closed hollow", async ({
+  page,
+  request,
+}) => {
   // No selection: Shell is live and hollows the part with no opening.
   await expect(page.locator("#tool-shell")).toBeEnabled();
   await page.locator("#tool-shell").click();
   await expect(page.locator("#modify-closed")).toHaveCount(0);
   await page.locator("#modify-thickness").fill("2");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.thickness === 2 && window.__tcad.modifying.ok, null, SLOW);
+  await page.waitForFunction(
+    () =>
+      window.__tcad.modifying.feature &&
+      window.__tcad.modifying.feature.thickness === 2 &&
+      window.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
   await page.locator("#modify-ok").click();
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
@@ -675,7 +898,14 @@ test("shell: the picked face is left open, and with none the part becomes a clos
   await expect(page.locator("#modify-closed")).toBeVisible();
   await previewReady(page);
   await page.locator("#modify-thickness").fill("2");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.thickness === 2 && window.__tcad.modifying.ok, null, SLOW);
+  await page.waitForFunction(
+    () =>
+      window.__tcad.modifying.feature &&
+      window.__tcad.modifying.feature.thickness === 2 &&
+      window.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
   expect((await modifying(page)).feature.open).toBeDefined();
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
@@ -694,9 +924,13 @@ test("hole: a picked face, diameter and depth, then a counterbore", async ({ pag
   await page.locator("#modify-diameter").fill("6");
   await page.locator("#modify-depth").fill("4");
   await page.waitForFunction(
-    () => window.__tcad.modifying.feature && window.__tcad.modifying.feature.diameter === 6 && window.__tcad.modifying.feature.depth === 4 && window.__tcad.modifying.ok,
+    () =>
+      window.__tcad.modifying.feature &&
+      window.__tcad.modifying.feature.diameter === 6 &&
+      window.__tcad.modifying.feature.depth === 4 &&
+      window.__tcad.modifying.ok,
     null,
-    SLOW
+    SLOW,
   );
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
@@ -715,7 +949,15 @@ test("hole: a picked face, diameter and depth, then a counterbore", async ({ pag
   await page.locator("#modify-head_diameter").fill("8");
   await page.locator("#modify-head_depth").fill("2");
   await page.locator("#modify-depth").fill("5");
-  await page.waitForFunction(() => window.__tcad.modifying.feature && window.__tcad.modifying.feature.head_depth === 2 && window.__tcad.modifying.feature.depth === 5 && window.__tcad.modifying.ok, null, SLOW);
+  await page.waitForFunction(
+    () =>
+      window.__tcad.modifying.feature &&
+      window.__tcad.modifying.feature.head_depth === 2 &&
+      window.__tcad.modifying.feature.depth === 5 &&
+      window.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
   await page.locator("#modify-ok").click();
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
   await settled(page);
@@ -737,9 +979,29 @@ test("hole: a picked face, diameter and depth, then a counterbore", async ({ pag
 // Two separate boxes: f2 (x -20..20) and f4 (x 50..90), both 30 deep and 10 tall.
 const TWO_BODIES = {
   features: [
-    { id: "f1", type: "sketch", plane: "XY", polygon: [[-20, -15], [20, -15], [20, 15], [-20, 15]] },
+    {
+      id: "f1",
+      type: "sketch",
+      plane: "XY",
+      polygon: [
+        [-20, -15],
+        [20, -15],
+        [20, 15],
+        [-20, 15],
+      ],
+    },
     { id: "f2", type: "extrude", profile: "f1", distance: 10 },
-    { id: "f3", type: "sketch", plane: "XY", polygon: [[50, -15], [90, -15], [90, 15], [50, 15]] },
+    {
+      id: "f3",
+      type: "sketch",
+      plane: "XY",
+      polygon: [
+        [50, -15],
+        [90, -15],
+        [90, 15],
+        [50, 15],
+      ],
+    },
     { id: "f4", type: "extrude", profile: "f3", distance: 10 },
   ],
   rollback_index: 4,
@@ -755,10 +1017,13 @@ async function openTwoBodies(page, request) {
 /// A screen point on the top edge or top face of one body: `first` is the box left of x = 30.
 async function pointOnBody(page, request, { first, what }) {
   const geometry = await rpc(request, "describe_geometry");
-  const wanted = (centre) => centre[2] === 10 && (centre[0] < 30) === first;
-  const candidates = what === "edge"
-    ? geometry.edges.flatMap((edge, index) => (wanted(edge.centre) ? [index] : []))
-    : geometry.faces.flatMap((face, index) => (face.normal && face.normal[2] === 1 && wanted(face.centre) ? [index] : []));
+  const wanted = (centre) => centre[2] === 10 && centre[0] < 30 === first;
+  const candidates =
+    what === "edge"
+      ? geometry.edges.flatMap((edge, index) => (wanted(edge.centre) ? [index] : []))
+      : geometry.faces.flatMap((face, index) =>
+          face.normal && face.normal[2] === 1 && wanted(face.centre) ? [index] : [],
+        );
   const found = await page.evaluate(
     ([list, kind]) => {
       for (const index of list) {
@@ -767,13 +1032,16 @@ async function pointOnBody(page, request, { first, what }) {
       }
       return null;
     },
-    [candidates, what]
+    [candidates, what],
   );
   expect(found).not.toBeNull();
   return found;
 }
 
-test("modify tools build on the body that was picked, not the newest one", async ({ page, request }) => {
+test("modify tools build on the body that was picked, not the newest one", async ({
+  page,
+  request,
+}) => {
   await openTwoBodies(page, request);
 
   // Fillet an edge of the first body: the base is f2, though f4 is the newest solid.
@@ -835,7 +1103,10 @@ test("Shell with several bodies and nothing picked asks for a face", async ({ pa
   await expect(page.locator("#status")).toContainText("Pick a face");
 });
 
-test("starting values scale with the part: fillet, chamfer, shell and hole", async ({ page, request }) => {
+test("starting values scale with the part: fillet, chamfer, shell and hole", async ({
+  page,
+  request,
+}) => {
   // The box is 40 x 30 x 10: 5% of 10, 8% of 10, and 15% of the top face's 30.
   const [edge] = await topEdgePoints(page, request, 1);
   await page.mouse.click(edge.x, edge.y);
@@ -854,10 +1125,25 @@ test("starting values scale with the part: fillet, chamfer, shell and hole", asy
   await page.keyboard.press("Escape");
 });
 
-test("revolve: a selected sketch turns about an axis, previews, applies, and undo removes it", async ({ page, request }) => {
+test("revolve: a selected sketch turns about an axis, previews, applies, and undo removes it", async ({
+  page,
+  request,
+}) => {
   // A rectangle off the Y axis, with no extrude: the sketch is all there is.
   await resetDocument(request, {
-    features: [{ id: "f1", type: "sketch", plane: "XY", polygon: [[10, 0], [20, 0], [20, 10], [10, 10]] }],
+    features: [
+      {
+        id: "f1",
+        type: "sketch",
+        plane: "XY",
+        polygon: [
+          [10, 0],
+          [20, 0],
+          [20, 10],
+          [10, 10],
+        ],
+      },
+    ],
     rollback_index: 1,
   });
   await page.goto("/index.html");
@@ -882,7 +1168,9 @@ test("revolve: a selected sketch turns about an axis, previews, applies, and und
   await page.waitForFunction(() => window.__tcad.timeline.length === 1, null, SLOW);
 });
 
-test("wheel zoom follows the distance scrolled, and the zoom setting scales it", async ({ page }) => {
+test("wheel zoom follows the distance scrolled, and the zoom setting scales it", async ({
+  page,
+}) => {
   await cameraStill(page);
   const distance = () =>
     page.evaluate(() => {

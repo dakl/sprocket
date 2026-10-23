@@ -21,7 +21,9 @@ test.beforeEach(async ({ page, request }) => {
   await settled(page);
 });
 
-test("Export saves the part as STL, 3MF or STEP, and the file is the part", async ({ page }, info) => {
+test("Export saves the part as STL, 3MF or STEP, and the file is the part", async ({
+  page,
+}, info) => {
   await page.locator("#tool-export").click();
   await page.screenshot({ path: info.outputPath("export-menu.png") });
   await page.keyboard.press("Escape");
@@ -49,7 +51,10 @@ test("Export of an empty document says there is nothing to export", async ({ pag
 
 const parameters = async (request) => (await rpc(request, "get_document")).parameters;
 
-test("the Parameters rows add, change and remove a named parameter, and an expression follows the others", async ({ page, request }, info) => {
+test("the Parameters rows add, change and remove a named parameter, and an expression follows the others", async ({
+  page,
+  request,
+}, info) => {
   const rows = page.locator(".parameter-row");
   // The last row adds one.
   await rows.last().locator(".browser-param.name").fill("w");
@@ -84,14 +89,24 @@ test("the Parameters rows add, change and remove a named parameter, and an expre
 });
 
 test("a parameter used in a feature moves the part when it changes", async ({ page, request }) => {
-  await rpc(request, "apply_edit", { edits: [{ op: "set_parameter", name: "height", value: 10 }, { op: "update", id: "f2", feature: { ...BOX.features[1], distance: "=height" } }] });
+  await rpc(request, "apply_edit", {
+    edits: [
+      { op: "set_parameter", name: "height", value: 10 },
+      { op: "update", id: "f2", feature: { ...BOX.features[1], distance: "=height" } },
+    ],
+  });
   await expect(page.locator(".parameter-row .browser-param").first()).toHaveValue("10", REBUILD);
   await page.locator(".parameter-row .browser-param").first().fill("25");
   await page.locator(".parameter-row .browser-param").first().press("Enter");
-  await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(40 * 30 * 25, 3);
+  await expect
+    .poll(async () => (await rpc(request, "measure")).volume, REBUILD)
+    .toBeCloseTo(40 * 30 * 25, 3);
 });
 
-test("a parameter that drives a sketch dimension moves the sketch itself, not only the extrude", async ({ page, request }, info) => {
+test("a parameter that drives a sketch dimension moves the sketch itself, not only the extrude", async ({
+  page,
+  request,
+}, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);
   const lines = [
@@ -116,16 +131,23 @@ test("a parameter that drives a sketch dimension moves the sketch itself, not on
   await rpc(request, "apply_edit", {
     edits: [
       { op: "set_parameter", name: "w", value: 40 },
-      { op: "insert", feature: { id: "f1", type: "sketch", plane: "XY", entities: lines, constraints } },
+      {
+        op: "insert",
+        feature: { id: "f1", type: "sketch", plane: "XY", entities: lines, constraints },
+      },
       { op: "insert", feature: { id: "f2", type: "extrude", profile: "f1", distance: 10 } },
     ],
   });
-  await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(8000, 3);
+  await expect
+    .poll(async () => (await rpc(request, "measure")).volume, REBUILD)
+    .toBeCloseTo(8000, 3);
   await expect(page.locator(".parameter-row .browser-param").first()).toHaveValue("40", REBUILD);
 
   await page.locator(".parameter-row .browser-param").first().fill("60");
   await page.locator(".parameter-row .browser-param").first().press("Enter");
-  await expect.poll(async () => (await rpc(request, "measure")).volume, REBUILD).toBeCloseTo(12000, 3);
+  await expect
+    .poll(async () => (await rpc(request, "measure")).volume, REBUILD)
+    .toBeCloseTo(12000, 3);
   const sketch = (await rpc(request, "get_document")).features[0];
   expect(sketch.entities.find((item) => item.id === "e1").p1).toEqual([60, 0]);
   expect(sketch.constraints.find((item) => typeof item.value === "string").value).toBe("=w");
@@ -133,7 +155,10 @@ test("a parameter that drives a sketch dimension moves the sketch itself, not on
   await page.screenshot({ path: info.outputPath("parameter-moves-sketch.png") });
 });
 
-test("the sketch panel's offset box: type the offset, pick XY, and the part sits on that plane", async ({ page, request }, info) => {
+test("the sketch panel's offset box: type the offset, pick XY, and the part sits on that plane", async ({
+  page,
+  request,
+}, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
@@ -149,11 +174,18 @@ test("the sketch panel's offset box: type the offset, pick XY, and the part sits
   };
   await click([-10, -5]);
   await click([10, 5]);
-  await expect.poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length).toBe(4);
+  await expect
+    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .toBe(4);
   await page.locator("#sketch-finish").click();
-  await page.waitForFunction(() => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1);
+  await page.waitForFunction(
+    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1,
+  );
   await settled(page);
-  expect((await rpc(request, "get_document")).features[0].plane).toEqual({ name: "XY", offset: 12 });
+  expect((await rpc(request, "get_document")).features[0].plane).toEqual({
+    name: "XY",
+    offset: 12,
+  });
 
   // Extruding 5 from a plane 12 up gives a slab from z = 12 to 17.
   const point = await page.evaluate(() => window.__tcad.regionPoint("f1", 0));
@@ -167,12 +199,17 @@ test("the sketch panel's offset box: type the offset, pick XY, and the part sits
   expect([box.min[2], box.max[2]]).toEqual([12, 17]);
 });
 
-test("the Fillet tool rounds a corner of two lines with an arc of the radius typed", async ({ page, request }, info) => {
+test("the Fillet tool rounds a corner of two lines with an arc of the radius typed", async ({
+  page,
+  request,
+}, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line");
+  await page.waitForFunction(
+    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+  );
   await cameraStill(page);
   const click = async (uv) => {
     const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
@@ -183,7 +220,9 @@ test("the Fillet tool rounds a corner of two lines with an arc of the radius typ
   await click([0, 0]);
   await click([40, 0]);
   await page.keyboard.press("Escape");
-  await expect.poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length).toBe(2);
+  await expect
+    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .toBe(2);
 
   await page.locator('#sketch-draw-panel [data-tool="fillet"]').click();
   await click([0, 0]);
@@ -207,17 +246,24 @@ test("the Fillet tool rounds a corner of two lines with an arc of the radius typ
 
   // Finish saves it to the document, arc and all.
   await page.locator("#sketch-finish").click();
-  await page.waitForFunction(() => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1);
+  await page.waitForFunction(
+    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1,
+  );
   const saved = (await rpc(request, "get_document")).features[0].entities;
   expect(saved.filter((entity) => entity.kind === "arc")).toHaveLength(1);
 });
 
-test("the Fillet tool says so when the radius does not fit, and changes nothing", async ({ page, request }) => {
+test("the Fillet tool says so when the radius does not fit, and changes nothing", async ({
+  page,
+  request,
+}) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line");
+  await page.waitForFunction(
+    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+  );
   await cameraStill(page);
   const click = async (uv) => {
     const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
@@ -239,12 +285,17 @@ test("the Fillet tool says so when the radius does not fit, and changes nothing"
   await expect(page.locator("#sketch-status")).toContainText("exactly two lines");
 });
 
-test("Mirror copies the selected shape across the line picked last, and the copy follows the original", async ({ page, request }, info) => {
+test("Mirror copies the selected shape across the line picked last, and the copy follows the original", async ({
+  page,
+  request,
+}, info) => {
   await resetDocument(request, { features: [], rollback_index: 0 });
   await page.waitForFunction(() => window.__tcad.mesh === null);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line");
+  await page.waitForFunction(
+    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+  );
   await cameraStill(page);
   const click = async (uv, shift) => {
     const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
@@ -259,7 +310,9 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   await click([10, 0]);
   await click([25, 10]);
   await page.keyboard.press("Escape");
-  await expect.poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length).toBe(2);
+  await expect
+    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .toBe(2);
 
   await page.locator('#sketch-draw-panel [data-tool="select"]').click();
   await expect(page.locator("#sketch-mirror")).toBeDisabled();
@@ -267,25 +320,37 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   await click([0, 12], true);
   await expect(page.locator("#sketch-mirror")).toBeEnabled();
   await page.locator("#sketch-mirror").click();
-  await expect.poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length).toBe(3);
+  await expect
+    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .toBe(3);
   await page.screenshot({ path: info.outputPath("mirror.png") });
 
   const sketch = await page.evaluate(() => window.__tcad.sketch);
-  const [line, original, copy] = ["e1", "e2", "e3"].map((id) => sketch.entities.find((entity) => entity.id === id));
+  const [line, original, copy] = ["e1", "e2", "e3"].map((id) =>
+    sketch.entities.find((entity) => entity.id === id),
+  );
   // Across u = 0: (10, 0) and (25, 10) land at (-10, 0) and (-25, 10).
   const mirrorU = line.p0[0];
   expect(copy.p0[0]).toBeCloseTo(2 * mirrorU - original.p0[0], 4);
   expect(copy.p0[0]).toBeCloseTo(-10, 3);
   expect(copy.p1[0]).toBeCloseTo(-25, 3);
   expect(copy.p1[1]).toBeCloseTo(10, 3);
-  expect(sketch.constraints.filter((constraint) => constraint.kind === "symmetric")).toHaveLength(2);
+  expect(sketch.constraints.filter((constraint) => constraint.kind === "symmetric")).toHaveLength(
+    2,
+  );
 
   // Hold the mirror line, then drag the original's end up: the copy's end rises with it.
   await page.locator('#sketch-draw-panel [data-tool="select"]').click();
   await page.keyboard.press("Escape");
   await click([0, 12]);
   await page.locator('#sketch-draw-panel [data-constraint="fix"]').click();
-  await expect.poll(async () => (await page.evaluate(() => window.__tcad.sketch)).constraints.some((constraint) => constraint.kind === "fix")).toBe(true);
+  await expect
+    .poll(async () =>
+      (await page.evaluate(() => window.__tcad.sketch)).constraints.some(
+        (constraint) => constraint.kind === "fix",
+      ),
+    )
+    .toBe(true);
   const grab = await page.evaluate(() => window.__tcad.sketchPoint([25, 10]));
   const drop = await page.evaluate(() => window.__tcad.sketchPoint([25, 16]));
   await page.mouse.move(grab.x, grab.y);

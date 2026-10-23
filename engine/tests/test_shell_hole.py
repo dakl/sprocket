@@ -8,7 +8,10 @@ BOX = [
     {"id": "s", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 20}},
     {"id": "b", "type": "extrude", "profile": "s", "distance": 10},
 ]
-TOP = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
+TOP = {
+    "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
+    "expected_count": 1,
+}
 
 
 def build(*features):
@@ -30,16 +33,32 @@ def test_shell_with_no_open_face_is_a_closed_hollow():
 
 
 def test_outward_shell_keeps_the_inside_and_grows_the_outside():
-    part = build({"id": "h", "type": "shell", "base": "b", "thickness": 2, "open": TOP, "outward": True})
+    part = build(
+        {
+            "id": "h",
+            "type": "shell",
+            "base": "b",
+            "thickness": 2,
+            "open": TOP,
+            "outward": True,
+        }
+    )
     assert part.volume == pytest.approx(24 * 24 * 12 - 4000)
     box = part.bounding_box()
     assert (box.min.X, box.min.Z, box.max.Z) == pytest.approx((-12, -2, 10))
 
 
 def test_shell_open_selector_must_match_faces():
-    nothing = {"select": [{"op": "faces"}, {"op": "within", "box": [100, 100, 100, 101, 101, 101]}]}
+    nothing = {
+        "select": [
+            {"op": "faces"},
+            {"op": "within", "box": [100, 100, 100, 101, 101, 101]},
+        ]
+    }
     with pytest.raises(Exception, match="matched no faces"):
-        build({"id": "h", "type": "shell", "base": "b", "thickness": 2, "open": nothing})
+        build(
+            {"id": "h", "type": "shell", "base": "b", "thickness": 2, "open": nothing}
+        )
 
 
 # ---- hole ------------------------------------------------------------------
@@ -58,8 +77,18 @@ def test_a_through_hole_goes_all_the_way():
 
 
 def test_a_counterbore_adds_the_head_cylinder():
-    part = build({**HOLE, "through": True, "kind": "counterbore", "head_diameter": 8, "head_depth": 3})
-    assert part.volume == pytest.approx(4000 - math.pi * 4 * 10 - math.pi * (16 - 4) * 3)
+    part = build(
+        {
+            **HOLE,
+            "through": True,
+            "kind": "counterbore",
+            "head_diameter": 8,
+            "head_depth": 3,
+        }
+    )
+    assert part.volume == pytest.approx(
+        4000 - math.pi * 4 * 10 - math.pi * (16 - 4) * 3
+    )
 
 
 def test_a_countersink_adds_a_90_degree_cone():
@@ -67,7 +96,11 @@ def test_a_countersink_adds_a_90_degree_cone():
     # Cone height (4 - 2) / tan(45) = 2. Frustum pi*h/3*(R^2 + Rr + r^2) less the bore inside it.
     extra = math.pi * 2 / 3 * (16 + 8 + 4) - math.pi * 4 * 2
     assert part.volume == pytest.approx(4000 - math.pi * 4 * 10 - extra)
-    assert {face.geom_type.name for face in part.faces()} == {"PLANE", "CYLINDER", "CONE"}
+    assert {face.geom_type.name for face in part.faces()} == {
+        "PLANE",
+        "CYLINDER",
+        "CONE",
+    }
 
 
 def test_holes_at_the_circle_centres_of_a_sketch_drill_against_its_normal():
@@ -82,9 +115,30 @@ def test_holes_at_the_circle_centres_of_a_sketch_drill_against_its_normal():
             {"id": "e3", "kind": "circle", "c": [5, -5], "r": 1, "construction": True},
         ],
     }
-    part = build(marks, {"id": "h", "type": "hole", "base": "b", "sketch": "m", "diameter": 4, "depth": 6})
+    part = build(
+        marks,
+        {
+            "id": "h",
+            "type": "hole",
+            "base": "b",
+            "sketch": "m",
+            "diameter": 4,
+            "depth": 6,
+        },
+    )
     assert part.volume == pytest.approx(4000 - 2 * math.pi * 4 * 6)
-    picked = build(marks, {"id": "h", "type": "hole", "base": "b", "sketch": "m", "entities": ["e3"], "diameter": 4, "depth": 6})
+    picked = build(
+        marks,
+        {
+            "id": "h",
+            "type": "hole",
+            "base": "b",
+            "sketch": "m",
+            "entities": ["e3"],
+            "diameter": 4,
+            "depth": 6,
+        },
+    )
     assert picked.volume == pytest.approx(4000 - math.pi * 4 * 6)
 
 

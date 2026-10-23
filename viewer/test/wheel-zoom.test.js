@@ -1,8 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { distanceScale, pixelDelta, clampSensitivity, MIN_SENSITIVITY, MAX_SENSITIVITY, DEFAULT_SENSITIVITY } = require("../wheel-zoom.js");
+const {
+  distanceScale,
+  pixelDelta,
+  clampSensitivity,
+  MIN_SENSITIVITY,
+  MAX_SENSITIVITY,
+  DEFAULT_SENSITIVITY,
+} = require("../wheel-zoom.js");
 
-const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
+const close = (actual, expected) =>
+  assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
 
 test("the zoom follows the distance scrolled, not the number of events", () => {
   // One 100 px event and twenty 5 px events zoom the same amount. With

@@ -47,7 +47,9 @@ def default_cache_dir() -> Path:
     return base / "sprocket" / "brep"
 
 
-def prune(cache_dir: Path, max_age: float = MAX_AGE_SECONDS, max_bytes: int = MAX_BYTES) -> int:
+def prune(
+    cache_dir: Path, max_age: float = MAX_AGE_SECONDS, max_bytes: int = MAX_BYTES
+) -> int:
     """Deletes stale `.brep` files and returns how many went. A hit touches
     its file, so mtime is the last use. Only `.brep` and `.partial` files are
     touched, so a `--cache-dir` that holds anything else keeps it."""

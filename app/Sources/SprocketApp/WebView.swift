@@ -33,28 +33,29 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         // stdout. This unbundled build has no dev tools attached, so this
         // is the only window into the page's JS.
         let debugScript = """
-        (function () {
-          function send(level, args) {
-            try {
-              window.webkit.messageHandlers.sprocket.postMessage({
-                type: "log", level: level,
-                text: Array.from(args).map(String).join(" ")
+            (function () {
+              function send(level, args) {
+                try {
+                  window.webkit.messageHandlers.sprocket.postMessage({
+                    type: "log", level: level,
+                    text: Array.from(args).map(String).join(" ")
+                  });
+                } catch (e) {}
+              }
+              ["log", "warn", "error"].forEach(function (level) {
+                const original = console[level];
+                console[level] = function () {
+                  send(level, arguments);
+                  original.apply(console, arguments);
+                };
               });
-            } catch (e) {}
-          }
-          ["log", "warn", "error"].forEach(function (level) {
-            const original = console[level];
-            console[level] = function () {
-              send(level, arguments);
-              original.apply(console, arguments);
-            };
-          });
-          window.onerror = function (message, source, lineno, colno) {
-            send("error", [message + " at " + source + ":" + lineno + ":" + colno]);
-          };
-        })();
-        """
-        self.debugScript = WKUserScript(source: debugScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+              window.onerror = function (message, source, lineno, colno) {
+                send("error", [message + " at " + source + ":" + lineno + ":" + colno]);
+              };
+            })();
+            """
+        self.debugScript = WKUserScript(
+            source: debugScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
         // The content controller holds its handler strongly, so it gets a weak proxy.
@@ -62,7 +63,8 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         bindEngine()
         installUserScripts()
         watchSettings()
-        webView.load(URLRequest(url: URL(string: "\(ViewerSchemeHandler.scheme)://viewer/index.html")!))
+        webView.load(
+            URLRequest(url: URL(string: "\(ViewerSchemeHandler.scheme)://viewer/index.html")!))
     }
 
     /// Any client's edit, the viewer's own or an agent's, arrives here as a
@@ -72,17 +74,26 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         engine.onDocumentChanged = { [weak self] revision, opened, viewerError, json in
             let errorLiteral = viewerError.map { Self.literal($0) } ?? "null"
             // The params go in as a string literal and are parsed, so nothing in them runs as code.
-            self?.run("window.reloadPart && window.reloadPart(\(revision), \(opened), \(errorLiteral), JSON.parse(\(Self.literal(json))));", "reloadPart")
+            self?.run(
+                "window.reloadPart && window.reloadPart(\(revision), \(opened), \(errorLiteral), JSON.parse(\(Self.literal(json))));",
+                "reloadPart")
         }
         engine.onNotification = { [weak self] method, json in
-            self?.run("window.__daemonNotification && window.__daemonNotification(\(Self.literal(method)), JSON.parse(\(Self.literal(json))));", method)
+            self?.run(
+                "window.__daemonNotification && window.__daemonNotification(\(Self.literal(method)), JSON.parse(\(Self.literal(json))));",
+                method)
         }
         // What an agent points at. Encoded as JSON, so nothing in it runs as code.
         engine.onHighlight = { [weak self] handles, sketches in
-            guard let data = try? JSONSerialization.data(withJSONObject: ["handles": handles, "sketches": sketches]),
-                  let json = String(data: data, encoding: .utf8)
+            guard
+                let data = try? JSONSerialization.data(withJSONObject: [
+                    "handles": handles, "sketches": sketches,
+                ]),
+                let json = String(data: data, encoding: .utf8)
             else { return }
-            self?.run("window.__highlight && window.__highlight(JSON.parse(\(Self.literal(json))));", "highlight")
+            self?.run(
+                "window.__highlight && window.__highlight(JSON.parse(\(Self.literal(json))));",
+                "highlight")
         }
     }
 
@@ -98,7 +109,9 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         controller.removeAllUserScripts()
         controller.addUserScript(debugScript)
         controller.addUserScript(
-            WKUserScript(source: "window.__sprocketSettings = \(AppSettings.viewerJSON());", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+            WKUserScript(
+                source: "window.__sprocketSettings = \(AppSettings.viewerJSON());",
+                injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
     }
 
@@ -111,7 +124,9 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         ) { [weak self] _ in
             guard let self else { return }
             installUserScripts()
-            run("window.__applySettings && window.__applySettings(\(AppSettings.viewerJSON()));", "applySettings")
+            run(
+                "window.__applySettings && window.__applySettings(\(AppSettings.viewerJSON()));",
+                "applySettings")
         }
     }
 
@@ -121,10 +136,12 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         }
     }
 
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+    func userContentController(
+        _ controller: WKUserContentController, didReceive message: WKScriptMessage
+    ) {
         guard message.name == "sprocket",
-              let body = message.body as? [String: Any],
-              let type = body["type"] as? String
+            let body = message.body as? [String: Any],
+            let type = body["type"] as? String
         else { return }
 
         if type == "log" {
@@ -139,8 +156,8 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         }
 
         guard type == "rpc",
-              let id = body["id"] as? Int,
-              let method = body["method"] as? String
+            let id = body["id"] as? Int,
+            let method = body["method"] as? String
         else { return }
         let params = body["params"] as? [String: Any] ?? [:]
         engine.call(method: method, params: params) { [weak self] result in
@@ -155,7 +172,7 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         switch result {
         case .success(let value):
             guard let data = try? JSONSerialization.data(withJSONObject: value),
-                  let json = String(data: data, encoding: .utf8)
+                let json = String(data: data, encoding: .utf8)
             else { return }
             script = "window.__rpcReply(\(id), JSON.parse(\(Self.literal(json))));"
         case .failure(let error):
@@ -174,7 +191,9 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
 private final class WeakMessageHandler: NSObject, WKScriptMessageHandler {
     weak var target: WKScriptMessageHandler?
     init(_ target: WKScriptMessageHandler) { self.target = target }
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+    func userContentController(
+        _ controller: WKUserContentController, didReceive message: WKScriptMessage
+    ) {
         target?.userContentController(controller, didReceive: message)
     }
 }
@@ -217,7 +236,9 @@ final class ViewerSchemeHandler: NSObject, WKURLSchemeHandler {
 
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
 
-    private func respond(_ task: WKURLSchemeTask, _ url: URL, _ data: Data?, type: String = "text/plain") {
+    private func respond(
+        _ task: WKURLSchemeTask, _ url: URL, _ data: Data?, type: String = "text/plain"
+    ) {
         let response = HTTPURLResponse(
             url: url,
             statusCode: data == nil ? 404 : 200,
@@ -233,7 +254,9 @@ final class ViewerSchemeHandler: NSObject, WKURLSchemeHandler {
         switch file.pathExtension {
         case "mesh": return "application/octet-stream"
         case "js", "mjs": return "text/javascript"
-        default: return UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+        default:
+            return UTType(filenameExtension: file.pathExtension)?.preferredMIMEType
+                ?? "application/octet-stream"
         }
     }
 }

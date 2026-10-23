@@ -11,17 +11,32 @@ from sprocket_engine.replay import replay
 
 # Spans 10 to 20 mm from the Z axis, 5 mm tall. A full turn gives a
 # square-section ring of volume pi * (20^2 - 10^2) * 5.
-RING_PROFILE = {"id": "f1", "type": "sketch", "plane": "XZ", "rect": {"width": 10, "height": 5, "center": [15, 2.5]}}
+RING_PROFILE = {
+    "id": "f1",
+    "type": "sketch",
+    "plane": "XZ",
+    "rect": {"width": 10, "height": 5, "center": [15, 2.5]},
+}
 FULL_TURN_VOLUME = math.pi * (20**2 - 10**2) * 5
 
 
 def document_with(revolve_feature: dict) -> dict:
-    return {"schema_version": 1, "units": {"length": "mm"}, "features": [RING_PROFILE, revolve_feature]}
+    return {
+        "schema_version": 1,
+        "units": {"length": "mm"},
+        "features": [RING_PROFILE, revolve_feature],
+    }
 
 
 @pytest.mark.parametrize("angle, fraction", [(90, 0.25), (180, 0.5), (270, 0.75)])
 def test_angle_sweeps_that_fraction_of_a_turn(angle, fraction):
-    feature = {"id": "f2", "type": "revolve", "profile": "f1", "axis": "Z", "angle": angle}
+    feature = {
+        "id": "f2",
+        "type": "revolve",
+        "profile": "f1",
+        "axis": "Z",
+        "angle": angle,
+    }
     part = replay(document_with(feature))
     assert part.volume == pytest.approx(FULL_TURN_VOLUME * fraction, rel=1e-4)
 
@@ -50,6 +65,12 @@ def test_an_explicit_axis_uses_its_origin_not_just_its_direction():
 
 
 def test_an_angle_over_a_full_turn_is_rejected():
-    feature = {"id": "f2", "type": "revolve", "profile": "f1", "axis": "Z", "angle": 540}
+    feature = {
+        "id": "f2",
+        "type": "revolve",
+        "profile": "f1",
+        "axis": "Z",
+        "angle": 540,
+    }
     with pytest.raises(Exception):
         replay(document_with(feature))

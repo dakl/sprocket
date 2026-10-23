@@ -10,7 +10,11 @@ test.before(async () => {
   gcs = await globalThis.Planegcs.createSolver();
 });
 
-const near = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, `${message || ""} expected ${expected}, got ${actual}`);
+const near = (actual, expected, message) =>
+  assert.ok(
+    Math.abs(actual - expected) < 1e-6,
+    `${message || ""} expected ${expected}, got ${actual}`,
+  );
 const nearPoint = (actual, expected) => {
   near(actual[0], expected[0]);
   near(actual[1], expected[1]);
@@ -35,7 +39,12 @@ test("trim cuts a line back to the crossing, at either end", () => {
   const startCut = tools.trimEntity(sketch, "e1", [3, 0]);
   nearPoint(byId(startCut.sketch, "e1").p0, [10, 0]);
   nearPoint(byId(startCut.sketch, "e1").p1, [30, 0]);
-  assert.ok(startCut.sketch.constraints.some((constraint) => constraint.kind === "point_on" && constraint.a === "e1.p0" && constraint.b === "e2"));
+  assert.ok(
+    startCut.sketch.constraints.some(
+      (constraint) =>
+        constraint.kind === "point_on" && constraint.a === "e1.p0" && constraint.b === "e2",
+    ),
+  );
   const endCut = tools.trimEntity(sketch, "e1", [27, 0]);
   nearPoint(byId(endCut.sketch, "e1").p1, [20, 0]);
   solved(startCut.sketch);
@@ -52,8 +61,16 @@ test("trim between two crossings splits the line, and the far end's constraints 
   nearPoint(byId(cut.sketch, "e1").p1, [10, 0]);
   nearPoint(byId(cut.sketch, "e4").p0, [20, 0]);
   nearPoint(byId(cut.sketch, "e4").p1, [30, 0]);
-  const has = (kind, fields) => cut.sketch.constraints.some((constraint) => constraint.kind === kind && Object.entries(fields).every(([key, value]) => constraint[key] === value));
-  assert.ok(has("coincident", { a: "e4.p1", b: "e3.p0" }), "the old far end's joint moved to the new piece");
+  const has = (kind, fields) =>
+    cut.sketch.constraints.some(
+      (constraint) =>
+        constraint.kind === kind &&
+        Object.entries(fields).every(([key, value]) => constraint[key] === value),
+    );
+  assert.ok(
+    has("coincident", { a: "e4.p1", b: "e3.p0" }),
+    "the old far end's joint moved to the new piece",
+  );
   assert.ok(!has("coincident", { a: "e1.p1" }), "the old end is no longer joined");
   assert.ok(has("horizontal", { e: "e1" }) && has("horizontal", { e: "e4" }));
   assert.ok(has("point_on", { a: "e1.p1", b: "e2" }) && has("point_on", { a: "e4.p0", b: "e3" }));
@@ -92,14 +109,30 @@ test("trim shortens an arc and splits it in the middle", () => {
   assert.deepEqual(middle.ids, ["e1", "e4"]);
   const [first, second] = [byId(middle.sketch, "e1"), byId(middle.sketch, "e4")];
   // The first piece runs from the arc's start (10, 0) to x = 5, the second from x = -5 to the end.
-  nearPoint([first.c[0] + first.r * Math.cos(first.a0), first.c[1] + first.r * Math.sin(first.a0)], [10, 0]);
-  nearPoint([first.c[0] + first.r * Math.cos(first.a1), first.c[1] + first.r * Math.sin(first.a1)], [5, Math.sqrt(75)]);
-  nearPoint([second.c[0] + second.r * Math.cos(second.a0), second.c[1] + second.r * Math.sin(second.a0)], [-5, Math.sqrt(75)]);
-  assert.ok(middle.sketch.constraints.some((constraint) => constraint.kind === "equal" && constraint.b === "e4"));
+  nearPoint(
+    [first.c[0] + first.r * Math.cos(first.a0), first.c[1] + first.r * Math.sin(first.a0)],
+    [10, 0],
+  );
+  nearPoint(
+    [first.c[0] + first.r * Math.cos(first.a1), first.c[1] + first.r * Math.sin(first.a1)],
+    [5, Math.sqrt(75)],
+  );
+  nearPoint(
+    [second.c[0] + second.r * Math.cos(second.a0), second.c[1] + second.r * Math.sin(second.a0)],
+    [-5, Math.sqrt(75)],
+  );
+  assert.ok(
+    middle.sketch.constraints.some(
+      (constraint) => constraint.kind === "equal" && constraint.b === "e4",
+    ),
+  );
   solved(middle.sketch);
   const startPiece = tools.trimEntity(sketch, "e1", [8, 6]);
   const arc = byId(startPiece.sketch, "e1");
-  nearPoint([arc.c[0] + arc.r * Math.cos(arc.a0), arc.c[1] + arc.r * Math.sin(arc.a0)], [5, Math.sqrt(75)]);
+  nearPoint(
+    [arc.c[0] + arc.r * Math.cos(arc.a0), arc.c[1] + arc.r * Math.sin(arc.a0)],
+    [5, Math.sqrt(75)],
+  );
 });
 
 test("trim refuses a projected reference", () => {
@@ -116,19 +149,35 @@ test("extend runs a line on to the first shape in its way, and drops the joint a
   const longer = tools.extendEntity(sketch, "e1", [9, 0]);
   nearPoint(byId(longer.sketch, "e1").p1, [25, 0]);
   nearPoint(byId(longer.sketch, "e1").p0, [0, 0]);
-  assert.ok(!longer.sketch.constraints.some((constraint) => constraint.kind === "distance"), "the old length no longer holds");
-  assert.ok(longer.sketch.constraints.some((constraint) => constraint.kind === "point_on" && constraint.a === "e1.p1" && constraint.b === "e2"));
+  assert.ok(
+    !longer.sketch.constraints.some((constraint) => constraint.kind === "distance"),
+    "the old length no longer holds",
+  );
+  assert.ok(
+    longer.sketch.constraints.some(
+      (constraint) =>
+        constraint.kind === "point_on" && constraint.a === "e1.p1" && constraint.b === "e2",
+    ),
+  );
   solved(longer.sketch);
   // The other end looks the other way, where nothing is.
   assert.throws(() => tools.extendEntity(sketch, "e1", [1, 0]), /Nothing in the way/);
 });
 
 test("extend runs an arc along its circle to a line, not back into itself", () => {
-  let sketch = model.addArc(model.emptySketch(), [10, 0], [0, 10], [Math.SQRT1_2 * 10, Math.SQRT1_2 * 10]).sketch; // a quarter circle
+  let sketch = model.addArc(
+    model.emptySketch(),
+    [10, 0],
+    [0, 10],
+    [Math.SQRT1_2 * 10, Math.SQRT1_2 * 10],
+  ).sketch; // a quarter circle
   sketch = line(sketch, [-20, 5], [20, 5]); // crosses the circle at x = +-8.66
   const longer = tools.extendEntity(sketch, "e1", [0, 10]);
   const arc = byId(longer.sketch, "e1");
-  nearPoint([arc.c[0] + arc.r * Math.cos(arc.a1), arc.c[1] + arc.r * Math.sin(arc.a1)], [-Math.sqrt(75), 5]);
+  nearPoint(
+    [arc.c[0] + arc.r * Math.cos(arc.a1), arc.c[1] + arc.r * Math.sin(arc.a1)],
+    [-Math.sqrt(75), 5],
+  );
   nearPoint([arc.c[0] + arc.r * Math.cos(arc.a0), arc.c[1] + arc.r * Math.sin(arc.a0)], [10, 0]);
   solved(longer.sketch);
 });
@@ -139,15 +188,32 @@ test("offset of a rectangle outward is a bigger rectangle that solves", () => {
   const inside = tools.offsetChain(sketch, "e1", 3);
   assert.equal(inside.ids.length, 4);
   const box = (result) => {
-    const points = result.ids.flatMap((id) => [byId(result.sketch, id).p0, byId(result.sketch, id).p1]);
-    return [Math.min(...points.map((p) => p[0])), Math.min(...points.map((p) => p[1])), Math.max(...points.map((p) => p[0])), Math.max(...points.map((p) => p[1]))];
+    const points = result.ids.flatMap((id) => [
+      byId(result.sketch, id).p0,
+      byId(result.sketch, id).p1,
+    ]);
+    return [
+      Math.min(...points.map((p) => p[0])),
+      Math.min(...points.map((p) => p[1])),
+      Math.max(...points.map((p) => p[0])),
+      Math.max(...points.map((p) => p[1])),
+    ];
   };
-  assert.deepEqual(box(inside).map((value) => Math.round(value * 1e6) / 1e6), [3, 3, 37, 17]);
+  assert.deepEqual(
+    box(inside).map((value) => Math.round(value * 1e6) / 1e6),
+    [3, 3, 37, 17],
+  );
   const outside = tools.offsetChain(sketch, "e1", -3);
-  assert.deepEqual(box(outside).map((value) => Math.round(value * 1e6) / 1e6), [-3, -3, 43, 23]);
+  assert.deepEqual(
+    box(outside).map((value) => Math.round(value * 1e6) / 1e6),
+    [-3, -3, 43, 23],
+  );
   const result = solved(outside.sketch);
   assert.equal(result.entities.length, 8);
-  assert.equal(outside.sketch.constraints.filter((constraint) => constraint.kind === "parallel").length, 4);
+  assert.equal(
+    outside.sketch.constraints.filter((constraint) => constraint.kind === "parallel").length,
+    4,
+  );
 });
 
 test("offset of a circle is a concentric circle with its own radius", () => {
@@ -163,13 +229,26 @@ test("offset of a circle is a concentric circle with its own radius", () => {
 test("offset follows a rounded corner: lines meet an arc at a tangent", () => {
   let { sketch } = model.addRectangle(model.emptySketch(), [0, 0], [40, 20]);
   // Round the corner at the end of e1 and the start of e2, whatever order the constraints name them.
-  const corner = ["e1.p1", "e2.p0"].find((reference) => sketch.constraints.some((constraint) => constraint.kind === "coincident" && [constraint.a, constraint.b].includes(reference)));
+  const corner = ["e1.p1", "e2.p0"].find((reference) =>
+    sketch.constraints.some(
+      (constraint) =>
+        constraint.kind === "coincident" && [constraint.a, constraint.b].includes(reference),
+    ),
+  );
   sketch = solved(model.addFillet(sketch, corner, 5).sketch);
   const outside = tools.offsetChain(sketch, "e1", -3);
   assert.equal(outside.ids.length, 5);
-  const arc = outside.ids.map((id) => byId(outside.sketch, id)).find((entity) => entity.kind === "arc");
+  const arc = outside.ids
+    .map((id) => byId(outside.sketch, id))
+    .find((entity) => entity.kind === "arc");
   near(arc.r, 8);
-  assert.equal(outside.sketch.constraints.filter((constraint) => constraint.kind === "tangent" && outside.ids.includes(constraint.a)).length, 2, "both joins of the arc stay smooth");
+  assert.equal(
+    outside.sketch.constraints.filter(
+      (constraint) => constraint.kind === "tangent" && outside.ids.includes(constraint.a),
+    ).length,
+    2,
+    "both joins of the arc stay smooth",
+  );
   solved(outside.sketch);
 });
 

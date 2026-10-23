@@ -32,7 +32,13 @@ import traceback
 from pathlib import Path
 
 from .cache import default_cache_dir
-from .document import Document, DocumentError, StaleRevision, reference_digest, validate_feature
+from .document import (
+    Document,
+    DocumentError,
+    StaleRevision,
+    reference_digest,
+    validate_feature,
+)
 from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
 from .ops.sketch import sketch_profiles
@@ -124,7 +130,9 @@ class Session:
                 f"feature {failed!r} does not build, and nothing before it builds a solid"
             )
         if shape is None:
-            raise DocumentError("this document builds to nothing, so there is no geometry yet")
+            raise DocumentError(
+                "this document builds to nothing, so there is no geometry yet"
+            )
         return shape
 
 
@@ -222,7 +230,12 @@ class Daemon:
             print(f"viewer files not written: {error}", flush=True)
         return error
 
-    def announce_change(self, opened: bool = False, author: str | None = None, changes: list | None = None) -> None:
+    def announce_change(
+        self,
+        opened: bool = False,
+        author: str | None = None,
+        changes: list | None = None,
+    ) -> None:
         """`opened` says the document was replaced by another, not edited. A
         viewer then drops its selection and refits the camera, and cannot
         trust that an unchanged revision number means an unchanged part.
@@ -251,8 +264,14 @@ class Daemon:
                 "viewer_error": viewer_error,
                 "author": author or (entries[-1].get("author") if entries else None),
                 # A body's id is the id of the feature that starts it.
-                "changes": changes if changes is not None else [
-                    {"action": entry.get("action"), "feature_id": entry.get("feature_id") or entry.get("body")} for entry in entries
+                "changes": changes
+                if changes is not None
+                else [
+                    {
+                        "action": entry.get("action"),
+                        "feature_id": entry.get("feature_id") or entry.get("body"),
+                    }
+                    for entry in entries
                 ],
                 # The part changed although the revision did not: a viewer
                 # must reload instead of skipping a revision it already has.
@@ -273,7 +292,12 @@ class Daemon:
         """Saves unless the file changed under the engine. Returns whether it saved."""
         document = self.session.document
         on_disk = document.file_sha256()
-        if not force and on_disk is not None and document.saved_sha256 is not None and on_disk != document.saved_sha256:
+        if (
+            not force
+            and on_disk is not None
+            and document.saved_sha256 is not None
+            and on_disk != document.saved_sha256
+        ):
             self.unsaved = True
             self._enter_conflict(on_disk)
             return False
@@ -290,7 +314,10 @@ class Daemon:
             self.recovery_path.unlink(missing_ok=True)
             return
         document = self.session.document
-        data = {"path": str(document.path) if document.path else None, "snapshot": document.snapshot()}
+        data = {
+            "path": str(document.path) if document.path else None,
+            "snapshot": document.snapshot(),
+        }
         temporary = self.recovery_path.with_name(self.recovery_path.name + ".tmp")
         temporary.write_text(json.dumps(data))
         temporary.replace(self.recovery_path)
@@ -328,12 +355,17 @@ class Daemon:
 
     def _note_references(self) -> None:
         document = self.session.document
-        self.reference_digests = {feature_id: reference_digest(path) for feature_id, path in document.reference_sources()}
+        self.reference_digests = {
+            feature_id: reference_digest(path)
+            for feature_id, path in document.reference_sources()
+        }
         self.watched_references = document.referenced_files()
 
     def watched_files(self) -> list[Path]:
         document = self.session.document
-        return ([document.path] if document.path else []) + list(self.watched_references)
+        return ([document.path] if document.path else []) + list(
+            self.watched_references
+        )
 
     def on_file_change(self, path: Path) -> str | None:
         if path == self.session.document.path:
@@ -357,7 +389,14 @@ class Daemon:
             self.session.reference_rebuilds += 1
             self.announce_change(
                 author="file",
-                changes=[{"action": "reference_changed", "feature_id": feature_id, "file": path.name} for feature_id, path in changed],
+                changes=[
+                    {
+                        "action": "reference_changed",
+                        "feature_id": feature_id,
+                        "file": path.name,
+                    }
+                    for feature_id, path in changed
+                ],
             )
             return "rebuilt"
 
@@ -379,7 +418,9 @@ class Daemon:
     def start_watching(self, interval: float = 0.25) -> None:
         if self._watcher is None:
             self._note_references()
-            self._watcher = FileWatcher(self.watched_files, self.on_file_change, interval)
+            self._watcher = FileWatcher(
+                self.watched_files, self.on_file_change, interval
+            )
             self._watcher.start()
 
     # ---- running -----------------------------------------------------------
@@ -508,7 +549,9 @@ def _handle_line(daemon: Daemon, line: bytes):
 
     handler = METHODS.get(method)
     if handler is None:
-        return _error(request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)")
+        return _error(
+            request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)"
+        )
 
     try:
         with daemon.lock:
@@ -518,7 +561,11 @@ def _handle_line(daemon: Daemon, line: bytes):
             request_id,
             STALE_REVISION,
             str(exc),
-            data={"based_on": exc.based_on, "current": exc.current, "document": _document_state(daemon)},
+            data={
+                "based_on": exc.based_on,
+                "current": exc.current,
+                "document": _document_state(daemon),
+            },
         )
     except DocumentError as exc:
         return _error(request_id, DOCUMENT_ERROR, str(exc))
@@ -562,7 +609,9 @@ def _document_state(daemon: Daemon) -> dict:
     }
 
 
-def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = False) -> dict:
+def _commit(
+    daemon: Daemon, revision: int, save: bool = True, opened: bool = False
+) -> dict:
     """What every mutating method returns, and the side effects that go with it.
 
     It rebuilds before replying, and says which feature failed if one did. An
@@ -637,7 +686,10 @@ def _switch_to(daemon: Daemon, document: Document) -> dict:
     daemon.selection = empty_selection()
     daemon.selection_keys = {}
     daemon.broadcast("selection_changed", _selection_view(daemon))
-    return {"path": str(document.path), **_commit(daemon, document.revision, save=False, opened=True)}
+    return {
+        "path": str(document.path),
+        **_commit(daemon, document.revision, save=False, opened=True),
+    }
 
 
 def _open_document(daemon: Daemon, params: dict) -> dict:
@@ -733,17 +785,27 @@ def _edit(daemon: Daemon, edits, params: dict) -> dict:
     revision = document.apply_edits(
         edits, params.get("base_revision"), params.get("author", "agent:unknown")
     )
-    if any(isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits):
+    if any(
+        isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits
+    ):
         daemon.undo_stack.append(before)
         del daemon.undo_stack[:-UNDO_LIMIT]
         daemon.redo_stack.clear()
     result = _commit(daemon, revision)
     # Fields whose "=param" expression a new number replaced, for the viewer to say so.
-    unlinked = [item for entry in document.log[-len(edits):] for item in entry.get("unlinked", [])]
+    unlinked = [
+        item
+        for entry in document.log[-len(edits) :]
+        for item in entry.get("unlinked", [])
+    ]
     if unlinked:
         result["unlinked"] = unlinked
     # Sketches a parameter moved that could not be solved again, because the solver is not installed.
-    unsolved = [item for entry in document.log[-len(edits):] for item in entry.get("unsolved", [])]
+    unsolved = [
+        item
+        for entry in document.log[-len(edits) :]
+        for item in entry.get("unsolved", [])
+    ]
     if unsolved:
         result["unsolved"] = unsolved
     return result
@@ -762,7 +824,15 @@ def _set_rollback(daemon: Daemon, params: dict) -> dict:
 
 def _set_parameter(daemon: Daemon, params: dict) -> dict:
     return _edit(
-        daemon, [{"op": "set_parameter", "name": params.get("name"), "value": params.get("value")}], params
+        daemon,
+        [
+            {
+                "op": "set_parameter",
+                "name": params.get("name"),
+                "value": params.get("value"),
+            }
+        ],
+        params,
     )
 
 
@@ -772,7 +842,10 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
     document = daemon.session.document
     before = document.snapshot()
     before["view_only"] = True
-    if params.get("base_revision") is not None and params["base_revision"] != document.revision:
+    if (
+        params.get("base_revision") is not None
+        and params["base_revision"] != document.revision
+    ):
         raise StaleRevision(params["base_revision"], document.revision)
     revision = document.set_visibility(params.get("id"), params.get("visible"))
     daemon.undo_stack.append(before)
@@ -786,18 +859,35 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
     `set_visibility` first, so it stays view state."""
     result = None
     if "visible" in params:
-        result = _set_visibility(daemon, {"id": params.get("id"), "visible": params["visible"], "base_revision": params.get("base_revision")})
-    changes = {name: params[name] for name in ("name", "color", "material") if name in params}
+        result = _set_visibility(
+            daemon,
+            {
+                "id": params.get("id"),
+                "visible": params["visible"],
+                "base_revision": params.get("base_revision"),
+            },
+        )
+    changes = {
+        name: params[name] for name in ("name", "color", "material") if name in params
+    }
     if changes:
         based = {} if result is None else {"base_revision": None}
-        result = _edit(daemon, [{"op": "set_body", "id": params.get("id"), **changes}], {**params, **based})
+        result = _edit(
+            daemon,
+            [{"op": "set_body", "id": params.get("id"), **changes}],
+            {**params, **based},
+        )
     if result is None:
         raise DocumentError("set_body needs name, color, material or visible")
     return result
 
 
 def _set_appearances(daemon: Daemon, params: dict) -> dict:
-    return _edit(daemon, [{"op": "set_appearances", "appearances": params.get("appearances")}], params)
+    return _edit(
+        daemon,
+        [{"op": "set_appearances", "appearances": params.get("appearances")}],
+        params,
+    )
 
 
 def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
@@ -824,19 +914,35 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
         except SelectorError:
             continue
         if any(item.is_same(face) for item in picked):
-            entries.append({"index": index, "color": appearance["color"], "material": appearance.get("material"), "faces": len(picked)})
+            entries.append(
+                {
+                    "index": index,
+                    "color": appearance["color"],
+                    "material": appearance.get("material"),
+                    "faces": len(picked),
+                }
+            )
     centre = list(face.center())
     selector = None
     for half in (0.05, 0.001):
-        box = [round(value - half, 6) for value in centre] + [round(value + half, 6) for value in centre]
+        box = [round(value - half, 6) for value in centre] + [
+            round(value + half, 6) for value in centre
+        ]
         candidate = {"select": [{"op": "faces"}, {"op": "within", "box": box}]}
         picked = resolve_selector(shape, candidate)
         if len(picked) == 1 and picked[0].is_same(face):
             selector = candidate
             break
     if selector is None:
-        raise DocumentError(f"no box around {handle}'s centre picks it out alone: another face shares that centre")
-    return {"handle": handle, "centre": [round(value, 6) for value in centre], "entries": entries, "selector": selector}
+        raise DocumentError(
+            f"no box around {handle}'s centre picks it out alone: another face shares that centre"
+        )
+    return {
+        "handle": handle,
+        "centre": [round(value, 6) for value in centre],
+        "entries": entries,
+        "selector": selector,
+    }
 
 
 def _get_bodies(daemon: Daemon, params: dict) -> dict:
@@ -874,14 +980,22 @@ def _check_clearance(daemon: Daemon, params: dict) -> dict:
     for part in parts:
         for reference in references:
             shared = part["shape"].intersect(reference["shape"])
-            pieces = list(shared) if isinstance(shared, ShapeList) else [shared] if shared is not None else []
+            pieces = (
+                list(shared)
+                if isinstance(shared, ShapeList)
+                else [shared]
+                if shared is not None
+                else []
+            )
             overlap = sum(piece.volume for piece in pieces)
-            pairs.append({
-                "body": part["id"],
-                "reference": reference["id"],
-                "distance": round(part["shape"].distance_to(reference["shape"]), 6),
-                "overlap_volume": round(overlap, 6),
-            })
+            pairs.append(
+                {
+                    "body": part["id"],
+                    "reference": reference["id"],
+                    "distance": round(part["shape"].distance_to(reference["shape"]), 6),
+                    "overlap_volume": round(overlap, 6),
+                }
+            )
     return {"pairs": pairs}
 
 
@@ -905,13 +1019,30 @@ def _sketch_method(action: str):
 
     def method(daemon: Daemon, params: dict) -> dict:
         edit = {"op": "edit_sketch", "action": action, "id": params.get("feature")}
-        edit.update({field: params[field] for field in SKETCH_EDIT_FIELDS[action] if field in params})
+        edit.update(
+            {
+                field: params[field]
+                for field in SKETCH_EDIT_FIELDS[action]
+                if field in params
+            }
+        )
         result = _edit(daemon, [edit], params)
         document = daemon.session.document
         entry = document.log[-1]
         sketch = document.features[entry["index"]]
-        detail = {key: entry[key] for key in ("constraint_id", "entity_id", "dof", "redundant") if key in entry}
-        return {**result, **detail, "sketch": {"entities": sketch["entities"], "constraints": sketch["constraints"]}}
+        detail = {
+            key: entry[key]
+            for key in ("constraint_id", "entity_id", "dof", "redundant")
+            if key in entry
+        }
+        return {
+            **result,
+            **detail,
+            "sketch": {
+                "entities": sketch["entities"],
+                "constraints": sketch["constraints"],
+            },
+        }
 
     return method
 
@@ -927,7 +1058,9 @@ def _step_history(daemon: Daemon, take_from: list, put_on: list, params: dict) -
     if view_only:
         current["view_only"] = True
     put_on.append(current)
-    revision = document.restore(snapshot, params.get("author", "agent:unknown"), log=not view_only)
+    revision = document.restore(
+        snapshot, params.get("author", "agent:unknown"), log=not view_only
+    )
     return {**_commit(daemon, revision), "changed": True}
 
 
@@ -954,7 +1087,11 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
     """
     document = daemon.session.document
     trial = Document(
-        document.features, document.rollback_index, document.parameters, document.revision, []
+        document.features,
+        document.rollback_index,
+        document.parameters,
+        document.revision,
+        [],
     )
     index = params.get("index", trial.rollback_index)
     trial.apply_edits(
@@ -967,7 +1104,9 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
     )
 
     try:
-        shape, ctx = replay(trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True)
+        shape, ctx = replay(
+            trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True
+        )
     except Exception as exc:
         return {
             "would_build": False,
@@ -1021,7 +1160,9 @@ def _get_profiles(daemon: Daemon, params: dict) -> dict:
     document = daemon.session.document
     feature = document.for_replay()["features"][document.index_of(feature_id)]
     if feature.get("type") != "sketch":
-        raise DocumentError(f"feature {feature_id!r} is a {feature.get('type')}, not a sketch")
+        raise DocumentError(
+            f"feature {feature_id!r} is a {feature.get('type')}, not a sketch"
+        )
     # As the build left it: a sketch with projected references is solved around them there.
     feature = daemon.session.context().features.get(feature_id, feature)
     return {"feature": feature_id, "profiles": sketch_profiles(feature)}
@@ -1043,7 +1184,10 @@ def _resolve_plane(daemon: Daemon, params: dict) -> dict:
 
 
 def _describe_geometry(daemon: Daemon, params: dict) -> dict:
-    return {**describe(daemon.session.require_shape()), "selection": _selection_view(daemon)}
+    return {
+        **describe(daemon.session.require_shape()),
+        "selection": _selection_view(daemon),
+    }
 
 
 def _face_edges(daemon: Daemon, params: dict) -> dict:
@@ -1058,7 +1202,13 @@ def _face_edges(daemon: Daemon, params: dict) -> dict:
     except ValueError as exc:
         raise DocumentError(str(exc)) from None
     bounding = face.edges()
-    return {"edges": [f"e{index}" for index, edge in enumerate(shape.edges()) if any(edge.is_same(other) for other in bounding)]}
+    return {
+        "edges": [
+            f"e{index}"
+            for index, edge in enumerate(shape.edges())
+            if any(edge.is_same(other) for other in bounding)
+        ]
+    }
 
 
 # ---- selection -------------------------------------------------------------
@@ -1074,7 +1224,9 @@ _HANDLE = re.compile(r"[fe]\d+")
 
 def _handles(params: dict) -> list[str]:
     handles = params.get("handles", [])
-    if not isinstance(handles, list) or not all(isinstance(item, str) and _HANDLE.fullmatch(item) for item in handles):
+    if not isinstance(handles, list) or not all(
+        isinstance(item, str) and _HANDLE.fullmatch(item) for item in handles
+    ):
         raise DocumentError("'handles' must be a list like ['f2', 'e7']")
     return handles
 
@@ -1083,7 +1235,11 @@ def _sketch_ids(daemon: Daemon, params: dict) -> list[str]:
     ids = params.get("sketches", [])
     if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
         raise DocumentError("'sketches' must be a list of sketch feature ids")
-    sketches = {feature["id"] for feature in daemon.session.document.features if feature.get("type") == "sketch"}
+    sketches = {
+        feature["id"]
+        for feature in daemon.session.document.features
+        if feature.get("type") == "sketch"
+    }
     return [item for item in ids if item in sketches]
 
 
@@ -1096,13 +1252,22 @@ def _selection_view(daemon: Daemon) -> dict:
     """
     document = daemon.session.document
     selection = daemon.selection
-    view = {**selection, "stale": bool(selection["handles"]) and selection["revision"] != document.revision}
+    view = {
+        **selection,
+        "stale": bool(selection["handles"])
+        and selection["revision"] != document.revision,
+    }
     if selection["handles"] and not view["stale"]:
         shape, _ = daemon.session.shape()
         if shape is not None:
             described = describe(shape)
-            items = {item["handle"]: item for item in described["faces"] + described["edges"]}
-            view["descriptions"] = [items.get(handle, {"handle": handle, "description": None}) for handle in selection["handles"]]
+            items = {
+                item["handle"]: item for item in described["faces"] + described["edges"]
+            }
+            view["descriptions"] = [
+                items.get(handle, {"handle": handle, "description": None})
+                for handle in selection["handles"]
+            ]
     return view
 
 
@@ -1112,8 +1277,14 @@ def _set_selection(daemon: Daemon, params: dict) -> dict:
     revision = params.get("revision", daemon.session.document.revision)
     if isinstance(revision, bool) or not isinstance(revision, int):
         raise DocumentError("'revision' must be an integer")
-    daemon.selection = {"handles": _handles(params), "sketches": _sketch_ids(daemon, params), "revision": revision}
-    daemon.selection_keys = _selection_keys(daemon) if revision == daemon.session.document.revision else {}
+    daemon.selection = {
+        "handles": _handles(params),
+        "sketches": _sketch_ids(daemon, params),
+        "revision": revision,
+    }
+    daemon.selection_keys = (
+        _selection_keys(daemon) if revision == daemon.session.document.revision else {}
+    )
     view = _selection_view(daemon)
     daemon.broadcast("selection_changed", view)
     return view
@@ -1174,7 +1345,11 @@ def _carry_selection(daemon: Daemon) -> None:
             carried_keys[matches[0]] = keys[handle]
     feature_ids = {feature.get("id") for feature in daemon.session.document.features}
     sketches = [item for item in selection["sketches"] if item in feature_ids]
-    daemon.selection = {"handles": list(carried_keys), "sketches": sketches, "revision": revision}
+    daemon.selection = {
+        "handles": list(carried_keys),
+        "sketches": sketches,
+        "revision": revision,
+    }
     daemon.selection_keys = carried_keys
     daemon.broadcast("selection_changed", _selection_view(daemon))
 
@@ -1185,7 +1360,7 @@ def _resolve_conflict(daemon: Daemon, params: dict) -> dict:
     stack. `keep: "mine"` writes the engine's state over the file."""
     keep = params.get("keep")
     if keep not in ("file", "mine"):
-        raise DocumentError("'keep' must be \"file\" or \"mine\"")
+        raise DocumentError('\'keep\' must be "file" or "mine"')
     if daemon.conflict is None and not daemon.unsaved:
         return {"revision": daemon.session.document.revision, "changed": False}
     if keep == "file":
@@ -1194,7 +1369,10 @@ def _resolve_conflict(daemon: Daemon, params: dict) -> dict:
         daemon.save_document(force=True)
         daemon.announce_change()
         result = {"revision": daemon.session.document.revision}
-    daemon.broadcast("document_conflict", {"path": str(daemon.session.document.path), "resolved": keep})
+    daemon.broadcast(
+        "document_conflict",
+        {"path": str(daemon.session.document.path), "resolved": keep},
+    )
     return {**result, "changed": True}
 
 
@@ -1205,7 +1383,8 @@ def _get_file_status(daemon: Daemon, params: dict) -> dict:
         "revision": document.revision,
         "unsaved": daemon.unsaved,
         "conflict": daemon.conflict,
-        "changed_on_disk": document.path is not None and document.file_sha256() not in (None, document.saved_sha256),
+        "changed_on_disk": document.path is not None
+        and document.file_sha256() not in (None, document.saved_sha256),
     }
 
 
@@ -1279,7 +1458,9 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
     if params.get("handles") is None:
         selection = _selection_view(daemon)
         if selection["stale"]:
-            raise DocumentError("the selection is stale: the part was rebuilt since it was picked")
+            raise DocumentError(
+                "the selection is stale: the part was rebuilt since it was picked"
+            )
         handles = selection["handles"]
     else:
         handles = _handles(params)
@@ -1287,9 +1468,22 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
     replayable = daemon.session.document.for_replay()
     features = replayable["features"]
     tip = last_solid_index(features, replayable["rollback_index"])
-    _, ctx = replay({"features": features, "rollback_index": tip}, cache_dir=daemon.session.cache_dir, return_context=True)
+    _, ctx = replay(
+        {"features": features, "rollback_index": tip},
+        cache_dir=daemon.session.cache_dir,
+        return_context=True,
+    )
     try:
-        return synthesize(shape, ctx, handles, [feature["id"] for feature in features[:tip] if feature.get("type") not in NOT_SOLIDS])
+        return synthesize(
+            shape,
+            ctx,
+            handles,
+            [
+                feature["id"]
+                for feature in features[:tip]
+                if feature.get("type") not in NOT_SOLIDS
+            ],
+        )
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
 
@@ -1317,14 +1511,22 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         if body["reference"]:
             continue
         faces = body["shape"].faces()
-        local = next((index for index, item in enumerate(faces) if item.is_same(face)), None)
+        local = next(
+            (index for index, item in enumerate(faces) if item.is_same(face)), None
+        )
         if local is not None:
             break
     else:
         raise DocumentError(f"{handle} is not on a part body")
     features = daemon.session.document.for_replay()["features"]
-    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
+    tip_index = next(
+        index for index, feature in enumerate(features) if feature["id"] == body["tip"]
+    )
+    candidates = [
+        feature["id"]
+        for feature in features[: tip_index + 1]
+        if feature.get("type") not in NOT_SOLIDS
+    ]
     try:
         found = synthesize(body["shape"], ctx, [f"f{local}"], candidates)
     except SelectorError as exc:
@@ -1337,7 +1539,11 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
     # The plane must hold the picked face, or the selector found another one.
     if abs((face.center() - plane.origin).dot(plane.z_dir)) > 1e-6:
         raise DocumentError(f"the selector for {handle} lands on another face")
-    return {"plane": reference, "resolved": plane_json(plane), "strategy": found["strategy"]}
+    return {
+        "plane": reference,
+        "resolved": plane_json(plane),
+        "strategy": found["strategy"],
+    }
 
 
 def _pick_axis(daemon: Daemon, params: dict) -> dict:
@@ -1360,14 +1566,22 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
     kind = "face" if handle[0] == "f" else "edge"
     for body in daemon.session.bodies():
         items = body["shape"].faces() if kind == "face" else body["shape"].edges()
-        local = next((index for index, item in enumerate(items) if item.is_same(picked)), None)
+        local = next(
+            (index for index, item in enumerate(items) if item.is_same(picked)), None
+        )
         if local is not None:
             break
     else:
         raise DocumentError(f"{handle} is not on a body")
     features = daemon.session.document.for_replay()["features"]
-    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
+    tip_index = next(
+        index for index, feature in enumerate(features) if feature["id"] == body["tip"]
+    )
+    candidates = [
+        feature["id"]
+        for feature in features[: tip_index + 1]
+        if feature.get("type") not in NOT_SOLIDS
+    ]
     try:
         found = synthesize(body["shape"], ctx, [f"{handle[0]}{local}"], candidates)
     except SelectorError as exc:
@@ -1379,7 +1593,10 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"{handle} has no axis: {exc}") from None
     return {
         "axis": reference,
-        "resolved": {"origin": [round(v, 9) for v in axis.position], "direction": [round(v, 9) for v in axis.direction]},
+        "resolved": {
+            "origin": [round(v, 9) for v in axis.position],
+            "direction": [round(v, 9) for v in axis.direction],
+        },
         "strategy": found["strategy"],
     }
 
@@ -1395,14 +1612,22 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
     ctx = daemon.session.context()
     for body in daemon.session.bodies():
         edges = body["shape"].edges()
-        local = next((index for index, item in enumerate(edges) if item.is_same(edge)), None)
+        local = next(
+            (index for index, item in enumerate(edges) if item.is_same(edge)), None
+        )
         if local is not None:
             break
     else:
         raise DocumentError(f"{handle} is not an edge of a body")
     features = daemon.session.document.for_replay()["features"]
-    tip_index = next(index for index, feature in enumerate(features) if feature["id"] == body["tip"])
-    candidates = [feature["id"] for feature in features[: tip_index + 1] if feature.get("type") not in NOT_SOLIDS]
+    tip_index = next(
+        index for index, feature in enumerate(features) if feature["id"] == body["tip"]
+    )
+    candidates = [
+        feature["id"]
+        for feature in features[: tip_index + 1]
+        if feature.get("type") not in NOT_SOLIDS
+    ]
     try:
         found = synthesize(body["shape"], ctx, [f"e{local}"], candidates)
     except SelectorError as exc:
@@ -1463,12 +1688,19 @@ def _measure(daemon: Daemon, params: dict) -> dict:
             raise DocumentError("measure takes a body or handles, not both")
         body = next((body for body in parts if body["id"] == body_id), None)
         if body is None:
-            raise DocumentError(f"no part body {body_id!r}; part bodies are {', '.join(body['id'] for body in parts) or 'none'}")
+            raise DocumentError(
+                f"no part body {body_id!r}; part bodies are {', '.join(body['id'] for body in parts) or 'none'}"
+            )
         return {"body": body_id, **measure(body["shape"])}
     measured = measure(shape, params.get("handles"))
     if not params.get("handles"):
         measured["bodies"] = [
-            {"id": body["id"], "name": body["name"], "volume": round(body["shape"].volume, 9), "area": round(body["shape"].area, 9)}
+            {
+                "id": body["id"],
+                "name": body["name"],
+                "volume": round(body["shape"].volume, 9),
+                "area": round(body["shape"].area, 9),
+            }
             for body in parts
         ]
     return measured
@@ -1490,14 +1722,21 @@ def _section(daemon: Daemon, params: dict) -> dict:
     result = {"plane": plane_json(plane), "faces": 0, "area": 0.0}
     if section is not None:
         box = section.bounding_box()
-        result.update({
-            "faces": len(section.faces()),
-            "area": round(section.area, 9),
-            "bounding_box": {"min": [round(box.min.X, 9), round(box.min.Y, 9)], "max": [round(box.max.X, 9), round(box.max.Y, 9)]},
-        })
+        result.update(
+            {
+                "faces": len(section.faces()),
+                "area": round(section.area, 9),
+                "bounding_box": {
+                    "min": [round(box.min.X, 9), round(box.min.Y, 9)],
+                    "max": [round(box.max.X, 9), round(box.max.Y, 9)],
+                },
+            }
+        )
     if params.get("path"):
         if section is None:
-            raise DocumentError("the plane misses the part, so there is no section to write")
+            raise DocumentError(
+                "the plane misses the part, so there is no section to write"
+            )
         try:
             write_section(section, params["path"])
         except ExportError as exc:
@@ -1536,21 +1775,28 @@ def _export(daemon: Daemon, params: dict) -> dict:
             write_stl(shape, params["stl"])
             written["stl"] = params["stl"]
         if params.get("stl_dir"):
-            written["stl_dir"] = [str(path) for path in write_stl_dir(bodies, params["stl_dir"])]
+            written["stl_dir"] = [
+                str(path) for path in write_stl_dir(bodies, params["stl_dir"])
+            ]
         if params.get("3mf"):
             write_3mf(bodies, params["3mf"])
             written["3mf"] = params["3mf"]
         if params.get("mesh"):
             written["mesh"] = params["mesh"]
             written["mesh_counts"] = export_mesh(
-                shape, Path(params["mesh"]), daemon.session.document.appearances, daemon.session.bodies()
+                shape,
+                Path(params["mesh"]),
+                daemon.session.document.appearances,
+                daemon.session.bodies(),
             )["counts"]
     except ExportError as exc:
         raise DocumentError(str(exc)) from None
     except OSError as exc:
         raise DocumentError(f"cannot write {exc.filename}: {exc.strerror}") from None
     if not written:
-        raise DocumentError("export needs at least one of 'step', 'stl', 'stl_dir', '3mf' or 'mesh'")
+        raise DocumentError(
+            "export needs at least one of 'step', 'stl', 'stl_dir', '3mf' or 'mesh'"
+        )
     return written
 
 
@@ -1564,7 +1810,9 @@ def _get_schemas(daemon: Daemon, params: dict) -> dict:
 
 
 def _validate_feature(daemon: Daemon, params: dict) -> dict:
-    resolved = validate_feature(params.get("feature"), daemon.session.document.resolved_parameters())
+    resolved = validate_feature(
+        params.get("feature"), daemon.session.document.resolved_parameters()
+    )
     return {"valid": True, "resolved": resolved}
 
 
@@ -1655,7 +1903,14 @@ class Client:
             self._next_id += 1
             request_id = self._next_id
             self._file.write(
-                json.dumps({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}).encode()
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "method": method,
+                        "params": params,
+                    }
+                ).encode()
                 + b"\n"
             )
             self._file.flush()
@@ -1666,7 +1921,9 @@ class Client:
                 message = json.loads(line)
                 if message.get("id") != request_id:
                     if self.on_notification and "method" in message:
-                        self.on_notification(message["method"], message.get("params", {}))
+                        self.on_notification(
+                            message["method"], message.get("params", {})
+                        )
                     continue
                 if "error" in message:
                     error = message["error"]
