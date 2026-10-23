@@ -10,7 +10,7 @@
 // The solver itself comes in as `gcs`, one long-lived instance from
 // `Planegcs.createSolver()` (see vendor/planegcs.js). It is expensive to make
 // and cheap to reuse.
-(function (root) {
+((root) => {
   const TWO_PI = 2 * Math.PI;
   const POINTS = { line: ["p0", "p1"], arc: ["c", "p0", "p1"], circle: ["c"] };
   // planegcs SolveStatus: Success 0, Converged 1, Failed 2, SuccessfulSolutionInvalid 3.
@@ -27,14 +27,18 @@
 
   function entityById(sketch, id) {
     const entity = sketch.entities.find((item) => item.id === id);
-    if (!entity) fail("no entity '" + id + "'");
+    if (!entity) {
+      fail(`no entity '${id}'`);
+    }
     return entity;
   }
 
   /// The [u, v] of a point reference such as "e1.p0". An arc's p0 and p1 are
   /// derived from its centre, radius and angles.
   function pointOf(sketch, reference) {
-    if (reference === ORIGIN) return [0, 0];
+    if (reference === ORIGIN) {
+      return [0, 0];
+    }
     const [id, name] = reference.split(".");
     const entity = entityById(sketch, id);
     if (entity.kind === "arc" && name !== "c") {
@@ -50,16 +54,20 @@
       primitives.push({ id, type: "point", x, y, fixed });
 
     point(ORIGIN, [0, 0], true);
-    for (const [id, along] of Object.entries(AXES)) point(id + "_end", along, true);
+    for (const [id, along] of Object.entries(AXES)) {
+      point(`${id}_end`, along, true);
+    }
     // Points before the shapes that use them: planegcs wants lower ids first.
     for (const entity of sketch.entities) {
-      for (const name of POINTS[entity.kind])
-        point(entity.id + "." + name, pointOf(sketch, entity.id + "." + name));
+      for (const name of POINTS[entity.kind]) {
+        point(`${entity.id}.${name}`, pointOf(sketch, `${entity.id}.${name}`));
+      }
     }
-    for (const id of Object.keys(AXES))
-      primitives.push({ id, type: "line", p1_id: ORIGIN, p2_id: id + "_end" });
+    for (const id of Object.keys(AXES)) {
+      primitives.push({ id, type: "line", p1_id: ORIGIN, p2_id: `${id}_end` });
+    }
     for (const entity of sketch.entities) {
-      const at = (name) => entity.id + "." + name;
+      const at = (name) => `${entity.id}.${name}`;
       if (entity.kind === "line") {
         primitives.push({ id: entity.id, type: "line", p1_id: at("p0"), p2_id: at("p1") });
       } else if (entity.kind === "circle") {
@@ -68,7 +76,9 @@
         // planegcs runs an arc counter-clockwise from start to end and wants
         // end_angle above start_angle.
         let end = entity.a1;
-        while (end <= entity.a0) end += TWO_PI;
+        while (end <= entity.a0) {
+          end += TWO_PI;
+        }
         primitives.push({
           id: entity.id,
           type: "arc",
@@ -79,7 +89,7 @@
           start_id: at("p0"),
           end_id: at("p1"),
         });
-        primitives.push({ id: entity.id + "#rules", type: "arc_rules", a_id: entity.id });
+        primitives.push({ id: `${entity.id}#rules`, type: "arc_rules", a_id: entity.id });
       }
     }
     return primitives;
@@ -92,9 +102,13 @@
     const b = entityById(sketch, constraint.b);
     const key = [a.kind, b.kind].join("-");
     const flipped = [b.kind, a.kind].join("-");
-    if (table[key]) return table[key](a.id, b.id);
-    if (table[flipped]) return table[flipped](b.id, a.id);
-    return fail(constraint.kind + " cannot join a " + a.kind + " and a " + b.kind);
+    if (table[key]) {
+      return table[key](a.id, b.id);
+    }
+    if (table[flipped]) {
+      return table[flipped](b.id, a.id);
+    }
+    return fail(`${constraint.kind} cannot join a ${a.kind} and a ${b.kind}`);
   }
 
   const TANGENT = {
@@ -115,8 +129,9 @@
 
   function requireKind(sketch, id, ...kinds) {
     const entity = entityById(sketch, id);
-    if (!kinds.includes(entity.kind))
-      fail("expected " + kinds.join(" or ") + " but " + id + " is a " + entity.kind);
+    if (!kinds.includes(entity.kind)) {
+      fail(`expected ${kinds.join(" or ")} but ${id} is a ${entity.kind}`);
+    }
     return entity;
   }
 
@@ -127,13 +142,14 @@
       case "coincident":
         return [{ type: "p2p_coincident", p1_id: constraint.a, p2_id: constraint.b }];
       case "point_on": {
-        if (AXES[constraint.b])
+        if (AXES[constraint.b]) {
           return [{ type: "point_on_line_pl", p_id: constraint.a, l_id: constraint.b }];
+        }
         const curve = requireKind(sketch, constraint.b, "line", "circle", "arc");
         const field = { line: "l_id", circle: "c_id", arc: "a_id" }[curve.kind];
         return [
           {
-            type: curve.kind === "line" ? "point_on_line_pl" : "point_on_" + curve.kind,
+            type: curve.kind === "line" ? "point_on_line_pl" : `point_on_${curve.kind}`,
             p_id: constraint.a,
             [field]: curve.id,
           },
@@ -143,9 +159,9 @@
       case "vertical": {
         if (constraint.e) {
           requireKind(sketch, constraint.e, "line");
-          return [{ type: kind + "_l", l_id: constraint.e }];
+          return [{ type: `${kind}_l`, l_id: constraint.e }];
         }
-        return [{ type: kind + "_pp", p1_id: constraint.a, p2_id: constraint.b }];
+        return [{ type: `${kind}_pp`, p1_id: constraint.a, p2_id: constraint.b }];
       }
       case "parallel":
         requireKind(sketch, constraint.a, "line");
@@ -163,7 +179,7 @@
         // A point is fixed where it is. A whole entity fixes all its points.
         const references = constraint.e.includes(".")
           ? [constraint.e]
-          : POINTS[entityById(sketch, constraint.e).kind].map((name) => constraint.e + "." + name);
+          : POINTS[entityById(sketch, constraint.e).kind].map((name) => `${constraint.e}.${name}`);
         const pins = references.flatMap((reference) => {
           const [x, y] = pointOf(sketch, reference);
           return [
@@ -174,8 +190,9 @@
         // Fixing a whole circle holds its size too, as Fusion does. An arc's
         // size follows from its three fixed points.
         const whole = constraint.e.includes(".") ? null : entityById(sketch, constraint.e);
-        if (whole && whole.kind === "circle")
+        if (whole && whole.kind === "circle") {
           pins.push({ type: "circle_radius", c_id: whole.id, radius: whole.r });
+        }
         return pins;
       }
       case "symmetric":
@@ -214,7 +231,7 @@
         const entity = requireKind(sketch, constraint.e, "circle", "arc");
         return [
           {
-            type: entity.kind + "_radius",
+            type: `${entity.kind}_radius`,
             [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id,
             radius: constraint.value,
           },
@@ -224,7 +241,7 @@
         const entity = requireKind(sketch, constraint.e, "circle", "arc");
         return [
           {
-            type: entity.kind + "_diameter",
+            type: `${entity.kind}_diameter`,
             [entity.kind === "circle" ? "c_id" : "a_id"]: entity.id,
             diameter: constraint.value,
           },
@@ -242,7 +259,7 @@
           },
         ];
       default:
-        return fail("unknown constraint kind '" + kind + "'");
+        return fail(`unknown constraint kind '${kind}'`);
     }
   }
 
@@ -255,15 +272,16 @@
       .filter((entity) => entity.reference)
       .flatMap((entity) => {
         const pins = POINTS[entity.kind].flatMap((name) => {
-          const reference = entity.id + "." + name;
+          const reference = `${entity.id}.${name}`;
           const [x, y] = pointOf(sketch, reference);
           return [
             { type: "coordinate_x", p_id: reference, x },
             { type: "coordinate_y", p_id: reference, y },
           ];
         });
-        if (entity.kind === "circle")
+        if (entity.kind === "circle") {
           pins.push({ type: "circle_radius", c_id: entity.id, radius: entity.r });
+        }
         return pins;
       });
   }
@@ -277,21 +295,22 @@
     const constraints = [];
     sketch.constraints.forEach((constraint, index) => {
       constraintFor(sketch, constraint).forEach((planegcs, part) => {
-        const id = "#" + index + "." + part;
+        const id = `#${index}.${part}`;
         owner[id] = index;
         constraints.push({ id, ...planegcs });
       });
     });
     lockReferences(sketch).forEach((planegcs, index) =>
-      constraints.push({ id: "#lock" + index, ...planegcs }),
+      constraints.push({ id: `#lock${index}`, ...planegcs }),
     );
     (extra || []).forEach((planegcs, index) =>
-      constraints.push({ id: "probe" + index, ...planegcs }),
+      constraints.push({ id: `probe${index}`, ...planegcs }),
     );
     const primitives = primitivesFor(sketch);
     for (const primitive of primitives) {
-      if (primitive.type === "point" && pinned && pinned.includes(primitive.id))
+      if (primitive.type === "point" && pinned && pinned.includes(primitive.id)) {
         primitive.fixed = true;
+      }
     }
     gcs.push_primitives_and_params([...primitives, ...constraints]);
     return owner;
@@ -303,7 +322,7 @@
     );
     const moved = JSON.parse(JSON.stringify(sketch));
     for (const entity of moved.entities) {
-      const at = (name) => byId.get(entity.id + "." + name);
+      const at = (name) => byId.get(`${entity.id}.${name}`);
       if (entity.kind === "line") {
         entity.p0 = [at("p0").x, at("p0").y];
         entity.p1 = [at("p1").x, at("p1").y];
@@ -316,7 +335,9 @@
         entity.r = arc.radius;
         entity.a0 = arc.start_angle;
         entity.a1 = arc.end_angle;
-        while (entity.a1 <= entity.a0) entity.a1 += TWO_PI;
+        while (entity.a1 <= entity.a0) {
+          entity.a1 += TWO_PI;
+        }
       }
     }
     return moved;
@@ -340,7 +361,7 @@
     const shift = (uv) => [uv[0] + delta[0], uv[1] + delta[1]];
     let held;
     if (name === undefined) {
-      held = entity.kind === "line" ? [id + ".p0", id + ".p1"] : [id + ".c"];
+      held = entity.kind === "line" ? [`${id}.p0`, `${id}.p1`] : [`${id}.c`];
       if (entity.kind === "line") {
         entity.p0 = shift(entity.p0);
         entity.p1 = shift(entity.p1);
@@ -364,7 +385,7 @@
   /// a caller that refuses a bad dimension has nothing to undo. `conflicting`
   /// and `redundant` are indices into sketch.constraints.
   function solve(gcs, sketch, options) {
-    const drag = options && options.drag ? dragged(sketch, options.drag) : null;
+    const drag = options?.drag ? dragged(sketch, options.drag) : null;
     const start = drag ? drag.moved : sketch;
 
     // A dragged point is held where the pointer is and everything else gives
@@ -377,7 +398,7 @@
       const status = gcs.solve();
       const conflicting = named(gcs.get_gcs_conflicting_constraints(), owner);
       const redundant = named(gcs.get_gcs_redundant_constraints(), owner);
-      if (SOLVED.includes(status) && !conflicting.length) {
+      if (SOLVED.includes(status) && conflicting.length === 0) {
         gcs.apply_solution();
         return {
           ok: true,
@@ -387,7 +408,9 @@
           redundant,
         };
       }
-      if (!pinned) return { ok: false, sketch, dof: null, conflicting, redundant };
+      if (!pinned) {
+        return { ok: false, sketch, dof: null, conflicting, redundant };
+      }
     }
   }
 
@@ -397,7 +420,9 @@
   /// such entities in black and the rest in blue.
   function entityStates(gcs, sketch) {
     const solved = solve(gcs, sketch);
-    if (!solved.ok) return { dof: null, states: {} };
+    if (!solved.ok) {
+      return { dof: null, states: {} };
+    }
     const base = solved.sketch;
     const baseDof = solved.dof;
 
@@ -417,7 +442,7 @@
     const states = {};
     for (const entity of base.entities) {
       let determined = POINTS[entity.kind].every((name) =>
-        removesNothing(pinned(entity.id + "." + name)),
+        removesNothing(pinned(`${entity.id}.${name}`)),
       );
       if (determined && entity.kind === "circle") {
         determined = removesNothing([{ type: "circle_radius", c_id: entity.id, radius: entity.r }]);
@@ -428,6 +453,9 @@
   }
 
   const api = { solve, entityStates, pointOf, POINTS, ORIGIN, AXES };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.SketchSolver = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.SketchSolver = api;
+  }
+})(globalThis);

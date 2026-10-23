@@ -2,20 +2,22 @@
 // and which of the daemon's selection to put back after a reload.
 //
 // Pure functions with no DOM, so viewer/test/live.test.js runs them under node.
-(function (root) {
+((root) => {
   /// The cue for a `document_changed` notification, or null for none.
   /// `info` carries `author` ("viewer", "agent:<name>", "file") and `changes`
   /// ([{action, feature_id}]). The person's own edits and view changes, which
   /// have no author, get no cue: they already know.
   function changeCue(info, ownAuthor) {
-    if (!info || !info.author || info.author === (ownAuthor || "viewer")) return null;
+    if (!info?.author || info.author === (ownAuthor || "viewer")) {
+      return null;
+    }
     const changes = info.changes || [];
     const reference = changes.find((change) => change.action === "reference_changed");
     const text = reference
-      ? "Rebuilt: " + (reference.file || reference.feature_id) + " changed"
+      ? `Rebuilt: ${reference.file || reference.feature_id} changed`
       : info.author === "file"
         ? "Reloaded from disk"
-        : "Updated by " + info.author;
+        : `Updated by ${info.author}`;
     const featureIds = changes.map((change) => change.feature_id).filter(Boolean);
     return { text, featureIds: Array.from(new Set(featureIds)) };
   }
@@ -24,7 +26,9 @@
   /// null when it does not belong to the part on screen. The viewer selects one
   /// face and one edge at most, so it takes the first of each.
   function selectionToApply(view, loadedRevision) {
-    if (!view || view.stale || view.revision !== loadedRevision) return null;
+    if (!view || view.stale || view.revision !== loadedRevision) {
+      return null;
+    }
     const first = (kind) => {
       const handle = (view.handles || []).find((item) => item[0] === kind);
       return handle === undefined ? null : Number(handle.slice(1));
@@ -33,6 +37,9 @@
   }
 
   const api = { changeCue, selectionToApply };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.ViewerLive = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.ViewerLive = api;
+  }
+})(globalThis);

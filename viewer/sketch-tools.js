@@ -7,7 +7,7 @@
 // A cut end stays on what cut it (a point_on constraint). Anything that held
 // the moved end, and any dimension on the shape, is dropped, because it no
 // longer says what the shape is.
-(function (root) {
+((root) => {
   const TWO_PI = 2 * Math.PI;
   const EPS = 1e-6;
   const model = () =>
@@ -49,17 +49,22 @@
     const [rx, ry] = [b[0] - a[0], b[1] - a[1]];
     const [sx, sy] = [d[0] - c[0], d[1] - c[1]];
     const cross = rx * sy - ry * sx;
-    if (Math.abs(cross) < 1e-12) return [];
+    if (Math.abs(cross) < 1e-12) {
+      return [];
+    }
     const t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / cross;
     const u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / cross;
     const slack = EPS / Math.max(Math.hypot(sx, sy), EPS);
-    if (u < -slack || u > 1 + slack) return [];
+    if (u < -slack || u > 1 + slack) {
+      return [];
+    }
     if (
       !infiniteFirst &&
       (t < -EPS / Math.max(Math.hypot(rx, ry), EPS) ||
         t > 1 + EPS / Math.max(Math.hypot(rx, ry), EPS))
-    )
+    ) {
       return [];
+    }
     return [[a[0] + t * rx, a[1] + t * ry]];
   }
 
@@ -68,11 +73,15 @@
     const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
     const [fx, fy] = [a[0] - centre[0], a[1] - centre[1]];
     const A = dx * dx + dy * dy;
-    if (A < 1e-18) return [];
+    if (A < 1e-18) {
+      return [];
+    }
     const B = 2 * (fx * dx + fy * dy);
     const C = fx * fx + fy * fy - radius * radius;
     const discriminant = B * B - 4 * A * C;
-    if (discriminant < -1e-9) return [];
+    if (discriminant < -1e-9) {
+      return [];
+    }
     const root = Math.sqrt(Math.max(0, discriminant));
     const ts = root < 1e-7 ? [-B / (2 * A)] : [(-B - root) / (2 * A), (-B + root) / (2 * A)];
     const slack = EPS / Math.sqrt(A);
@@ -83,11 +92,15 @@
 
   function circleCircle(c1, r1, c2, r2) {
     const gap = distance(c1, c2);
-    if (gap < 1e-9 || gap > r1 + r2 + 1e-9 || gap < Math.abs(r1 - r2) - 1e-9) return [];
+    if (gap < 1e-9 || gap > r1 + r2 + 1e-9 || gap < Math.abs(r1 - r2) - 1e-9) {
+      return [];
+    }
     const along = (r1 * r1 - r2 * r2 + gap * gap) / (2 * gap);
     const height = Math.sqrt(Math.max(0, r1 * r1 - along * along));
     const foot = [c1[0] + (along * (c2[0] - c1[0])) / gap, c1[1] + (along * (c2[1] - c1[1])) / gap];
-    if (height < 1e-7) return [foot];
+    if (height < 1e-7) {
+      return [foot];
+    }
     const [ox, oy] = [(-(c2[1] - c1[1]) * height) / gap, ((c2[0] - c1[0]) * height) / gap];
     return [
       [foot[0] + ox, foot[1] + oy],
@@ -101,16 +114,19 @@
 
   /// Where `first` meets `second`. With `extendFirst`, a line is taken as endless and an arc as its whole circle.
   function intersections(sketch, first, second, extendFirst) {
-    if (first.kind === "line" && second.kind === "line")
+    if (first.kind === "line" && second.kind === "line") {
       return lineLine(first.p0, first.p1, second.p0, second.p1, extendFirst);
-    if (first.kind === "line")
+    }
+    if (first.kind === "line") {
       return lineCircle(first.p0, first.p1, second.c, second.r, extendFirst).filter((point) =>
         onArc(second, point),
       );
-    if (second.kind === "line")
+    }
+    if (second.kind === "line") {
       return lineCircle(second.p0, second.p1, first.c, first.r, false).filter(
         (point) => extendFirst || onArc(first, point),
       );
+    }
     return circleCircle(first.c, first.r, second.c, second.r).filter(
       (point) => onArc(second, point) && (extendFirst || onArc(first, point)),
     );
@@ -130,10 +146,16 @@
   function surviving(sketch, id, moved) {
     const kind = entityOf(sketch, id).kind;
     return sketch.constraints.filter((constraint) => {
-      if (!mentions(constraint, id)) return true;
-      if (moved.some((reference) => mentionsPoint(constraint, reference))) return false;
+      if (!mentions(constraint, id)) {
+        return true;
+      }
+      if (moved.some((reference) => mentionsPoint(constraint, reference))) {
+        return false;
+      }
       const wholeShape = ["a", "b", "e"].some((key) => constraint[key] === id);
-      if (wholeShape) return KEEPS[kind].includes(constraint.kind);
+      if (wholeShape) {
+        return KEEPS[kind].includes(constraint.kind);
+      }
       const ownPoints = ["a", "b", "e"].filter(
         (key) => constraint[key] && idOf(constraint[key]) === id,
       ).length;
@@ -157,7 +179,9 @@
   function crossings(sketch, target) {
     const found = [];
     for (const other of sketch.entities) {
-      if (other.id === target.id) continue;
+      if (other.id === target.id) {
+        continue;
+      }
       for (const point of intersections(sketch, target, other, false)) {
         const at =
           target.kind === "line"
@@ -189,10 +213,14 @@
   /// hold what was left, or throws.
   function trimEntity(sketch, id, uv) {
     const target = entityOf(sketch, id);
-    if (!target) fail("Nothing to trim there");
-    if (target.reference) fail("A projected reference is locked, so it cannot be trimmed");
+    if (!target) {
+      fail("Nothing to trim there");
+    }
+    if (target.reference) {
+      fail("A projected reference is locked, so it cannot be trimmed");
+    }
     const hits = crossings(sketch, target);
-    if (!hits.length) {
+    if (hits.length === 0) {
       const gone = model().deleteEntities(sketch, [id]);
       return { sketch: gone, ids: [] };
     }
@@ -206,17 +234,21 @@
     const after = hits.find((hit) => hit.at > clickAt) || null;
 
     if (target.kind === "circle") {
-      if (hits.length < 2) fail("A circle needs two crossings before part of it can be trimmed");
+      if (hits.length < 2) {
+        fail("A circle needs two crossings before part of it can be trimmed");
+      }
       // The piece between two neighbouring crossings goes; the rest is an arc from the far end back round.
-      const from = before || hits[hits.length - 1];
+      const from = before || hits.at(-1);
       const to = after || hits[0];
       const start = angleAt(target.c, to.point);
       let end = angleAt(target.c, from.point);
-      while (end <= start) end += TWO_PI;
+      while (end <= start) {
+        end += TWO_PI;
+      }
       next.constraints = surviving(next, id, []);
       Object.assign(entity, { kind: "arc", a0: start, a1: end });
-      tie(next, "point_on", { a: id + ".p0", b: to.cutter });
-      tie(next, "point_on", { a: id + ".p1", b: from.cutter });
+      tie(next, "point_on", { a: `${id}.p0`, b: to.cutter });
+      tie(next, "point_on", { a: `${id}.p1`, b: from.cutter });
       return { sketch: next, ids: [id] };
     }
 
@@ -224,17 +256,25 @@
       // Split: this id keeps the part up to `before`, a new shape takes the part from `after`.
       const secondId = model().nextId(next);
       const second = { id: secondId, kind: target.kind };
-      if (target.construction) second.construction = true;
-      if (target.kind === "line") Object.assign(second, { p0: after.point, p1: [...target.p1] });
-      else
+      if (target.construction) {
+        second.construction = true;
+      }
+      if (target.kind === "line") {
+        Object.assign(second, { p0: after.point, p1: [...target.p1] });
+      } else {
         Object.assign(second, {
           c: [...target.c],
           r: target.r,
           a0: angleAt(target.c, after.point),
           a1: target.a1,
         });
-      if (target.kind === "arc") while (second.a1 <= second.a0) second.a1 += TWO_PI;
-      const oldEnd = id + ".p1";
+      }
+      if (target.kind === "arc") {
+        while (second.a1 <= second.a0) {
+          second.a1 += TWO_PI;
+        }
+      }
+      const oldEnd = `${id}.p1`;
       const carried = next.constraints.filter((constraint) => mentionsPoint(constraint, oldEnd));
       const copies = next.constraints.filter(
         (constraint) =>
@@ -243,44 +283,63 @@
           target.kind === "line",
       );
       next.constraints = surviving(next, id, [oldEnd]);
-      if (target.kind === "line") entity.p1 = before.point;
-      else entity.a1 = target.a0 + before.at;
+      if (target.kind === "line") {
+        entity.p1 = before.point;
+      } else {
+        entity.a1 = target.a0 + before.at;
+      }
       next.entities.push(second);
       for (const constraint of carried) {
         const relocated = { ...constraint, id: model().nextConstraintId(next) };
-        for (const key of ["a", "b", "e"])
-          if (relocated[key] === oldEnd) relocated[key] = secondId + ".p1";
+        for (const key of ["a", "b", "e"]) {
+          if (relocated[key] === oldEnd) {
+            relocated[key] = `${secondId}.p1`;
+          }
+        }
         // A dimension or a level that read both ends of the shape does not carry over.
         const ownRefs = ["a", "b", "e"].filter(
           (key) => constraint[key] && idOf(constraint[key]) === id,
         ).length;
-        if (ownRefs < 2) next.constraints.push(relocated);
+        if (ownRefs < 2) {
+          next.constraints.push(relocated);
+        }
       }
       for (const constraint of copies) {
         const duplicate = { ...constraint, id: model().nextConstraintId(next) };
-        for (const key of ["a", "b", "e"]) if (duplicate[key] === id) duplicate[key] = secondId;
+        for (const key of ["a", "b", "e"]) {
+          if (duplicate[key] === id) {
+            duplicate[key] = secondId;
+          }
+        }
         next.constraints.push(duplicate);
       }
       if (target.kind === "arc") {
-        tie(next, "coincident", { a: id + ".c", b: secondId + ".c" });
+        tie(next, "coincident", { a: `${id}.c`, b: `${secondId}.c` });
         tie(next, "equal", { a: id, b: secondId });
       }
-      tie(next, "point_on", { a: id + ".p1", b: before.cutter });
-      tie(next, "point_on", { a: secondId + ".p0", b: after.cutter });
+      tie(next, "point_on", { a: `${id}.p1`, b: before.cutter });
+      tie(next, "point_on", { a: `${secondId}.p0`, b: after.cutter });
       return { sketch: next, ids: [id, secondId] };
     }
-    if (!before && !after) fail("Nothing to trim there");
+    if (!before && !after) {
+      fail("Nothing to trim there");
+    }
     // One end is cut back to a crossing: `after` cuts the start, `before` cuts the end.
     const end = after ? "p0" : "p1";
     const cut = after || before;
-    next.constraints = surviving(next, id, [id + "." + end]);
-    if (target.kind === "line") entity[end] = cut.point;
-    else if (end === "p0") {
+    next.constraints = surviving(next, id, [`${id}.${end}`]);
+    if (target.kind === "line") {
+      entity[end] = cut.point;
+    } else if (end === "p0") {
       entity.a0 = angleAt(target.c, cut.point);
       entity.a1 = target.a1;
-      while (entity.a1 <= entity.a0) entity.a1 += TWO_PI;
-    } else entity.a1 = target.a0 + cut.at;
-    tie(next, "point_on", { a: id + "." + end, b: cut.cutter });
+      while (entity.a1 <= entity.a0) {
+        entity.a1 += TWO_PI;
+      }
+    } else {
+      entity.a1 = target.a0 + cut.at;
+    }
+    tie(next, "point_on", { a: `${id}.${end}`, b: cut.cutter });
     return { sketch: next, ids: [id] };
   }
 
@@ -290,13 +349,19 @@
   /// shape in its way. Throws when nothing is there to reach.
   function extendEntity(sketch, id, uv) {
     const target = entityOf(sketch, id);
-    if (!target || target.kind === "circle") fail("Click a line or an arc");
-    if (target.reference) fail("A projected reference is locked, so it cannot be extended");
-    const ends = ["p0", "p1"].map((name) => pointOf(sketch, id + "." + name));
+    if (!target || target.kind === "circle") {
+      fail("Click a line or an arc");
+    }
+    if (target.reference) {
+      fail("A projected reference is locked, so it cannot be extended");
+    }
+    const ends = ["p0", "p1"].map((name) => pointOf(sketch, `${id}.${name}`));
     const end = distance(uv, ends[0]) <= distance(uv, ends[1]) ? "p0" : "p1";
-    const best = { gap: Infinity, point: null, cutter: null, angle: 0 };
+    const best = { gap: Number.POSITIVE_INFINITY, point: null, cutter: null, angle: 0 };
     for (const other of sketch.entities) {
-      if (other.id === id) continue;
+      if (other.id === id) {
+        continue;
+      }
       for (const point of intersections(sketch, target, other, true)) {
         let gap;
         if (target.kind === "line") {
@@ -307,34 +372,48 @@
           const angle = angleAt(target.c, point);
           gap = (end === "p1" ? sweep(target.a1, angle) : sweep(angle, target.a0)) * target.r;
           // Past the far end of the arc is the arc itself, not an extension.
-          if (gap > (TWO_PI - arcSpan(target)) * target.r - EPS) gap = Infinity;
+          if (gap > (TWO_PI - arcSpan(target)) * target.r - EPS) {
+            gap = Number.POSITIVE_INFINITY;
+          }
         }
-        if (gap > EPS && gap < best.gap) Object.assign(best, { gap, point, cutter: other.id });
+        if (gap > EPS && gap < best.gap) {
+          Object.assign(best, { gap, point, cutter: other.id });
+        }
       }
     }
-    if (!best.point) fail("Nothing in the way: there is no shape for it to reach");
+    if (!best.point) {
+      fail("Nothing in the way: there is no shape for it to reach");
+    }
     const next = copy(sketch);
     const entity = entityOf(next, id);
-    next.constraints = surviving(next, id, [id + "." + end]);
-    if (target.kind === "line") entity[end] = best.point;
-    else if (end === "p0") {
+    next.constraints = surviving(next, id, [`${id}.${end}`]);
+    if (target.kind === "line") {
+      entity[end] = best.point;
+    } else if (end === "p0") {
       entity.a0 = angleAt(target.c, best.point);
       entity.a1 = target.a1;
-      while (entity.a1 <= entity.a0) entity.a1 += TWO_PI;
+      while (entity.a1 <= entity.a0) {
+        entity.a1 += TWO_PI;
+      }
     } else {
       entity.a1 = angleAt(target.c, best.point);
-      while (entity.a1 <= entity.a0) entity.a1 += TWO_PI;
+      while (entity.a1 <= entity.a0) {
+        entity.a1 += TWO_PI;
+      }
     }
-    tie(next, "point_on", { a: id + "." + end, b: best.cutter });
+    tie(next, "point_on", { a: `${id}.${end}`, b: best.cutter });
     return { sketch: next, id, end };
   }
 
   // --- Offset -------------------------------------------------------------------
 
   function endsOf(entity) {
-    if (entity.kind === "line") return [entity.p0, entity.p1];
-    if (entity.kind === "arc")
+    if (entity.kind === "line") {
+      return [entity.p0, entity.p1];
+    }
+    if (entity.kind === "arc") {
       return [onCircle(entity.c, entity.r, entity.a0), onCircle(entity.c, entity.r, entity.a1)];
+    }
     return [];
   }
 
@@ -342,9 +421,12 @@
   /// (walked from its p1 to its p0), and whether the chain closes on itself.
   function chainOf(sketch, startId) {
     const start = entityOf(sketch, startId);
-    if (!start || start.reference) fail("Click a line, an arc or a circle to offset");
-    if (start.kind === "circle")
+    if (!start || start.reference) {
+      fail("Click a line, an arc or a circle to offset");
+    }
+    if (start.kind === "circle") {
       return { links: [{ id: startId, reversed: false }], closed: false };
+    }
     const candidates = sketch.entities.filter(
       (entity) =>
         entity.kind !== "circle" &&
@@ -359,7 +441,9 @@
         const joined = candidates.filter(
           (entity) => !used.has(entity.id) && endsOf(entity).some((end) => distance(end, at) < EPS),
         );
-        if (joined.length !== 1) return links;
+        if (joined.length !== 1) {
+          return links;
+        }
         const entity = joined[0];
         const [first, last] = endsOf(entity);
         const reversed = distance(last, at) < EPS && distance(first, at) >= EPS;
@@ -370,7 +454,7 @@
     };
     const [startFirst, startLast] = endsOf(start);
     const forward = walk(startLast);
-    const lastLink = forward[forward.length - 1];
+    const lastLink = forward.at(-1);
     let closed = false;
     if (lastLink) {
       const [first, last] = endsOf(entityOf(sketch, lastLink.id));
@@ -406,7 +490,9 @@
   /// (arcs and circles keep the centre and get a radius), and are not dimensioned
   /// from the originals. Returns {sketch, ids} or throws.
   function offsetChain(sketch, startId, amount) {
-    if (!Number.isFinite(amount) || Math.abs(amount) < EPS) fail("The offset must not be zero");
+    if (!Number.isFinite(amount) || Math.abs(amount) < EPS) {
+      fail("The offset must not be zero");
+    }
     const { links, closed } = chainOf(sketch, startId);
     const oriented = links.map((link) => {
       const entity = entityOf(sketch, link.id);
@@ -423,7 +509,9 @@
       if (entity.kind === "line") {
         const [a, b] = link.reversed ? [entity.p1, entity.p0] : [entity.p0, entity.p1];
         const length = distance(a, b);
-        if (length < EPS) fail("A line with no length cannot be offset");
+        if (length < EPS) {
+          fail("A line with no length cannot be offset");
+        }
         const normal = [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
         return {
           kind: "line",
@@ -433,7 +521,9 @@
       }
       // Walked counter-clockwise the centre is on the left, so a left move shrinks the radius.
       const r = entity.r + (link.reversed ? amount : -amount);
-      if (r < EPS) fail("The offset is bigger than the radius of an arc in it");
+      if (r < EPS) {
+        fail("The offset is bigger than the radius of an arc in it");
+      }
       return { kind: "circle", c: [...entity.c], r };
     });
     const asEntity = (curve, id) =>
@@ -442,14 +532,18 @@
         : { id, kind: "circle", c: curve.c, r: curve.r };
     // Natural end of each moved curve, where a corner has no partner or the curves only touch.
     const naturalExit = (index) => {
-      if (!oriented[index].exit) return null;
+      if (!oriented[index].exit) {
+        return null;
+      }
       const curve = curves[index];
       return curve.kind === "line"
         ? curve.b
         : onCircle(curve.c, curve.r, angleAt(oriented[index].entity.c, oriented[index].exit));
     };
     const naturalEntry = (index) => {
-      if (!oriented[index].entry) return null;
+      if (!oriented[index].entry) {
+        return null;
+      }
       const curve = curves[index];
       return curve.kind === "line"
         ? curve.a
@@ -462,8 +556,9 @@
         (naturalExit(index)[0] + naturalEntry(next)[0]) / 2,
         (naturalExit(index)[1] + naturalEntry(next)[1]) / 2,
       ];
-      if (first.kind === "line" && second.kind === "line")
+      if (first.kind === "line" && second.kind === "line") {
         return lineInfinite(first, second) || guess;
+      }
       // The endless line goes first, so it is not cut to its length.
       const [line, other] =
         first.kind === "line" || second.kind !== "line" ? [first, second] : [second, first];
@@ -474,7 +569,9 @@
         asEntity(other, "y"),
         true,
       )) {
-        if (!best || distance(point, guess) < distance(best, guess)) best = point;
+        if (!best || distance(point, guess) < distance(best, guess)) {
+          best = point;
+        }
       }
       // Two curves that only touch, as a line and the arc it is tangent to do, have no crossing to find.
       return best && distance(best, guess) < Math.abs(amount) * 3 + EPS ? best : guess;
@@ -482,8 +579,9 @@
 
     const joints = [];
     const count = curves.length;
-    for (let index = 0; index < (closed ? count : count - 1); index++)
+    for (let index = 0; index < (closed ? count : count - 1); index++) {
       joints[index] = corner(index);
+    }
     const entryPoint = (index) =>
       index === 0 && !closed ? naturalEntry(0) : joints[(index - 1 + count) % count];
     const exitPoint = (index) =>
@@ -495,38 +593,49 @@
       const id = model().nextId(next);
       const curve = curves[index];
       const fresh = { id, kind: entity.kind };
-      if (entity.construction) fresh.construction = true;
+      if (entity.construction) {
+        fresh.construction = true;
+      }
       const entry = entity.kind === "circle" ? null : entryPoint(index);
       const exit = entity.kind === "circle" ? null : exitPoint(index);
       let inName = "p0";
       let outName = "p1";
-      if (entity.kind === "line") Object.assign(fresh, { p0: entry, p1: exit });
-      else if (entity.kind === "circle") Object.assign(fresh, { c: curve.c, r: curve.r });
-      else {
+      if (entity.kind === "line") {
+        Object.assign(fresh, { p0: entry, p1: exit });
+      } else if (entity.kind === "circle") {
+        Object.assign(fresh, { c: curve.c, r: curve.r });
+      } else {
         const [a, b] = [angleAt(curve.c, entry), angleAt(curve.c, exit)];
         // Walked clockwise, the stored (counter-clockwise) arc starts at the exit.
-        if (link.reversed)
+        if (link.reversed) {
           Object.assign(fresh, { c: curve.c, r: curve.r, a0: b, a1: a }),
             (inName = "p1"),
             (outName = "p0");
-        else Object.assign(fresh, { c: curve.c, r: curve.r, a0: a, a1: b });
-        while (fresh.a1 <= fresh.a0) fresh.a1 += TWO_PI;
+        } else {
+          Object.assign(fresh, { c: curve.c, r: curve.r, a0: a, a1: b });
+        }
+        while (fresh.a1 <= fresh.a0) {
+          fresh.a1 += TWO_PI;
+        }
       }
       next.entities.push(fresh);
       created.push({ id, inName, outName, from: entity.id });
     });
     created.forEach((item, index) => {
       const entity = entityOf(next, item.id);
-      if (entity.kind === "line") tie(next, "parallel", { a: item.from, b: item.id });
-      else {
-        tie(next, "coincident", { a: item.from + ".c", b: item.id + ".c" });
+      if (entity.kind === "line") {
+        tie(next, "parallel", { a: item.from, b: item.id });
+      } else {
+        tie(next, "coincident", { a: `${item.from}.c`, b: `${item.id}.c` });
         tie(next, "radius", { e: item.id, value: Math.round(entity.r * 1e6) / 1e6 });
       }
       const following = created[index + 1] || (closed ? created[0] : null);
-      if (!following || created.length === 1) return;
+      if (!following || created.length === 1) {
+        return;
+      }
       tie(next, "coincident", {
-        a: item.id + "." + item.outName,
-        b: following.id + "." + following.inName,
+        a: `${item.id}.${item.outName}`,
+        b: `${following.id}.${following.inName}`,
       });
       // A smooth join stays smooth.
       const smooth = sketch.constraints.some(
@@ -534,7 +643,9 @@
           constraint.kind === "tangent" &&
           [item.from, following.from].every((id) => [constraint.a, constraint.b].includes(id)),
       );
-      if (smooth) tie(next, "tangent", { a: item.id, b: following.id });
+      if (smooth) {
+        tie(next, "tangent", { a: item.id, b: following.id });
+      }
     });
     return { sketch: next, ids: created.map((item) => item.id) };
   }
@@ -544,12 +655,17 @@
     const [rx, ry] = [first.b[0] - first.a[0], first.b[1] - first.a[1]];
     const [sx, sy] = [second.b[0] - second.a[0], second.b[1] - second.a[1]];
     const cross = rx * sy - ry * sx;
-    if (Math.abs(cross) < 1e-9 * Math.hypot(rx, ry) * Math.hypot(sx, sy)) return null;
+    if (Math.abs(cross) < 1e-9 * Math.hypot(rx, ry) * Math.hypot(sx, sy)) {
+      return null;
+    }
     const t = ((second.a[0] - first.a[0]) * sy - (second.a[1] - first.a[1]) * sx) / cross;
     return [first.a[0] + t * rx, first.a[1] + t * ry];
   }
 
   const api = { trimEntity, extendEntity, offsetChain, chainOf, sideOf, intersections };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.SketchTools = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.SketchTools = api;
+  }
+})(globalThis);

@@ -23,7 +23,7 @@ const line = (sketch, p0, p1) => model.addLine(sketch, p0, p1).sketch;
 const byId = (sketch, id) => sketch.entities.find((entity) => entity.id === id);
 const solved = (sketch) => {
   const result = solve(gcs, sketch);
-  assert.ok(result.ok, "the sketch solves: " + JSON.stringify(result.conflicting));
+  assert.ok(result.ok, `the sketch solves: ${JSON.stringify(result.conflicting)}`);
   return result.sketch;
 };
 

@@ -3,7 +3,7 @@
 // takes plain [x, y, z] arrays, so viewer/test/handles.test.js runs it under
 // node. The two builders take THREE as an argument and are only called in the
 // browser. index.html owns the handle's state and the pointer events.
-(function (root) {
+((root) => {
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
   const cross = (a, b) => [
@@ -19,7 +19,9 @@
     const w = sub(origin, rayOrigin);
     const b = dot(direction, rayDirection);
     const denominator = 1 - b * b;
-    if (denominator < 1e-6) return null;
+    if (denominator < 1e-6) {
+      return null;
+    }
     return (b * dot(rayDirection, w) - dot(direction, w)) / denominator;
   }
 
@@ -44,7 +46,7 @@
   /// values. `worldPerPixel` is millimetres (or degrees) per screen pixel.
   const STEPS = [0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100];
   function snapStep(worldPerPixel) {
-    return STEPS.find((step) => step >= 4 * worldPerPixel) || STEPS[STEPS.length - 1];
+    return STEPS.find((step) => step >= 4 * worldPerPixel) || STEPS.at(-1);
   }
 
   /// `value` rounded to a whole number of `step`, without float residue.
@@ -56,16 +58,22 @@
   /// {min?, max?}: a positive-only field passes min, a signed one passes none.
   function clamp(value, rule) {
     let kept = value;
-    if (rule.min !== undefined) kept = Math.max(rule.min, kept);
-    if (rule.max !== undefined) kept = Math.min(rule.max, kept);
+    if (rule.min !== undefined) {
+      kept = Math.max(rule.min, kept);
+    }
+    if (rule.max !== undefined) {
+      kept = Math.min(rule.max, kept);
+    }
     return kept;
   }
 
   /// How the value box shows a number: at most two decimals, no trailing zeros.
   function format(value, unit) {
     const text = String(Math.round(value * 100) / 100);
-    if (!unit) return text;
-    return unit === "°" ? text + unit : text + " " + unit;
+    if (!unit) {
+      return text;
+    }
+    return unit === "°" ? text + unit : `${text} ${unit}`;
   }
 
   /// A unit vector square to `axis`, used when nothing better is known.
@@ -76,8 +84,8 @@
     return raw.map((value) => value / length);
   }
 
-  const HANDLE_COLOUR = 0x4aa3ff;
-  const HOVER_COLOUR = 0x9fd0ff;
+  const HANDLE_COLOUR = 0x4a_a3_ff;
+  const HOVER_COLOUR = 0x9f_d0_ff;
 
   function handleMaterial(THREE) {
     return new THREE.MeshBasicMaterial({
@@ -102,7 +110,9 @@
       new THREE.MeshBasicMaterial({ visible: false }),
     );
     grab.position.y = 0.5;
-    for (const part of [shaft, head]) part.renderOrder = 1001;
+    for (const part of [shaft, head]) {
+      part.renderOrder = 1001;
+    }
     group.add(shaft, head, grab);
     group.userData = { material, grab: [grab, head, shaft] };
     return group;
@@ -132,7 +142,9 @@
       new THREE.SphereGeometry(1, 8, 6),
       new THREE.MeshBasicMaterial({ visible: false }),
     );
-    for (const part of [arc, spoke, knob]) part.renderOrder = 1001;
+    for (const part of [arc, spoke, knob]) {
+      part.renderOrder = 1001;
+    }
     group.add(arc, spoke, knob, grab);
     group.userData = { material, arc, spoke, knob, ball: grab, grab: [grab, knob] };
     return group;
@@ -164,6 +176,9 @@
     HANDLE_COLOUR,
     HOVER_COLOUR,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.ViewerHandles = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.ViewerHandles = api;
+  }
+})(globalThis);

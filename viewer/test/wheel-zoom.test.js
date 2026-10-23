@@ -40,8 +40,8 @@ test("line and page deltas become pixels", () => {
 });
 
 test("one huge event is capped", () => {
-  assert.equal(distanceScale(100000, 0, 800, 1), distanceScale(400, 0, 800, 1));
-  assert.equal(distanceScale(-100000, 0, 800, 1), distanceScale(-400, 0, 800, 1));
+  assert.equal(distanceScale(100_000, 0, 800, 1), distanceScale(400, 0, 800, 1));
+  assert.equal(distanceScale(-100_000, 0, 800, 1), distanceScale(-400, 0, 800, 1));
 });
 
 test("sensitivity is clamped, and junk falls back to the default", () => {

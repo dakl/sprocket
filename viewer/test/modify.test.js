@@ -113,7 +113,7 @@ test("starting values scale with the part and fall back to fixed ones", () => {
   // A flat plate keeps a usable radius; a zero side does not collapse it.
   assert.equal(defaults("fillet", { box: [40, 30, 0] }).radius, 1.5);
   assert.equal(nice(0.04, 1), 0.1);
-  assert.equal(nice(NaN, 7), 7);
+  assert.equal(nice(Number.NaN, 7), 7);
 });
 
 const choices = (names) =>

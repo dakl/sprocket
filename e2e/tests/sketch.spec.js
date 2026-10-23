@@ -5,23 +5,23 @@
 // change to the camera or the panel does not break them. Every assertion on the
 // resulting part is the engine's own measurement, never the viewer's.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const EMPTY = { features: [], rollback_index: 0 };
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, EMPTY);
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad);
+  await page.waitForFunction(() => globalThis.__tcad);
   await settled(page);
 });
 
 const tool = (page, name) => page.locator(`#sketch-draw-panel [data-tool="${name}"]`);
 const constraint = (page, name) => page.locator(`#sketch-draw-panel [data-constraint="${name}"]`);
-const sketchState = (page) => page.evaluate(() => window.__tcad.sketch);
+const sketchState = (page) => page.evaluate(() => globalThis.__tcad.sketch);
 
 async function click(page, uv) {
-  const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+  const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
   await page.mouse.click(point.x, point.y);
 }
 
@@ -30,7 +30,7 @@ async function startSketch(page) {
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line",
   );
   await cameraStill(page);
 }
@@ -53,23 +53,25 @@ async function dimension(page, value) {
 async function finishSketch(page) {
   await page.locator("#sketch-finish").click();
   await page.waitForFunction(
-    () => !window.__tcad.sketch.active && window.__tcad.timeline.length > 0,
+    () => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length > 0,
   );
   await settled(page);
 }
 
 async function extrudeRegion(page, sketchId, index, distance) {
   const point = await page.evaluate(
-    ([id, at]) => window.__tcad.regionPoint(id, at),
+    ([id, at]) => globalThis.__tcad.regionPoint(id, at),
     [sketchId, index],
   );
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.regions)).toEqual([index]);
+  await expect
+    .poll(() => page.evaluate(() => globalThis.__tcad.selection.regions))
+    .toEqual([index]);
   await page.locator("#tool-extrude").click();
   await expect(page.locator("#extrude-panel")).toBeVisible();
   await page.keyboard.type(String(distance));
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => !window.__tcad.extruding);
+  await page.waitForFunction(() => !globalThis.__tcad.extruding);
   await settled(page);
 }
 
@@ -98,7 +100,7 @@ test("sketch a rectangle, dimension it, finish, and extrude it into the box the 
   expect(feature.entities).toHaveLength(4);
 
   await extrudeRegion(page, "f1", 0, 10);
-  const timeline = await page.evaluate(() => window.__tcad.timeline);
+  const timeline = await page.evaluate(() => globalThis.__tcad.timeline);
   expect(timeline.map((entry) => [entry.id, entry.type, entry.active, entry.failed])).toEqual([
     ["f1", "sketch", true, false],
     ["f2", "extrude", true, false],
@@ -115,7 +117,7 @@ test("sketch a rectangle, dimension it, finish, and extrude it into the box the 
       (size) => Math.round(size * 1000) / 1000,
     ),
   ).toEqual([40, 20, 10]);
-  expect((await page.evaluate(() => window.__tcad.mesh)).faces).toBe(6);
+  expect((await page.evaluate(() => globalThis.__tcad.mesh)).faces).toBe(6);
 });
 
 test("a circle across a side cuts three regions, and picking one extrudes just that one", async ({
@@ -130,7 +132,7 @@ test("a circle across a side cuts three regions, and picking one extrudes just t
   await expect.poll(async () => (await sketchState(page)).entities.length).toBe(5);
   await finishSketch(page);
 
-  const regions = (await page.evaluate(() => window.__tcad.regions))[0].regions;
+  const regions = (await page.evaluate(() => globalThis.__tcad.regions))[0].regions;
   expect(regions).toHaveLength(3);
   const smallest = regions.reduce(
     (best, region, index) => (region.area < regions[best].area ? index : best),
@@ -159,7 +161,7 @@ test("a circle inside a circle cuts a hole: picking the ring extrudes a tube, no
   await expect.poll(async () => (await sketchState(page)).entities.length).toBe(2);
   await finishSketch(page);
 
-  const regions = (await page.evaluate(() => window.__tcad.regions))[0].regions;
+  const regions = (await page.evaluate(() => globalThis.__tcad.regions))[0].regions;
   expect(regions).toHaveLength(2);
   const ring = regions.reduce(
     (best, region, index) => (region.area > regions[best].area ? index : best),
@@ -173,7 +175,7 @@ test("a circle inside a circle cuts a hole: picking the ring extrudes a tube, no
 });
 
 async function hover(page, uv) {
-  const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+  const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
   await page.mouse.move(point.x, point.y);
 }
 
@@ -236,12 +238,20 @@ test("the axes are hidden until the browser shows them, and only a shown axis is
   page,
 }) => {
   await startSketch(page);
-  expect(await page.evaluate(() => window.__tcad.axes)).toEqual({ x: false, y: false, z: false });
+  expect(await page.evaluate(() => globalThis.__tcad.axes)).toEqual({
+    x: false,
+    y: false,
+    z: false,
+  });
   await hover(page, [35, 0.3]);
   expect(await snapOf(page)).toBeNull();
 
   await page.locator(".browser-row", { hasText: "X axis" }).locator(".browser-eye").click();
-  expect(await page.evaluate(() => window.__tcad.axes)).toEqual({ x: true, y: false, z: false });
+  expect(await page.evaluate(() => globalThis.__tcad.axes)).toEqual({
+    x: true,
+    y: false,
+    z: false,
+  });
   await hover(page, [35, 0.2]);
   expect((await snapOf(page)).name).toBe("On X axis");
   await hover(page, [0.2, 25]);
@@ -322,8 +332,8 @@ test("dragging a corner of a rectangle keeps it a rectangle", async ({ page }) =
   await startSketch(page);
   await drawRectangle(page, [-20, -10], [20, 10]);
   await tool(page, "select").click();
-  const from = await page.evaluate(() => window.__tcad.sketchPoint([20, 10]));
-  const to = await page.evaluate(() => window.__tcad.sketchPoint([30, 16]));
+  const from = await page.evaluate(() => globalThis.__tcad.sketchPoint([20, 10]));
+  const to = await page.evaluate(() => globalThis.__tcad.sketchPoint([30, 16]));
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 4 });
@@ -373,13 +383,13 @@ test("redrawing a sketch by double-clicking its chip keeps the extrude's profile
     rollback_index: 2,
   });
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad.mesh !== null);
+  await page.waitForFunction(() => globalThis.__tcad.mesh !== null);
   await settled(page);
   expect((await rpc(request, "measure")).volume).toBeCloseTo(8000, 3);
 
   await page.locator('.timeline-chip[data-feature-id="f1"]').dblclick();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.editing === "f1",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.editing === "f1",
   );
   await cameraStill(page);
   await tool(page, "dimension").click();
@@ -387,17 +397,16 @@ test("redrawing a sketch by double-clicking its chip keeps the extrude's profile
   await dimension(page, 50);
   await finishSketch(page);
   await page.waitForFunction(() =>
-    window.__tcad.features[0].entities.some((entity) => entity.p1 && entity.p1[0] === 50),
+    globalThis.__tcad.features[0].entities.some((entity) => entity.p1 && entity.p1[0] === 50),
   );
 
   // The extrude still names e1..e4, and now builds the wider part.
   await expect
     .poll(async () => (await rpc(request, "measure")).volume)
     .toBeCloseTo(50 * 20 * 10, 3);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.failed))).toEqual([
-    false,
-    false,
-  ]);
+  expect(
+    await page.evaluate(() => globalThis.__tcad.timeline.map((entry) => entry.failed)),
+  ).toEqual([false, false]);
 });
 
 test("Escape and Cancel throw a sketch away without touching the document", async ({
@@ -407,7 +416,7 @@ test("Escape and Cancel throw a sketch away without touching the document", asyn
   await startSketch(page);
   await drawRectangle(page, [-20, -10], [20, 10]);
   await page.locator("#sketch-cancel").click();
-  await page.waitForFunction(() => !window.__tcad.sketch.active);
+  await page.waitForFunction(() => !globalThis.__tcad.sketch.active);
   expect((await rpc(request, "get_document")).features).toEqual([]);
 });
 
@@ -437,7 +446,7 @@ test("lines chained with the line tool snap level, join at their corners, and cl
   expect(Math.abs(drawn.entities[0].p0[1] - drawn.entities[0].p1[1])).toBeLessThan(1e-6);
 
   await finishSketch(page);
-  const [sketch] = await page.evaluate(() => window.__tcad.regions);
+  const [sketch] = await page.evaluate(() => globalThis.__tcad.regions);
   expect(sketch.regions).toHaveLength(1);
   expect(sketch.regions[0].bounded_by).toEqual(["e1", "e2", "e3", "e4"]);
 });
@@ -459,7 +468,7 @@ test("a three-point arc closed with a line is a half disc the engine can extrude
   await expect.poll(async () => (await sketchState(page)).entities.length).toBe(2);
   await finishSketch(page);
 
-  const [sketch] = await page.evaluate(() => window.__tcad.regions);
+  const [sketch] = await page.evaluate(() => globalThis.__tcad.regions);
   expect(sketch.regions).toHaveLength(1);
   expect(sketch.regions[0].area).toBeCloseTo((Math.PI * 100) / 2, 0);
   await extrudeRegion(page, "f1", 0, 4);
@@ -617,11 +626,11 @@ async function openSavedSketch(page, request) {
     rollback_index: 1,
   });
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad.features.length === 1);
+  await page.waitForFunction(() => globalThis.__tcad.features.length === 1);
   await settled(page);
   await page.locator('.timeline-chip[data-feature-id="f1"]').dblclick();
   await page.waitForFunction(
-    () => window.__tcad.sketch.active && window.__tcad.sketch.editing === "f1",
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.editing === "f1",
   );
   await cameraStill(page);
 }
@@ -640,7 +649,7 @@ test("a change made in an open sketch reaches the document before Finish, and Ca
   expect(saved.entities[0].p1[0]).toBeCloseTo(50, 6);
 
   await page.locator("#sketch-cancel").click();
-  await page.waitForFunction(() => !window.__tcad.sketch.active);
+  await page.waitForFunction(() => !globalThis.__tcad.sketch.active);
   await settled(page);
   const restored = (await rpc(request, "get_document")).features[0];
   expect(restored.constraints.filter((item) => item.kind === "distance")).toHaveLength(0);
@@ -705,16 +714,16 @@ test("pick a face, press Sketch: the sketch sits on that face and follows it whe
 }) => {
   await resetDocument(request, BOX);
   await page.reload();
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  await page.waitForFunction(() => globalThis.__tcad && globalThis.__tcad.mesh !== null);
   await settled(page);
 
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.face)).toBe(top);
   await page.locator("#tool-sketch").click();
-  await page.waitForFunction(() => window.__tcad.sketch.active);
+  await page.waitForFunction(() => globalThis.__tcad.sketch.active);
   await cameraStill(page);
   await drawRectangle(page, [-5, -5], [5, 5]);
   await finishSketch(page);
@@ -732,8 +741,8 @@ test("pick a face, press Sketch: the sketch sits on that face and follows it whe
     edits: [{ op: "update", id: "f2", feature: { ...BOX.features[1], distance: 25 } }],
   });
   expect((await rpc(request, "measure")).bounding_box.max[2]).toBeCloseTo(29, 6);
-  await page.waitForFunction(() => window.__tcad.features[1].distance === 25);
-  expect((await page.evaluate(() => window.__tcad.timeline)).every((entry) => !entry.failed)).toBe(
-    true,
-  );
+  await page.waitForFunction(() => globalThis.__tcad.features[1].distance === 25);
+  expect(
+    (await page.evaluate(() => globalThis.__tcad.timeline)).every((entry) => !entry.failed),
+  ).toBe(true);
 });

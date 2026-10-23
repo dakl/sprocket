@@ -4,17 +4,27 @@
 // The pure part (fieldsFor, parseField, applyField) has no DOM, so
 // viewer/test/params-form.test.js runs it under node. render() is the thin DOM
 // layer over it.
-(function (root) {
+((root) => {
   // The id names the feature and the type picks the schema, so neither is
   // something to edit in place.
   const HIDDEN = new Set(["id", "type"]);
 
   function kindOf(schema) {
-    if (schema.const !== undefined) return null;
-    if (schema.enum) return "select";
-    if (schema.type === "number" || schema.type === "integer") return "number";
-    if (schema.type === "string") return "text";
-    if (schema.type === "boolean") return "checkbox";
+    if (schema.const !== undefined) {
+      return null;
+    }
+    if (schema.enum) {
+      return "select";
+    }
+    if (schema.type === "number" || schema.type === "integer") {
+      return "number";
+    }
+    if (schema.type === "string") {
+      return "text";
+    }
+    if (schema.type === "boolean") {
+      return "checkbox";
+    }
     return "json";
   }
 
@@ -27,10 +37,16 @@
     const required = new Set(schema.required || []);
     const fields = [];
     for (const [name, property] of Object.entries(schema.properties || {})) {
-      if (HIDDEN.has(name)) continue;
+      if (HIDDEN.has(name)) {
+        continue;
+      }
       const kind = kindOf(property);
-      if (kind === null) continue;
-      if (kind === "json" && !required.has(name) && !(name in feature)) continue;
+      if (kind === null) {
+        continue;
+      }
+      if (kind === "json" && !required.has(name) && !(name in feature)) {
+        continue;
+      }
       fields.push({
         name,
         kind,
@@ -45,8 +61,12 @@
 
   /// The text a field starts with.
   function textOf(field) {
-    if (field.value === undefined) return "";
-    if (field.kind === "json") return JSON.stringify(field.value);
+    if (field.value === undefined) {
+      return "";
+    }
+    if (field.kind === "json") {
+      return JSON.stringify(field.value);
+    }
     return String(field.value);
   }
 
@@ -58,24 +78,30 @@
   function parseField(field, text) {
     const trimmed = text.trim();
     if (trimmed === "" && field.kind !== "checkbox") {
-      return field.required ? { error: field.name + " is required" } : { remove: true };
+      return field.required ? { error: `${field.name} is required` } : { remove: true };
     }
     if (field.kind === "number") {
-      if (trimmed.startsWith("=")) return { value: trimmed };
+      if (trimmed.startsWith("=")) {
+        return { value: trimmed };
+      }
       const number = Number(trimmed);
       return Number.isFinite(number)
         ? { value: number }
-        : { error: field.name + " must be a number" };
+        : { error: `${field.name} must be a number` };
     }
-    if (field.kind === "checkbox") return { value: text === "true" };
+    if (field.kind === "checkbox") {
+      return { value: text === "true" };
+    }
     if (field.kind === "json") {
       try {
         return { value: JSON.parse(trimmed) };
-      } catch (error) {
+      } catch {
         // A bare word such as Z or XY is the common case for an axis or a
         // plane, and nobody should have to type the quotes.
-        if (/^[A-Za-z_]+$/.test(trimmed)) return { value: trimmed };
-        return { error: field.name + " is not valid JSON" };
+        if (/^[A-Za-z_]+$/.test(trimmed)) {
+          return { value: trimmed };
+        }
+        return { error: `${field.name} is not valid JSON` };
       }
     }
     return { value: trimmed };
@@ -84,10 +110,15 @@
   /// A copy of `feature` with one field changed. Returns {feature} or {error}.
   function applyField(feature, field, text) {
     const parsed = parseField(field, text);
-    if (parsed.error) return { error: parsed.error };
+    if (parsed.error) {
+      return { error: parsed.error };
+    }
     const next = { ...feature };
-    if (parsed.remove) delete next[field.name];
-    else next[field.name] = parsed.value;
+    if (parsed.remove) {
+      delete next[field.name];
+    } else {
+      next[field.name] = parsed.value;
+    }
     return { feature: next };
   }
 
@@ -101,7 +132,7 @@
     const header = doc.createElement("div");
     header.className = "properties-header";
     const title = doc.createElement("span");
-    title.textContent = feature.id + " · " + feature.type;
+    title.textContent = `${feature.id} · ${feature.type}`;
     const close = doc.createElement("button");
     close.textContent = "×";
     close.title = "Close";
@@ -155,7 +186,7 @@
         input.value = textOf(field);
       }
       input.name = field.name;
-      input.dataset.testid = "field-" + field.name;
+      input.dataset.testid = `field-${field.name}`;
 
       input.addEventListener("change", () => {
         const text = field.kind === "checkbox" ? String(input.checked) : input.value;
@@ -177,6 +208,9 @@
   }
 
   const api = { fieldsFor, parseField, applyField, textOf, render };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.ParamsForm = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.ParamsForm = api;
+  }
+})(globalThis);

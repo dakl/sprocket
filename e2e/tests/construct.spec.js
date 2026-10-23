@@ -1,7 +1,7 @@
 // Construct features and the body tools: Offset plane, Axis, Point, Mirror,
 // Linear and Circular pattern, and Combine, each driven from the toolbar.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const SLOW = { timeout: 15_000 };
 
@@ -25,15 +25,17 @@ async function open(page, request, document) {
   await resetDocument(request, document);
   await page.goto("/index.html");
   await page.waitForFunction(
-    () => window.__tcad && (window.__tcad.mesh !== null || window.__tcad.timeline.length === 0),
+    () =>
+      globalThis.__tcad &&
+      (globalThis.__tcad.mesh !== null || globalThis.__tcad.timeline.length === 0),
   );
   await settled(page);
 }
 
-const modifying = (page) => page.evaluate(() => window.__tcad.modifying);
+const modifying = (page) => page.evaluate(() => globalThis.__tcad.modifying);
 const previewReady = (page) =>
   page.waitForFunction(
-    () => window.__tcad.modifying && window.__tcad.modifying.ok && window.__tcad.modifying.preview,
+    () => globalThis.__tcad.modifying?.ok && globalThis.__tcad.modifying.preview,
     null,
     SLOW,
   );
@@ -44,12 +46,12 @@ const bodyRow = (page, name) =>
 
 async function pickBody(page, name) {
   await bodyRow(page, name).click();
-  await expect.poll(() => page.evaluate(() => window.__tcad.selectedBody)).not.toBeNull();
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selectedBody)).not.toBeNull();
 }
 
 async function commit(page, count) {
   await page.keyboard.press("Enter");
-  await page.waitForFunction((n) => window.__tcad.timeline.length === n, count, SLOW);
+  await page.waitForFunction((n) => globalThis.__tcad.timeline.length === n, count, SLOW);
   await settled(page);
   await expect(page.locator("#modify-panel")).toBeHidden();
 }
@@ -66,10 +68,10 @@ test("Offset plane adds a plane feature, draws it, and a sketch can start on it"
   await page.locator("#modify-offset").fill("25");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.offset === 25 &&
-      window.__tcad.modifying.feature.plane === "XZ" &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.offset === 25 &&
+      globalThis.__tcad.modifying.feature.plane === "XZ" &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -80,10 +82,10 @@ test("Offset plane adds a plane feature, draws it, and a sketch can start on it"
   const [plane] = await features(request);
   expect(plane).toMatchObject({ id: "f1", type: "plane", plane: "XZ", offset: 25 });
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.constructs.map((item) => item.kind)))
+    .poll(() => page.evaluate(() => globalThis.__tcad.constructs.map((item) => item.kind)))
     .toEqual(["plane"]);
   // XZ's normal is -Y in this engine: the plane sits 25 mm out along it.
-  const drawn = (await page.evaluate(() => window.__tcad.constructs))[0].info;
+  const drawn = (await page.evaluate(() => globalThis.__tcad.constructs))[0].info;
   expect(Math.abs(drawn.origin[1])).toBeCloseTo(25, 6);
   await expect(page.locator("#browser-tree")).toContainText("f1 (plane)");
   await page.screenshot({ path: info.outputPath("offset-plane.png") });
@@ -91,22 +93,22 @@ test("Offset plane adds a plane feature, draws it, and a sketch can start on it"
   // A sketch on the plane feature: its button is in the plane panel.
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-construct="f1"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active);
+  await page.waitForFunction(() => globalThis.__tcad.sketch.active);
   await cameraStill(page);
   await page.locator('#sketch-draw-panel [data-tool="rectangle"]').click();
   for (const uv of [
     [0, 0],
     [10, 6],
   ]) {
-    const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
+    const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
     await page.mouse.click(point.x, point.y);
   }
   await expect
-    .poll(async () => (await page.evaluate(() => window.__tcad.sketch)).entities.length)
+    .poll(async () => (await page.evaluate(() => globalThis.__tcad.sketch)).entities.length)
     .toBe(4);
   await page.locator("#sketch-finish").click();
   await page.waitForFunction(
-    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 2,
+    () => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length === 2,
   );
   expect((await features(request))[1].plane).toEqual({ construct: "f1" });
   // The engine puts the sketch where the plane is.
@@ -121,17 +123,17 @@ test("Offset plane from a picked face starts on that face and follows it", async
   await open(page, request, { features: BOX_AND_PEG.features.slice(0, 2), rollback_index: 2 });
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.face)).toBe(top);
   await page.locator("#tool-offset-plane").click();
   await expect(page.locator("#modify-plane")).toHaveValue("face");
   await page.locator("#modify-offset").fill("5");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.offset === 5 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.offset === 5 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -139,7 +141,7 @@ test("Offset plane from a picked face starts on that face and follows it", async
   const plane = (await features(request))[2];
   expect(plane.plane.feature).toBe("f2");
   expect(plane.plane.face.select).toBeDefined();
-  expect((await page.evaluate(() => window.__tcad.constructs))[0].info.origin[2]).toBeCloseTo(
+  expect((await page.evaluate(() => globalThis.__tcad.constructs))[0].info.origin[2]).toBeCloseTo(
     15,
     6,
   );
@@ -168,9 +170,9 @@ test("Axis names a round face's axis, and a circular pattern can use it by name"
     .map((face, index) => ({ face, index }))
     .filter(({ face }) => face.kind === "CYLINDER")
     .sort((a, b) => b.face.area - a.face.area)[0].index;
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), wall);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), wall);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(wall);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.face)).toBe(wall);
   await expect(page.locator("#tool-axis")).toBeEnabled();
   await page.locator("#tool-axis").click();
   await previewReady(page);
@@ -178,7 +180,7 @@ test("Axis names a round face's axis, and a circular pattern can use it by name"
   const axis = (await features(request))[4];
   expect(axis).toMatchObject({ id: "f5", type: "axis" });
   expect(axis.axis.base).toBe("f2");
-  const drawn = (await page.evaluate(() => window.__tcad.constructs))[0].info;
+  const drawn = (await page.evaluate(() => globalThis.__tcad.constructs))[0].info;
   expect(drawn.origin.slice(0, 2)).toEqual([0, 0]);
 
   // Pattern the small pin about that axis by name: f4 is the pin's body and f2 the post.
@@ -189,10 +191,9 @@ test("Axis names a round face's axis, and a circular pattern can use it by name"
   await page.locator("#modify-count").fill("4");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.circular &&
-      window.__tcad.modifying.feature.circular.count === 4 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature?.circular &&
+      globalThis.__tcad.modifying.feature.circular.count === 4 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -210,24 +211,24 @@ test("Point fills in a picked face's centre and adds a point feature", async ({
   await open(page, request, { features: BOX_AND_PEG.features.slice(0, 2), rollback_index: 2 });
   const { faces } = await rpc(request, "describe_geometry");
   const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const point = await page.evaluate((face) => globalThis.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.selection.face)).toBe(top);
+  await expect.poll(() => page.evaluate(() => globalThis.__tcad.selection.face)).toBe(top);
   await page.locator("#tool-point").click();
   await expect(page.locator("#modify-z")).toHaveValue("10");
   await page.locator("#modify-x").fill("4");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.at[0] === 4 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.at[0] === 4 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   await commit(page, 3);
   expect((await features(request))[2]).toMatchObject({ type: "point", at: [4, 0, 10] });
   await expect
-    .poll(() => page.evaluate(() => window.__tcad.constructs.map((item) => item.kind)))
+    .poll(() => page.evaluate(() => globalThis.__tcad.constructs.map((item) => item.kind)))
     .toEqual(["point"]);
 });
 
@@ -271,9 +272,9 @@ test("Mirror can cut the copies out of another body", async ({ page, request }) 
   await page.locator("#modify-mode").selectOption("cut");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.mode === "cut" &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.mode === "cut" &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -281,7 +282,7 @@ test("Mirror can cut the copies out of another body", async ({ page, request }) 
   const found = await bodies(request);
   // The box minus the 4 x 4 x 10 tool at x = 10 and its mirror at x = -10: 12000 - 2 * 160 (the tool is as tall as the box).
   expect(found.map((body) => body.id)).toEqual(["f2"]);
-  expect(found[0].volume).toBeCloseTo(12000 - 320, 3);
+  expect(found[0].volume).toBeCloseTo(12_000 - 320, 3);
 });
 
 test("Linear pattern repeats the picked body along a direction", async ({ page, request }) => {
@@ -294,11 +295,10 @@ test("Linear pattern repeats the picked body along a direction", async ({ page, 
   await page.locator("#modify-spacing").fill("6");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.linear &&
-      window.__tcad.modifying.feature.linear.count === 3 &&
-      window.__tcad.modifying.feature.linear.spacing === 6 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature?.linear &&
+      globalThis.__tcad.modifying.feature.linear.count === 3 &&
+      globalThis.__tcad.modifying.feature.linear.spacing === 6 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -328,10 +328,9 @@ test("Circular pattern turns the picked body about an axis", async ({ page, requ
   await page.locator("#modify-count").fill("4");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.circular &&
-      window.__tcad.modifying.feature.circular.count === 4 &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature?.circular &&
+      globalThis.__tcad.modifying.feature.circular.count === 4 &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
@@ -360,16 +359,16 @@ test("Combine cuts one body from another", async ({ page, request }) => {
   await page.locator("#modify-mode").selectOption("cut");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.operation === "subtract" &&
-      window.__tcad.modifying.ok,
+      globalThis.__tcad.modifying.feature &&
+      globalThis.__tcad.modifying.feature.operation === "subtract" &&
+      globalThis.__tcad.modifying.ok,
     null,
     SLOW,
   );
   await commit(page, 5);
-  let found = await bodies(request);
+  const found = await bodies(request);
   expect(found.map((body) => body.id)).toEqual(["f2"]);
-  expect(found[0].volume).toBeCloseTo(12000 - 500, 3);
+  expect(found[0].volume).toBeCloseTo(12_000 - 500, 3);
 });
 
 test("Combine refuses the same body twice, and is off with one body", async ({ page, request }) => {
