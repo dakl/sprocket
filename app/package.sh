@@ -16,13 +16,30 @@ else
 fi
 swift build -c "$CONFIG"
 
-# The engine's version is the release version (release.yml checks the tag against it).
+# The engine's version is the release version (release.yml raises it and tags it).
 VERSION=$(grep -m1 '^version' ../engine/pyproject.toml | cut -d'"' -f2)
+
+# Only a release bundle checks for updates (Updater.swift), so a source build
+# never replaces itself with a release. The private key that matches
+# SUPublicEDKey is in the login keychain (account "sprocket") and in the
+# SPARKLE_PRIVATE_KEY secret; release.yml signs each DMG with it.
+FEED_URL="https://github.com/dakl/sprocket-releases/releases/latest/download/appcast.xml"
+PUBLIC_ED_KEY="Rra3r/uPJX+8Oh/51CVOwS3gPBcTQHkfxH3jtzlsk5c="
+UPDATE_KEYS=""
+if [ "$1" = "--bundle" ]; then
+    UPDATE_KEYS="<key>SUFeedURL</key>
+    <string>$FEED_URL</string>
+    <key>SUPublicEDKey</key>
+    <string>$PUBLIC_ED_KEY</string>"
+fi
 
 APP=".build/Sprocket.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp ".build/$CONFIG/SprocketApp" "$APP/Contents/MacOS/Sprocket"
+# The binary finds Sparkle through the @executable_path/../Frameworks rpath.
+mkdir -p "$APP/Contents/Frameworks"
+ditto ".build/$CONFIG/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 
 # Finder and the Dock read the bundle's .icns. Build it from AppIcon.png, which
 # already has the squircle and shadow (make_icon.py). macOS adds neither.
@@ -54,6 +71,9 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
+    <key>CFBundleVersion</key>
+    <string>$VERSION</string>
+    $UPDATE_KEYS
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
 </dict>
@@ -64,5 +84,11 @@ if [ "$1" = "--bundle" ]; then
     if [ "$2" = "--prune" ]; then export SPROCKET_PRUNE=1; fi
     ./bundle_engine.sh "$APP/Contents/Resources"
 fi
+
+# Ad hoc, until phase 3 of docs/PACKAGING.md signs with a Developer ID. Sparkle's
+# helpers (Autoupdate, the XPC services) are bundles inside the framework, so
+# --deep reaches them. The app is signed last, after everything inside it.
+codesign --force --deep -s - "$APP/Contents/Frameworks/Sparkle.framework"
+codesign --force -s - "$APP"
 
 echo "built $APP"
