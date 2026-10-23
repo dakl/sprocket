@@ -4008,42 +4008,20 @@ async function armModify(kind, options = {}) {
   if (needsPick && !(kind === "revolve" && toolRevolveEl.disabled)) {
     return startPick(kind);
   }
-  let base = null;
-  let scale = null;
-  if (kind !== "revolve") {
-    if (mesh.geometry.userData.bodies.length === 0) {
-      base = tipFeatureId(); // an engine that sends no body list
-    } else {
-      if (kind === "hole" && !selectedPatch) {
-        return showNotice("Click the face to drill first.");
-      }
-      const found = modifyBody(kind);
-      if (found.error) {
-        return showNotice(found.error);
-      }
-      base = found.body.tip;
-      scale = modifyScale(kind, found.body);
-    }
-    if (!base) {
-      return;
-    }
+  const based = modifyBase(kind);
+  if (!based) {
+    return;
   }
+  if (based.notice) {
+    return showNotice(based.notice);
+  }
+  const { base, scale } = based;
   const target = { base };
-  let handles = [];
-  if (kind === "revolve") {
-    if (!selectedSketch) {
-      return showNotice("Select a sketch first.");
-    }
-    target.profile = selectedSketch.id;
-  } else if (kind === "fillet" || kind === "chamfer") {
-    handles = selectedEdges.map((index) => `e${index}`);
-  } else if (kind === "hole") {
-    if (!selectedPatch) {
-      return showNotice("Click the face to drill first.");
-    }
-    target.point = selectedPatch.anchorPoint.toArray();
-    target.normal = selectedPatch.normal.toArray();
+  const picked = modifyPicks(kind, target);
+  if (picked.notice) {
+    return showNotice(picked.notice);
   }
+  let handles = picked.handles;
   const openFaces =
     kind !== "shell" ? [] : options.openFaces || (selectedPatch ? [selectedPatch.faceIndex] : []);
   if (kind === "shell") {
@@ -4092,6 +4070,52 @@ async function armModify(kind, options = {}) {
   if (modifyTool !== tool) {
     return; // cancelled while the selector was made
   }
+  openModifyPanel(kind);
+}
+
+/// The body a Modify tool builds on: {base, scale}, {notice} to show, or null
+/// when there is nothing to build on. A revolve makes a new body.
+function modifyBase(kind) {
+  if (kind === "revolve") {
+    return { base: null, scale: null };
+  }
+  if (mesh.geometry.userData.bodies.length === 0) {
+    const base = tipFeatureId(); // an engine that sends no body list
+    return base ? { base, scale: null } : null;
+  }
+  if (kind === "hole" && !selectedPatch) {
+    return { notice: "Click the face to drill first." };
+  }
+  const found = modifyBody(kind);
+  if (found.error) {
+    return { notice: found.error };
+  }
+  const base = found.body.tip;
+  const scale = modifyScale(kind, found.body);
+  return base ? { base, scale } : null;
+}
+
+/// What the tool acts on, from the current picks: fills in `target`, and
+/// returns {handles} to turn into a selector, or {notice} to show.
+function modifyPicks(kind, target) {
+  if (kind === "revolve") {
+    if (!selectedSketch) {
+      return { notice: "Select a sketch first." };
+    }
+    target.profile = selectedSketch.id;
+  } else if (kind === "fillet" || kind === "chamfer") {
+    return { handles: selectedEdges.map((index) => `e${index}`) };
+  } else if (kind === "hole") {
+    if (!selectedPatch) {
+      return { notice: "Click the face to drill first." };
+    }
+    target.point = selectedPatch.anchorPoint.toArray();
+    target.normal = selectedPatch.normal.toArray();
+  }
+  return { handles: [] };
+}
+
+function openModifyPanel(kind) {
   document.getElementById("modify-title").textContent = ViewerModify.TOOLS[kind].title;
   modifyPanelEl.style.display = "flex";
   renderModifyFields();
