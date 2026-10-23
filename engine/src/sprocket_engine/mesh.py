@@ -201,6 +201,13 @@ def _moved(points: Floats, rotation: Matrix, translation: Matrix) -> Floats:
     return (flat @ rotation.T + translation).astype(points.dtype).reshape(points.shape)
 
 
+def _turned(normals: Floats, rotation: Matrix) -> Floats:
+    # Not `_moved` with a zero translation: adding 0.0 turns -0.0 into 0.0,
+    # which changes the file's bytes though not its numbers.
+    flat = normals.reshape(-1, 3).astype(np.float64)
+    return (flat @ rotation.T).astype(normals.dtype).reshape(normals.shape)
+
+
 def _place(mesh: Mesh, location: tuple[Matrix, Matrix] | None) -> None:
     """Moves the mesh's points and turns its normals by `location`."""
     if location is None:
@@ -210,7 +217,7 @@ def _place(mesh: Mesh, location: tuple[Matrix, Matrix] | None) -> None:
         return
     mesh.vertices = _moved(mesh.vertices, rotation, translation)
     mesh.edges = _moved(mesh.edges, rotation, translation)
-    mesh.normals = _moved(mesh.normals, rotation, np.zeros(3))
+    mesh.normals = _turned(mesh.normals, rotation)
 
 
 def _concatenate(meshes: list[Mesh]) -> Mesh:
