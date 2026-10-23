@@ -16,7 +16,7 @@ else
 fi
 swift build -c "$CONFIG"
 
-# The engine's version is the release version (release.yml checks the tag against it).
+# The engine's version is the release version (release.yml raises it and tags it).
 VERSION=$(grep -m1 '^version' ../engine/pyproject.toml | cut -d'"' -f2)
 
 # Only a release bundle checks for updates (Updater.swift), so a source build
