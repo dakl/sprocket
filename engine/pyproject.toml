@@ -1,6 +1,6 @@
 [project]
 name = "sprocket-engine"
-version = "0.11.1"
+version = "0.12.1"
 description = "Sprocket's headless geometry engine: JSON op log -> build123d -> BREP"
 readme = "README.md"
 authors = [
@@ -45,7 +45,8 @@ requires = ["uv_build>=0.12.1,<0.13.0"]
 build-backend = "uv_build"
 
 # Strict on purpose, old code included: `make lint` fails until the old code
-# meets it. Ignore a rule here only when it conflicts with another one.
+# meets it. Ignore a rule here only when it conflicts with another one, or
+# when Daniel decided it is wrong for this repo; the reason sits beside it.
 [tool.ruff]
 target-version = "py312"
 
@@ -56,6 +57,9 @@ ignore = [
     "D213",   # conflicts with D212 (summary on the docstring's first line)
     "COM812", # conflicts with the formatter
     "CPY001", # a private repo with no licence header convention
+    # The docstrings here open with what a thing is or does ("A cached shape
+    # has to come back as ..."), not an imperative. Daniel's call, 2026-10-23.
+    "D401",
 ]
 
 [tool.ruff.lint.per-file-ignores]
