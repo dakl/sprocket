@@ -36,3 +36,13 @@ def row(array: Floats, index: int) -> Floats:
 def size(array: npt.NDArray[np.generic], axis: int) -> int:
     """The array's length along `axis`."""
     return int(array.shape[axis])  # pyright: ignore[reportAny]  # numpy types a shape's lengths as Any
+
+
+def float_list(array: npt.NDArray[np.float32]) -> list[float]:
+    """A 1-D float array as a list of Python floats."""
+    return array.tolist()  # pyright: ignore[reportAny]  # numpy types tolist() as Any
+
+
+def int_list(array: npt.NDArray[np.int64]) -> list[int]:
+    """A 1-D integer array as a list of Python ints."""
+    return array.tolist()  # pyright: ignore[reportAny]  # numpy types tolist() as Any

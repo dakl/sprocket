@@ -37,7 +37,7 @@ from typing import Literal, NotRequired, TypedDict, final
 
 import numpy as np
 import numpy.typing as npt
-from build123d import Compound
+from build123d import Compound, Solid
 from OCP.BRep import BRep_Tool
 from OCP.TopAbs import TopAbs_EDGE
 from OCP.TopExp import TopExp
@@ -120,7 +120,7 @@ def _pad_to_4(length: int) -> int:
     return -length % 4
 
 
-def tessellate(shape: Compound) -> Mesh:
+def tessellate(shape: Compound | Solid) -> Mesh:
     """Returns ocp-tessellate's buffer set for one body, as flat numpy arrays.
 
     ocp-tessellate nests the mesh behind a scene graph: tessellate_group
@@ -232,7 +232,7 @@ def _concatenate(meshes: list[Mesh]) -> Mesh:
     )
 
 
-def _drop_degenerate_edges(shape: Compound, mesh: Mesh) -> None:
+def _drop_degenerate_edges(shape: Compound | Solid, mesh: Mesh) -> None:
     """Removes the zero-length edges ocp-tessellate draws and build123d hides.
 
     A sphere's pole or a cone's apex is a degenerate edge: a B-rep edge with no

@@ -116,7 +116,7 @@ def draft_failure_face(error: DraftAngleError) -> Face | None:
     return face if isinstance(face, Face) else None
 
 
-def distance_between(a: Face | Edge, b: Face | Edge) -> float:
+def distance_between(a: Face | Edge | Compound, b: Face | Edge | Compound) -> float:
     """Return the closest the two shapes come."""
     return a.distance_to(b)  # pyright: ignore[reportUnknownMemberType]  # takes a bare Shape
 
@@ -151,7 +151,9 @@ class SceneNode(TypedDict):
     parts: NotRequired[list["SceneNode"]]
 
 
-def tessellate_group(shape: Compound) -> tuple[list[RawInstance], SceneNode]:
+def tessellate_group(
+    shape: Compound | Solid,
+) -> tuple[list[RawInstance], SceneNode]:
     """Return ocp-tessellate's buffers for `shape`, and the scene tree that places them."""
     instances, scene, _states = _tessellate.tessellate_group(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]  # returns bare lists and dicts
         *_tessellate.to_ocpgroup(shape)

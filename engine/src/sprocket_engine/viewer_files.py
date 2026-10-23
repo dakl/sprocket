@@ -8,18 +8,53 @@ viewer sees cannot depend on which one is running.
 
 import json
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol, cast
 
-from .document import resolve_value
-from .mesh import export_mesh
-from .ops import REGISTRY
-from .ops.construct import CONSTRUCT_TYPES, construct_geometry
-from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
-from .ops.thread import thread_geometry
-from .sketch_reference import has_references
+from build123d import Compound
+
+from sprocket_engine.context import Body, Context
+from sprocket_engine.document import Document, resolve_object
+from sprocket_engine.mesh import export_mesh
+from sprocket_engine.model import JSON, JSONObject, ThreadFeature, sketch_feature
+from sprocket_engine.ops import REGISTRY
+from sprocket_engine.ops.construct import construct_feature, construct_geometry
+from sprocket_engine.ops.sketch import (
+    plane_json,
+    plane_ref,
+    resolve_plane,
+    sketch_entities,
+    sketch_profiles,
+)
+from sprocket_engine.ops.thread import thread_geometry
+from sprocket_engine.sketch_reference import has_references
 
 
-def features_summary(document, failed_feature: str | None, ctx=None) -> list[dict]:
+class ViewerSession(Protocol):
+    """What these functions read off the daemon's session (rpc.Session)."""
+
+    @property
+    def document(self) -> Document:
+        """The open document."""
+        ...
+
+    def shape(self) -> tuple[Compound | None, str | None]:
+        """The built part and the feature that failed, if one did."""
+        ...
+
+    def bodies(self) -> list[Body]:
+        """The built bodies with their settings."""
+        ...
+
+    def context(self) -> Context:
+        """The replay context of the current build."""
+        ...
+
+
+def features_summary(
+    document: Document, failed_feature: str | None, ctx: Context | None = None
+) -> list[dict[str, object]]:
     """The timeline as the viewer reads it.
 
     Each entry carries its full feature twice. `feature` is the raw form, with
@@ -31,55 +66,61 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
         parameters = document.resolved_parameters()
     except Exception:
         parameters = {}
-    entries = []
+    entries: list[dict[str, object]] = []
     for index, raw in enumerate(document.features):
         try:
-            feature = resolve_value(raw, parameters)
+            feature = resolve_object(raw, parameters)
         except Exception:
             feature = raw
-        entry = {
+        entry: dict[str, object] = {
             "id": raw.get("id"),
             "type": raw.get("type"),
             "active": index < document.rollback_index,
             "feature": raw,
             "resolved": feature,
         }
+        active = index < document.rollback_index
         if feature.get("type") == "sketch":
             # A sketch with projected references is drawn as the build solved it around them.
-            built = ctx.features.get(raw.get("id")) if ctx is not None else None
+            raw_id = raw.get("id")
+            built = (
+                ctx.features.get(raw_id)
+                if ctx is not None and isinstance(raw_id, str)
+                else None
+            )
             if built is not None and has_references(built):
-                feature = entry["resolved"] = built
-            entry["plane"] = _drawable_plane(feature["plane"], ctx)
-            if feature.get("patterns"):
+                feature = built
+                entry["resolved"] = built
+            entry["plane"] = _drawable_plane(feature.get("plane"), ctx)
+            sketch = sketch_feature(feature)
+            if feature.get("patterns") and sketch is not None:
                 # Pattern copies to draw. The sketcher edits only the originals.
                 try:
-                    entry["entities"] = sketch_entities(feature)
+                    entry["entities"] = sketch_entities(sketch)
                 except Exception:
                     pass
             # Only a polygon has corners the viewer can drag.
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]
             try:
-                entry["regions"] = sketch_profiles(feature)
+                entry["regions"] = sketch_profiles(sketch) if sketch is not None else []
             except Exception:
                 # A sketch the engine cannot read has no regions to show. The
                 # timeline still has to list it so it can be fixed.
                 entry["regions"] = []
-        if feature.get("type") == "thread" and entry["active"] and ctx is not None:
+        if feature.get("type") == "thread" and active and ctx is not None:
             # Where to draw a cosmetic thread. Nothing when it does not resolve:
             # the feature's own failure says why.
             try:
-                entry["thread"] = thread_geometry(feature, ctx)
+                thread = cast("ThreadFeature", cast("object", feature))
+                entry["thread"] = thread_geometry(thread, ctx)
             except Exception:
                 pass
-        if (
-            feature.get("type") in CONSTRUCT_TYPES
-            and entry["active"]
-            and ctx is not None
-        ):
+        construct = construct_feature(feature)
+        if construct is not None and active and ctx is not None:
             # Where to draw a plane, an axis or a point.
             try:
-                entry["construct"] = construct_geometry(feature, ctx)
+                entry["construct"] = construct_geometry(construct, ctx)
             except Exception:
                 pass
         if feature.get("id") == failed_feature:
@@ -88,34 +129,44 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
     return entries
 
 
-def _drawable_plane(plane, ctx):
+def _drawable_plane(plane: JSON, ctx: Context | None) -> JSON:
     """A name or an explicit plane as stored. An offset or face plane becomes
     explicit, because only the engine can find a face. None when it does not
     resolve, such as a sketch after the feature that broke the build.
     """
-    if isinstance(plane, str) or "origin" in plane:
+    if isinstance(plane, str) or (isinstance(plane, dict) and "origin" in plane):
         return plane
     try:
-        return plane_json(resolve_plane(plane, ctx))
+        resolved = plane_json(resolve_plane(plane_ref(plane), ctx))
     except Exception:
         return None
+    return {
+        "origin": [*resolved["origin"]],
+        "normal": [*resolved["normal"]],
+        "x_dir": [*resolved["x_dir"]],
+    }
 
 
-def mesh_bytes(shape, appearances=None, bodies=None) -> bytes | None:
+def mesh_bytes(
+    shape: Compound | None,
+    appearances: Sequence[JSONObject] | None = None,
+    bodies: Sequence[Body] | None = None,
+) -> bytes | None:
     """The viewer's mesh file for `shape`, or None for an empty document."""
     if shape is None and not bodies:
         return None
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "part.mesh"
-        export_mesh(shape, path, appearances, bodies)
+        _ = export_mesh(shape, path, appearances, bodies)
         return path.read_bytes()
 
 
-def schemas() -> dict:
+def schemas() -> dict[str, JSONObject]:
+    """Every op's JSON Schema, by op name."""
     return {name: op.schema for name, op in sorted(REGISTRY.items())}
 
 
-def write_viewer_files(session, viewer_dir: Path) -> str | None:
+def write_viewer_files(session: ViewerSession, viewer_dir: Path) -> str | None:
     """Writes the three files for the session's current revision.
 
     An empty document deletes part.mesh, which the viewer reads as "nothing to
@@ -152,5 +203,5 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
 
 def _write_atomically(path: Path, data: bytes) -> None:
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_bytes(data)
-    temporary.replace(path)
+    _ = temporary.write_bytes(data)
+    _ = temporary.replace(path)

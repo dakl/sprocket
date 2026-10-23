@@ -6,7 +6,7 @@ and the geometry is read from the feature itself (`construct_plane`,
 `{"construct": "f3"}` and follows it when it moves.
 """
 
-from typing import Literal, TypedDict, final
+from typing import Literal, TypedDict, cast, final
 
 from build123d import Axis, Compound, Edge, Face, GeomType, Vector
 
@@ -232,3 +232,20 @@ def apply_axis(feature: AxisFeature, ctx: Context) -> Compound:
 def apply_point(_feature: PointFeature, _ctx: Context) -> Compound:
     """Leave a marker: a point needs nothing resolved."""
     return _marker()
+
+
+def construct_feature(
+    feature: JSONObject,
+) -> PlaneFeature | AxisFeature | PointFeature | None:
+    """The feature as a construct feature, or None if it is another op's.
+
+    Only for a feature its op's schema has checked.
+    """
+    kind = feature.get("type")
+    if kind == "plane":
+        return cast("PlaneFeature", cast("object", feature))
+    if kind == "axis":
+        return cast("AxisFeature", cast("object", feature))
+    if kind == "point":
+        return cast("PointFeature", cast("object", feature))
+    return None

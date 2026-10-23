@@ -15,17 +15,16 @@ from collections.abc import Callable
 
 from sprocket_engine.model import (
     JSON,
-    EntityReference,
     JSONObject,
     entities_json,
     json_objects,
     sketch_feature,
 )
 from sprocket_engine.ops.sketch import CONSTRAINT_FIELDS, check_entities
-from sprocket_engine.selectors import SelectorError, parse_selector
 from sprocket_engine.sketch_reference import (
     Project,
     has_references,
+    parse_reference,
     projected_json,
     with_references_updated,
 )
@@ -146,21 +145,6 @@ def _add_entity(
     return {"entity_id": entity["id"]}
 
 
-def _source(value: JSONObject) -> EntityReference:
-    """A projection source, as the entity's `reference` names it."""
-    source: EntityReference = {}
-    for key in ("sketch", "entity", "feature"):
-        item = value.get(key)
-        if isinstance(item, str):
-            source[key] = item
-    if "edge" in value:
-        try:
-            source["edge"] = parse_selector(value["edge"])
-        except SelectorError as exc:
-            raise ValueError(f"the source's edge: {exc}") from None
-    return source
-
-
 def _add_reference(
     feature: JSONObject, edit: JSONObject, project: Project | None = None
 ) -> JSONObject:
@@ -175,7 +159,7 @@ def _add_reference(
         if entity.get("reference") == source:
             raise ValueError(f"that is already projected as {entity['id']!r}")
     try:
-        fields = project(_source(source))
+        fields = project(parse_reference(source))
     except Exception as exc:
         raise ValueError(f"cannot project that: {exc}") from None
     entity: JSONObject = {

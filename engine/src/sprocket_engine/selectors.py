@@ -14,7 +14,7 @@ from build123d import Axis, Compound, Edge, Face, GeomType, ShapeList, Vector, V
 
 from sprocket_engine.b3d import is_same
 from sprocket_engine.context import Context
-from sprocket_engine.model import JSON, Selector, SelectorStep
+from sprocket_engine.model import JSON, JSONObject, Selector, SelectorStep
 
 type Item = Face | Edge | Vertex
 type Starter = Literal["faces", "edges", "vertices"]
@@ -352,3 +352,28 @@ def _parse_step(value: JSON) -> SelectorStep:
     if isinstance(points, list):
         step["points"] = [_numbers_of(point, f"{op} 'points'") for point in points]
     return step
+
+
+def selector_json(selector: Selector) -> JSONObject:
+    """A selector as the plain JSON object a feature stores."""
+    steps: list[JSON] = []
+    for step in selector["select"]:
+        found: JSONObject = {"op": step["op"]}
+        for key in ("axis", "end", "feature"):
+            if (text := step.get(key)) is not None:
+                found[key] = text
+        for key in ("start", "stop"):
+            if (index := step.get(key)) is not None:
+                found[key] = index
+        for key in ("point", "normal", "box"):
+            if (numbers := step.get(key)) is not None:
+                found[key] = [*numbers]
+        if (points := step.get("points")) is not None:
+            found["points"] = [[*point] for point in points]
+        steps.append(found)
+    result: JSONObject = {"select": steps}
+    if "expected_count" in selector:
+        result["expected_count"] = selector["expected_count"]
+    if "from" in selector:
+        result["from"] = selector["from"]
+    return result

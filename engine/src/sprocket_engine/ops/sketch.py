@@ -1,6 +1,8 @@
 import math
 from collections.abc import Sequence
-from typing import TypedDict, final
+from typing import TypedDict, cast, final
+
+import jsonschema
 
 from build123d import (
     Circle,
@@ -25,6 +27,7 @@ from sprocket_engine.model import (
     Entity,
     ExplicitPlane,
     FacePlane,
+    JSON,
     JSONObject,
     OriginPlaneName,
     PathRef,
@@ -333,6 +336,15 @@ SCHEMA: JSONObject = {
         },
     },
 }
+
+
+def plane_ref(value: JSON) -> PlaneRef:
+    """A sketch plane reference from JSON no op schema has checked yet."""
+    try:
+        jsonschema.validate(value, PLANE_SCHEMA)
+    except jsonschema.ValidationError as exc:
+        raise ValueError(f"not a sketch plane: {exc.message}") from None
+    return cast("PlaneRef", value)
 
 
 def resolve_plane(plane_ref: PlaneRef, ctx: Context | None = None) -> Plane:

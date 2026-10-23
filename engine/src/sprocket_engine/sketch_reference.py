@@ -35,7 +35,7 @@ from sprocket_engine.model import (
 )
 from sprocket_engine.ops.sketch import resolve_plane, sketch_entities
 from sprocket_engine.regions import entity_edge
-from sprocket_engine.selectors import resolve_selector
+from sprocket_engine.selectors import SelectorError, parse_selector, resolve_selector
 
 TWO_PI = 2 * math.pi
 # How parallel an edge's plane must be to the sketch plane for a circle to stay a circle.
@@ -85,6 +85,21 @@ def has_references(feature: JSONObject) -> bool:
         isinstance(entity, dict) and bool(entity.get("reference"))
         for entity in entities
     )
+
+
+def parse_reference(value: JSONObject) -> EntityReference:
+    """A projection source, as an entity's `reference` or an edit names it."""
+    source: EntityReference = {}
+    for key in ("sketch", "entity", "feature"):
+        item = value.get(key)
+        if isinstance(item, str):
+            source[key] = item
+    if "edge" in value:
+        try:
+            source["edge"] = parse_selector(value["edge"])
+        except SelectorError as exc:
+            raise ValueError(f"the source's edge: {exc}") from None
+    return source
 
 
 def source_edge(source: EntityReference, ctx: Context) -> Edge:
