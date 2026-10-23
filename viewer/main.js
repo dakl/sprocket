@@ -4866,27 +4866,29 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   }
 });
 
-globalThis.addEventListener("keydown", (event) => {
+/// Whether an open menu, form, sketch or tool owns this key press, and has
+/// dealt with it. The shortcuts only run when nothing does.
+function modeTakesKey(event) {
   if (menuOpen()) {
     if (event.key === "Escape") {
       closeMenus();
     }
-    return; // the hex box takes letters; nothing else should act meanwhile
+    return true; // the hex box takes letters; nothing else should act meanwhile
   }
   // The parameter form is a text field: "e" and "s" are letters there, and
   // Cmd+Z undoes the typing rather than the document.
   if (propertiesEl.contains(document.activeElement)) {
-    return;
+    return true;
   }
   if (sketchStage === "draw") {
     sketcher.keyDown(event);
-    return;
+    return true;
   }
   if (sketchStage) {
     if (event.key === "Escape") {
       cancelSketch();
     }
-    return;
+    return true;
   }
   // A Modify tool owns the keyboard: its fields take the letters.
   if (modifyTool) {
@@ -4897,18 +4899,23 @@ globalThis.addEventListener("keydown", (event) => {
       event.preventDefault();
       commitModify();
     }
-    return;
+    return true;
   }
   if (pickTool && event.key === "Escape") {
     cancelPick();
-    return;
+    return true;
   }
   // Typing in the distance box must not trigger shortcuts: "e" would
   // re-arm and "s" would start a sketch. Enter and Escape still count,
   // since they commit and cancel from the keyboard.
   if (document.activeElement === distanceEl && event.key !== "Enter" && event.key !== "Escape") {
-    return;
+    return true;
   }
+  return false;
+}
+
+/// The viewport's single-key shortcuts.
+function shortcut(event) {
   if ((event.key === "s" || event.key === "S") && !extrudeArmed) {
     startSketchPickPlane();
   } else if (event.key === "e" || event.key === "E") {
@@ -4940,6 +4947,12 @@ globalThis.addEventListener("keydown", (event) => {
   } else if (event.metaKey && event.key.toLowerCase() === "z" && !extrudeArmed) {
     event.preventDefault();
     sendCommand({ type: event.shiftKey ? "redo" : "undo" });
+  }
+}
+
+globalThis.addEventListener("keydown", (event) => {
+  if (!modeTakesKey(event)) {
+    shortcut(event);
   }
 });
 
