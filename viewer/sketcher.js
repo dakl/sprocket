@@ -488,47 +488,43 @@
       render();
     }
 
-    function acceptDimension() {
-      const value = Number.parseFloat(ui.dimension.value);
-      if (!Number.isFinite(value) || (value <= 0 && dimension.constraint.kind !== "angle")) {
-        setMessage("Type a number above zero");
-        return;
-      }
-      if (dimension.offset) {
-        try {
-          const made = root.SketchTools.offsetChain(
-            sketch,
-            dimension.offset.id,
-            dimension.offset.side * value,
+    function acceptOffset(value) {
+      try {
+        const made = root.SketchTools.offsetChain(
+          sketch,
+          dimension.offset.id,
+          dimension.offset.side * value,
+        );
+        if (change(made.sketch)) {
+          closeDimension();
+          selection = made.ids;
+          setMessage(
+            "Offset " +
+              made.ids.length +
+              (made.ids.length === 1 ? " shape" : " shapes") +
+              " by " +
+              value,
           );
-          if (change(made.sketch)) {
-            closeDimension();
-            selection = made.ids;
-            setMessage(
-              "Offset " +
-                made.ids.length +
-                (made.ids.length === 1 ? " shape" : " shapes") +
-                " by " +
-                value,
-            );
-            render();
-          }
-        } catch (error) {
-          setMessage(error.message);
+          render();
         }
-        return;
+      } catch (error) {
+        setMessage(error.message);
       }
-      if (dimension.fillet) {
-        try {
-          const rounded = model.addFillet(sketch, dimension.fillet, value);
-          if (change(rounded.sketch)) {
-            closeDimension();
-          }
-        } catch (error) {
-          setMessage(error.message);
+    }
+
+    function acceptFillet(value) {
+      try {
+        const rounded = model.addFillet(sketch, dimension.fillet, value);
+        if (change(rounded.sketch)) {
+          closeDimension();
         }
-        return;
+      } catch (error) {
+        setMessage(error.message);
       }
+    }
+
+    /// The typed value as the dimension's constraint: a new one, or the one being edited.
+    function acceptConstraintValue(value) {
       const constraint = { ...dimension.constraint, value };
       const next =
         dimension.index === null || dimension.index === undefined
@@ -536,6 +532,23 @@
           : model.replaceConstraint(sketch, dimension.index, constraint);
       if (change(next)) {
         closeDimension();
+      }
+    }
+
+    /// Enter in the dimension box: the typed number is an offset distance, a
+    /// fillet radius or a dimension's value, depending on what opened the box.
+    function acceptDimension() {
+      const value = Number.parseFloat(ui.dimension.value);
+      if (!Number.isFinite(value) || (value <= 0 && dimension.constraint.kind !== "angle")) {
+        setMessage("Type a number above zero");
+        return;
+      }
+      if (dimension.offset) {
+        acceptOffset(value);
+      } else if (dimension.fillet) {
+        acceptFillet(value);
+      } else {
+        acceptConstraintValue(value);
       }
     }
 
@@ -790,55 +803,73 @@
       finishShape();
     }
 
+    /// The arc's two ends joined to whichever picked point is nearer: an arc may
+    /// run the other way round from the order the points were picked in.
+    function arcJoins(next, arcId, points) {
+      const ends = ["p0", "p1"].map((name) => solver.pointOf(next, `${arcId}.${name}`));
+      return points.slice(0, 2).map((point) => {
+        const nearer =
+          Math.hypot(ends[0][0] - point.uv[0], ends[0][1] - point.uv[1]) <=
+          Math.hypot(ends[1][0] - point.uv[0], ends[1][1] - point.uv[1])
+            ? "p0"
+            : "p1";
+        return [point, `${arcId}.${nearer}`];
+      });
+    }
+
+    /// The sketch with the current tool's shape added from `points`, and the
+    /// (picked point, new point) pairs to join where a pick snapped. Null when
+    /// the shape has no size.
+    function drawnShape(points) {
+      if (tool === "line") {
+        const added = model.addLine(sketch, points[0].uv, points[1].uv);
+        const next = points[1].align
+          ? model.withConstraint(added.sketch, { kind: points[1].align, e: added.id })
+          : added.sketch;
+        return {
+          added,
+          next,
+          joins: [
+            [points[0], `${added.id}.p0`],
+            [points[1], `${added.id}.p1`],
+          ],
+        };
+      }
+      if (tool === "rectangle") {
+        const added = model.addRectangle(sketch, points[0].uv, points[1].uv);
+        return added?.sketch
+          ? {
+              added,
+              next: added.sketch,
+              joins: [
+                [points[0], `${added.ids[0]}.p0`],
+                [points[1], `${added.ids[2]}.p0`],
+              ],
+            }
+          : null;
+      }
+      if (tool === "circle") {
+        const r = Math.hypot(points[1].uv[0] - points[0].uv[0], points[1].uv[1] - points[0].uv[1]);
+        const added = r > 1e-6 ? model.addCircle(sketch, points[0].uv, r) : null;
+        return added?.sketch
+          ? { added, next: added.sketch, joins: [[points[0], `${added.id}.c`]] }
+          : null;
+      }
+      if (tool === "arc") {
+        const added = model.addArc(sketch, points[0].uv, points[1].uv, points[2].uv);
+        return added?.sketch
+          ? { added, next: added.sketch, joins: arcJoins(added.sketch, added.id, points) }
+          : null;
+      }
+      return null;
+    }
+
     function finishShape() {
       const points = pending;
-      let next = null;
-      let added = null;
-      let joins = [];
-      if (tool === "line") {
-        added = model.addLine(sketch, points[0].uv, points[1].uv);
-        joins = [
-          [points[0], `${added.id}.p0`],
-          [points[1], `${added.id}.p1`],
-        ];
-        next = added.sketch;
-        if (points[1].align) {
-          next = model.withConstraint(next, { kind: points[1].align, e: added.id });
-        }
-      } else if (tool === "rectangle") {
-        added = model.addRectangle(sketch, points[0].uv, points[1].uv);
-        next = added?.sketch;
-        if (added) {
-          joins = [
-            [points[0], `${added.ids[0]}.p0`],
-            [points[1], `${added.ids[2]}.p0`],
-          ];
-        }
-      } else if (tool === "circle") {
-        const r = Math.hypot(points[1].uv[0] - points[0].uv[0], points[1].uv[1] - points[0].uv[1]);
-        added = r > 1e-6 ? model.addCircle(sketch, points[0].uv, r) : null;
-        next = added?.sketch;
-        if (added) {
-          joins = [[points[0], `${added.id}.c`]];
-        }
-      } else if (tool === "arc") {
-        added = model.addArc(sketch, points[0].uv, points[1].uv, points[2].uv);
-        next = added?.sketch;
-        if (added) {
-          // The arc may run the other way round, so join each end to whichever
-          // of its own ends is nearer.
-          const arc = next.entities.find((entity) => entity.id === added.id);
-          const ends = ["p0", "p1"].map((name) => solver.pointOf(next, `${added.id}.${name}`));
-          points.slice(0, 2).forEach((point) => {
-            const nearer =
-              Math.hypot(ends[0][0] - point.uv[0], ends[0][1] - point.uv[1]) <=
-              Math.hypot(ends[1][0] - point.uv[0], ends[1][1] - point.uv[1])
-                ? "p0"
-                : "p1";
-            joins.push([point, `${arc.id}.${nearer}`]);
-          });
-        }
-      }
+      const drawn = drawnShape(points);
+      const added = drawn?.added || null;
+      let next = drawn?.next || null;
+      const joins = drawn?.joins || [];
       if (!next) {
         pending = [];
         setMessage("That shape has no size");
@@ -1143,11 +1174,8 @@
 
     // --- Pointer and key events, called by the viewer ----------------------------------
 
-    function pointerMove(event) {
-      const uv = pointerUV(event);
-      if (!uv) {
-        return;
-      }
+    /// A press that has moved far enough on something draggable becomes a drag.
+    function startDragIfMoved(event) {
       if (
         press &&
         !press.dragging &&
@@ -1160,6 +1188,52 @@
         remember();
         host.setCameraEnabled(false);
       }
+    }
+
+    /// What the pointer at `uv` is over and snaps to, for the current tool.
+    function hoverAt(uv, event) {
+      const under = ["line", "select", "dimension", "fillet", "trim", "extend", "offset"].includes(
+        tool,
+      )
+        ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv))
+        : null;
+      const snapped =
+        tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc"
+          ? target(uv)
+          : { uv };
+      const found = {
+        uv: snapped.uv,
+        hit: under,
+        snap: snapped.reference || snapped.curve ? snapped : null,
+      };
+      if (tool === "line" && pending.length > 0 && !snapped.reference && !snapped.curve) {
+        const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
+        if (direction === "horizontal") {
+          found.uv = [uv[0], pending[0].uv[1]];
+        }
+        if (direction === "vertical") {
+          found.uv = [pending[0].uv[0], uv[1]];
+        }
+      }
+      if (tool === "project") {
+        found.project = host.pickProjectable(event);
+      }
+      return found;
+    }
+
+    function cursorFor(over) {
+      if (tool === "project") {
+        return over.project ? "pointer" : "crosshair";
+      }
+      return over.hit && tool === "select" ? "move" : "crosshair";
+    }
+
+    function pointerMove(event) {
+      const uv = pointerUV(event);
+      if (!uv) {
+        return;
+      }
+      startDragIfMoved(event);
       if (press?.dragging) {
         const delta = [uv[0] - press.uv[0], uv[1] - press.uv[1]];
         if (change(sketch, { drag: { ref: press.hit.reference, delta } })) {
@@ -1171,40 +1245,8 @@
         moveOffset(uv);
         return;
       }
-      const under = ["line", "select", "dimension", "fillet", "trim", "extend", "offset"].includes(
-        tool,
-      )
-        ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv))
-        : null;
-      const snapped =
-        tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc"
-          ? target(uv)
-          : { uv };
-      hover = {
-        uv: snapped.uv,
-        hit: under,
-        snap: snapped.reference || snapped.curve ? snapped : null,
-      };
-      if (tool === "line" && pending.length > 0 && !snapped.reference && !snapped.curve) {
-        const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
-        if (direction === "horizontal") {
-          hover.uv = [uv[0], pending[0].uv[1]];
-        }
-        if (direction === "vertical") {
-          hover.uv = [pending[0].uv[0], uv[1]];
-        }
-      }
-      if (tool === "project") {
-        hover.project = host.pickProjectable(event);
-      }
-      renderer.domElement.style.cursor =
-        tool === "project"
-          ? hover.project
-            ? "pointer"
-            : "crosshair"
-          : under && tool === "select"
-            ? "move"
-            : "crosshair";
+      hover = hoverAt(uv, event);
+      renderer.domElement.style.cursor = cursorFor(hover);
       render();
     }
 
@@ -1298,6 +1340,8 @@
     }
 
     /// True when the sketcher used the key.
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one branch per key, in the order the keys take priority
+    // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one branch per key, in the order the keys take priority
     function keyDown(event) {
       if (event.target === ui.dimension) {
         const orientation = ORIENTATIONS[event.key.toLowerCase()];
