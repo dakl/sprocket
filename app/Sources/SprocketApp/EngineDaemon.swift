@@ -70,6 +70,11 @@ final class EngineDaemon {
         let process = Process()
         let launch = AppPaths.engineLaunch
         process.executableURL = launch.executable
+        if AppPaths.isBundled {
+            var environment = ProcessInfo.processInfo.environment
+            environment["PYTHONPYCACHEPREFIX"] = AppPaths.pycacheDir.path
+            process.environment = environment
+        }
         process.arguments = launch.arguments + [
             "daemon", document.path,
             "--socket", path, "--viewer-dir", viewerDir.path,

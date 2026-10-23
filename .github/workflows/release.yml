@@ -8,8 +8,11 @@ name: release
 # It runs the engine tests, raises the version in engine/pyproject.toml and
 # engine/uv.lock, commits that to main as "chore: release X.Y.Z", tags it
 # vX.Y.Z and publishes the engine wheel, the example documents and the app as
-# a DMG. The DMG is unsigned until phase 3 of docs/PACKAGING.md, so Gatekeeper
-# blocks it on other Macs.
+# a DMG. The DMG is signed with a Developer ID and notarised, so Gatekeeper
+# opens it on any Mac. That needs the five secrets codez and papershelf use:
+# CSC_LINK (the Developer ID Application .p12, base64), CSC_KEY_PASSWORD,
+# APPLE_ID, SPROCKET_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID. Without CSC_LINK the
+# DMG is built unsigned, with a warning, and Gatekeeper blocks it.
 #
 # Give it a `release` (such as v0.10.0) to raise no version and build that
 # existing release's DMG again from its tag, for when a DMG job failed.
@@ -114,8 +117,45 @@ jobs:
           ref: ${{ env.RELEASE }}
       - uses: astral-sh/setup-uv@v3
 
+      # The certificate goes into a keychain of its own, which the runner
+      # deletes with the machine. make_dmg.sh signs when SIGN_IDENTITY is set.
+      - name: Import the Developer ID certificate
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "::warning::CSC_LINK is not set, so the DMG is unsigned and Gatekeeper blocks it"
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$CSC_LINK" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | grep 'Developer ID Application' | head -1 | awk '{print $2}')"
+          test -n "$IDENTITY" || { echo "no Developer ID Application identity in CSC_LINK"; exit 1; }
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
       - name: Build the DMG
         run: app/make_dmg.sh
+
+      # Before the Sparkle step: stapling changes the DMG, and the EdDSA
+      # signature must cover the final file.
+      - name: Notarise the DMG
+        if: env.SIGN_IDENTITY != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.SPROCKET_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          app/notarize.sh app/.build/Sprocket.dmg
+          spctl --assess --type open --context context:primary-signature -v app/.build/Sprocket.dmg
 
       - name: Name the DMG after the version
         run: cp app/.build/Sprocket.dmg "Sprocket-$RELEASE.dmg"
