@@ -75,3 +75,8 @@ pythonVersion = "3.12"
 include = ["src", "tests", "tools"]
 venvPath = "."
 venv = ".venv"
+# A long message split over lines as "a" "b" fails this, and written as
+# "a" + "b" fails ruff's ISC003, so no long string passes both. Ruff's ISC
+# rules stay on and still catch the accidental same-line case. Daniel's
+# call, 2026-10-23.
+reportImplicitStringConcatenation = false
