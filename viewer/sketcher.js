@@ -1143,11 +1143,8 @@
 
     // --- Pointer and key events, called by the viewer ----------------------------------
 
-    function pointerMove(event) {
-      const uv = pointerUV(event);
-      if (!uv) {
-        return;
-      }
+    /// A press that has moved far enough on something draggable becomes a drag.
+    function startDragIfMoved(event) {
       if (
         press &&
         !press.dragging &&
@@ -1160,6 +1157,52 @@
         remember();
         host.setCameraEnabled(false);
       }
+    }
+
+    /// What the pointer at `uv` is over and snaps to, for the current tool.
+    function hoverAt(uv, event) {
+      const under = ["line", "select", "dimension", "fillet", "trim", "extend", "offset"].includes(
+        tool,
+      )
+        ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv))
+        : null;
+      const snapped =
+        tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc"
+          ? target(uv)
+          : { uv };
+      const found = {
+        uv: snapped.uv,
+        hit: under,
+        snap: snapped.reference || snapped.curve ? snapped : null,
+      };
+      if (tool === "line" && pending.length > 0 && !snapped.reference && !snapped.curve) {
+        const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
+        if (direction === "horizontal") {
+          found.uv = [uv[0], pending[0].uv[1]];
+        }
+        if (direction === "vertical") {
+          found.uv = [pending[0].uv[0], uv[1]];
+        }
+      }
+      if (tool === "project") {
+        found.project = host.pickProjectable(event);
+      }
+      return found;
+    }
+
+    function cursorFor(over) {
+      if (tool === "project") {
+        return over.project ? "pointer" : "crosshair";
+      }
+      return over.hit && tool === "select" ? "move" : "crosshair";
+    }
+
+    function pointerMove(event) {
+      const uv = pointerUV(event);
+      if (!uv) {
+        return;
+      }
+      startDragIfMoved(event);
       if (press?.dragging) {
         const delta = [uv[0] - press.uv[0], uv[1] - press.uv[1]];
         if (change(sketch, { drag: { ref: press.hit.reference, delta } })) {
@@ -1171,40 +1214,8 @@
         moveOffset(uv);
         return;
       }
-      const under = ["line", "select", "dimension", "fillet", "trim", "extend", "offset"].includes(
-        tool,
-      )
-        ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv))
-        : null;
-      const snapped =
-        tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc"
-          ? target(uv)
-          : { uv };
-      hover = {
-        uv: snapped.uv,
-        hit: under,
-        snap: snapped.reference || snapped.curve ? snapped : null,
-      };
-      if (tool === "line" && pending.length > 0 && !snapped.reference && !snapped.curve) {
-        const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
-        if (direction === "horizontal") {
-          hover.uv = [uv[0], pending[0].uv[1]];
-        }
-        if (direction === "vertical") {
-          hover.uv = [pending[0].uv[0], uv[1]];
-        }
-      }
-      if (tool === "project") {
-        hover.project = host.pickProjectable(event);
-      }
-      renderer.domElement.style.cursor =
-        tool === "project"
-          ? hover.project
-            ? "pointer"
-            : "crosshair"
-          : under && tool === "select"
-            ? "move"
-            : "crosshair";
+      hover = hoverAt(uv, event);
+      renderer.domElement.style.cursor = cursorFor(hover);
       render();
     }
 
