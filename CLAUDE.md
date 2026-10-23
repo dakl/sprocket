@@ -54,3 +54,12 @@ gh workflow run release --ref main -f bump=patch
 
 `bump` is `patch`, `minor` or `major`. Do not raise the version or push a tag
 by hand. To build an existing release's DMG again, pass `-f release=v0.10.0`.
+
+- The workflow pushes to main with the default `GITHUB_TOKEN`. This works
+  because main has no branch protection. If protection is added, the push
+  fails.
+- The commit and the tag go in one atomic push. If main moved during the
+  run, nothing is pushed or published. Run the workflow again.
+- The Sparkle feed step needs the `SPARKLE_PRIVATE_KEY` and `RELEASES_TOKEN`
+  secrets. Without them that step fails, but the release and the DMG still
+  publish.
