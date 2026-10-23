@@ -31,6 +31,7 @@ import threading
 import traceback
 from pathlib import Path
 
+from .cache import default_cache_dir
 from .document import Document, DocumentError, StaleRevision, reference_digest, validate_feature
 from .geometry import _resolve_handle, describe, measure
 from .ops import REGISTRY
@@ -65,8 +66,7 @@ class Session:
 
     def __init__(self, document: Document, cache_dir: Path | None = None):
         self.document = document
-        self._chosen_cache_dir = Path(cache_dir) if cache_dir else None
-        self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(document)
+        self.cache_dir = Path(cache_dir) if cache_dir else default_cache_dir()
         self._shape = None
         self._failed_feature = None
         self._context = None
@@ -79,20 +79,11 @@ class Session:
         self.reference_rebuilds = 0
 
     def use(self, document: Document) -> None:
-        """Switches to another document. A cache directory chosen at start-up
-        stays, and otherwise the cache follows the document's folder."""
+        """Switches to another document. The cache is content-addressed, so
+        it stays where it is."""
         self.document = document
         self.generation += 1
-        self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(document)
         self.invalidate()
-
-    def moved(self) -> None:
-        """The document was saved under a new path, so the default cache moves with it."""
-        self.cache_dir = self._chosen_cache_dir or self._default_cache_dir(self.document)
-
-    @staticmethod
-    def _default_cache_dir(document: Document) -> Path:
-        return (document.path.parent / "cache") if document.path else Path.cwd() / "cache"
 
     def invalidate(self) -> None:
         self._built_revision = None
@@ -672,7 +663,6 @@ def _save_as(daemon: Daemon, params: dict) -> dict:
     path = document.save(_file_path(params))
     daemon.unsaved = False
     daemon.conflict = None
-    daemon.session.moved()
     daemon.announce_change()
     return {"path": str(path), "revision": document.revision}
 
@@ -697,7 +687,6 @@ def _document_moved(daemon: Daemon, params: dict) -> dict:
     if not path.exists():
         raise DocumentError(f"{path} does not exist")
     daemon.session.document.path = path
-    daemon.session.moved()
     return {"path": str(path)}
 
 

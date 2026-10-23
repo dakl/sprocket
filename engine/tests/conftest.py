@@ -17,6 +17,12 @@ ALL_EDGES = {"select": [{"op": "edges"}]}
 BOX_DOCUMENT = {"features": [SKETCH, EXTRUDE], "rollback_index": 2}
 
 
+@pytest.fixture(autouse=True)
+def _cache_in_tmp(tmp_path_factory, monkeypatch):
+    """A test that names no cache directory must not fill the user's own."""
+    monkeypatch.setenv("SPROCKET_CACHE_DIR", str(tmp_path_factory.mktemp("default-cache")))
+
+
 @contextlib.contextmanager
 def running(document: dict, tmp_path: Path):
     """A daemon on a socket short enough for the kernel to bind.

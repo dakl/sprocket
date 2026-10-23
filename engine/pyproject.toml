@@ -1,6 +1,6 @@
 [project]
 name = "sprocket-engine"
-version = "0.11.1"
+version = "0.12.1"
 description = "Sprocket's headless geometry engine: JSON op log -> build123d -> BREP"
 readme = "README.md"
 authors = [
@@ -77,6 +77,9 @@ ignore = [
     "PLR2004",
     # pytest collects tests/ as rootdir modules, with no __init__.py on purpose.
     "INP001",
+    # A test imports what it tests where it needs it, often to keep an
+    # optional extra (the solver, mcp) out of the tests that do not use it.
+    "PLC0415",
 ]
 
 # "all" turns every rule on, reportAny and reportExplicitAny among them, so a
@@ -88,3 +91,8 @@ pythonVersion = "3.12"
 include = ["src", "tests", "tools"]
 venvPath = "."
 venv = ".venv"
+# A long message split over lines as "a" "b" fails this, and written as
+# "a" + "b" fails ruff's ISC003, so no long string passes both. Ruff's ISC
+# rules stay on and still catch the accidental same-line case. Daniel's
+# call, 2026-10-23.
+reportImplicitStringConcatenation = false
