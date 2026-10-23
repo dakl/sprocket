@@ -14,6 +14,7 @@ because deleting clean code moves a ratio the wrong way. Duplication needs node
 """
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -30,6 +31,9 @@ ESLINT = "eslint@9.39.5"
 
 # A function over either limit counts once. lizard's own warning limits (CCN 15,
 # 1000 lines, 100 parameters) are too loose to ever move on a codebase this size.
+# lizard measures Python and Swift; JS comes from ESLint's parser, because lizard
+# reads two `<` in one expression as a generic and runs a function on into the
+# next one (54 of 988 viewer functions had a wrong span, 31 were missing).
 CCN_HIGH = 10
 CCN_VERY_HIGH = 15
 LONG_NLOC = 50
@@ -90,19 +94,106 @@ def inline_script(root, scratch):
     return path
 
 
-def complexity(files):
-    functions = [fn for f in files for fn in lizard.analyze_file(str(f)).function_list]
-    if not functions:
-        sys.exit(f"lizard found no functions in {len(files)} files, so the parse failed")
+def counts(ccns, nlocs, params, nloc):
+    if not ccns:
+        sys.exit("found no functions, so the parse failed")
     return {
-        "functions": len(functions),
-        "nloc": sum(lizard.analyze_file(str(f)).nloc for f in files),
-        "ccn_over_10": sum(fn.cyclomatic_complexity > CCN_HIGH for fn in functions),
-        "ccn_over_15": sum(fn.cyclomatic_complexity > CCN_VERY_HIGH for fn in functions),
-        "max_ccn": max(fn.cyclomatic_complexity for fn in functions),
-        "long_functions": sum(fn.nloc > LONG_NLOC for fn in functions),
-        "many_params": sum(fn.parameter_count > MANY_PARAMS for fn in functions),
+        "functions": len(ccns),
+        "nloc": nloc,
+        "ccn_over_10": sum(c > CCN_HIGH for c in ccns),
+        "ccn_over_15": sum(c > CCN_VERY_HIGH for c in ccns),
+        "max_ccn": max(ccns),
+        "long_functions": sum(n > LONG_NLOC for n in nlocs),
+        "many_params": sum(p > MANY_PARAMS for p in params),
     }
+
+
+def swift_for_lizard(text):
+    """Swift with the two things lizard misreads blanked out, line for line.
+
+    lizard takes `private(set)` and a `.set(` or `.init(` call for the start of
+    an accessor or an initialiser, and the function then runs on to some later
+    brace: `super.init()` stretched three inits by up to 106 lines. Each
+    replacement keeps the length, so lines and columns stay where they were.
+    """
+    text = re.sub(r"\b(private|fileprivate|internal|public|package)\(set\)", lambda m: m.group(1) + " " * 5, text)
+    return re.sub(r"\.(set|init)\(", lambda m: "." + m.group(1)[:-1] + "_(", text)
+
+
+def python_ends(text):
+    """Each function's last line, keyed by its `def` line and its first decorator's."""
+    ends = {}
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            ends[node.lineno] = node.end_lineno
+            if node.decorator_list:
+                ends[node.decorator_list[0].lineno] = node.end_lineno
+    return ends
+
+
+def swift_end(lines, start):
+    """The line where the braces opened at or after `start` close again."""
+    depth, opened = 0, False
+    for number, line in enumerate(lines[start - 1:], start):
+        code = re.sub(r'"(?:\\.|[^"\\])*"', '""', line.split("//")[0])
+        for char in code:
+            depth += {"{": 1, "}": -1}.get(char, 0)
+            opened = opened or char == "{"
+            if opened and depth == 0:
+                return number
+    return None
+
+
+def complexity_lizard(files, scratch, language):
+    """lizard's counts, after checking every span against a second reading.
+
+    A misread span is how lizard goes wrong, and the counts read normal when it
+    does, so a span that disagrees stops the run instead of being reported.
+    """
+    infos, wrong = [], []
+    for f in files:
+        text = f.read_text()
+        path = f
+        if language == "swift":
+            path = scratch / "swift" / f.name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(swift_for_lizard(text))
+        info = lizard.analyze_file(str(path))
+        infos.append(info)
+        ends = python_ends(text) if language == "python" else None
+        lines = text.splitlines()
+        for fn in info.function_list:
+            end = ends.get(fn.start_line) if ends is not None else swift_end(lines, fn.start_line)
+            if end != fn.end_line:
+                wrong.append(f"{f.name}:{fn.start_line} {fn.name} ends at {fn.end_line}, not {end}")
+    if wrong:
+        sys.exit("lizard misread these spans:\n" + "\n".join(wrong))
+    functions = [fn for info in infos for fn in info.function_list]
+    return counts(
+        [fn.cyclomatic_complexity for fn in functions],
+        [fn.nloc for fn in functions],
+        [fn.parameter_count for fn in functions],
+        sum(info.nloc for info in infos),
+    )
+
+
+def complexity_javascript(messages):
+    """ESLint's own counts, one message per function and rule at a limit of 0.
+
+    `complexity` counts optional chaining and default values too, so it reads a
+    little higher than lizard's CCN. `max-lines-per-function` counts the lines
+    of nested functions as well, and skips an IIFE, so a module's wrapper does
+    not count as one long function.
+    """
+    def numbers(rule, pattern):
+        return [int(re.search(pattern, m["message"]).group(1)) for m in messages if m["ruleId"] == rule]
+
+    return counts(
+        numbers("complexity", r"complexity of (\d+)"),
+        numbers("max-lines-per-function", r"too many lines \((\d+)\)"),
+        numbers("max-params", r"too many parameters \((\d+)\)"),
+        sum(numbers("max-lines", r"too many lines \((\d+)\)")),
+    )
 
 
 def duplication(files, scratch):
@@ -126,7 +217,10 @@ def unused_python(files):
 
 
 def eslint(root, path):
-    """no-unused-vars over one file, read from stdin.
+    """The rules metrics reads, over one file read from stdin.
+
+    Every count rule runs at a limit of 0, so it reports every function (or the
+    file) with its number.
 
     The inline script's copy lives outside the checkout, and eslint passes over
     a file outside its base path with exit 0, so every file goes through stdin
@@ -136,6 +230,10 @@ def eslint(root, path):
         ["npx", "--yes", ESLINT, "--no-config-lookup", "--format", "json",
          "--parser-options", "sourceType:script", "--parser-options", "ecmaVersion:latest",
          "--rule", "no-unused-vars: [error, {args: none, caughtErrors: none, ignoreRestSiblings: true}]",
+         "--rule", "complexity: [error, 0]",
+         "--rule", "max-params: [error, 0]",
+         "--rule", "max-lines-per-function: [error, {max: 0, skipBlankLines: true, skipComments: true}]",
+         "--rule", "max-lines: [error, {max: 0, skipBlankLines: true, skipComments: true}]",
          "--stdin", "--stdin-filename", f"viewer/{path.name}"],
         input=path.read_text(), capture_output=True, text=True, cwd=root,
     )
@@ -144,16 +242,16 @@ def eslint(root, path):
     reports = json.loads(result.stdout)
     if not reports or any(m.get("fatal") or not m.get("ruleId") for r in reports for m in r["messages"]):
         sys.exit(f"eslint did not lint {path.name}:\n{result.stdout}")
-    return reports
+    return [m for r in reports for m in r["messages"]]
 
 
-def unused_javascript(root, files):
+def unused_javascript(root, files, messages):
     """Unused names inside each file (eslint), and `api` keys no other file reads.
 
     Every viewer module ends `const api = { ... }` and hands it to `window` or
     `module.exports`, so its keys are its whole public surface.
     """
-    unused_locals = sum(len(r["messages"]) for f in files for r in eslint(root, f))
+    unused_locals = sum(m["ruleId"] == "no-unused-vars" for m in messages)
 
     texts = {f: f.read_text() for f in files}
     tests = [f.read_text() for f in sorted((root / "viewer/test").glob("*.js"))]
@@ -182,12 +280,15 @@ def measure(root):
             files = source_files(root, part)
             if name == "viewer":
                 files.append(inline_script(root, scratch))
-            numbers = complexity(files)
+            language = part["language"]
+            if language == "javascript":
+                messages = [m for f in files for m in eslint(root, f)]
+                numbers = complexity_javascript(messages) | unused_javascript(root, files, messages)
+            else:
+                numbers = complexity_lizard(files, scratch, language)
             numbers |= duplication(files, scratch / name)
-            if part["language"] == "python":
+            if language == "python":
                 numbers |= unused_python(files)
-            if part["language"] == "javascript":
-                numbers |= unused_javascript(root, files)
             metrics[name] = {"language": part["language"], "files": len(files), **numbers}
     return metrics
 
