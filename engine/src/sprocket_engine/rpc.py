@@ -687,7 +687,6 @@ def _document_moved(daemon: Daemon, params: dict) -> dict:
     if not path.exists():
         raise DocumentError(f"{path} does not exist")
     daemon.session.document.path = path
-    daemon.session.moved()
     return {"path": str(path)}
 
 
