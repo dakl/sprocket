@@ -1736,7 +1736,7 @@ wheels = [
 
 [[package]]
 name = "sprocket-engine"
-version = "0.12.1"
+version = "0.12.2"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
