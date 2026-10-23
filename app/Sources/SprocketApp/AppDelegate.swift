@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if recovered.isEmpty && toOpen.isEmpty {
             NSDocumentController.shared.newDocument(nil)
         }
+        Updater.shared.start()
     }
 
     /// Sprocket > Settings…, Cmd+,.

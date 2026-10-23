@@ -408,24 +408,31 @@
       render();
     }
 
+    function placeAt(element, anchor, dx, dy) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const projected = toWorld(anchor).project(camera);
+      element.style.left = rect.left + ((projected.x + 1) / 2) * rect.width + dx + "px";
+      element.style.top = rect.top + ((1 - projected.y) / 2) * rect.height + dy + "px";
+    }
+
     /// Puts each label, and the open box, where its anchor is on screen. Runs
     /// every frame, because the camera can move under them.
     function frame() {
       if (!active) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      const place = (element, anchor, dx, dy) => {
-        const projected = toWorld(anchor).project(camera);
-        element.style.left = rect.left + ((projected.x + 1) / 2) * rect.width + dx + "px";
-        element.style.top = rect.top + ((1 - projected.y) / 2) * rect.height + dy + "px";
-      };
-      labels.forEach((label) => place(label.element, label.anchor, label.dx, label.dy));
-      if (dimension) place(ui.dimension, dimension.anchor, 6, 6);
-      if (hover && hover.snap) place(snapMarker, hover.snap.uv, 0, 0);
+      labels.forEach((label) => placeAt(label.element, label.anchor, label.dx, label.dy));
+      if (dimension) placeAt(ui.dimension, dimension.anchor, 6, 6);
+      if (hover && hover.snap) placeAt(snapMarker, hover.snap.uv, 0, 0);
     }
 
     function openDimension(open) {
       dimension = open;
       ui.dimension.style.display = "block";
+      // Placed now, not on the next frame, so it never shows at the corner first.
+      placeAt(ui.dimension, open.anchor, 6, 6);
+      // A new dimension on one pick waits for a second, which may be the shape
+      // under the box, so the box lets that click through to the sketch.
+      const waitsForSecondPick = (open.index === null || open.index === undefined) && open.selection && open.selection.length === 1;
+      ui.dimension.style.pointerEvents = waitsForSecondPick ? "none" : "";
       ui.dimension.value = open.constraint.value.toFixed(open.constraint.kind === "angle" ? 1 : 2);
       ui.dimension.focus();
       ui.dimension.select();

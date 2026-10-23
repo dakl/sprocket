@@ -318,6 +318,7 @@ test("an edge of the part can be projected, and the gap to it follows when the p
   await tool(page, "dimension").click();
   await click(page, [0, 5]);
   await expect(page.locator("#sketch-dimension")).toBeVisible();
+  // The box opened on the first pick covers this point: the click must go through it.
   await click(page, [0, 10]);
   await expect(page.locator("#sketch-dimension")).toHaveValue("5.00");
   await dimension(page, 3);
