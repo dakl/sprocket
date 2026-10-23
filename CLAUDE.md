@@ -42,3 +42,24 @@ Send output to a file and check `$?`. A pipe into `tail` hides a failure.
   and a `metrics.json` block holding `{head, base}`. Read it with
   `gh pr view <n> --json comments`, and explain in the PR any number that got
   worse.
+
+## Releasing
+
+Run the release workflow on main. It raises the engine version, commits it to
+main, tags it and publishes the wheel, the examples and the DMG:
+
+```sh
+gh workflow run release --ref main -f bump=patch
+```
+
+`bump` is `patch`, `minor` or `major`. Do not raise the version or push a tag
+by hand. To build an existing release's DMG again, pass `-f release=v0.10.0`.
+
+- The workflow pushes to main with the default `GITHUB_TOKEN`. This works
+  because main has no branch protection. If protection is added, the push
+  fails.
+- The commit and the tag go in one atomic push. If main moved during the
+  run, nothing is pushed or published. Run the workflow again.
+- The Sparkle feed step needs the `SPARKLE_PRIVATE_KEY` and `RELEASES_TOKEN`
+  secrets. Without them that step fails, but the release and the DMG still
+  publish.
