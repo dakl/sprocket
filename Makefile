@@ -20,7 +20,7 @@ SWIFT_TEST_FLAGS := -Xswiftc -load-plugin-library -Xswiftc $(CLT_TESTING_MACROS)
 endif
 endif
 
-.PHONY: help test test-engine test-solver test-viewer test-ui test-app golden-update app web
+.PHONY: help test test-engine test-solver test-viewer test-ui test-app golden-update app web metrics
 
 help:
 	@echo "make test                                    engine, viewer unit and browser tests"
@@ -31,6 +31,7 @@ help:
 	@echo "make test-app                                the Swift app's unit tests (macOS)"
 	@echo "make golden-update CASE=<name>               capture a new golden case's expected.step and expected.stl"
 	@echo "make golden-update CASE=<name> APPROVED=1    replace an existing case's, which needs Daniel's decision"
+	@echo "make metrics                                 complexity, duplication and unused-code counts into metrics.json (needs node)"
 	@echo "make lint                                    strict lint, format and type checks for every language"
 	@echo "make format                                  apply the three formatters"
 	@echo "make app                                     run the Swift app"
@@ -101,6 +102,9 @@ node_modules: package-lock.json
 
 e2e/node_modules: e2e/package-lock.json
 	cd e2e && npm ci --silent
+# Counts, not targets: tools/metrics.py says why, and CI reports them on every PR.
+metrics:
+	uv run --script tools/metrics.py --out metrics.json
 
 # Each open document starts its own `sprocket daemon`, which writes that
 # document's part.mesh, features.json and schemas.json under ~/Library/Caches.
