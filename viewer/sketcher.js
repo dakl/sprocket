@@ -488,47 +488,43 @@
       render();
     }
 
-    function acceptDimension() {
-      const value = Number.parseFloat(ui.dimension.value);
-      if (!Number.isFinite(value) || (value <= 0 && dimension.constraint.kind !== "angle")) {
-        setMessage("Type a number above zero");
-        return;
-      }
-      if (dimension.offset) {
-        try {
-          const made = root.SketchTools.offsetChain(
-            sketch,
-            dimension.offset.id,
-            dimension.offset.side * value,
+    function acceptOffset(value) {
+      try {
+        const made = root.SketchTools.offsetChain(
+          sketch,
+          dimension.offset.id,
+          dimension.offset.side * value,
+        );
+        if (change(made.sketch)) {
+          closeDimension();
+          selection = made.ids;
+          setMessage(
+            "Offset " +
+              made.ids.length +
+              (made.ids.length === 1 ? " shape" : " shapes") +
+              " by " +
+              value,
           );
-          if (change(made.sketch)) {
-            closeDimension();
-            selection = made.ids;
-            setMessage(
-              "Offset " +
-                made.ids.length +
-                (made.ids.length === 1 ? " shape" : " shapes") +
-                " by " +
-                value,
-            );
-            render();
-          }
-        } catch (error) {
-          setMessage(error.message);
+          render();
         }
-        return;
+      } catch (error) {
+        setMessage(error.message);
       }
-      if (dimension.fillet) {
-        try {
-          const rounded = model.addFillet(sketch, dimension.fillet, value);
-          if (change(rounded.sketch)) {
-            closeDimension();
-          }
-        } catch (error) {
-          setMessage(error.message);
+    }
+
+    function acceptFillet(value) {
+      try {
+        const rounded = model.addFillet(sketch, dimension.fillet, value);
+        if (change(rounded.sketch)) {
+          closeDimension();
         }
-        return;
+      } catch (error) {
+        setMessage(error.message);
       }
+    }
+
+    /// The typed value as the dimension's constraint: a new one, or the one being edited.
+    function acceptConstraintValue(value) {
       const constraint = { ...dimension.constraint, value };
       const next =
         dimension.index === null || dimension.index === undefined
@@ -536,6 +532,23 @@
           : model.replaceConstraint(sketch, dimension.index, constraint);
       if (change(next)) {
         closeDimension();
+      }
+    }
+
+    /// Enter in the dimension box: the typed number is an offset distance, a
+    /// fillet radius or a dimension's value, depending on what opened the box.
+    function acceptDimension() {
+      const value = Number.parseFloat(ui.dimension.value);
+      if (!Number.isFinite(value) || (value <= 0 && dimension.constraint.kind !== "angle")) {
+        setMessage("Type a number above zero");
+        return;
+      }
+      if (dimension.offset) {
+        acceptOffset(value);
+      } else if (dimension.fillet) {
+        acceptFillet(value);
+      } else {
+        acceptConstraintValue(value);
       }
     }
 
