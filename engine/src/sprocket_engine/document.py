@@ -1291,7 +1291,7 @@ def _now() -> str:
 def _solver() -> Callable[[SolverSketch], SolveResult] | None:
     """The sketch solver, or None when the `solver` extra is not installed."""
     try:
-        from sprocket_engine.solver import solve
+        from sprocket_engine.solver import solve  # noqa: PLC0415 -- planegcs is an optional extra and slow to load
     except ImportError:
         return None
     return solve

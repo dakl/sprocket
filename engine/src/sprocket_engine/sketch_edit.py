@@ -265,7 +265,7 @@ def edit_sketch(
     if project is not None and has_references(resolved_json):
         resolved = with_references_updated(resolved, project)
     try:
-        from sprocket_engine.solver import solve
+        from sprocket_engine.solver import solve  # noqa: PLC0415 -- planegcs is an optional extra and slow to load
     except ImportError:
         raise ValueError(
             "editing a sketch needs the constraint solver: install sprocket-engine[solver]"

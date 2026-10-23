@@ -240,7 +240,7 @@ def refresh_references(feature: JSONObject, ctx: Context) -> JSONObject:
         return feature
     updated = with_references_updated(sketch, projector(sketch["plane"], ctx))
     try:
-        from sprocket_engine.solver import solve
+        from sprocket_engine.solver import solve  # noqa: PLC0415 -- planegcs is an optional extra and slow to load
     except ImportError:
         return to_json(updated)
     result = solve(

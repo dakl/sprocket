@@ -134,7 +134,7 @@ def thread_geometry(feature: ThreadFeature, ctx: Context) -> ThreadGeometry:
 
 def _modeled(base: Compound, geometry: ThreadGeometry) -> Compound:
     try:
-        from bd_warehouse.thread import IsoThread
+        from bd_warehouse.thread import IsoThread  # noqa: PLC0415 -- the threads extra is optional
     except ImportError:
         raise ValueError(
             "a modeled thread needs the `threads` extra: uv sync --extra threads"

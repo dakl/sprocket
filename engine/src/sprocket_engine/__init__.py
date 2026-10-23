@@ -9,7 +9,7 @@ __all__ = ["ENGINE_VERSIONS", "main"]
 
 def main() -> NoReturn:
     """The `sprocket` command."""
-    from sprocket_engine.cli import main as cli_main
+    from sprocket_engine.cli import main as cli_main  # noqa: PLC0415 -- importing the package must not load the CLI and build123d with it
 
     # cli.main returns the exit code (1 for a build that failed gracefully, so
     # the app and any shell caller can tell a failed build from a good one).

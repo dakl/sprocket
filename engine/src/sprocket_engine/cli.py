@@ -25,6 +25,7 @@ from sprocket_engine.export import (
 )
 from sprocket_engine.mesh import MeshHeader, export_mesh
 from sprocket_engine.model import JSON, parse_json
+from sprocket_engine.ops import REGISTRY
 from sprocket_engine.replay import build_shape, failed_feature, with_settings
 
 
@@ -350,7 +351,7 @@ def _serve() -> int:
 def _daemon(args: argparse.Namespace) -> int:
     # Imported here, not at module scope, so `sprocket build` keeps starting
     # without paying for the socket machinery it never uses.
-    from sprocket_engine.rpc import Daemon, Session
+    from sprocket_engine.rpc import Daemon, Session  # noqa: PLC0415 -- `sprocket build` must start without the daemon's socket machinery
 
     document_path = _required_path(args, "document")
     try:
@@ -381,8 +382,6 @@ def _daemon(args: argparse.Namespace) -> int:
 
 
 def _schemas() -> int:
-    from sprocket_engine.ops import REGISTRY
-
     _out(
         json.dumps({name: op.schema for name, op in sorted(REGISTRY.items())}, indent=2)
     )
@@ -390,8 +389,8 @@ def _schemas() -> int:
 
 
 def _web(args: argparse.Namespace) -> int:
-    from sprocket_engine.rpc import Daemon, Session
-    from sprocket_engine.web import WebApp, make_server
+    from sprocket_engine.rpc import Daemon, Session  # noqa: PLC0415 -- `sprocket build` must start without the daemon's socket machinery
+    from sprocket_engine.web import WebApp, make_server  # noqa: PLC0415 -- only `sprocket web` needs the HTTP server
 
     document_path = _required_path(args, "document")
     try:
@@ -430,7 +429,7 @@ def _web(args: argparse.Namespace) -> int:
 
 
 def _mcp(args: argparse.Namespace) -> int:
-    from sprocket_engine.mcp_server import run
+    from sprocket_engine.mcp_server import run  # noqa: PLC0415 -- the mcp extra is optional
 
     return run(_path(args, "socket"))
 
