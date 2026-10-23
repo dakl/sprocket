@@ -265,12 +265,12 @@ def edit_sketch(
     if project is not None and has_references(resolved_json):
         resolved = with_references_updated(resolved, project)
     try:
-        from sprocket_engine import solver
+        from sprocket_engine.solver import solve
     except ImportError:
         raise ValueError(
             "editing a sketch needs the constraint solver: install sprocket-engine[solver]"
         ) from None
-    result = solver.solve(
+    result = solve(
         {
             "entities": resolved.get("entities", []),
             "constraints": resolved.get("constraints", []),

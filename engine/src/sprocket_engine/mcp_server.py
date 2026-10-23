@@ -20,14 +20,28 @@ import base64
 import json
 import tempfile
 from pathlib import Path
+from typing import Protocol, cast
 
 from mcp import types
+from mcp.server.context import ServerRequestContext
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
-from .materials import PRESETS
-from .ops import REGISTRY
-from .rpc import INTERNAL_ERROR, Client, RpcError
+from sprocket_engine.materials import PRESETS
+from sprocket_engine.model import JSON, JSONObject
+from sprocket_engine.ops import REGISTRY
+from sprocket_engine.rpc import INTERNAL_ERROR, Client, RpcError
+
+
+class Caller(Protocol):
+    """What a tool needs: one daemon call at a time."""
+
+    def call(self, method: str, **params: JSON) -> JSONObject:
+        """Call a daemon method and return its result."""
+        ...
+
+
+type Content = list[types.ContentBlock]
 
 SERVER_NAME = "sprocket"
 SERVER_VERSION = "0.1.0"
@@ -49,7 +63,7 @@ Edits are optimistic. Pass the base_revision you last read, and a rejected
 edit comes back with the current document so you can rebase."""
 
 # Neither belongs to the op, so they are added to every generated tool.
-EDIT_PROPERTIES = {
+EDIT_PROPERTIES: dict[str, JSONObject] = {
     "index": {
         "type": "integer",
         "description": "where in the timeline to insert it (default: at the rollback bar)",
@@ -61,7 +75,7 @@ EDIT_PROPERTIES = {
 }
 
 
-def op_tool_schema(schema: dict) -> dict:
+def op_tool_schema(schema: JSONObject) -> JSONObject:
     """An op's schema as tool parameters.
 
     `type` goes: the tool name already fixes it, and an agent that has to
@@ -69,13 +83,16 @@ def op_tool_schema(schema: dict) -> dict:
     inventing unique names across a long session collides with itself and the
     daemon can name a feature perfectly well.
     """
-    properties = {
-        name: value
-        for name, value in schema.get("properties", {}).items()
-        if name != "type"
+    own = schema.get("properties", {})
+    own_properties: JSONObject = own if isinstance(own, dict) else {}
+    properties: JSONObject = {
+        name: value for name, value in own_properties.items() if name != "type"
     }
-    required = [
-        name for name in schema.get("required", []) if name not in ("type", "id")
+    needed = schema.get("required", [])
+    required: list[JSON] = [
+        name
+        for name in (needed if isinstance(needed, list) else [])
+        if name not in ("type", "id")
     ]
     # `description` goes too: it is already the tool's own description, and an
     # agent pays for every copy of it in the listing.
@@ -92,8 +109,11 @@ def op_tool_schema(schema: dict) -> dict:
 
 
 def _tool(
-    name: str, description: str, properties: dict, required: list[str] | None = None
-):
+    name: str,
+    description: str,
+    properties: JSONObject,
+    required: list[str] | None = None,
+) -> types.Tool:
     return types.Tool(
         name=name,
         description=description,
@@ -105,7 +125,7 @@ def _tool(
     )
 
 
-HANDLES = {
+HANDLES: JSONObject = {
     "type": "array",
     "items": {"type": "string"},
     "description": "face or edge handles from describe_geometry, e.g. ['f2', 'e7']",
@@ -113,6 +133,7 @@ HANDLES = {
 
 
 def document_tools() -> list[types.Tool]:
+    """The tools that read and change the document as a whole."""
     return [
         _tool(
             "get_document",
@@ -374,22 +395,22 @@ def document_tools() -> list[types.Tool]:
     ]
 
 
-SKETCH_TOOL_PROPERTIES = {
+SKETCH_TOOL_PROPERTIES: JSONObject = {
     "feature": {
         "type": "string",
         "description": "id of a sketch feature made of lines, arcs and circles",
     },
     "base_revision": EDIT_PROPERTIES["base_revision"],
 }
-CONSTRAINT_ID = {
+CONSTRAINT_ID: JSONObject = {
     "type": "string",
     "description": "a constraint id from the sketch, such as 'c3'",
 }
-ENTITY_ID = {
+ENTITY_ID: JSONObject = {
     "type": "string",
     "description": "an entity id from the sketch, such as 'e2'",
 }
-CHANGES = {
+CHANGES: JSONObject = {
     "type": "object",
     "description": "the fields to set. The id and the kind cannot change.",
 }
@@ -485,19 +506,28 @@ def op_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name=f"add_{name}",
-            description=op.schema.get(
-                "description", f"Adds a {name} feature to the timeline."
-            ),
+            description=_description(op.schema, name),
             input_schema=op_tool_schema(op.schema),
         )
         for name, op in sorted(REGISTRY.items())
     ]
 
 
-def _next_id(client: Client, op_name: str) -> str:
+def _description(schema: JSONObject, name: str) -> str:
+    description = schema.get("description")
+    if isinstance(description, str):
+        return description
+    return f"Adds a {name} feature to the timeline."
+
+
+def _next_id(client: Caller, op_name: str) -> str:
     """A short id the agent did not have to invent, unique in this document."""
+    features = client.call("get_document").get("features")
     existing = {
-        feature.get("id") for feature in client.call("get_document")["features"]
+        feature_id
+        for feature in (features if isinstance(features, list) else [])
+        if isinstance(feature, dict)
+        and isinstance(feature_id := feature.get("id"), str)
     }
     index = 1
     while f"{op_name}{index}" in existing:
@@ -508,7 +538,7 @@ def _next_id(client: Client, op_name: str) -> str:
 SKETCH_TOOL_NAMES = {tool.name for tool in sketch_tools()}
 
 
-def call(client: Client, name: str, arguments: dict) -> list:
+def call(client: Caller, name: str, arguments: JSONObject) -> Content:
     """Runs one tool against the daemon and returns MCP content."""
     if name in SKETCH_TOOL_NAMES:
         return _json_content(
@@ -519,12 +549,12 @@ def call(client: Client, name: str, arguments: dict) -> list:
         op_name = name[len("add_") :]
         if op_name not in REGISTRY:
             raise ValueError(f"no op named {op_name!r}")
-        feature = {
+        feature: JSONObject = {
             key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES
         }
         feature["type"] = op_name
-        feature.setdefault("id", _next_id(client, op_name))
-        edit = {"op": "insert", "feature": feature}
+        _ = feature.setdefault("id", _next_id(client, op_name))
+        edit: JSONObject = {"op": "insert", "feature": feature}
         if "index" in arguments:
             edit["index"] = arguments["index"]
         return _json_content(
@@ -572,7 +602,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     raise ValueError(f"no tool named {name!r}")
 
 
-def _render(client: Client, arguments: dict) -> list:
+def _render(client: Caller, arguments: JSONObject) -> Content:
     """Renders to a temporary file, then hands back the bytes.
 
     The daemon writes PNGs to a path because the Swift app wants a file on
@@ -584,38 +614,44 @@ def _render(client: Client, arguments: dict) -> list:
         info = client.call("render_view", path=str(path), **arguments)
         data = base64.b64encode(path.read_bytes()).decode()
     summary = dict(info)
-    summary.pop("path", None)
+    _ = summary.pop("path", None)
     return [
         types.ImageContent(type="image", data=data, mime_type="image/png"),
         types.TextContent(type="text", text=json.dumps(summary)),
     ]
 
 
-def _json_content(result) -> list:
+def _json_content(result: JSONObject) -> Content:
     return [
         types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))
     ]
 
 
-def build_server(client: Client) -> Server:
-    async def on_list_tools(ctx, params):
+def build_server(client: Caller) -> Server[object]:
+    """The MCP server whose tools call `client`."""
+
+    async def on_list_tools(
+        _ctx: ServerRequestContext[object], _params: types.PaginatedRequestParams | None
+    ) -> types.ListToolsResult:
         return types.ListToolsResult(
             tools=document_tools() + sketch_tools() + op_tools()
         )
 
-    async def on_call_tool(ctx, params):
+    async def on_call_tool(
+        _ctx: ServerRequestContext[object], params: types.CallToolRequestParams
+    ) -> types.CallToolResult:
         try:
             # The client is blocking, and blocking the event loop would stall
             # the stdio transport for the whole of a replay.
-            content = await asyncio.to_thread(
-                call, client, params.name, params.arguments or {}
-            )
+            # MCP tool arguments are JSON, which the SDK types as Any.
+            arguments = cast("JSONObject", params.arguments or {})
+            content = await asyncio.to_thread(call, client, params.name, arguments)
             return types.CallToolResult(content=content)
         except RpcError as exc:
             # A refused edit is the agent's to fix, not a transport failure, so
             # it comes back as tool content with the daemon's own message and
             # whatever state the daemon attached.
-            payload = {"error": str(exc), "code": exc.code}
+            payload: JSONObject = {"error": str(exc), "code": exc.code}
             if exc.data:
                 payload["data"] = exc.data
             return types.CallToolResult(
@@ -681,12 +717,14 @@ class LazyClient:
 
     def __init__(
         self, socket_path: Path | None = None, search_folder: Path | None = None
-    ):
-        self._socket_path = socket_path
-        self._search_folder = search_folder
+    ) -> None:
+        """Connect to `socket_path`, or to the newest running app, on first use."""
+        self._socket_path: Path | None = socket_path
+        self._search_folder: Path | None = search_folder
         self._client: Client | None = None
 
-    def call(self, method: str, **params):
+    def call(self, method: str, **params: JSON) -> JSONObject:
+        """Call a daemon method, reconnecting once if the app restarted."""
         for attempt in (1, 2):
             if self._client is None:
                 self._client = Client(
@@ -702,18 +740,21 @@ class LazyClient:
                 self.close()
                 if attempt == 2:
                     raise
+        raise RpcError(INTERNAL_ERROR, "the daemon could not be reached")
 
     def close(self) -> None:
+        """Close the connection, if there is one."""
         if self._client is not None:
             self._client.close()
             self._client = None
 
 
 def run(socket_path: Path | None = None) -> int:
+    """Serve MCP over stdio until the agent closes it."""
     client = LazyClient(socket_path)
     server = build_server(client)
 
-    async def main():
+    async def main() -> None:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
                 read_stream, write_stream, server.create_initialization_options()

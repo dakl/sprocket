@@ -240,10 +240,10 @@ def refresh_references(feature: JSONObject, ctx: Context) -> JSONObject:
         return feature
     updated = with_references_updated(sketch, projector(sketch["plane"], ctx))
     try:
-        from sprocket_engine import solver
+        from sprocket_engine.solver import solve
     except ImportError:
         return to_json(updated)
-    result = solver.solve(
+    result = solve(
         {
             "entities": updated.get("entities", []),
             "constraints": updated.get("constraints", []),

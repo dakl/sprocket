@@ -27,37 +27,48 @@ Routes:
     GET  anything else    a static file from the viewer directory
 """
 
+import functools
 import json
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import override
 from urllib.parse import parse_qs, urlsplit
 
-from .document import DocumentError
-from .rpc import METHODS, Daemon, _handle_line
-from .viewer_files import features_summary, mesh_bytes, schemas
+from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import parse_json
+from sprocket_engine.rpc import METHODS, Daemon, handle_line
+from sprocket_engine.viewer_files import features_summary, mesh_bytes, schemas
 
 HEARTBEAT_SECONDS = 15
 # The `export` method's parameter names, which are also the file extensions.
-EXPORT_TYPES = {"stl": "model/stl", "3mf": "model/3mf", "step": "model/step"}
+EXPORT_TYPES: dict[str, str] = {
+    "stl": "model/stl",
+    "3mf": "model/3mf",
+    "step": "model/step",
+}
 
 
 class WebApp:
     """Everything the HTTP handler needs that is not HTTP."""
 
-    def __init__(self, daemon: Daemon, viewer_dir: Path):
-        self.daemon = daemon
-        self.viewer_dir = Path(viewer_dir)
-        self._mesh: tuple[tuple[int, int], bytes | None] | None = None
+    def __init__(self, daemon: Daemon, viewer_dir: Path) -> None:
+        """Serve `daemon`'s document, and the viewer's files from `viewer_dir`."""
+        self.daemon: Daemon = daemon
+        self.viewer_dir: Path = Path(viewer_dir)
+        self._mesh: tuple[tuple[int, int, int], bytes | None] | None = None
 
     @property
-    def document(self):
+    def document(self) -> Document:
+        """The open document."""
         return self.daemon.session.document
 
-    def features_json(self) -> list[dict]:
+    def features_json(self) -> list[dict[str, object]]:
+        """The timeline as the viewer reads it."""
         with self.daemon.lock:
             _, failed = self.daemon.session.shape()
             return features_summary(
@@ -91,7 +102,7 @@ class WebApp:
         with self.daemon.lock:
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / f"part.{kind}"
-                METHODS["export"](self.daemon, {kind: str(path)})
+                _ = METHODS["export"](self.daemon, {kind: str(path)})
                 data = path.read_bytes()
             return (
                 data,
@@ -102,44 +113,50 @@ class WebApp:
 class _EventStream:
     """One open `/events` connection, registered as a daemon client."""
 
-    def __init__(self, handler):
-        self.handler = handler
-        self.lock = threading.Lock()
+    def __init__(self, handler: SimpleHTTPRequestHandler) -> None:
+        """Write events to `handler`'s open response."""
+        self.handler: SimpleHTTPRequestHandler = handler
+        self.lock: threading.Lock = threading.Lock()
 
     def send_line(self, message: str) -> None:
+        """Pass on one daemon notification as a named server-sent event."""
         # The daemon's own notification, named so the page can listen to each kind.
-        method = json.loads(message)["method"]
+        parsed = parse_json(message)
+        method = parsed.get("method") if isinstance(parsed, dict) else None
         self.write(f"event: {method}\ndata: {message}\n\n")
 
     def write(self, text: str) -> None:
+        """Write raw event-stream text."""
         with self.lock:
-            self.handler.wfile.write(text.encode())
+            _ = self.handler.wfile.write(text.encode())
             self.handler.wfile.flush()
 
 
-def make_handler(app: WebApp):
-    class Handler(SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=str(app.viewer_dir), **kwargs)
+def make_handler(app: WebApp) -> Callable[..., SimpleHTTPRequestHandler]:
+    """The request handler class for `app`, serving its viewer folder."""
 
-        def log_message(self, format, *args):
+    class Handler(SimpleHTTPRequestHandler):
+        @override
+        def log_message(self, format: str, *args: object) -> None:
             pass
 
-        def end_headers(self):
+        @override
+        def end_headers(self) -> None:
             # The mesh and the timeline change under a stable URL, so a cached
             # copy is a stale part.
             self.send_header("Cache-Control", "no-store")
             super().end_headers()
 
-        def _send_json(self, body, status=HTTPStatus.OK):
+        def _send_json(self, body: object, status: HTTPStatus = HTTPStatus.OK) -> None:
             payload = json.dumps(body).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
-            self.wfile.write(payload)
+            _ = self.wfile.write(payload)
 
-        def do_GET(self):
+        @override
+        def do_GET(self) -> None:
             route = self.path.split("?", 1)[0]
             try:
                 if route == "/part.mesh":
@@ -153,7 +170,7 @@ def make_handler(app: WebApp):
                     self.send_header("Content-Type", "application/octet-stream")
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
-                    self.wfile.write(data)
+                    _ = self.wfile.write(data)
                 elif route == "/features.json":
                     self._send_json(app.features_json())
                 elif route == "/schemas.json":
@@ -178,7 +195,7 @@ def make_handler(app: WebApp):
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
 
-        def _send_export(self):
+        def _send_export(self) -> None:
             kind = parse_qs(urlsplit(self.path).query).get("format", [""])[0]
             if not self._is_local_request():
                 self._send_json(
@@ -203,7 +220,7 @@ def make_handler(app: WebApp):
                 )
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
-                self.wfile.write(data)
+                _ = self.wfile.write(data)
 
         def _is_local_request(self) -> bool:
             """Refuses requests from other web pages.
@@ -214,14 +231,15 @@ def make_handler(app: WebApp):
             the Origin check stops a cross-site page. A script with no Origin
             header, such as curl or a test, is the user's own process.
             """
-            port = self.server.server_address[1]
+            address = self.server.server_address
+            port: object = address[1] if isinstance(address, tuple) else None
             local = {f"127.0.0.1:{port}", f"localhost:{port}"}
             origin = self.headers.get("Origin")
             return self.headers.get("Host") in local and (
                 origin is None or origin.removeprefix("http://") in local
             )
 
-        def do_POST(self):
+        def do_POST(self) -> None:
             if not self._is_local_request():
                 self._send_json(
                     {"error": "requests from other origins are refused"},
@@ -231,7 +249,7 @@ def make_handler(app: WebApp):
             route = self.path.split("?", 1)[0]
             length = int(self.headers.get("Content-Length") or 0)
             try:
-                body = json.loads(self.rfile.read(length) or b"{}")
+                body = parse_json(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError as exc:
                 self._send_json(
                     {"error": f"not valid JSON: {exc}"}, HTTPStatus.BAD_REQUEST
@@ -239,7 +257,7 @@ def make_handler(app: WebApp):
                 return
             try:
                 if route == "/rpc":
-                    response = _handle_line(app.daemon, json.dumps(body).encode())
+                    response = handle_line(app.daemon, json.dumps(body).encode())
                     self._send_json(response if response is not None else {})
                 else:
                     self._send_json(
@@ -251,7 +269,7 @@ def make_handler(app: WebApp):
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
 
-        def _stream_events(self):
+        def _stream_events(self) -> None:
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
@@ -269,7 +287,8 @@ def make_handler(app: WebApp):
             finally:
                 app.daemon.remove_client(stream)
 
-    return Handler
+    # The stdlib's own way to give the handler its folder.
+    return functools.partial(Handler, directory=str(app.viewer_dir))
 
 
 class _Server(ThreadingHTTPServer):
@@ -277,10 +296,11 @@ class _Server(ThreadingHTTPServer):
     # once, and when the accept queue is full the kernel resets the extra ones,
     # so a <script src> fails with ERR_CONNECTION_RESET and the page never
     # starts. The OS caps this value (128 on macOS), so a large number is safe.
-    request_queue_size = 128
+    request_queue_size: int = 128
 
 
 def make_server(app: WebApp, port: int) -> ThreadingHTTPServer:
+    """An HTTP server for `app` on 127.0.0.1:`port`."""
     server = _Server(("127.0.0.1", port), make_handler(app))
     server.daemon_threads = True
     return server

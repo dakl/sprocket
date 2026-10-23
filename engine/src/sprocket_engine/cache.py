@@ -11,7 +11,7 @@ from pathlib import Path
 from build123d import Compound, Part, Sketch
 from OCP.TopoDS import TopoDS
 
-from sprocket_engine import ENGINE_VERSIONS
+from sprocket_engine.versions import ENGINE_VERSIONS
 from sprocket_engine.b3d import export_brep, import_brep
 from sprocket_engine.model import JSONObject
 

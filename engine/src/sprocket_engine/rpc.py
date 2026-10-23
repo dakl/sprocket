@@ -33,7 +33,7 @@ import traceback
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, TypedDict, final, override
+from typing import Literal, Protocol, TypedDict, final, override
 
 from build123d import Compound, Edge, Face, Solid
 
@@ -122,6 +122,14 @@ def say(message: str) -> None:
     """One line on the daemon's stdout, where the app and a terminal read its log."""
     _ = sys.stdout.write(f"{message}\n")
     _ = sys.stdout.flush()
+
+
+class Listener(Protocol):
+    """A connected client: anything the daemon can send a notification line to."""
+
+    def send_line(self, message: str) -> None:
+        """Send one JSON line."""
+        ...
 
 
 class Session:
@@ -298,18 +306,18 @@ class Daemon:
         # document.reference_digest), and the files those digests read.
         self.reference_digests: dict[str | None, str | None] = {}
         self.watched_references: list[Path] = []
-        self._clients: set[_Handler] = set()
+        self._clients: set[Listener] = set()
         self._clients_lock: threading.Lock = threading.Lock()
         self._server: _Server | None = None
 
     # ---- client registry ---------------------------------------------------
 
-    def add_client(self, handler: "_Handler") -> None:
+    def add_client(self, handler: Listener) -> None:
         """Register a connection to hear notifications."""
         with self._clients_lock:
             self._clients.add(handler)
 
-    def remove_client(self, handler: "_Handler") -> None:
+    def remove_client(self, handler: Listener) -> None:
         """Stop sending notifications to a connection."""
         with self._clients_lock:
             self._clients.discard(handler)
@@ -677,7 +685,7 @@ class _Handler(socketserver.StreamRequestHandler):
             line = raw.strip()
             if not line:
                 continue
-            response = _handle_line(daemon, line)
+            response = handle_line(daemon, line)
             if response is not None:
                 try:
                     self.send_line(json.dumps(response))
@@ -685,7 +693,8 @@ class _Handler(socketserver.StreamRequestHandler):
                     return
 
 
-def _handle_line(daemon: Daemon, line: bytes) -> Reply | None:
+def handle_line(daemon: Daemon, line: bytes) -> Reply | None:
+    """Answer one JSON-RPC request line, or None for a notification."""
     try:
         request = parse_json(line)
     except json.JSONDecodeError as exc:
