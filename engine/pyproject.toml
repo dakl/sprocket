@@ -89,3 +89,6 @@ pythonVersion = "3.12"
 include = ["src", "tests", "tools"]
 venvPath = "."
 venv = ".venv"
+# The tests import their helpers as top-level modules, because pytest puts
+# tests/ on sys.path; src/ is listed again because extraPaths replaces the default.
+extraPaths = ["src", "tests"]

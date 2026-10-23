@@ -8,6 +8,8 @@ which constraints conflict or repeat each other.
 
 import math
 
+from sprocket_engine.model import JSONObject
+
 
 def rough_rectangle(extra=()):
     return {
@@ -106,7 +108,7 @@ def sprocket_plate(teeth=13, pitch=6.35, roller=3.3, tip=15.0, cap_radius=0.55):
 
 # Two straight sides and two round ends. Every tangent, equal and distance kind
 # the viewer offers for curves is used at least once across these cases.
-SLOT = {
+SLOT: JSONObject = {
     "entities": [
         {"id": "l1", "kind": "line", "p0": [0, 0], "p1": [30, 0.5]},
         {"id": "l2", "kind": "line", "p0": [0, 10], "p1": [30, 9.5]},
@@ -145,7 +147,7 @@ SLOT = {
 }
 
 # Angles, axes, circles and every point-on and fix kind.
-ANGLES_AND_CIRCLES = {
+ANGLES_AND_CIRCLES: JSONObject = {
     "entities": [
         {"id": "l1", "kind": "line", "p0": [0, 0], "p1": [10, 1]},
         {"id": "l2", "kind": "line", "p0": [0, 0], "p1": [8, 9]},
@@ -173,7 +175,7 @@ ANGLES_AND_CIRCLES = {
 
 # An inner rectangle held a set distance from a projected edge, as the viewer sends it:
 # the reference is locked, and distance_x and distance_y are signed.
-PROJECTED_EDGE = {
+PROJECTED_EDGE: JSONObject = {
     "entities": [
         {"id": "e1", "kind": "line", "p0": [-31, 9], "p1": [21, 10]},
         {"id": "e2", "kind": "line", "p0": [21, 10], "p1": [20, 41]},
@@ -213,7 +215,7 @@ PROJECTED_EDGE = {
 }
 
 # A line and a circle mirrored across a held vertical line, as the viewer's Mirror makes them.
-MIRRORED = {
+MIRRORED: JSONObject = {
     "entities": [
         {"id": "e1", "kind": "line", "p0": [0, -20], "p1": [0, 20]},
         {"id": "e2", "kind": "line", "p0": [5, 0], "p1": [15, 10]},
@@ -232,7 +234,7 @@ MIRRORED = {
     ],
 }
 
-CASES = {
+CASES: JSONObject = {
     "rectangle_dimensioned": {
         "sketch": rough_rectangle(
             [

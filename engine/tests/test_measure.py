@@ -2,10 +2,10 @@
 
 import pytest
 
-from sprocket_engine.rpc import RpcError
+from sprocket_engine.rpc import Client, RpcError
 
 
-def handles(client):
+def handles(client: Client):
     described = client.call("describe_geometry")
     faces = {tuple(face["normal"]): face["handle"] for face in described["faces"]}
     vertical = [
@@ -19,7 +19,7 @@ def handles(client):
     return faces, vertical, long_edges
 
 
-def test_top_and_bottom_face_each_other_10_mm_apart(client):
+def test_top_and_bottom_face_each_other_10_mm_apart(client: Client) -> None:
     faces, _, _ = handles(client)
     measured = client.call(
         "measure", handles=[faces[(0.0, 0.0, 1.0)], faces[(0.0, 0.0, -1.0)]]
@@ -28,7 +28,7 @@ def test_top_and_bottom_face_each_other_10_mm_apart(client):
     assert measured["angle"] == pytest.approx(180)
 
 
-def test_side_faces_meet_at_a_right_angle_and_touch(client):
+def test_side_faces_meet_at_a_right_angle_and_touch(client: Client) -> None:
     faces, _, _ = handles(client)
     measured = client.call(
         "measure", handles=[faces[(1.0, 0.0, 0.0)], faces[(0.0, 1.0, 0.0)]]
@@ -39,13 +39,15 @@ def test_side_faces_meet_at_a_right_angle_and_touch(client):
     )
 
 
-def test_an_edge_to_a_face_is_the_line_to_plane_angle(client):
+def test_an_edge_to_a_face_is_the_line_to_plane_angle(client: Client) -> None:
     faces, vertical, _ = handles(client)
     measured = client.call("measure", handles=[faces[(0.0, 0.0, 1.0)], vertical[0]])
     assert measured["angle"] == pytest.approx(90)
 
 
-def test_two_long_edges_are_parallel_and_the_distance_is_the_gap(client):
+def test_two_long_edges_are_parallel_and_the_distance_is_the_gap(
+    client: Client,
+) -> None:
     _, _, long_edges = handles(client)
     bottom = [edge for edge in long_edges if edge["centre"][2] == pytest.approx(0)]
     measured = client.call(
@@ -57,7 +59,7 @@ def test_two_long_edges_are_parallel_and_the_distance_is_the_gap(client):
     )
 
 
-def test_the_whole_part_lists_each_body(client):
+def test_the_whole_part_lists_each_body(client: Client) -> None:
     measured = client.call("measure")
     assert measured["volume"] == pytest.approx(12000)
     assert measured["bodies"] == [
@@ -70,7 +72,7 @@ def test_the_whole_part_lists_each_body(client):
     ]
 
 
-def test_one_body_by_id(client):
+def test_one_body_by_id(client: Client) -> None:
     assert client.call("measure", body="e1")["volume"] == pytest.approx(12000)
     with pytest.raises(RpcError, match="no part body 'nope'; part bodies are e1"):
-        client.call("measure", body="nope")
+        _ = client.call("measure", body="nope")

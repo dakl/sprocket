@@ -3,9 +3,10 @@
 import pytest
 
 from sprocket_engine.document import Document
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 
-BOX = [
+BOX: list[JSONObject] = [
     {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10}},
     {"id": "box", "type": "extrude", "profile": "bs", "distance": 10},
 ]
@@ -18,7 +19,7 @@ def build(features):
 @pytest.mark.parametrize(
     ("keep", "volume", "bottom", "top"), [("above", 1200, 4, 10), ("below", 800, 0, 4)]
 )
-def test_keep_one_side_of_the_plane(keep, volume, bottom, top):
+def test_keep_one_side_of_the_plane(keep, volume, bottom, top) -> None:
     part, ctx = build(
         BOX
         + [
@@ -39,7 +40,7 @@ def test_keep_one_side_of_the_plane(keep, volume, bottom, top):
     )
 
 
-def test_both_halves_have_their_own_cut_face():
+def test_both_halves_have_their_own_cut_face() -> None:
     part, _ = build(
         BOX
         + [
@@ -56,9 +57,9 @@ def test_both_halves_have_their_own_cut_face():
     assert not any(a.is_same(b) for a in first.faces() for b in second.faces())
 
 
-def test_a_plane_that_misses_the_body_is_refused():
+def test_a_plane_that_misses_the_body_is_refused() -> None:
     with pytest.raises(ValueError, match="does not cross 'box'"):
-        build(
+        _ = build(
             BOX
             + [
                 {
@@ -70,7 +71,7 @@ def test_a_plane_that_misses_the_body_is_refused():
             ]
         )
     with pytest.raises(ValueError, match="kept nothing"):
-        build(
+        _ = build(
             BOX
             + [
                 {

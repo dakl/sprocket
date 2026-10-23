@@ -1,12 +1,12 @@
 import math
 
 import pytest
+from build123d import Face, Wire
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from build123d import Face, Wire
-
 from sprocket_engine import regions
+from sprocket_engine.model import JSONObject
 from sprocket_engine.regions import ProfileError, find_regions, pick_region
 
 
@@ -30,7 +30,7 @@ def areas(regions):
     return sorted(round(region.area, 3) for region in regions)
 
 
-def test_a_cell_wound_clockwise_is_turned_to_face_up():
+def test_a_cell_wound_clockwise_is_turned_to_face_up() -> None:
     """A face built on a clockwise wire faces -Z. Turning it once raised
     AttributeError, because build123d's Wire has no `reversed`."""
     clockwise = Face(
@@ -44,14 +44,14 @@ def test_a_cell_wound_clockwise_is_turned_to_face_up():
     assert cleaned.area == pytest.approx(100)
 
 
-def test_a_rectangle_is_one_region_bounded_by_its_four_sides():
+def test_a_rectangle_is_one_region_bounded_by_its_four_sides() -> None:
     (region,) = find_regions(rectangle(0, 0, 40, 20))
     assert region.area == pytest.approx(800)
     assert region.bounded_by == ["r1", "r2", "r3", "r4"]
     assert region.holes == []
 
 
-def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
+def test_a_circle_across_a_side_cuts_the_rectangle_into_three() -> None:
     # Centred on the top side: the circle leaves a half disc outside, a half
     # disc inside, and the rectangle with a bite out of it.
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
@@ -61,7 +61,7 @@ def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
     )
 
 
-def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
+def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole() -> None:
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4)])
     by_area = sorted(regions, key=lambda region: region.area)
     assert [len(region.holes) for region in by_area] == [0, 1]
@@ -69,7 +69,7 @@ def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
     assert by_area[1].area == pytest.approx(800 - math.pi * 16)
 
 
-def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
+def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers() -> None:
     # Radius 10 at (10, 10) touches x=0 and y=0. Tangency is where a splitter
     # is most likely to drop a cell or invent one.
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 10, 10, 10)])
@@ -80,7 +80,7 @@ def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
     )
 
 
-def test_a_line_that_ends_inside_a_region_bounds_nothing():
+def test_a_line_that_ends_inside_a_region_bounds_nothing() -> None:
     regions = find_regions(
         rectangle(0, 0, 40, 20)
         + [{"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]}]
@@ -90,7 +90,7 @@ def test_a_line_that_ends_inside_a_region_bounds_nothing():
     assert region.holes == []
 
 
-def test_corners_that_miss_by_a_solver_tolerance_still_close():
+def test_corners_that_miss_by_a_solver_tolerance_still_close() -> None:
     (region,) = find_regions(rectangle(0, 0, 40, 20, gap=1e-7))
     assert region.area == pytest.approx(800, rel=1e-6)
 
@@ -163,7 +163,7 @@ def toothed_wheel(teeth, tip=15.0):
     return arcs + lines
 
 
-def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
+def test_the_outline_follows_the_wire_when_corners_miss_by_rounding() -> None:
     """The viewer fills a region from its outline. The outline used to reverse
     an edge whenever its end missed the last point by more than 1e-9, so a
     sketch with rounded coordinates came out as a self-crossing polygon: the
@@ -184,7 +184,7 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
     assert shoelace == pytest.approx(region.area, rel=1e-3)
 
 
-def test_construction_geometry_bounds_no_region():
+def test_construction_geometry_bounds_no_region() -> None:
     regions = find_regions(
         rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4, construction=True)]
     )
@@ -199,8 +199,8 @@ def test_construction_geometry_bounds_no_region():
     ],
     ids=["plain", "wraps past 2 pi"],
 )
-def test_an_arc_and_the_chord_across_it_bound_a_half_disc(start, end, chord):
-    entities = [
+def test_an_arc_and_the_chord_across_it_bound_a_half_disc(start, end, chord) -> None:
+    entities: list[JSONObject] = [
         {"id": "a", "kind": "arc", "c": [0, 0], "r": 5, "a0": start, "a1": end},
         {"id": "l", "kind": "line", "p0": chord[0], "p1": chord[1]},
     ]
@@ -208,17 +208,17 @@ def test_an_arc_and_the_chord_across_it_bound_a_half_disc(start, end, chord):
     assert region.area == pytest.approx(math.pi * 25 / 2)
 
 
-def test_open_drawings_and_empty_ones_have_no_regions():
+def test_open_drawings_and_empty_ones_have_no_regions() -> None:
     assert find_regions([]) == []
     assert find_regions([{"id": "l", "kind": "line", "p0": [0, 0], "p1": [1, 1]}]) == []
 
 
-def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart():
+def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart() -> None:
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
     twins = [region for region in regions if region.bounded_by == ["c", "r3"]]
     assert len(twins) == 2
     with pytest.raises(ProfileError, match="gives no 'inside' point"):
-        pick_region(regions, {"bounded_by": ["c", "r3"]})
+        _ = pick_region(regions, {"bounded_by": ["c", "r3"]})
     for twin in twins:
         picked = pick_region(
             regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)}
@@ -226,13 +226,13 @@ def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart():
         assert picked.inside == twin.inside
 
 
-def test_a_reference_that_matches_nothing_is_an_error_not_a_guess():
+def test_a_reference_that_matches_nothing_is_an_error_not_a_guess() -> None:
     regions = find_regions(rectangle(0, 0, 40, 20))
     with pytest.raises(ProfileError, match="matches 0 regions"):
-        pick_region(regions, {"bounded_by": ["r1", "r2", "r9"]})
+        _ = pick_region(regions, {"bounded_by": ["r1", "r2", "r9"]})
 
 
-def test_the_bounded_by_order_in_a_reference_does_not_matter():
+def test_the_bounded_by_order_in_a_reference_does_not_matter() -> None:
     regions = find_regions(rectangle(0, 0, 40, 20))
     assert pick_region(
         regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}

@@ -7,10 +7,11 @@ import math
 import pytest
 
 from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import JSONObject
 from sprocket_engine.regions import ProfileError
 from sprocket_engine.replay import replay
 
-BLOCK = [
+BLOCK: list[JSONObject] = [
     {
         "id": "bs",
         "type": "sketch",
@@ -19,7 +20,12 @@ BLOCK = [
     },
     {"id": "block", "type": "extrude", "profile": "bs", "distance": 10},
 ]
-SECTION = {"id": "section", "type": "sketch", "plane": "YZ", "circle": {"radius": 1}}
+SECTION: JSONObject = {
+    "id": "section",
+    "type": "sketch",
+    "plane": "YZ",
+    "circle": {"radius": 1},
+}
 
 
 def route(*entities):
@@ -40,7 +46,7 @@ def build(features):
     return replay(Document(features).for_replay(), return_context=True)
 
 
-def test_cut_mode_bores_the_swept_profile_out_of_the_base():
+def test_cut_mode_bores_the_swept_profile_out_of_the_base() -> None:
     features = BLOCK + [
         SECTION,
         route(line("e1", [0, 0], [20, 0])),
@@ -58,12 +64,12 @@ def test_cut_mode_bores_the_swept_profile_out_of_the_base():
     assert [body.id for body in ctx.bodies] == ["block"]
 
 
-def test_named_entities_pick_the_path_and_construction_is_left_out_by_default():
+def test_named_entities_pick_the_path_and_construction_is_left_out_by_default() -> None:
     """e2 is construction, so the default path is e1 alone. Naming both follows both."""
     sketch = route(
         line("e1", [0, 0], [10, 0]), line("e2", [10, 0], [10, 10], construction=True)
     )
-    sweep = {
+    sweep: JSONObject = {
         "id": "pipe",
         "type": "sweep",
         "profile": "section",
@@ -71,7 +77,7 @@ def test_named_entities_pick_the_path_and_construction_is_left_out_by_default():
     }
     part, _ = build([SECTION, sketch, sweep])
     assert part.volume == pytest.approx(math.pi * 10, rel=1e-6)
-    named = {**sweep, "path": {"sketch": "route", "entities": ["e1", "e2"]}}
+    named: JSONObject = {**sweep, "path": {"sketch": "route", "entities": ["e1", "e2"]}}
     part, _ = build([SECTION, sketch, named])
     assert pytest.approx(10, abs=1e-6) == part.bounding_box().max.Y
     assert part.volume == pytest.approx(math.pi * 20, rel=1e-3), (
@@ -79,10 +85,10 @@ def test_named_entities_pick_the_path_and_construction_is_left_out_by_default():
     )
 
 
-def test_a_path_in_two_pieces_is_refused_by_name():
+def test_a_path_in_two_pieces_is_refused_by_name() -> None:
     sketch = route(line("e1", [0, 0], [10, 0]), line("e2", [20, 0], [30, 0]))
     with pytest.raises(ProfileError, match="2 separate pieces"):
-        build(
+        _ = build(
             [
                 SECTION,
                 sketch,
@@ -96,7 +102,7 @@ def test_a_path_in_two_pieces_is_refused_by_name():
         )
 
 
-def test_the_path_sketch_cannot_be_deleted_while_a_sweep_uses_it():
+def test_the_path_sketch_cannot_be_deleted_while_a_sweep_uses_it() -> None:
     document = Document(
         [
             SECTION,
@@ -110,4 +116,4 @@ def test_the_path_sketch_cannot_be_deleted_while_a_sweep_uses_it():
         ]
     )
     with pytest.raises(DocumentError, match="'pipe' still reference it"):
-        document.apply_edits([{"op": "delete", "id": "route"}], None, "test")
+        _ = document.apply_edits([{"op": "delete", "id": "route"}], None, "test")

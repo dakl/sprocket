@@ -48,7 +48,7 @@ def parts(tmp_path_factory):
 
 
 @pytest.mark.parametrize("case", CASES)
-def test_fingerprint_matches_the_hand_computed_checks(case, parts):
+def test_fingerprint_matches_the_hand_computed_checks(case, parts) -> None:
     part = parts[case]
     expected = checks(case)
     bbox = part.bounding_box()
@@ -66,7 +66,7 @@ def test_fingerprint_matches_the_hand_computed_checks(case, parts):
 
 
 @pytest.mark.parametrize("case", CASES)
-def test_geometry_equals_the_expected_step(case, parts):
+def test_geometry_equals_the_expected_step(case, parts) -> None:
     """Symmetric difference, both ways round. A one-way cut passes when the
     result is a subset of what it should be: cutting a smaller solid out of the
     expected one leaves nothing, and a missing feature would read as correct.
@@ -89,7 +89,7 @@ def test_geometry_equals_the_expected_step(case, parts):
 
 
 @pytest.mark.parametrize("case", CASES)
-def test_exported_bytes_are_unchanged(case, parts, tmp_path):
+def test_exported_bytes_are_unchanged(case, parts, tmp_path: Path) -> None:
     """The brittle layer, and deliberately so. An OCCT or build123d upgrade will
     fail this while the two layers above still pass, and that combination is the
     signal to review the upgrade rather than a defect.
@@ -125,7 +125,7 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
 
 
 @pytest.mark.parametrize("case", CASES)
-def test_every_case_ships_its_expected_files(case):
+def test_every_case_ships_its_expected_files(case) -> None:
     """A case whose expected.* files are missing would otherwise skip two whole
     layers by erroring in a way that looks like a setup problem.
 
@@ -143,7 +143,7 @@ def test_every_case_ships_its_expected_files(case):
     )
 
 
-def test_replay_is_deterministic(tmp_path: Path):
+def test_replay_is_deterministic(tmp_path: Path) -> None:
     """Two replays through one cache directory, so a cache hit has to give the
     same answer as the miss that filled it.
     """
@@ -155,7 +155,7 @@ def test_replay_is_deterministic(tmp_path: Path):
     assert first.volume == pytest.approx(second.volume, rel=1e-9)
 
 
-def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path):
+def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path: Path) -> None:
     """The byte layer above can pass by luck. Capture a case and run the suite in
     the same second and the raw STEP files match, so the scrub never runs. This
     tests the substitution itself, whatever the clock says.
@@ -168,13 +168,13 @@ def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path):
 
     morning = tmp_path / "morning.step"
     evening = tmp_path / "evening.step"
-    morning.write_bytes(header % b"2026-09-28T07:43:02" + point % b"-20.")
-    evening.write_bytes(header % b"2026-09-28T07:43:25" + point % b"-20.")
+    _ = morning.write_bytes(header % b"2026-09-28T07:43:02" + point % b"-20.")
+    _ = evening.write_bytes(header % b"2026-09-28T07:43:25" + point % b"-20.")
     assert morning.read_bytes() != evening.read_bytes(), "the fixture does not differ"
     assert normalised_step(morning) == normalised_step(evening)
 
     moved = tmp_path / "moved.step"
-    moved.write_bytes(header % b"2026-09-28T07:43:02" + point % b"-20.5")
+    _ = moved.write_bytes(header % b"2026-09-28T07:43:02" + point % b"-20.5")
     assert normalised_step(moved) != normalised_step(morning), (
         "the scrub hides a moved vertex"
     )

@@ -1,15 +1,17 @@
 """A viewer or solver edit writes numbers. The stored "=param" fields it did not change must stay expressions."""
 
 import copy
+from pathlib import Path
 
 import pytest
 from conftest import running
 
 from sprocket_engine.document import Document, resolve_value
+from sprocket_engine.model import JSONObject
 from sprocket_engine.rpc import Client
 
-PARAMETERS = {"pcb_l": 40, "pcb_w": 20, "r": 3}
-SKETCH = {
+PARAMETERS: JSONObject = {"pcb_l": 40, "pcb_w": 20, "r": 3}
+SKETCH: JSONObject = {
     "id": "s",
     "type": "sketch",
     "plane": "XY",
@@ -37,9 +39,9 @@ def viewer_save(document, move_circle_to):
     return numbers
 
 
-def test_a_viewer_edit_keeps_the_expressions_it_did_not_change():
+def test_a_viewer_edit_keeps_the_expressions_it_did_not_change() -> None:
     document = Document([copy.deepcopy(SKETCH)], parameters=PARAMETERS)
-    document.apply_edits(
+    _ = document.apply_edits(
         [{"op": "update", "feature": viewer_save(document, [25, 10])}], None, "viewer"
     )
     stored = document.features[0]
@@ -54,12 +56,12 @@ def test_a_viewer_edit_keeps_the_expressions_it_did_not_change():
     ]
 
 
-def test_the_untouched_fields_still_follow_a_parameter_change():
+def test_the_untouched_fields_still_follow_a_parameter_change() -> None:
     document = Document([copy.deepcopy(SKETCH)], parameters=PARAMETERS)
-    document.apply_edits(
+    _ = document.apply_edits(
         [{"op": "update", "feature": viewer_save(document, [25, 10])}], None, "viewer"
     )
-    document.apply_edits(
+    _ = document.apply_edits(
         [{"op": "set_parameter", "name": "pcb_l", "value": 50}], None, "agent"
     )
     resolved = document.for_replay()["features"][0]
@@ -67,7 +69,7 @@ def test_the_untouched_fields_still_follow_a_parameter_change():
     assert resolved["entities"][4]["c"] == [25, 10]
 
 
-def test_the_daemon_reply_names_the_replaced_link(tmp_path):
+def test_the_daemon_reply_names_the_replaced_link(tmp_path: Path) -> None:
     with (
         running(
             {"features": [copy.deepcopy(SKETCH)], "parameters": PARAMETERS}, tmp_path
@@ -86,17 +88,17 @@ def test_the_daemon_reply_names_the_replaced_link(tmp_path):
         ]
 
 
-def test_an_engine_solved_sketch_edit_keeps_expressions_too():
+def test_an_engine_solved_sketch_edit_keeps_expressions_too() -> None:
     pytest.importorskip("planegcs")
     document = Document([copy.deepcopy(SKETCH)], parameters=PARAMETERS)
-    edit = {
+    edit: JSONObject = {
         "op": "edit_sketch",
         "id": "s",
         "action": "update_entity",
         "entity_id": "e5",
         "changes": {"r": 4},
     }
-    document.apply_edits([edit], None, "agent")
+    _ = document.apply_edits([edit], None, "agent")
     stored = document.features[0]
     assert stored["entities"][0]["p1"] == ["=pcb_l", 0]
     assert stored["constraints"][2]["value"] == "=r"

@@ -4,6 +4,7 @@ per face in the mesh. See SPEC.md, "M5, material presets".
 
 import json
 import struct
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -13,6 +14,7 @@ from test_bodies import CASE
 from sprocket_engine.document import Document, DocumentError
 from sprocket_engine.materials import PRESETS
 from sprocket_engine.mesh import NO_MATERIAL, export_mesh
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
 
@@ -31,22 +33,24 @@ def read(path):
     return header, values
 
 
-def export(tmp_path, settings, appearances=None):
+def export(tmp_path: Path, settings, appearances=None):
     part, ctx = replay({"features": CASE}, return_context=True)
     path = tmp_path / "part.mesh"
-    export_mesh(part, path, appearances, with_settings(ctx.bodies, settings))
+    _ = export_mesh(part, path, appearances, with_settings(ctx.bodies, settings))
     return part, path
 
 
-def test_no_finish_writes_version_1_with_no_material_buffer(tmp_path):
+def test_no_finish_writes_version_1_with_no_material_buffer(tmp_path: Path) -> None:
     _, path = export(tmp_path, {"case": {"color": "#ff0000"}})
     header, values = read(path)
     assert header["version"] == 1 and values is None
     assert all("material" not in body for body in header["bodies"])
 
 
-def test_a_body_finish_and_a_face_finish_reach_the_mesh_as_numbers(tmp_path):
-    lid_top = {
+def test_a_body_finish_and_a_face_finish_reach_the_mesh_as_numbers(
+    tmp_path: Path,
+) -> None:
+    lid_top: JSONObject = {
         "color": "#00ff00",
         "material": "glossy",
         "select": {
@@ -71,13 +75,13 @@ def test_a_body_finish_and_a_face_finish_reach_the_mesh_as_numbers(tmp_path):
     assert np.all(values[others] == NO_MATERIAL)
 
 
-def test_unknown_presets_are_refused(tmp_path):
+def test_unknown_presets_are_refused(tmp_path: Path) -> None:
     with pytest.raises(DocumentError, match="unknown material"):
-        Document(CASE).apply_edits(
+        _ = Document(CASE).apply_edits(
             [{"op": "set_body", "id": "case", "material": "chrome"}], None, "test"
         )
     path = tmp_path / "bad.sprocket"
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 "features": CASE,
@@ -92,17 +96,19 @@ def test_unknown_presets_are_refused(tmp_path):
         )
     )
     with pytest.raises(DocumentError, match="unknown material"):
-        Document.load(path)
+        _ = Document.load(path)
 
 
-def test_set_body_material_is_an_undoable_edit_an_agent_reads_back(tmp_path):
+def test_set_body_material_is_an_undoable_edit_an_agent_reads_back(
+    tmp_path: Path,
+) -> None:
     with (
         running({"features": CASE}, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
     ):
-        client.call("set_body", id="case", material="anodised_aluminium")
+        _ = client.call("set_body", id="case", material="anodised_aluminium")
         assert (
             client.call("get_bodies")["bodies"][0]["material"] == "anodised_aluminium"
         )
-        client.call("undo")
+        _ = client.call("undo")
         assert client.call("get_bodies")["bodies"][0]["material"] is None

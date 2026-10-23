@@ -4,12 +4,13 @@ import math
 
 import pytest
 
-from sprocket_engine.rpc import RpcError
+from sprocket_engine.model import JSONObject
+from sprocket_engine.rpc import Client, RpcError
 
 RADIUS = 1.0
 
 
-def top_edges(client):
+def top_edges(client: Client):
     return [
         f"e{index}"
         for index, edge in enumerate(client.call("describe_geometry")["edges"])
@@ -27,20 +28,27 @@ def fillet_with(selector):
     }
 
 
-def widen(client, half_width):
+def widen(client: Client, half_width):
     polygon = [
         [-half_width, -15],
         [half_width, -15],
         [half_width, 15],
         [-half_width, 15],
     ]
-    sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": polygon}
+    sketch: JSONObject = {
+        "id": "s1",
+        "type": "sketch",
+        "plane": "XY",
+        "polygon": polygon,
+    }
     return client.call(
         "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
     )
 
 
-def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
+def test_picked_edges_become_a_selector_that_selects_exactly_them(
+    client: Client,
+) -> None:
     answer = client.call("resolve_selection", handles=top_edges(client))
     assert answer["strategy"] == "new_since"
     assert answer["selector"]["select"][1] == {"op": "new_since", "feature": "e1"}
@@ -54,7 +62,9 @@ def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
     assert answer["selector"]["expected_count"] == 4
 
 
-def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
+def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(
+    client: Client,
+) -> None:
     """M4's done-when. A fillet that named its edges by index would round the
     wrong ones once the sketch changed, and one that named them by position
     would follow them only by luck.
@@ -75,17 +85,22 @@ def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
     assert wider["volume"] == pytest.approx(expected, abs=2.0)
 
 
-def test_a_selector_that_finds_a_different_number_fails_loudly(client):
+def test_a_selector_that_finds_a_different_number_fails_loudly(client: Client) -> None:
     """A pentagon has five top edges. Rounding five when four were picked is the
     silent wrong answer expected_count exists to stop.
     """
     answer = client.call("resolve_selection", handles=top_edges(client))
-    client.call(
+    _ = client.call(
         "apply_edit",
         edits=[{"op": "insert", "feature": fillet_with(answer["selector"])}],
     )
     pentagon = [[-20, -15], [20, -15], [25, 0], [20, 15], [-20, 15]]
-    sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": pentagon}
+    sketch: JSONObject = {
+        "id": "s1",
+        "type": "sketch",
+        "plane": "XY",
+        "polygon": pentagon,
+    }
     built = client.call(
         "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
     )["built"]
@@ -93,7 +108,7 @@ def test_a_selector_that_finds_a_different_number_fails_loudly(client):
     assert built["failed_feature"] == "r1"
 
 
-def test_a_picked_face_resolves_to_one_face(client):
+def test_a_picked_face_resolves_to_one_face(client: Client) -> None:
     top = next(
         index
         for index, face in enumerate(client.call("describe_geometry")["faces"])
@@ -104,7 +119,7 @@ def test_a_picked_face_resolves_to_one_face(client):
     assert answer["selector"]["select"][0] == {"op": "faces"}
 
 
-def test_a_set_with_no_rule_is_named_by_position_and_says_so(client):
+def test_a_set_with_no_rule_is_named_by_position_and_says_so(client: Client) -> None:
     """One top edge and one bottom edge on different sides have nothing in common."""
     edges = client.call("describe_geometry")["edges"]
     top = next(index for index, edge in enumerate(edges) if edge["centre"][2] == 10)
@@ -119,33 +134,33 @@ def test_a_set_with_no_rule_is_named_by_position_and_says_so(client):
     assert answer["count"] == 2
 
 
-def test_with_no_handles_it_uses_the_selection_the_person_made(client):
+def test_with_no_handles_it_uses_the_selection_the_person_made(client: Client) -> None:
     handles = top_edges(client)
-    client.call("set_selection", handles=handles, revision=0)
+    _ = client.call("set_selection", handles=handles, revision=0)
     assert client.call("resolve_selection")["count"] == 4
 
 
-def test_a_stale_selection_is_refused_instead_of_resolved(client):
+def test_a_stale_selection_is_refused_instead_of_resolved(client: Client) -> None:
     """Picked at an older revision than the part has now."""
-    widen(client, 30)
-    client.call("set_selection", handles=top_edges(client), revision=0)
+    _ = widen(client, 30)
+    _ = client.call("set_selection", handles=top_edges(client), revision=0)
     with pytest.raises(RpcError, match="stale"):
-        client.call("resolve_selection")
+        _ = client.call("resolve_selection")
 
 
-def test_edges_a_rebuild_moved_leave_nothing_to_resolve(client):
-    client.call("set_selection", handles=top_edges(client), revision=0)
-    widen(client, 30)
+def test_edges_a_rebuild_moved_leave_nothing_to_resolve(client: Client) -> None:
+    _ = client.call("set_selection", handles=top_edges(client), revision=0)
+    _ = widen(client, 30)
     assert client.call("get_selection")["handles"] == []
     with pytest.raises(RpcError):
-        client.call("resolve_selection")
+        _ = client.call("resolve_selection")
 
 
-def test_faces_and_edges_cannot_be_mixed(client):
+def test_faces_and_edges_cannot_be_mixed(client: Client) -> None:
     with pytest.raises(RpcError, match="not a mix"):
-        client.call("resolve_selection", handles=["f0", "e0"])
+        _ = client.call("resolve_selection", handles=["f0", "e0"])
 
 
-def test_a_handle_the_part_does_not_have_is_refused(client):
+def test_a_handle_the_part_does_not_have_is_refused(client: Client) -> None:
     with pytest.raises(RpcError, match="out of range"):
-        client.call("resolve_selection", handles=["e999"])
+        _ = client.call("resolve_selection", handles=["e999"])

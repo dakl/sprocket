@@ -21,6 +21,7 @@ pytest.importorskip("planegcs", reason="install the `solver` extra")
 
 from solver_cases import CASES, rough_rectangle
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.solver import POINTS, point_of, solve
 
 NODE = shutil.which("node")
@@ -56,7 +57,7 @@ def numbers(sketch):
     """Every number that describes the sketch, by name. An arc is compared by its
     ends, not its angles, because two angles a turn apart draw the same arc.
     """
-    described = {}
+    described: JSONObject = {}
     for entity in sketch["entities"]:
         for name in POINTS[entity["kind"]]:
             described[f"{entity['id']}.{name}"] = point_of(
@@ -90,7 +91,7 @@ def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(
     assert worst <= TOLERANCE, f"the two solvers differ by {worst:.2e}"
 
 
-def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given():
+def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given() -> None:
     """Not a comparison: the numbers the dimensions ask for, so a pair of solvers
     that agree on a wrong answer would still fail.
     """
@@ -112,7 +113,7 @@ def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given():
     )
 
 
-def test_two_dimensions_that_disagree_are_named():
+def test_two_dimensions_that_disagree_are_named() -> None:
     sketch = rough_rectangle(
         [
             {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
@@ -127,7 +128,7 @@ def test_two_dimensions_that_disagree_are_named():
     assert result["sketch"] is sketch, "a refused sketch comes back untouched"
 
 
-def test_arcs_add_no_hidden_redundant_constraints():
+def test_arcs_add_no_hidden_redundant_constraints() -> None:
     """Duplicate arc rules made every arc redundant. Nothing reported it, but each
     diagnosis then ran planegcs's slow redundancy search (24 ms on this plate, 14 without).
     """

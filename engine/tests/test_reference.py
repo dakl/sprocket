@@ -1,6 +1,7 @@
 """Reference bodies: another document or a STEP file shown for design, never exported."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -10,10 +11,11 @@ from conftest import running
 from sprocket_engine.document import Document
 from sprocket_engine.export import write_step
 from sprocket_engine.mesh import export_mesh
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
 
-BOARD = {
+BOARD: JSONObject = {
     "features": [
         {
             "id": "s",
@@ -24,7 +26,7 @@ BOARD = {
         {"id": "b", "type": "extrude", "profile": "s", "distance": 2},
     ]
 }
-TRAY = [
+TRAY: list[JSONObject] = [
     {
         "id": "ts",
         "type": "sketch",
@@ -35,20 +37,22 @@ TRAY = [
 ]
 
 
-def write(tmp_path, name, document):
+def write(tmp_path: Path, name, document):
     path = tmp_path / name
     path.write_text(json.dumps(document))
     return path
 
 
-def build(tmp_path, features):
+def build(tmp_path: Path, features):
     document = Document.load(write(tmp_path, "case.sprocket", {"features": features}))
     part, ctx = replay(document.for_replay(), return_context=True)
     return document, part, ctx
 
 
-def test_a_referenced_document_is_a_reference_body_left_out_of_the_part(tmp_path):
-    write(tmp_path, "board.sprocket", BOARD)
+def test_a_referenced_document_is_a_reference_body_left_out_of_the_part(
+    tmp_path: Path,
+) -> None:
+    _ = write(tmp_path, "board.sprocket", BOARD)
     _, part, ctx = build(
         tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
     )
@@ -78,8 +82,8 @@ def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
     assert import_step(tmp_path / "part.step").volume == pytest.approx(1600)
 
 
-def test_a_step_reference_moves_by_translate(tmp_path):
-    export_step(Box(2, 2, 2), tmp_path / "cube.step")
+def test_a_step_reference_moves_by_translate(tmp_path: Path) -> None:
+    _ = export_step(Box(2, 2, 2), tmp_path / "cube.step")
     _, _, ctx = build(
         tmp_path,
         [
@@ -94,9 +98,9 @@ def test_a_step_reference_moves_by_translate(tmp_path):
     assert pytest.approx(5) == ctx.bodies[0].shape.center().X
 
 
-def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
-    write(tmp_path, "board.sprocket", BOARD)
-    cut = {
+def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path: Path) -> None:
+    _ = write(tmp_path, "board.sprocket", BOARD)
+    cut: JSONObject = {
         "id": "fit",
         "type": "boolean",
         "operation": "subtract",
@@ -113,17 +117,17 @@ def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
     )  # the board's lower 1 mm is inside the tray
 
 
-def test_a_document_that_references_itself_fails_with_a_message(tmp_path):
+def test_a_document_that_references_itself_fails_with_a_message(tmp_path: Path) -> None:
     path = write(
         tmp_path,
         "loop.sprocket",
         {"features": [{"id": "ref", "type": "reference", "file": "loop.sprocket"}]},
     )
     with pytest.raises(ValueError, match="includes itself"):
-        replay(Document.load(path).for_replay())
+        _ = replay(Document.load(path).for_replay())
 
 
-def test_the_cache_key_follows_the_referenced_file(tmp_path):
+def test_the_cache_key_follows_the_referenced_file(tmp_path: Path) -> None:
     board = write(tmp_path, "board.sprocket", BOARD)
     document = Document.load(
         write(
@@ -137,12 +141,12 @@ def test_the_cache_key_follows_the_referenced_file(tmp_path):
         )
     )
     before = document.for_replay()["features"][0]["source_sha256"]
-    board.write_text(json.dumps(BOARD).replace('"distance": 2', '"distance": 3'))
+    _ = board.write_text(json.dumps(BOARD).replace('"distance": 2', '"distance": 3'))
     assert document.for_replay()["features"][0]["source_sha256"] != before
 
 
-def test_check_clearance_reports_distance_and_overlap(tmp_path):
-    write(tmp_path, "board.sprocket", BOARD)
+def test_check_clearance_reports_distance_and_overlap(tmp_path: Path) -> None:
+    _ = write(tmp_path, "board.sprocket", BOARD)
     features = [
         {"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")}
     ] + TRAY
@@ -210,7 +214,7 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
     )
 
 
-def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
+def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face() -> None:
     """The last appearance in examples/orangepi-zero-3w.sprocket colours the
     one face Daniel picked: pin 28's cell, -Y side, area 2.24 x 2.5.
     """
@@ -230,15 +234,17 @@ def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
     assert face.area == pytest.approx(5.6)
 
 
-def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
+def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(
+    tmp_path: Path,
+) -> None:
     # The op places a reference by giving it a location, and ocp-tessellate
     # returns a mesh in the shape's own frame plus that location. A mesh that
     # drops the location draws every reference at its file position, so a
     # moved part looks misplaced while its geometry is right.
     from test_mesh import read_mesh
 
-    write(tmp_path, "board.sprocket", BOARD)
-    reference = {
+    _ = write(tmp_path, "board.sprocket", BOARD)
+    reference: JSONObject = {
         "id": "ref",
         "type": "reference",
         "file": "board.sprocket",
@@ -247,7 +253,7 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     }
     _, part, ctx = build(tmp_path, [reference] + TRAY)
     bodies = with_settings(ctx.bodies, {})
-    export_mesh(part, tmp_path / "part.mesh", None, bodies)
+    _ = export_mesh(part, tmp_path / "part.mesh", None, bodies)
     header, buffers = read_mesh(tmp_path / "part.mesh")
 
     faces_before = sum(

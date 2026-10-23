@@ -16,6 +16,7 @@ import pytest
 from conftest import ALL_EDGES, EXTRUDE, SKETCH, running
 
 from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import JSONObject
 from sprocket_engine.rpc import STALE_REVISION, Client, Daemon, RpcError, Session
 
 
@@ -23,13 +24,13 @@ def insert(feature, **params):
     return {"edits": [{"op": "insert", "feature": feature}], **params}
 
 
-def test_a_fillet_that_does_not_build_is_reported_as_a_failure(client):
+def test_a_fillet_that_does_not_build_is_reported_as_a_failure(client: Client) -> None:
     """The edit is still accepted: a timeline is allowed an unbuildable tip.
 
     But a bare success is what sent an agent off measuring the part without
     the fillet, so the reply has to name the feature that failed.
     """
-    bad = {
+    bad: JSONObject = {
         "id": "f1",
         "type": "fillet",
         "base": "e1",
@@ -40,18 +41,24 @@ def test_a_fillet_that_does_not_build_is_reported_as_a_failure(client):
     assert result["built"] == {"ok": False, "failed_feature": "f1", "volume": 12000.0}
 
 
-def test_a_fillet_that_builds_reports_the_new_volume(client):
-    good = {"id": "f1", "type": "fillet", "base": "e1", "radius": 3, "edges": ALL_EDGES}
+def test_a_fillet_that_builds_reports_the_new_volume(client: Client) -> None:
+    good: JSONObject = {
+        "id": "f1",
+        "type": "fillet",
+        "base": "e1",
+        "radius": 3,
+        "edges": ALL_EDGES,
+    }
     result = client.call("apply_edit", **insert(good))
     assert result["built"]["ok"] is True
     assert result["built"]["volume"] < 12000.0
 
 
-def test_preview_returns_no_measurements_when_the_feature_fails(client):
+def test_preview_returns_no_measurements_when_the_feature_fails(client: Client) -> None:
     """A number beside `would_build: false` is a number somebody reads as the
     answer, so a failed preview carries the reason and nothing else.
     """
-    bad = {
+    bad: JSONObject = {
         "id": "try",
         "type": "fillet",
         "base": "e1",
@@ -66,8 +73,8 @@ def test_preview_returns_no_measurements_when_the_feature_fails(client):
     assert client.call("get_document")["revision"] == 0
 
 
-def test_preview_does_not_change_the_document(client):
-    good = {
+def test_preview_does_not_change_the_document(client: Client) -> None:
+    good: JSONObject = {
         "id": "try",
         "type": "fillet",
         "base": "e1",
@@ -81,29 +88,31 @@ def test_preview_does_not_change_the_document(client):
     ]
 
 
-def test_a_stale_edit_comes_back_with_the_current_document(client):
+def test_a_stale_edit_comes_back_with_the_current_document(client: Client) -> None:
     """One round trip, not two: the rejection carries what the client needs to
     rebase, so a losing writer does not have to re-read before retrying.
     """
-    client.call("set_parameter", name="width", value=40)
+    _ = client.call("set_parameter", name="width", value=40)
     with pytest.raises(RpcError) as caught:
-        client.call("set_parameter", name="height", value=20, base_revision=0)
+        _ = client.call("set_parameter", name="height", value=20, base_revision=0)
     assert caught.value.code == STALE_REVISION
     assert caught.value.data["based_on"] == 0
     assert caught.value.data["current"] == 1
     assert caught.value.data["document"]["parameters"] == {"width": 40}
 
 
-def test_a_parameter_change_rebuilds_the_part(client):
-    client.call("set_parameter", name="thickness", value=25)
-    client.call(
+def test_a_parameter_change_rebuilds_the_part(client: Client) -> None:
+    _ = client.call("set_parameter", name="thickness", value=25)
+    _ = client.call(
         "apply_edit",
         edits=[{"op": "update", "feature": {**EXTRUDE, "distance": "=thickness"}}],
     )
     assert client.call("measure")["volume"] == pytest.approx(40 * 30 * 25)
 
 
-def test_an_edit_is_saved_to_disk_before_the_reply(client, daemon):
+def test_an_edit_is_saved_to_disk_before_the_reply(
+    client: Client, daemon: Daemon
+) -> None:
     """A crashed app must lose nothing an agent did, so the file on disk is
     always the revision the reply names.
     """
@@ -113,7 +122,7 @@ def test_an_edit_is_saved_to_disk_before_the_reply(client, daemon):
     assert saved["parameters"] == {"width": 40}
 
 
-def test_every_client_hears_about_an_edit(daemon):
+def test_every_client_hears_about_an_edit(daemon: Daemon) -> None:
     heard = []
 
     def note(method, params):
@@ -123,42 +132,46 @@ def test_every_client_hears_about_an_edit(daemon):
         Client(daemon.socket_path, on_notification=note) as listener,
         Client(daemon.socket_path) as editor,
     ):
-        listener.call("ping")
-        editor.call("set_parameter", name="width", value=40)
+        _ = listener.call("ping")
+        _ = editor.call("set_parameter", name="width", value=40)
         # The listener only reads while it is in a call, so give it one.
         deadline = time.monotonic() + 5
         while not heard and time.monotonic() < deadline:
-            listener.call("ping")
+            _ = listener.call("ping")
     assert heard[0]["method"] == "document_changed"
     assert heard[0]["params"]["revision"] == 1
 
 
-def test_a_broken_feature_does_not_take_the_daemon_down(client):
+def test_a_broken_feature_does_not_take_the_daemon_down(client: Client) -> None:
     with pytest.raises(RpcError):
-        client.call("apply_edit", **insert({"id": "x", "type": "nonsense"}))
+        _ = client.call("apply_edit", **insert({"id": "x", "type": "nonsense"}))
     assert client.call("ping")["ok"] is True
 
 
-def test_an_unknown_method_is_refused_by_name(client):
+def test_an_unknown_method_is_refused_by_name(client: Client) -> None:
     with pytest.raises(RpcError, match="explode"):
-        client.call("explode")
+        _ = client.call("explode")
     assert "render_view" in client.call("list_methods")["methods"]
 
 
-def test_get_schemas_covers_every_registered_op(client):
+def test_get_schemas_covers_every_registered_op(client: Client) -> None:
     from sprocket_engine.ops import REGISTRY
 
     assert set(client.call("get_schemas")) == set(REGISTRY)
 
 
-def test_an_empty_document_says_so_rather_than_failing_obscurely(tmp_path: Path):
+def test_an_empty_document_says_so_rather_than_failing_obscurely(
+    tmp_path: Path,
+) -> None:
     with running({"features": [], "rollback_index": 0}, tmp_path) as daemon:
         with Client(daemon.socket_path) as connected:
             with pytest.raises(RpcError, match="builds to nothing"):
-                connected.call("measure")
+                _ = connected.call("measure")
 
 
-def test_a_broken_feature_is_named_rather_than_called_no_geometry(tmp_path: Path):
+def test_a_broken_feature_is_named_rather_than_called_no_geometry(
+    tmp_path: Path,
+) -> None:
     """An invalid feature and an empty document both replay to nothing.
 
     Saying only "no geometry" sent an agent looking at its rollback index when
@@ -167,24 +180,29 @@ def test_a_broken_feature_is_named_rather_than_called_no_geometry(tmp_path: Path
     # A zero-length extrude: the schema takes it, OCCT does not. A document of
     # one bad sketch would not do, because the replay trims back to the last
     # feature that made a solid and so never runs the sketch at all.
-    broken = {"features": [SKETCH, {**EXTRUDE, "distance": 0}], "rollback_index": 2}
+    broken: JSONObject = {
+        "features": [SKETCH, {**EXTRUDE, "distance": 0}],
+        "rollback_index": 2,
+    }
     with running(broken, tmp_path) as daemon:
         with Client(daemon.socket_path) as connected:
             with pytest.raises(RpcError, match="'e1' does not build"):
-                connected.call("describe_geometry")
+                _ = connected.call("describe_geometry")
 
 
-def test_shutdown_removes_the_socket_file(daemon):
+def test_shutdown_removes_the_socket_file(daemon: Daemon) -> None:
     """A leftover socket file makes the next start fail against nothing."""
     assert daemon.socket_path.exists()
     daemon.shutdown()
     assert not daemon.socket_path.exists()
 
 
-def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(tmp_path: Path):
+def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(
+    tmp_path: Path,
+) -> None:
     """Bind's own message is "AF_UNIX path too long", with no path in it."""
     path = tmp_path / "part.sprocket"
-    path.write_text(json.dumps({"features": [], "rollback_index": 0}))
+    _ = path.write_text(json.dumps({"features": [], "rollback_index": 0}))
     long_socket = tmp_path / ("d" * 120 + ".sock")
     daemon = Daemon(
         Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket
@@ -193,14 +211,14 @@ def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(tmp_path
         daemon.start_in_background()
 
 
-def distance_of_e1(client) -> float:
+def distance_of_e1(client: Client) -> float:
     return next(f for f in client.call("get_document")["features"] if f["id"] == "e1")[
         "distance"
     ]
 
 
-def set_distance(client, distance: float) -> None:
-    client.call(
+def set_distance(client: Client, distance: float) -> None:
+    _ = client.call(
         "apply_edit",
         edits=[
             {"op": "update", "id": "e1", "feature": {**EXTRUDE, "distance": distance}}
@@ -208,51 +226,55 @@ def set_distance(client, distance: float) -> None:
     )
 
 
-def test_undo_and_redo_step_through_edits(client):
+def test_undo_and_redo_step_through_edits(client: Client) -> None:
     set_distance(client, 25)
     set_distance(client, 30)
 
     assert client.call("undo")["changed"] is True
     assert distance_of_e1(client) == 25
-    client.call("undo")
+    _ = client.call("undo")
     assert distance_of_e1(client) == 10
     assert client.call("undo")["changed"] is False
 
-    client.call("redo")
+    _ = client.call("redo")
     assert distance_of_e1(client) == 25
 
 
-def test_a_new_edit_clears_redo(client):
+def test_a_new_edit_clears_redo(client: Client) -> None:
     set_distance(client, 25)
-    client.call("undo")
+    _ = client.call("undo")
     set_distance(client, 40)
     assert client.call("redo")["changed"] is False
     assert distance_of_e1(client) == 40
 
 
-def test_moving_the_rollback_bar_is_not_undoable(client):
+def test_moving_the_rollback_bar_is_not_undoable(client: Client) -> None:
     """Cmd+Z after scrubbing the timeline must undo the last edit, not the scrub."""
     set_distance(client, 25)
-    client.call("set_rollback", index=1)
-    client.call("undo")
+    _ = client.call("set_rollback", index=1)
+    _ = client.call("undo")
     assert distance_of_e1(client) == 10
 
 
-def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Path):
+def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(
+    tmp_path: Path,
+) -> None:
     """The Swift app opens the viewer from disk. After every change the
     daemon rewrites the mesh and the timeline beside it, before it says so.
     """
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
     path = tmp_path / "part.sprocket"
-    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    _ = path.write_text(
+        json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2})
+    )
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(
         Session(Document.load(path), cache_dir=tmp_path / "cache"),
         socket_dir / "d.sock",
         viewer_dir=viewer_dir,
     )
-    daemon.publish_viewer_files()
+    _ = daemon.publish_viewer_files()
     daemon.start_in_background()
     try:
         assert (viewer_dir / "part.mesh").exists()
@@ -263,7 +285,7 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
         assert "sketch" in json.loads((viewer_dir / "schemas.json").read_text())
 
         with Client(daemon.socket_path) as client:
-            client.call("set_rollback", index=0)
+            _ = client.call("set_rollback", index=0)
         # An empty document deletes the mesh, which the viewer reads as nothing to show.
         assert not (viewer_dir / "part.mesh").exists()
         assert [
@@ -290,9 +312,11 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
 
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
-    (viewer_dir / "part.mesh").write_bytes(b"the previous document")
+    _ = (viewer_dir / "part.mesh").write_bytes(b"the previous document")
     path = tmp_path / "part.sprocket"
-    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    _ = path.write_text(
+        json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2})
+    )
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(
         Session(Document.load(path), cache_dir=tmp_path / "cache"),
@@ -307,8 +331,8 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
             daemon.socket_path,
             on_notification=lambda method, params: heard.append(params),
         ) as client:
-            client.call("set_rollback", index=1)
-            client.call(
+            _ = client.call("set_rollback", index=1)
+            _ = client.call(
                 "ping"
             )  # reading a reply is what delivers the queued notification
         assert (
@@ -330,7 +354,9 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
 
 
 def write_document(path: Path, features: list[dict]) -> Path:
-    path.write_text(json.dumps({"features": features, "rollback_index": len(features)}))
+    _ = path.write_text(
+        json.dumps({"features": features, "rollback_index": len(features)})
+    )
     return path
 
 
@@ -356,11 +382,13 @@ def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(
     )
 
 
-def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_path):
+def test_a_file_that_will_not_open_leaves_the_open_document_alone(
+    client: Client, tmp_path: Path
+) -> None:
     broken = tmp_path / "broken.sprocket"
-    broken.write_text("{ not json")
+    _ = broken.write_text("{ not json")
     with pytest.raises(RpcError, match="not valid JSON"):
-        client.call("open_document", path=str(broken))
+        _ = client.call("open_document", path=str(broken))
     assert [feature["id"] for feature in client.call("get_document")["features"]] == [
         "s1",
         "e1",
@@ -368,28 +396,34 @@ def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_pa
 
 
 @pytest.mark.parametrize("path", ["part.sprocket", "/tmp/part.txt", ""])
-def test_file_methods_want_an_absolute_sprocket_path(client, path):
+def test_file_methods_want_an_absolute_sprocket_path(client: Client, path) -> None:
     with pytest.raises(RpcError):
-        client.call("open_document", path=path)
+        _ = client.call("open_document", path=path)
     with pytest.raises(RpcError):
-        client.call("save_as", path=path)
+        _ = client.call("save_as", path=path)
 
 
-def test_opening_announces_a_replacement_not_an_edit(daemon, tmp_path):
+def test_opening_announces_a_replacement_not_an_edit(
+    daemon: Daemon, tmp_path: Path
+) -> None:
     other = write_document(tmp_path / "other.sprocket", [SKETCH])
     heard = []
     with Client(
         daemon.socket_path, on_notification=lambda method, params: heard.append(params)
     ) as watcher:
-        watcher.call("ping")
+        _ = watcher.call("ping")
         with Client(daemon.socket_path) as other_client:
-            other_client.call("open_document", path=str(other))
-        watcher.call("ping")  # reading a reply is what delivers the queued notification
+            _ = other_client.call("open_document", path=str(other))
+        _ = watcher.call(
+            "ping"
+        )  # reading a reply is what delivers the queued notification
     assert heard[-1]["opened"] is True
     assert heard[-1]["path"] == str(other)
 
 
-def test_a_new_document_is_empty_saved_and_never_overwrites(client, tmp_path):
+def test_a_new_document_is_empty_saved_and_never_overwrites(
+    client: Client, tmp_path: Path
+) -> None:
     fresh = tmp_path / "fresh.sprocket"
     made = client.call("new_document", path=str(fresh))
     assert made["path"] == str(fresh)
@@ -397,23 +431,23 @@ def test_a_new_document_is_empty_saved_and_never_overwrites(client, tmp_path):
     assert client.call("get_document")["features"] == []
 
     with pytest.raises(RpcError, match="already exists"):
-        client.call("new_document", path=str(fresh))
+        _ = client.call("new_document", path=str(fresh))
 
 
-def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
+def test_save_as_moves_autosave_to_the_new_file(client: Client, tmp_path: Path) -> None:
     original = tmp_path / "part.sprocket"
     copy = tmp_path / "copy.sprocket"
-    client.call("save_as", path=str(copy))
+    _ = client.call("save_as", path=str(copy))
     assert Document.load(copy).features == Document.load(original).features
 
-    client.call("set_parameter", name="width", value=55)
+    _ = client.call("set_parameter", name="width", value=55)
     assert Document.load(copy).parameters == {"width": 55}
     assert Document.load(original).parameters == {}, (
         "the first file is where it was left"
     )
 
 
-def test_an_agent_cannot_swap_the_users_document():
+def test_an_agent_cannot_swap_the_users_document() -> None:
     """Opening and saving are the user's, through the app's menus. The agent's
     tools edit the open document and nothing else.
     """
@@ -423,14 +457,18 @@ def test_an_agent_cannot_swap_the_users_document():
     assert not names & {"open_document", "new_document", "save_as"}
 
 
-def test_a_daemon_export_to_a_missing_directory_says_why(client, tmp_path):
+def test_a_daemon_export_to_a_missing_directory_says_why(
+    client: Client, tmp_path: Path
+) -> None:
     target = tmp_path / "nowhere" / "part.step"
     with pytest.raises(RpcError, match="does not exist"):
-        client.call("export", step=str(target))
+        _ = client.call("export", step=str(target))
 
 
-def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
-    top = {
+def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(
+    client: Client,
+) -> None:
+    top: JSONObject = {
         "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
         "expected_count": 1,
     }
@@ -440,11 +478,11 @@ def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
     assert plane["normal"] == [0, 0, 1]
     assert plane["origin"] == [0, 0, 11]
     with pytest.raises(RpcError, match="does not resolve"):
-        client.call("resolve_plane", plane={"feature": "nope", "face": top})
+        _ = client.call("resolve_plane", plane={"feature": "nope", "face": top})
 
 
-def test_preview_can_return_a_mesh_for_the_viewer(client):
-    good = {
+def test_preview_can_return_a_mesh_for_the_viewer(client: Client) -> None:
+    good: JSONObject = {
         "id": "try",
         "type": "fillet",
         "base": "e1",
@@ -462,7 +500,7 @@ def test_preview_can_return_a_mesh_for_the_viewer(client):
     assert max(mesh["triangles"]) < len(mesh["vertices"]) // 3
 
 
-def test_face_edges_lists_the_edges_that_bound_a_face(client):
+def test_face_edges_lists_the_edges_that_bound_a_face(client: Client) -> None:
     """Every face of the 40 x 30 x 10 box has four edges, and the top face's sit at z = 10."""
     geometry = client.call("describe_geometry")
     top = next(
@@ -475,4 +513,4 @@ def test_face_edges_lists_the_edges_that_bound_a_face(client):
     by_handle = {edge["handle"]: edge for edge in geometry["edges"]}
     assert [by_handle[handle]["centre"][2] for handle in edges] == [10.0] * 4
     with pytest.raises(RpcError, match="face handle"):
-        client.call("face_edges", handle="e1")
+        _ = client.call("face_edges", handle="e1")

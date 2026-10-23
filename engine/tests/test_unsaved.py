@@ -3,20 +3,22 @@ document has unsaved edits, Save, and the recovery file that covers a crash.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 
 from sprocket_engine.document import Document
-from sprocket_engine.rpc import Client, RpcError
+from sprocket_engine.model import JSONObject
+from sprocket_engine.rpc import Client, Daemon, RpcError
 
-TALLER = {
+TALLER: JSONObject = {
     "op": "update",
     "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12},
 }
 
 
 @pytest.fixture
-def manual(daemon, tmp_path):
+def manual(daemon: Daemon, tmp_path: Path):
     """The daemon as the app starts it: --no-autosave --recovery <file>."""
     daemon.autosave = False
     daemon.recovery_path = tmp_path / "recovery.json"
@@ -24,13 +26,13 @@ def manual(daemon, tmp_path):
 
 
 @pytest.fixture
-def listener(daemon):
+def listener(daemon: Daemon):
     seen = []
     with Client(
         daemon.socket_path,
         on_notification=lambda method, params: seen.append((method, params)),
     ) as connected:
-        connected.call("ping")
+        _ = connected.call("ping")
         connected.seen = seen
         yield connected
 
@@ -40,37 +42,45 @@ def last_change(listener):
     return [params for name, params in listener.seen if name == "document_changed"][-1]
 
 
-def test_an_edit_is_unsaved_and_leaves_the_file_alone(manual, client, listener):
+def test_an_edit_is_unsaved_and_leaves_the_file_alone(
+    manual, client: Client, listener
+) -> None:
     before = manual.session.document.path.read_bytes()
-    client.call("apply_edit", edits=[TALLER])
+    _ = client.call("apply_edit", edits=[TALLER])
     assert last_change(listener)["unsaved"] is True
     assert client.call("get_file_status")["unsaved"] is True
     assert manual.session.document.path.read_bytes() == before
 
 
-def test_undo_back_to_the_saved_state_is_not_unsaved(manual, client, listener):
-    client.call("apply_edit", edits=[TALLER])
-    client.call("undo")
+def test_undo_back_to_the_saved_state_is_not_unsaved(
+    manual, client: Client, listener
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER])
+    _ = client.call("undo")
     assert last_change(listener)["unsaved"] is False
     assert not manual.recovery_path.exists()
 
 
-def test_save_writes_the_file_and_clears_unsaved(manual, client, listener):
-    client.call("apply_edit", edits=[TALLER])
-    client.call("save")
+def test_save_writes_the_file_and_clears_unsaved(
+    manual, client: Client, listener
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER])
+    _ = client.call("save")
     assert last_change(listener)["unsaved"] is False
     assert Document.load(manual.session.document.path).features[1]["distance"] == 12
     # Undo after a save is a change from what the file now holds.
-    client.call("undo")
+    _ = client.call("undo")
     assert last_change(listener)["unsaved"] is True
 
 
-def test_save_refuses_to_overwrite_a_file_changed_on_disk(manual, client):
-    client.call("apply_edit", edits=[TALLER])
+def test_save_refuses_to_overwrite_a_file_changed_on_disk(
+    manual, client: Client
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER])
     path = manual.session.document.path
     path.write_text(path.read_text() + "\n")
     with pytest.raises(RpcError, match="changed on disk"):
-        client.call("save")
+        _ = client.call("save")
     assert client.call("get_file_status")["conflict"] is not None
 
 
@@ -101,37 +111,45 @@ def test_restore_recovery_puts_the_edits_back_unsaved_and_undoable(
     assert client.call("get_document")["features"][1]["distance"] != 12
 
 
-def test_autosave_still_saves_every_edit(daemon, client, listener):
-    client.call("apply_edit", edits=[TALLER])
+def test_autosave_still_saves_every_edit(
+    daemon: Daemon, client: Client, listener
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER])
     assert last_change(listener)["unsaved"] is False
     assert Document.load(daemon.session.document.path).features[1]["distance"] == 12
 
 
-def test_document_moved_follows_the_file_without_saving(manual, client, tmp_path):
-    client.call("apply_edit", edits=[TALLER])
+def test_document_moved_follows_the_file_without_saving(
+    manual, client: Client, tmp_path: Path
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER])
     old = manual.session.document.path
     new = tmp_path / "renamed.sprocket"
     old.rename(new)  # what NSDocument's Rename does before it tells the engine
     before = new.read_bytes()
 
-    client.call("document_moved", path=str(new))
+    _ = client.call("document_moved", path=str(new))
     status = client.call("get_file_status")
     assert status["path"] == str(new)
     assert status["unsaved"] is True
     assert new.read_bytes() == before
 
-    client.call("save")
+    _ = client.call("save")
     assert Document.load(new).features[1]["distance"] == 12
     assert not old.exists()
 
 
-def test_document_moved_refuses_a_path_that_does_not_exist(manual, client, tmp_path):
+def test_document_moved_refuses_a_path_that_does_not_exist(
+    manual, client: Client, tmp_path: Path
+) -> None:
     with pytest.raises(RpcError, match="does not exist"):
-        client.call("document_moved", path=str(tmp_path / "missing.sprocket"))
+        _ = client.call("document_moved", path=str(tmp_path / "missing.sprocket"))
     assert client.call("get_file_status")["path"] == str(manual.session.document.path)
 
 
-def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(manual, client, listener):
+def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(
+    manual, client: Client, listener
+) -> None:
     path = manual.session.document.path
     rewritten = json.loads(path.read_text())
     rewritten["features"][1]["distance"] = 30
@@ -140,7 +158,7 @@ def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(manual, client, listen
     assert last_change(listener)["unsaved"] is False
     assert not manual.recovery_path.exists()
     # Undoing the reload puts back what the file no longer holds.
-    client.call("undo")
+    _ = client.call("undo")
     assert last_change(listener)["unsaved"] is True
 
 

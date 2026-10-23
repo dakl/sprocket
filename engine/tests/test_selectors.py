@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 from sprocket_engine.selectors import SelectorError, resolve_selector
 
@@ -11,7 +12,7 @@ RECT_EXTRUDE = json.loads(
 )
 
 # The exact example from SPEC.md's "References and topological naming" section.
-VERTICAL_EDGES = {
+VERTICAL_EDGES: JSONObject = {
     "from": "part",
     "select": [
         {"op": "edges"},
@@ -21,32 +22,32 @@ VERTICAL_EDGES = {
     ],
 }
 
-TOP_EDGES = {
+TOP_EDGES: JSONObject = {
     "from": "part",
     "select": [{"op": "edges"}, {"op": "at_end", "axis": "Z", "end": "max"}],
 }
 
-TOP_FACE = {
+TOP_FACE: JSONObject = {
     "from": "part",
     "select": [{"op": "faces"}, {"op": "sort_by", "axis": "Z"}, {"op": "last"}],
 }
 
 
-def test_spec_example_selects_the_four_vertical_edges(tmp_path: Path):
+def test_spec_example_selects_the_four_vertical_edges(tmp_path: Path) -> None:
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     edges = resolve_selector(part, VERTICAL_EDGES)
     assert len(edges) == 4
     assert all(e.length == pytest.approx(10.0) for e in edges)  # extrude depth
 
 
-def test_top_face_selector_identifies_the_correct_face(tmp_path: Path):
+def test_top_face_selector_identifies_the_correct_face(tmp_path: Path) -> None:
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     faces = resolve_selector(part, TOP_FACE)
     assert len(faces) == 1
     assert pytest.approx(10.0) == faces[0].center().Z  # extrude depth, not the base
 
 
-def test_selector_survives_an_upstream_dimension_change(tmp_path: Path):
+def test_selector_survives_an_upstream_dimension_change(tmp_path: Path) -> None:
     """The whole point of a selector: it re-resolves after an edit instead of
     pointing at a stale index. Bump the extrude depth and confirm both
     selectors still find the same semantic geometry, not just any 4 edges.
@@ -65,19 +66,19 @@ def test_selector_survives_an_upstream_dimension_change(tmp_path: Path):
     assert pytest.approx(25.0) == faces[0].center().Z
 
 
-def test_unknown_selector_op_raises(tmp_path: Path):
+def test_unknown_selector_op_raises(tmp_path: Path) -> None:
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     with pytest.raises(SelectorError, match="unknown selector op"):
-        resolve_selector(
+        _ = resolve_selector(
             part, {"from": "part", "select": [{"op": "faces"}, {"op": "bogus"}]}
         )
 
 
-def test_new_since_keeps_what_a_feature_made_or_changed(tmp_path: Path):
+def test_new_since_keeps_what_a_feature_made_or_changed(tmp_path: Path) -> None:
     """After a fillet, the new faces are the round ones and the faces it trimmed.
     The bottom face was not touched, so it is not new.
     """
-    document = {
+    document: JSONObject = {
         "features": RECT_EXTRUDE["features"]
         + [
             {
@@ -104,9 +105,9 @@ def test_new_since_keeps_what_a_feature_made_or_changed(tmp_path: Path):
     assert not any(face.is_same(bottom) for face in new)
 
 
-def test_new_since_can_be_followed_by_other_steps(tmp_path: Path):
+def test_new_since_can_be_followed_by_other_steps(tmp_path: Path) -> None:
     part, ctx = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache", return_context=True)
-    top = {
+    top: JSONObject = {
         "select": [
             {"op": "faces"},
             {"op": "new_since", "feature": RECT_EXTRUDE["features"][-1]["id"]},
@@ -117,15 +118,17 @@ def test_new_since_can_be_followed_by_other_steps(tmp_path: Path):
     assert len(resolve_selector(part, top, ctx)) == 1
 
 
-def test_new_since_without_a_context_says_what_is_missing(tmp_path: Path):
+def test_new_since_without_a_context_says_what_is_missing(tmp_path: Path) -> None:
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     with pytest.raises(SelectorError, match="not a feature before this one"):
-        resolve_selector(
+        _ = resolve_selector(
             part, {"select": [{"op": "faces"}, {"op": "new_since", "feature": "f1"}]}
         )
 
 
-def test_at_end_keeps_everything_level_with_the_highest_or_lowest(tmp_path: Path):
+def test_at_end_keeps_everything_level_with_the_highest_or_lowest(
+    tmp_path: Path,
+) -> None:
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     top = resolve_selector(
         part, {"select": [{"op": "edges"}, {"op": "at_end", "axis": "Z", "end": "max"}]}
@@ -138,8 +141,8 @@ def test_at_end_keeps_everything_level_with_the_highest_or_lowest(tmp_path: Path
     assert {round(edge.center().Z, 6) for edge in bottom} == {0.0}
 
 
-def test_a_count_that_does_not_match_is_an_error(tmp_path: Path):
+def test_a_count_that_does_not_match_is_an_error(tmp_path: Path) -> None:
     part = replay(RECT_EXTRUDE, cache_dir=tmp_path / "cache")
     with pytest.raises(SelectorError, match="expected 3"):
-        resolve_selector(part, {**VERTICAL_EDGES, "expected_count": 3})
+        _ = resolve_selector(part, {**VERTICAL_EDGES, "expected_count": 3})
     assert len(resolve_selector(part, {**VERTICAL_EDGES, "expected_count": 4})) == 4

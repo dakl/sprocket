@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     if command == "build":
         return _build(args)
     if command == "serve":
-        return _serve()
+        return serve()
     if command == "daemon":
         return _daemon(args)
     if command == "web":
@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
-def _build_document(
+def build_document(
     document_path: Path,
     step: Path | None,
     stl: Path | None,
@@ -293,7 +293,7 @@ def _build_document(
 
 
 def _build(args: argparse.Namespace) -> int:
-    success, output, _ = _build_document(
+    success, output, _ = build_document(
         _required_path(args, "document"),
         _path(args, "step"),
         _path(args, "stl"),
@@ -320,7 +320,8 @@ def _request_path(request: JSON, key: str) -> Path | None:
     return Path(value)
 
 
-def _serve() -> int:
+def serve() -> int:
+    """Answer one JSON build request per line of stdin, keeping build123d warm."""
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -330,7 +331,7 @@ def _serve() -> int:
             document = _request_path(request, "document")
             if document is None:
                 raise TypeError("'document' must be a path")
-            success, output, failed_id = _build_document(
+            success, output, failed_id = build_document(
                 document,
                 _request_path(request, "step"),
                 _request_path(request, "stl"),

@@ -8,9 +8,10 @@ over x 10..20, y -5..5, z 0..10, so the shared volume is 1000 mm3.
 
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 
-BASE_BOX = [
+BASE_BOX: list[JSONObject] = [
     {
         "id": "f1",
         "type": "sketch",
@@ -55,20 +56,20 @@ def document_with(operation: str, tool_center, tool_size=(20, 10)) -> dict:
         ("intersect", 1000),
     ],
 )
-def test_each_operation_keeps_the_volume_it_should(operation, volume):
+def test_each_operation_keeps_the_volume_it_should(operation, volume) -> None:
     part = replay(document_with(operation, tool_center=[20, 0]))
     assert part.volume == pytest.approx(volume, rel=1e-9)
 
 
-def test_an_intersect_of_bodies_that_never_touch_fails():
+def test_an_intersect_of_bodies_that_never_touch_fails() -> None:
     """Carrying an empty solid forward would fail several features later and
     point at the wrong one.
     """
     with pytest.raises(ValueError, match="empty solid"):
-        replay(document_with("intersect", tool_center=[40, 0]))
+        _ = replay(document_with("intersect", tool_center=[40, 0]))
 
 
-def test_a_subtract_whose_tool_swallows_the_base_fails():
+def test_a_subtract_whose_tool_swallows_the_base_fails() -> None:
     document = document_with("subtract", tool_center=[0, 0], tool_size=(60, 40))
     with pytest.raises(ValueError, match="empty solid"):
-        replay(document)
+        _ = replay(document)

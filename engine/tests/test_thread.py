@@ -5,11 +5,12 @@ import math
 import pytest
 
 from sprocket_engine.document import Document
+from sprocket_engine.model import JSONObject
 from sprocket_engine.ops.thread import thread_geometry
 from sprocket_engine.replay import replay
 from sprocket_engine.viewer_files import features_summary
 
-HOLE_FACE = {
+HOLE_FACE: JSONObject = {
     "select": [{"op": "faces"}, {"op": "within", "box": [-2, -2, 1, 2, 2, 3]}],
     "expected_count": 1,
 }
@@ -48,7 +49,7 @@ def shaft(radius, length=8):
     ]
 
 
-SHAFT_FACE = {
+SHAFT_FACE: JSONObject = {
     "select": [{"op": "faces"}, {"op": "within", "box": [-3, -3, 1, 3, 3, 7]}],
     "expected_count": 1,
 }
@@ -58,8 +59,8 @@ def build(features):
     return replay(Document(features).for_replay(), return_context=True)
 
 
-def test_a_hole_gets_an_internal_thread_along_its_axis():
-    thread = {
+def test_a_hole_gets_an_internal_thread_along_its_axis() -> None:
+    thread: JSONObject = {
         "id": "t",
         "type": "thread",
         "base": "tap",
@@ -76,8 +77,8 @@ def test_a_hole_gets_an_internal_thread_along_its_axis():
     assert geometry["start"][:2] == pytest.approx([0, 0])
 
 
-def test_a_shaft_gets_an_external_thread_and_a_fine_pitch_is_kept():
-    thread = {
+def test_a_shaft_gets_an_external_thread_and_a_fine_pitch_is_kept() -> None:
+    thread: JSONObject = {
         "id": "t",
         "type": "thread",
         "base": "shaft",
@@ -94,8 +95,8 @@ def test_a_shaft_gets_an_external_thread_and_a_fine_pitch_is_kept():
     )
 
 
-def test_a_face_the_wrong_size_is_refused_with_the_range():
-    thread = {
+def test_a_face_the_wrong_size_is_refused_with_the_range() -> None:
+    thread: JSONObject = {
         "id": "t",
         "type": "thread",
         "base": "tap",
@@ -106,16 +107,16 @@ def test_a_face_the_wrong_size_is_refused_with_the_range():
         ValueError,
         match="a M4 hole is 3.125 to 4.05 mm across, and this face is 2.5 mm",
     ):
-        build(plate_with_hole(1.25) + [thread])
+        _ = build(plate_with_hole(1.25) + [thread])
 
 
-def test_a_flat_face_is_refused():
-    top = {
+def test_a_flat_face_is_refused() -> None:
+    top: JSONObject = {
         "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
         "expected_count": 1,
     }
     with pytest.raises(ValueError, match="needs a cylindrical face"):
-        build(
+        _ = build(
             plate_with_hole(1.25)
             + [
                 {
@@ -129,7 +130,7 @@ def test_a_flat_face_is_refused():
         )
 
 
-def test_the_viewer_gets_the_thread_to_draw():
+def test_the_viewer_gets_the_thread_to_draw() -> None:
     features = plate_with_hole(1.25) + [
         {
             "id": "t",
@@ -148,9 +149,9 @@ def test_the_viewer_gets_the_thread_to_draw():
     assert entry["thread"]["internal"] is True
 
 
-def test_a_modeled_internal_thread_fills_between_the_tap_hole_and_the_nominal():
+def test_a_modeled_internal_thread_fills_between_the_tap_hole_and_the_nominal() -> None:
     pytest.importorskip("bd_warehouse")
-    thread = {
+    thread: JSONObject = {
         "id": "t",
         "type": "thread",
         "base": "tap",
@@ -165,9 +166,9 @@ def test_a_modeled_internal_thread_fills_between_the_tap_hole_and_the_nominal():
     assert nominal_hole < part.volume < tap_hole
 
 
-def test_a_modeled_external_thread_lies_between_the_core_and_the_shaft():
+def test_a_modeled_external_thread_lies_between_the_core_and_the_shaft() -> None:
     pytest.importorskip("bd_warehouse")
-    thread = {
+    thread: JSONObject = {
         "id": "t",
         "type": "thread",
         "base": "shaft",

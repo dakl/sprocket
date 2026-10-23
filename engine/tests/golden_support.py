@@ -71,7 +71,7 @@ def capture_identity(case: str) -> dict | None:
 
 
 def write_capture_identity(path: Path) -> None:
-    Path(path).write_text(
+    _ = Path(path).write_text(
         json.dumps(engine_identity(), indent=2, sort_keys=True) + "\n"
     )
 
@@ -81,11 +81,11 @@ def build(case: str, cache_dir: Path):
 
 
 def write_step(part, path: Path) -> None:
-    export_step(part, Path(path))
+    _ = export_step(part, Path(path))
 
 
 def write_stl(part, path: Path) -> None:
-    export_stl(
+    _ = export_stl(
         part,
         Path(path),
         tolerance=STL_TOLERANCE,

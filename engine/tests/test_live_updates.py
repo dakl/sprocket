@@ -5,26 +5,28 @@ an open daemon (see Daemon.check_file for the rule).
 import json
 import os
 import time
+from pathlib import Path
 
 import pytest
 from conftest import BOX_DOCUMENT, running
 
-from sprocket_engine.rpc import Client, FileWatcher
+from sprocket_engine.model import JSONObject
+from sprocket_engine.rpc import Client, Daemon, FileWatcher
 
-TALLER = {
+TALLER: JSONObject = {
     "op": "update",
     "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12},
 }
 
 
 @pytest.fixture
-def listener(daemon):
+def listener(daemon: Daemon):
     seen = []
     with Client(
         daemon.socket_path,
         on_notification=lambda method, params: seen.append((method, params)),
     ) as connected:
-        connected.call("ping")
+        _ = connected.call("ping")
         connected.seen = seen
         yield connected
 
@@ -41,24 +43,28 @@ def write_atomically(path, document):
     os.replace(temporary, path)
 
 
-def on_disk(daemon):
+def on_disk(daemon: Daemon):
     return json.loads(daemon.session.document.path.read_text())
 
 
-def test_document_changed_says_who_made_the_change(daemon, client, listener):
-    client.call("apply_edit", edits=[TALLER], author="agent:test")
+def test_document_changed_says_who_made_the_change(
+    daemon: Daemon, client: Client, listener
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER], author="agent:test")
     (change,) = heard(listener, "document_changed")
     assert change["author"] == "agent:test"
     assert change["changes"] == [{"action": "update", "feature_id": "e1"}]
 
 
-def test_a_view_change_has_no_author(daemon, client, listener):
-    client.call("set_visibility", id="e1", visible=False)
+def test_a_view_change_has_no_author(daemon: Daemon, client: Client, listener) -> None:
+    _ = client.call("set_visibility", id="e1", visible=False)
     assert heard(listener, "document_changed")[-1]["author"] is None
 
 
-def test_the_engines_own_save_is_not_a_change_on_disk(daemon, client):
-    client.call("apply_edit", edits=[TALLER], author="agent:test")
+def test_the_engines_own_save_is_not_a_change_on_disk(
+    daemon: Daemon, client: Client
+) -> None:
+    _ = client.call("apply_edit", edits=[TALLER], author="agent:test")
     assert daemon.check_file() is None
     assert client.call("get_file_status")["changed_on_disk"] is False
 
@@ -67,7 +73,7 @@ def test_a_file_replaced_on_disk_is_reloaded_as_an_undoable_step(
     daemon, client, listener
 ):
     revision = client.call("get_document")["revision"]
-    replacement = {
+    replacement: JSONObject = {
         **BOX_DOCUMENT,
         "features": [BOX_DOCUMENT["features"][0], TALLER["feature"]],
     }
@@ -89,12 +95,14 @@ def test_a_file_replaced_on_disk_is_reloaded_as_an_undoable_step(
     assert on_disk(daemon)["features"][1]["distance"] == 10
 
 
-def test_a_half_written_file_is_left_alone_until_it_reads(daemon, client):
+def test_a_half_written_file_is_left_alone_until_it_reads(
+    daemon: Daemon, client: Client
+) -> None:
     path = daemon.session.document.path
-    path.write_text('{"features": [')
+    _ = path.write_text('{"features": [')
     assert daemon.check_file() == "unreadable"
     assert client.call("get_document")["features"][1]["distance"] == 10
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 **BOX_DOCUMENT,
@@ -110,7 +118,7 @@ def test_unsaved_edits_and_a_changed_file_are_a_conflict_not_a_reload(
 ):
     daemon.autosave = False
     client.call("apply_edit", edits=[TALLER], author="viewer")
-    theirs = {
+    theirs: JSONObject = {
         **BOX_DOCUMENT,
         "features": [
             BOX_DOCUMENT["features"][0],
@@ -138,7 +146,7 @@ def test_keeping_the_file_in_a_conflict_still_lets_undo_bring_the_edit_back(
 ):
     daemon.autosave = False
     client.call("apply_edit", edits=[TALLER], author="viewer")
-    theirs = {
+    theirs: JSONObject = {
         **BOX_DOCUMENT,
         "features": [
             BOX_DOCUMENT["features"][0],
@@ -158,7 +166,7 @@ def test_an_edit_that_lands_before_the_watcher_looks_does_not_overwrite_the_file
     daemon, client, listener
 ):
     """The case that lost a regenerated file: the app saved its next edit over it."""
-    theirs = {
+    theirs: JSONObject = {
         **BOX_DOCUMENT,
         "features": [
             BOX_DOCUMENT["features"][0],
@@ -172,10 +180,12 @@ def test_an_edit_that_lands_before_the_watcher_looks_does_not_overwrite_the_file
     assert client.call("get_file_status")["unsaved"] is True
 
 
-def test_the_selection_survives_a_reload_when_its_face_is_still_there(daemon, client):
+def test_the_selection_survives_a_reload_when_its_face_is_still_there(
+    daemon: Daemon, client: Client
+) -> None:
     faces = client.call("describe_geometry")["faces"]
     bottom = next(item for item in faces if item["centre"][2] == pytest.approx(0))
-    client.call(
+    _ = client.call(
         "set_selection",
         handles=[bottom["handle"]],
         revision=client.call("get_document")["revision"],
@@ -184,14 +194,14 @@ def test_the_selection_survives_a_reload_when_its_face_is_still_there(daemon, cl
         daemon.session.document.path,
         {**BOX_DOCUMENT, "features": [BOX_DOCUMENT["features"][0], TALLER["feature"]]},
     )
-    daemon.check_file()
+    _ = daemon.check_file()
     selection = client.call("get_selection")
     assert selection["stale"] is False
     (handle,) = selection["handles"]
     assert selection["descriptions"][0]["centre"] == bottom["centre"]
 
 
-def test_the_watcher_reloads_a_rewritten_file_within_a_second(tmp_path):
+def test_the_watcher_reloads_a_rewritten_file_within_a_second(tmp_path: Path) -> None:
     with (
         running(BOX_DOCUMENT, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
@@ -213,14 +223,14 @@ def test_the_watcher_reloads_a_rewritten_file_within_a_second(tmp_path):
             time.sleep(0.02)
         assert client.call("get_document")["features"][1]["distance"] == 12
         # Its own saves from here on are not changes.
-        client.call("set_rollback", index=1)
+        _ = client.call("set_rollback", index=1)
         time.sleep(0.3)
         assert client.call("get_document")["rollback_index"] == 1
 
 
 # --- a referenced file changing on disk -------------------------------------------
 
-BOARD = {
+BOARD: JSONObject = {
     "features": [
         {
             "id": "s",
@@ -240,13 +250,13 @@ def taller_board(height):
 
 
 def case_document(board_path):
-    tray_s = {
+    tray_s: JSONObject = {
         "id": "ts",
         "type": "sketch",
         "plane": {"name": "XY", "offset": -3},
         "rect": {"width": 20, "height": 20},
     }
-    tray = {"id": "tray", "type": "extrude", "profile": "ts", "distance": 4}
+    tray: JSONObject = {"id": "tray", "type": "extrude", "profile": "ts", "distance": 4}
     return {
         "features": [
             {"id": "board", "type": "reference", "file": str(board_path)},
@@ -256,7 +266,7 @@ def case_document(board_path):
     }
 
 
-def board_height(client):
+def board_height(client: Client):
     bodies = client.call("get_bodies")["bodies"]
     return next(body for body in bodies if body["reference"])["volume"] / 100
 
@@ -298,12 +308,14 @@ def test_a_referenced_file_rewritten_on_disk_rebuilds_the_document_that_uses_it(
         assert daemon.check_references() is None  # already up to date
 
 
-def test_a_file_that_changed_before_the_watcher_first_saw_it_is_still_checked(tmp_path):
+def test_a_file_that_changed_before_the_watcher_first_saw_it_is_still_checked(
+    tmp_path: Path,
+) -> None:
     # A reference added, then its file rewritten before the watcher's next
     # poll: the watcher's first stat is of the new file, so it must not be
     # taken as the starting point and dropped.
     board = tmp_path / "board.sprocket"
-    board.write_text(json.dumps(BOARD))
+    _ = board.write_text(json.dumps(BOARD))
     watched, checked = [], []
     watcher = FileWatcher(lambda: list(watched), checked.append, interval=0.02)
     watcher.start()
@@ -319,11 +331,13 @@ def test_a_file_that_changed_before_the_watcher_first_saw_it_is_still_checked(tm
         watcher.stop()
 
 
-def test_a_file_rewritten_before_the_watcher_thread_runs_is_still_checked(tmp_path):
+def test_a_file_rewritten_before_the_watcher_thread_runs_is_still_checked(
+    tmp_path: Path,
+) -> None:
     # start_watching returns before the thread's first stat, so a rewrite
     # right after it must not become that stat's starting point.
     board = tmp_path / "board.sprocket"
-    board.write_text(json.dumps(BOARD))
+    _ = board.write_text(json.dumps(BOARD))
     checked = []
     watcher = FileWatcher(lambda: [board], checked.append, interval=0.02)
     write_atomically(board, taller_board(5))
@@ -337,13 +351,13 @@ def test_a_file_rewritten_before_the_watcher_thread_runs_is_still_checked(tmp_pa
         watcher.stop()
 
 
-def test_a_change_two_references_deep_reaches_the_top_document(tmp_path):
+def test_a_change_two_references_deep_reaches_the_top_document(tmp_path: Path) -> None:
     board = tmp_path / "board.sprocket"
-    board.write_text(json.dumps(BOARD))
+    _ = board.write_text(json.dumps(BOARD))
     middle = tmp_path / "middle.sprocket"
     # A reference body is never part of what a document builds, so the middle
     # one joins the board to a 1 mm cube of its own to pass it on.
-    middle.write_text(
+    _ = middle.write_text(
         json.dumps(
             {
                 "features": [
@@ -375,5 +389,5 @@ def test_a_change_two_references_deep_reaches_the_top_document(tmp_path):
         assert board_height(client) == pytest.approx(2.01)
         write_atomically(board, taller_board(7))
         # The watcher may get there first, and then this check finds nothing to do.
-        daemon.check_references()
+        _ = daemon.check_references()
         assert board_height(client) == pytest.approx(7.01)

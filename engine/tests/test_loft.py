@@ -7,6 +7,7 @@ import math
 import pytest
 
 from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import JSONObject
 from sprocket_engine.regions import ProfileError
 from sprocket_engine.replay import replay
 
@@ -33,7 +34,7 @@ def build(features):
     return replay(Document(features).for_replay(), return_context=True)
 
 
-def test_two_circles_loft_to_a_cone_frustum():
+def test_two_circles_loft_to_a_cone_frustum() -> None:
     part, _ = build(
         [
             circle("a", 0, 10),
@@ -44,7 +45,7 @@ def test_two_circles_loft_to_a_cone_frustum():
     assert part.volume == pytest.approx(math.pi * 10 / 3 * (100 + 50 + 25), rel=1e-4)
 
 
-def test_a_smooth_loft_bulges_past_a_ruled_one_through_a_wide_middle():
+def test_a_smooth_loft_bulges_past_a_ruled_one_through_a_wide_middle() -> None:
     sections = [circle("a", 0, 5), circle("b", 10, 10), circle("c", 20, 5)]
     smooth, _ = build(
         sections + [{"id": "l", "type": "loft", "sections": ["a", "b", "c"]}]
@@ -58,12 +59,12 @@ def test_a_smooth_loft_bulges_past_a_ruled_one_through_a_wide_middle():
     assert smooth.volume > ruled.volume
 
 
-def test_cut_mode_removes_the_loft_from_the_base():
+def test_cut_mode_removes_the_loft_from_the_base() -> None:
     block = [
         square("bs", 0, 30),
         {"id": "block", "type": "extrude", "profile": "bs", "distance": 10},
     ]
-    loft = {
+    loft: JSONObject = {
         "id": "l",
         "type": "loft",
         "sections": ["a", "b"],
@@ -76,9 +77,9 @@ def test_cut_mode_removes_the_loft_from_the_base():
     assert [body.id for body in ctx.bodies] == ["block"]
 
 
-def test_a_sketch_goes_on_the_flat_side_of_a_ruled_loft():
+def test_a_sketch_goes_on_the_flat_side_of_a_ruled_loft() -> None:
     """The side is a B-spline surface that happens to be flat."""
-    side = {
+    side: JSONObject = {
         "select": [{"op": "faces"}, {"op": "at_end", "axis": "X", "end": "max"}],
         "expected_count": 1,
     }
@@ -102,8 +103,8 @@ def test_a_sketch_goes_on_the_flat_side_of_a_ruled_loft():
     )
 
 
-def test_a_section_with_two_regions_is_refused_by_name():
-    two = {
+def test_a_section_with_two_regions_is_refused_by_name() -> None:
+    two: JSONObject = {
         "id": "a",
         "type": "sketch",
         "plane": "XY",
@@ -114,7 +115,7 @@ def test_a_section_with_two_regions_is_refused_by_name():
         "constraints": [],
     }
     with pytest.raises(ProfileError, match="'a' has 2 closed regions"):
-        build(
+        _ = build(
             [
                 two,
                 circle("b", 10, 5),
@@ -123,7 +124,7 @@ def test_a_section_with_two_regions_is_refused_by_name():
         )
 
 
-def test_a_section_cannot_be_deleted_while_a_loft_uses_it():
+def test_a_section_cannot_be_deleted_while_a_loft_uses_it() -> None:
     document = Document(
         [
             circle("a", 0, 10),
@@ -132,4 +133,4 @@ def test_a_section_cannot_be_deleted_while_a_loft_uses_it():
         ]
     )
     with pytest.raises(DocumentError, match="'l' still reference it"):
-        document.apply_edits([{"op": "delete", "id": "b"}], None, "test")
+        _ = document.apply_edits([{"op": "delete", "id": "b"}], None, "test")

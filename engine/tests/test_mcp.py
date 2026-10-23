@@ -17,10 +17,11 @@ from mcp.shared.memory import create_client_server_memory_streams
 
 from sprocket_engine.mcp_server import LazyClient, build_server
 from sprocket_engine.ops import REGISTRY
-from sprocket_engine.rpc import Client
+from sprocket_engine.rpc import Client, Daemon
+from sprocket_engine.model import JSONObject
 
 
-def drive(daemon, work):
+def drive(daemon: Daemon, work):
     """Runs one async exchange against a server wired to this daemon.
 
     The suite is otherwise synchronous, and an async pytest plugin is a
@@ -30,7 +31,7 @@ def drive(daemon, work):
     async def main():
         client = Client(daemon.socket_path)
         server = build_server(client)
-        answer = {}
+        answer: JSONObject = {}
         try:
             async with (
                 create_client_server_memory_streams() as (
@@ -48,9 +49,9 @@ def drive(daemon, work):
                         raise_exceptions=True,
                     )
 
-                tasks.start_soon(serve)
+                _ = tasks.start_soon(serve)
                 async with ClientSession(client_read, client_write) as session:
-                    await session.initialize()
+                    _ = await session.initialize()
                     answer["value"] = await work(session)
                 tasks.cancel_scope.cancel()
         finally:
@@ -66,7 +67,7 @@ def text_of(result) -> str:
     )
 
 
-def test_every_registered_op_is_callable_as_a_tool(daemon):
+def test_every_registered_op_is_callable_as_a_tool(daemon: Daemon) -> None:
     """An op added later has to become agent-callable without editing the
     adapter. The generated list is the only thing that makes that true.
     """
@@ -76,7 +77,9 @@ def test_every_registered_op_is_callable_as_a_tool(daemon):
     assert "render_view" in names
 
 
-def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
+def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(
+    daemon: Daemon,
+) -> None:
     """`type` is fixed by the tool name, and an agent inventing unique ids
     across a long session collides with itself.
     """
@@ -87,7 +90,7 @@ def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
     assert "base_revision" in fillet.input_schema["properties"]
 
 
-def test_every_op_tool_describes_what_the_op_does(daemon):
+def test_every_op_tool_describes_what_the_op_does(daemon: Daemon) -> None:
     """The descriptions came from the apply docstrings once, and add_boolean
     opened "Operands are feature ids, because ...", which tells an agent
     nothing. They come from the schemas now, so check they are all there.
@@ -101,7 +104,7 @@ def test_every_op_tool_describes_what_the_op_does(daemon):
             )
 
 
-def test_adding_a_feature_names_it_and_reports_the_build(daemon):
+def test_adding_a_feature_names_it_and_reports_the_build(daemon: Daemon) -> None:
     async def work(session):
         return await session.call_tool(
             "add_fillet",
@@ -116,7 +119,7 @@ def test_adding_a_feature_names_it_and_reports_the_build(daemon):
     assert built["built"]["volume"] < 12000.0
 
 
-def test_render_view_returns_the_image_itself(daemon):
+def test_render_view_returns_the_image_itself(daemon: Daemon) -> None:
     """A path would be a file the agent may have no tool to read, and an agent
     that cannot see its work reports a part it has never looked at.
     """
@@ -135,7 +138,7 @@ def test_render_view_returns_the_image_itself(daemon):
     assert json.loads(text_of(result))["width"] == 200
 
 
-def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
+def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon: Daemon) -> None:
     """A stale revision is the agent's to fix. Raising it out of the tool call
     loses the daemon's payload, which is the only thing that lets it rebase.
     """
@@ -155,7 +158,7 @@ def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
     assert payload["data"]["document"]["parameters"] == {"width": 40}
 
 
-def test_a_feature_the_engine_rejects_is_reported_not_raised(daemon):
+def test_a_feature_the_engine_rejects_is_reported_not_raised(daemon: Daemon) -> None:
     async def work(session):
         return await session.call_tool(
             "add_extrude", {"profile": "nope", "distance": 10}
@@ -166,7 +169,7 @@ def test_a_feature_the_engine_rejects_is_reported_not_raised(daemon):
     assert "nope" in text_of(result)
 
 
-def test_the_document_is_untouched_by_a_preview(daemon, client):
+def test_the_document_is_untouched_by_a_preview(daemon: Daemon, client: Client) -> None:
     async def work(session):
         return await session.call_tool(
             "preview_feature",
@@ -189,21 +192,23 @@ def test_the_document_is_untouched_by_a_preview(daemon, client):
     ]
 
 
-def test_an_agent_can_read_the_selection_and_highlight_it(daemon):
+def test_an_agent_can_read_the_selection_and_highlight_it(daemon: Daemon) -> None:
     async def work(session):
         picked = await session.call_tool("get_selection", {})
         shown = await session.call_tool("highlight", {"handles": ["f0"]})
         return picked, shown
 
     with Client(daemon.socket_path) as viewer:
-        viewer.call("set_selection", handles=["f0"], revision=0)
+        _ = viewer.call("set_selection", handles=["f0"], revision=0)
         picked, shown = drive(daemon, work)
     assert json.loads(text_of(picked))["handles"] == ["f0"]
     assert shown.is_error is not True
     assert json.loads(text_of(shown))["handles"] == ["f0"]
 
 
-def test_the_client_finds_the_app_socket_and_follows_it_to_a_new_one(daemon):
+def test_the_client_finds_the_app_socket_and_follows_it_to_a_new_one(
+    daemon: Daemon,
+) -> None:
     # A dead app leaves a file that refuses connections, and it is the newest.
     # A socket path over about 100 characters cannot be connected, and pytest's tmp_path is longer.
     tmp_path = Path(daemon.socket_path).parent

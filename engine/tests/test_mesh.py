@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 from sprocket_engine.mesh import export_mesh
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 
 # The fixture builds its own document rather than reading examples/box.sprocket.
@@ -26,7 +27,7 @@ from sprocket_engine.replay import replay
 # pinned counts below then fail for a reason that has nothing to do with the
 # code. It happened: the counts were first written from an edited copy, so CI
 # read the committed file and failed while every local run passed.
-BOX_DOCUMENT = {
+BOX_DOCUMENT: JSONObject = {
     "schema_version": 1,
     "units": {"length": "mm"},
     "features": [
@@ -50,7 +51,7 @@ def read_mesh(path: Path) -> tuple[dict, dict]:
     header = json.loads(raw[4 : 4 + header_length].rstrip(b"\0"))
     payload_start = 4 + header_length
 
-    buffers = {}
+    buffers: JSONObject = {}
     for name, entry in header["buffers"].items():
         offset = payload_start + entry["offset"]
         assert offset % 4 == 0, f"{name} is not 4-aligned, a typed array cannot wrap it"
@@ -68,7 +69,7 @@ def box_mesh(tmp_path_factory):
     return part, header, read_mesh(path)
 
 
-def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh):
+def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh) -> None:
     _part, written_header, (header, buffers) = box_mesh
 
     assert header == written_header, (
@@ -85,7 +86,7 @@ def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh):
     assert len(buffers["segments_per_edge"]) == counts["edges"]
 
 
-def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
+def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh) -> None:
     """Face identity is a triangle range, so the ranges have to tile the index
     buffer exactly: no gap leaves triangles belonging to no face, and no
     overlap puts one triangle in two faces.
@@ -113,7 +114,7 @@ def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
     assert previous_max == header["counts"]["vertices"] - 1
 
 
-def test_edges_are_ready_to_draw_as_line_segments(box_mesh):
+def test_edges_are_ready_to_draw_as_line_segments(box_mesh) -> None:
     """The viewer draws edges with LineSegments, which consumes the buffer as
     consecutive point pairs. `segments_per_edge` then names which pairs came
     from which B-rep edge.
@@ -126,7 +127,7 @@ def test_edges_are_ready_to_draw_as_line_segments(box_mesh):
     assert len(buffers["edges"]) % 6 == 0
 
 
-def test_box_topology_is_pinned(box_mesh):
+def test_box_topology_is_pinned(box_mesh) -> None:
     """A guard on OCCT, not on this code. Tessellation output is stable within
     an OCP version and reorders across upgrades (see ENGINE_VERSIONS), so these
     numbers changing means face indices moved and every stored face reference
@@ -143,7 +144,7 @@ def test_box_topology_is_pinned(box_mesh):
     }
 
 
-def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
+def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh) -> None:
     """The STL path had to call computeVertexNormals(), which averages
     triangle normals and so rounds off a curved face. These are OCCT's own
     surface normals, so they are unit length and, on a planar face, identical
@@ -163,7 +164,9 @@ def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
     )
 
 
-def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh):
+def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(
+    box_mesh,
+) -> None:
     """The viewer builds a push/pull preview wall around a picked face, which
     needs that face's boundary loop. It finds the boundary by vertex index: an
     edge two of the face's triangles share is inside it, an edge only one uses
@@ -213,7 +216,7 @@ def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh)
     )
 
 
-def test_node_normals_agree_with_the_triangle_winding(box_mesh):
+def test_node_normals_agree_with_the_triangle_winding(box_mesh) -> None:
     """The viewer takes a picked face's extrude axis from its node normal. It
     used to compute that axis from the hit triangle's winding instead, so the
     two have to point the same way or push/pull reverses: dragging outward
@@ -243,7 +246,7 @@ def test_node_normals_agree_with_the_triangle_winding(box_mesh):
 
 
 @pytest.mark.parametrize("name", ["sphere", "cone"])
-def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
+def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path: Path, name) -> None:
     """A sphere's pole and a cone's apex are zero-length edges. build123d hides
     them from `shape.edges()` and ocp-tessellate does not, so the runs came out
     longer than the edge list and the export refused the part. The filleted
@@ -256,7 +259,7 @@ def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
 
     shape = Solid.make_sphere(10) if name == "sphere" else Solid.make_cone(5, 0, 10)
     path = tmp_path / "part.mesh"
-    export_mesh(shape, path)
+    _ = export_mesh(shape, path)
     _header, buffers = read_mesh(path)
 
     points = buffers["edges"].reshape(-1, 2, 3)

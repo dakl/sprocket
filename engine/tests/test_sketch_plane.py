@@ -1,14 +1,16 @@
 """A sketch's plane given as a face of an earlier feature, or as an offset origin plane."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 from sprocket_engine.viewer_files import features_summary
 
-BOX = [
+BOX: list[JSONObject] = [
     {"id": "s", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 20}},
     {"id": "b", "type": "extrude", "profile": "s", "distance": "=height"},
 ]
@@ -46,7 +48,7 @@ def pad(features):
     return ctx.results["e"]
 
 
-def test_a_sketch_on_the_top_face_follows_the_face_when_the_box_grows():
+def test_a_sketch_on_the_top_face_follows_the_face_when_the_box_grows() -> None:
     features = pad_on({"feature": "b", "face": face("Z", "max")}, base="b", mode="join")
     for height in (10, 14):
         part = build(features, height)
@@ -54,33 +56,33 @@ def test_a_sketch_on_the_top_face_follows_the_face_when_the_box_grows():
         assert part.volume == pytest.approx(400 * height + 80)
 
 
-def test_an_offset_origin_plane():
+def test_an_offset_origin_plane() -> None:
     part = pad(pad_on({"name": "XY", "offset": 30}))
     box = part.bounding_box()
     assert pytest.approx((30, 35)) == (box.min.Z, box.max.Z)
 
 
-def test_on_a_side_face_v_is_world_up_and_coordinates_stay_world_aligned():
+def test_on_a_side_face_v_is_world_up_and_coordinates_stay_world_aligned() -> None:
     part = pad(pad_on({"feature": "b", "face": face("X", "max")}, center=(2, 3)))
     centre = part.center()
     assert pytest.approx((12.5, 2, 3)) == (centre.X, centre.Y, centre.Z)
 
 
-def test_on_the_bottom_face_u_is_x_and_v_is_minus_y():
+def test_on_the_bottom_face_u_is_x_and_v_is_minus_y() -> None:
     part = pad(pad_on({"feature": "b", "face": face("Z", "min")}, center=(2, 3)))
     centre = part.center()
     assert pytest.approx((2, -3, -2.5)) == (centre.X, centre.Y, centre.Z)
 
 
-def test_a_face_plane_must_be_one_planar_face():
-    every_face = {"select": [{"op": "faces"}]}
+def test_a_face_plane_must_be_one_planar_face() -> None:
+    every_face: JSONObject = {"select": [{"op": "faces"}]}
     with pytest.raises(Exception, match="expected exactly 1"):
-        build(pad_on({"feature": "b", "face": every_face}))
+        _ = build(pad_on({"feature": "b", "face": every_face}))
 
 
-def test_the_viewer_gets_an_explicit_plane_for_a_face_sketch(tmp_path):
+def test_the_viewer_gets_an_explicit_plane_for_a_face_sketch(tmp_path: Path) -> None:
     path = tmp_path / "part.sprocket"
-    path.write_text(
+    _ = path.write_text(
         json.dumps(
             {
                 "parameters": {"height": 10},
@@ -101,16 +103,16 @@ def test_the_viewer_gets_an_explicit_plane_for_a_face_sketch(tmp_path):
     assert entry["feature"]["plane"]["feature"] == "b"
 
 
-def test_the_face_owner_cannot_be_deleted_while_a_sketch_sits_on_it():
+def test_the_face_owner_cannot_be_deleted_while_a_sketch_sits_on_it() -> None:
     document = Document(
         BOX + pad_on({"feature": "b", "face": face("Z", "max")}),
         parameters={"height": 10},
     )
     with pytest.raises(DocumentError, match="still reference it"):
-        document.apply_edits([{"op": "delete", "id": "b"}], None, "test")
+        _ = document.apply_edits([{"op": "delete", "id": "b"}], None, "test")
 
 
-def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
+def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path: Path) -> None:
     """The viewer's flow: pick a face, ask the daemon for a plane reference,
     sketch on it. A taller box carries the sketch up with its top face.
     """
@@ -127,14 +129,20 @@ def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
         found = client.call("face_sketch_plane", handle=top)
         assert found["plane"]["feature"] == "b"
         assert found["resolved"]["origin"][2] == pytest.approx(10)
-        sketch = {
+        sketch: JSONObject = {
             "id": "p",
             "type": "sketch",
             "plane": found["plane"],
             "rect": {"width": 4, "height": 4},
         }
-        pad = {"id": "e", "type": "extrude", "profile": "p", "base": "b", "distance": 5}
-        client.call(
+        pad: JSONObject = {
+            "id": "e",
+            "type": "extrude",
+            "profile": "p",
+            "base": "b",
+            "distance": 5,
+        }
+        _ = client.call(
             "apply_edit",
             edits=[
                 {"op": "insert", "feature": sketch},
@@ -142,7 +150,7 @@ def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
             ],
         )
         assert client.call("measure")["bounding_box"]["max"][2] == pytest.approx(15)
-        client.call("set_parameter", name="height", value=30)
+        _ = client.call("set_parameter", name="height", value=30)
         assert client.call("measure")["bounding_box"]["max"][2] == pytest.approx(35)
         # A side face works too, and its plane is the face, wherever it is.
         faces = client.call("describe_geometry")["faces"]
@@ -155,15 +163,15 @@ def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
         assert side_plane["normal"] == pytest.approx([1, 0, 0])
         assert side_plane["origin"][0] == pytest.approx(10)
         with pytest.raises(Exception, match="face handle"):
-            client.call("face_sketch_plane", handle="e1")
+            _ = client.call("face_sketch_plane", handle="e1")
 
 
-def test_a_face_of_the_second_body_names_that_body(tmp_path):
+def test_a_face_of_the_second_body_names_that_body(tmp_path: Path) -> None:
     from conftest import running
 
     from sprocket_engine.rpc import Client
 
-    second = [
+    second: list[JSONObject] = [
         {
             "id": "s2",
             "type": "sketch",

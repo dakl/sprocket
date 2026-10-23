@@ -1,19 +1,21 @@
 """Construct features: a plane, an axis and a point that later features name."""
 
 import math
+from pathlib import Path
 
 import pytest
 from conftest import running
 
 from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import build_shape, failed_feature, replay
 from sprocket_engine.rpc import Client
 
-BOX = [
+BOX: list[JSONObject] = [
     {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 30}},
     {"id": "box", "type": "extrude", "profile": "bs", "distance": 10},
 ]
-PEG = [
+PEG: list[JSONObject] = [
     {
         "id": "ps",
         "type": "sketch",
@@ -22,14 +24,14 @@ PEG = [
     },
     {"id": "peg", "type": "extrude", "profile": "ps", "distance": 2},
 ]
-YZ_AT_X30 = {"id": "wall", "type": "plane", "plane": "YZ", "offset": 30}
+YZ_AT_X30: JSONObject = {"id": "wall", "type": "plane", "plane": "YZ", "offset": 30}
 
 
 def build(features):
     return replay(Document(features).for_replay(), return_context=True)
 
 
-def test_construct_features_make_no_body_and_a_document_of_them_is_empty():
+def test_construct_features_make_no_body_and_a_document_of_them_is_empty() -> None:
     shape, failed, ctx = build_shape(
         [YZ_AT_X30, {"id": "p", "type": "point", "at": [1, 2, 3]}], 2, None
     )
@@ -39,8 +41,8 @@ def test_construct_features_make_no_body_and_a_document_of_them_is_empty():
     assert shape.volume == pytest.approx(12000)
 
 
-def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
-    sketch = {
+def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves() -> None:
+    sketch: JSONObject = {
         "id": "s",
         "type": "sketch",
         "plane": {"construct": "wall"},
@@ -56,7 +58,7 @@ def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
     )
     box = ctx.results["cut"].bounding_box()
     assert pytest.approx((30, 33)) == (box.min.X, box.max.X)
-    moved = {**YZ_AT_X30, "offset": 12}
+    moved: JSONObject = {**YZ_AT_X30, "offset": 12}
     _, ctx = build(
         BOX
         + [
@@ -68,19 +70,23 @@ def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
     assert pytest.approx(12) == ctx.results["cut"].bounding_box().min.X
 
 
-def test_a_plane_feature_can_start_from_a_face_or_another_plane_feature():
-    top = {
+def test_a_plane_feature_can_start_from_a_face_or_another_plane_feature() -> None:
+    top: JSONObject = {
         "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
         "expected_count": 1,
     }
-    on_top = {
+    on_top: JSONObject = {
         "id": "up",
         "type": "plane",
         "plane": {"feature": "box", "face": top},
         "offset": 5,
     }
-    again = {"id": "up2", "type": "plane", "plane": {"construct": "up", "offset": 1}}
-    sketch = {
+    again: JSONObject = {
+        "id": "up2",
+        "type": "plane",
+        "plane": {"construct": "up", "offset": 1},
+    }
+    sketch: JSONObject = {
         "id": "s",
         "type": "sketch",
         "plane": {"construct": "up2"},
@@ -99,8 +105,8 @@ def test_a_plane_feature_can_start_from_a_face_or_another_plane_feature():
     assert pytest.approx((16, 17)) == (box.min.Z, box.max.Z)
 
 
-def test_mirror_across_a_plane_feature():
-    mirror = {
+def test_mirror_across_a_plane_feature() -> None:
+    mirror: JSONObject = {
         "id": "m",
         "type": "mirror",
         "tool": "peg",
@@ -112,15 +118,15 @@ def test_mirror_across_a_plane_feature():
     assert pytest.approx((4, 56)) == (box.min.X, box.max.X)
 
 
-def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
-    hole_sketch = {
+def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it() -> None:
+    hole_sketch: JSONObject = {
         "id": "hs",
         "type": "sketch",
         "plane": "XY",
         "circle": {"radius": 3, "center": [10, 0]},
     }
-    post = {"id": "post", "type": "extrude", "profile": "hs", "distance": 8}
-    pin = [
+    post: JSONObject = {"id": "post", "type": "extrude", "profile": "hs", "distance": 8}
+    pin: list[JSONObject] = [
         {
             "id": "ns",
             "type": "sketch",
@@ -131,7 +137,7 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
     ]
     features = [hole_sketch, post, *pin]
     # The post's side wall is the face nearest its seam, where OCCT puts a cylinder's centre.
-    axis = {
+    axis: JSONObject = {
         "id": "post_axis",
         "type": "axis",
         "axis": {
@@ -141,7 +147,7 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
             },
         },
     }
-    ring = {
+    ring: JSONObject = {
         "id": "ring",
         "type": "pattern",
         "tool": "nib",
@@ -157,14 +163,14 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
     assert xs == pytest.approx([0, 10, 10, 20])
 
 
-def test_a_construct_axis_is_a_pattern_direction():
-    row = {
+def test_a_construct_axis_is_a_pattern_direction() -> None:
+    row: JSONObject = {
         "id": "row",
         "type": "pattern",
         "tool": "peg",
         "linear": {"direction": {"construct": "x2"}, "count": 3, "spacing": 10},
     }
-    axis = {
+    axis: JSONObject = {
         "id": "x2",
         "type": "axis",
         "axis": {"origin": [0, 0, 0], "direction": [1, 0, 0]},
@@ -173,7 +179,7 @@ def test_a_construct_axis_is_a_pattern_direction():
     box = ctx.results["row"].bounding_box()
     assert pytest.approx((4, 26)) == (box.min.X, box.max.X)
     # A named axis works as a direction too.
-    row_y = {
+    row_y: JSONObject = {
         "id": "row",
         "type": "pattern",
         "tool": "peg",
@@ -183,8 +189,8 @@ def test_a_construct_axis_is_a_pattern_direction():
     assert pytest.approx(6) == ctx.results["row"].bounding_box().max.Y
 
 
-def test_an_axis_that_does_not_resolve_fails_that_feature_by_name():
-    bad = {
+def test_an_axis_that_does_not_resolve_fails_that_feature_by_name() -> None:
+    bad: JSONObject = {
         "id": "a",
         "type": "axis",
         "axis": {
@@ -199,21 +205,21 @@ def test_an_axis_that_does_not_resolve_fails_that_feature_by_name():
         },
     }
     with pytest.raises(Exception) as caught:
-        build(BOX + [bad])
+        _ = build(BOX + [bad])
     failed = failed_feature(caught.value)
     assert failed is not None
     assert failed.feature_id == "a"
-    curved = {
+    curved: JSONObject = {
         "id": "c",
         "type": "axis",
         "axis": {"base": "box", "face": {"select": [{"op": "faces"}, {"op": "first"}]}},
     }
     with pytest.raises(Exception, match="cylindrical"):
-        build(BOX + [curved])
+        _ = build(BOX + [curved])
 
 
-def test_a_construct_feature_a_later_one_names_cannot_be_deleted():
-    mirror = {
+def test_a_construct_feature_a_later_one_names_cannot_be_deleted() -> None:
+    mirror: JSONObject = {
         "id": "m",
         "type": "mirror",
         "tool": "peg",
@@ -221,8 +227,8 @@ def test_a_construct_feature_a_later_one_names_cannot_be_deleted():
     }
     document = Document(BOX + PEG + [YZ_AT_X30, mirror])
     with pytest.raises(DocumentError):
-        document.apply_edits([{"op": "delete", "id": "wall"}], None, "test")
-    spin = {
+        _ = document.apply_edits([{"op": "delete", "id": "wall"}], None, "test")
+    spin: JSONObject = {
         "id": "ring",
         "type": "pattern",
         "tool": "peg",
@@ -233,10 +239,10 @@ def test_a_construct_feature_a_later_one_names_cannot_be_deleted():
     }
     document = Document(BOX + PEG + [spin])
     with pytest.raises(DocumentError):
-        document.apply_edits([{"op": "delete", "id": "box"}], None, "test")
+        _ = document.apply_edits([{"op": "delete", "id": "box"}], None, "test")
 
 
-def test_the_viewer_files_describe_each_construct_feature(tmp_path):
+def test_the_viewer_files_describe_each_construct_feature(tmp_path: Path) -> None:
     from sprocket_engine.viewer_files import features_summary
 
     features = BOX + [
@@ -265,7 +271,9 @@ def test_the_viewer_files_describe_each_construct_feature(tmp_path):
     assert entries["p"]["construct"] == {"kind": "point", "at": [1, 2, 3]}
 
 
-def test_preview_says_where_a_construct_feature_lands_even_with_no_part(tmp_path):
+def test_preview_says_where_a_construct_feature_lands_even_with_no_part(
+    tmp_path: Path,
+) -> None:
     with running({"features": [], "rollback_index": 0}, tmp_path) as daemon:
         with Client(daemon.socket_path) as client:
             result = client.call(
@@ -274,13 +282,13 @@ def test_preview_says_where_a_construct_feature_lands_even_with_no_part(tmp_path
             )
             assert result["would_build"] and result["construct"]["origin"] == [0, 0, 7]
             with pytest.raises(Exception, match="nope"):
-                client.call(
+                _ = client.call(
                     "preview_feature",
                     feature={"id": "a", "type": "axis", "axis": {"construct": "nope"}},
                 )
     with running({"features": BOX, "rollback_index": 2}, tmp_path) as daemon:
         with Client(daemon.socket_path) as client:
-            flat = {
+            flat: JSONObject = {
                 "id": "a",
                 "type": "axis",
                 "axis": {
@@ -295,7 +303,7 @@ def test_preview_says_where_a_construct_feature_lands_even_with_no_part(tmp_path
 def test_pick_axis_names_a_cylindrical_face_and_a_circular_edge_by_the_body_they_are_on(
     tmp_path,
 ):
-    post = [
+    post: list[JSONObject] = [
         {
             "id": "hs",
             "type": "sketch",
@@ -334,4 +342,4 @@ def test_pick_axis_names_a_cylindrical_face_and_a_circular_edge_by_the_body_they
                 face["handle"] for face in geometry["faces"] if face["kind"] == "PLANE"
             )
             with pytest.raises(Exception, match="no axis"):
-                client.call("pick_axis", handle=flat)
+                _ = client.call("pick_axis", handle=flat)

@@ -1,11 +1,13 @@
 import math
+from pathlib import Path
 
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.regions import ProfileError
 from sprocket_engine.replay import failed_feature, replay
 
-RECTANGLE = [
+RECTANGLE: list[JSONObject] = [
     {"id": "e1", "kind": "line", "p0": [0, 0], "p1": [40, 0]},
     {"id": "e2", "kind": "line", "p0": [40, 0], "p1": [40, 20]},
     {"id": "e3", "kind": "line", "p0": [40, 20], "p1": [0, 20]},
@@ -16,7 +18,12 @@ DISC_AREA = math.pi * 16
 
 
 def sketch(entities, constraints=None, plane="XY"):
-    feature = {"id": "f1", "type": "sketch", "plane": plane, "entities": entities}
+    feature: JSONObject = {
+        "id": "f1",
+        "type": "sketch",
+        "plane": plane,
+        "entities": entities,
+    }
     if constraints is not None:
         feature["constraints"] = constraints
     return feature
@@ -36,7 +43,7 @@ def build(*features, cache_dir=None):
     return replay({"features": list(features)}, cache_dir=cache_dir)
 
 
-def test_extruding_a_whole_entity_sketch_gives_the_union_of_what_was_drawn():
+def test_extruding_a_whole_entity_sketch_gives_the_union_of_what_was_drawn() -> None:
     part = build(
         sketch(RING_AND_DISC),
         {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
@@ -44,7 +51,7 @@ def test_extruding_a_whole_entity_sketch_gives_the_union_of_what_was_drawn():
     assert part.volume == pytest.approx(800 * 10)
 
 
-def test_a_picked_region_extrudes_alone():
+def test_a_picked_region_extrudes_alone() -> None:
     disc = extrude([{"sketch": "f1", "bounded_by": ["e5"]}])
     ring = extrude([{"sketch": "f1", "bounded_by": ["e1", "e2", "e3", "e4", "e5"]}])
     assert build(sketch(RING_AND_DISC), disc).volume == pytest.approx(DISC_AREA * 10)
@@ -53,7 +60,7 @@ def test_a_picked_region_extrudes_alone():
     )
 
 
-def test_several_picked_regions_extrude_together():
+def test_several_picked_regions_extrude_together() -> None:
     both = extrude(
         [
             {"sketch": "f1", "bounded_by": ["e5"]},
@@ -63,7 +70,7 @@ def test_several_picked_regions_extrude_together():
     assert build(sketch(RING_AND_DISC), both).volume == pytest.approx(800 * 10)
 
 
-def test_a_region_on_another_plane_lands_on_that_plane():
+def test_a_region_on_another_plane_lands_on_that_plane() -> None:
     # XZ has its normal along -Y, so a positive extrude runs towards -Y.
     part = build(
         sketch(RECTANGLE, plane="XZ"),
@@ -75,7 +82,7 @@ def test_a_region_on_another_plane_lands_on_that_plane():
     assert pytest.approx((-10, 0), abs=1e-6) == (box.min.Y, box.max.Y)
 
 
-def test_a_profile_still_resolves_after_a_dimension_changes():
+def test_a_profile_still_resolves_after_a_dimension_changes() -> None:
     """The reason profiles name entities and not positions: move the circle and
     the same reference finds the same region.
     """
@@ -84,16 +91,16 @@ def test_a_profile_still_resolves_after_a_dimension_changes():
     assert build(sketch(bigger), disc).volume == pytest.approx(math.pi * 36 * 10)
 
 
-def test_a_profile_that_no_longer_exists_names_the_extrude_that_broke():
+def test_a_profile_that_no_longer_exists_names_the_extrude_that_broke() -> None:
     gone = extrude([{"sketch": "f1", "bounded_by": ["e5"]}])
     with pytest.raises(ProfileError, match="matches 0 regions") as raised:
-        build(sketch(RECTANGLE), gone)
+        _ = build(sketch(RECTANGLE), gone)
     failed = failed_feature(raised.value)
     assert failed is not None
     assert failed.feature_id == "f2"
 
 
-def test_two_regions_with_one_bounded_by_are_told_apart_by_inside():
+def test_two_regions_with_one_bounded_by_are_told_apart_by_inside() -> None:
     entities = RECTANGLE + [{"id": "e5", "kind": "circle", "c": [20, 20], "r": 6}]
     outside_half = extrude(
         [{"sketch": "f1", "bounded_by": ["e3", "e5"], "inside": [20, 24]}]
@@ -111,8 +118,8 @@ def test_two_regions_with_one_bounded_by_are_told_apart_by_inside():
     )
 
 
-def test_a_sketch_of_one_shape_takes_a_profile_with_no_boundary_ids():
-    rect = {
+def test_a_sketch_of_one_shape_takes_a_profile_with_no_boundary_ids() -> None:
+    rect: JSONObject = {
         "id": "f1",
         "type": "sketch",
         "plane": "XY",
@@ -123,12 +130,12 @@ def test_a_sketch_of_one_shape_takes_a_profile_with_no_boundary_ids():
     ).volume == pytest.approx(1000)
 
 
-def test_a_profile_that_names_a_missing_sketch_is_an_error():
+def test_a_profile_that_names_a_missing_sketch_is_an_error() -> None:
     with pytest.raises(ProfileError, match="not a sketch"):
-        build(sketch(RECTANGLE), extrude([{"sketch": "nope", "bounded_by": []}]))
+        _ = build(sketch(RECTANGLE), extrude([{"sketch": "nope", "bounded_by": []}]))
 
 
-def test_an_extrude_has_a_profile_or_profiles_but_not_both():
+def test_an_extrude_has_a_profile_or_profiles_but_not_both() -> None:
     import jsonschema
 
     from sprocket_engine.ops import REGISTRY
@@ -139,7 +146,7 @@ def test_an_extrude_has_a_profile_or_profiles_but_not_both():
     )
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({"id": "f2", "type": "extrude", "distance": 1}, schema)
-    both = {
+    both: JSONObject = {
         "id": "f2",
         "type": "extrude",
         "profile": "f1",
@@ -150,7 +157,7 @@ def test_an_extrude_has_a_profile_or_profiles_but_not_both():
         jsonschema.validate(both, schema)
 
 
-def test_an_entity_sketch_survives_the_brep_cache(tmp_path):
+def test_an_entity_sketch_survives_the_brep_cache(tmp_path: Path) -> None:
     # Once with the extrude built fresh, once with every feature read back.
     document = (
         sketch(RING_AND_DISC),
@@ -161,7 +168,7 @@ def test_an_entity_sketch_survives_the_brep_cache(tmp_path):
     assert second.volume == pytest.approx(first.volume)
 
 
-def test_a_sketch_with_nothing_closed_replays_to_an_empty_shape(tmp_path):
+def test_a_sketch_with_nothing_closed_replays_to_an_empty_shape(tmp_path: Path) -> None:
     open_line = sketch([{"id": "e1", "kind": "line", "p0": [0, 0], "p1": [5, 5]}])
     assert build(open_line, cache_dir=tmp_path).volume == 0
     assert build(open_line, cache_dir=tmp_path).volume == 0
@@ -190,11 +197,11 @@ def test_a_sketch_that_contradicts_itself_is_refused_with_the_reason(
     entities, constraints, message
 ):
     with pytest.raises(ValueError, match=message):
-        build(sketch(entities, constraints))
+        _ = build(sketch(entities, constraints))
 
 
-def test_constraints_that_name_real_things_are_accepted_and_change_nothing():
-    constraints = [
+def test_constraints_that_name_real_things_are_accepted_and_change_nothing() -> None:
+    constraints: list[JSONObject] = [
         {"kind": "horizontal", "e": "e1"},
         {"kind": "coincident", "a": "e1.p1", "b": "e2.p0"},
         {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
@@ -208,8 +215,8 @@ def test_constraints_that_name_real_things_are_accepted_and_change_nothing():
     assert with_constraints.volume == pytest.approx(800 * 10)
 
 
-def test_point_on_and_the_origin_are_valid_references():
-    constraints = [
+def test_point_on_and_the_origin_are_valid_references() -> None:
+    constraints: list[JSONObject] = [
         {"kind": "point_on", "a": "e5.c", "b": "e1"},
         {"kind": "coincident", "a": "e1.p0", "b": "origin"},
         {"kind": "distance", "a": "origin", "b": "e5.c", "value": 22},
@@ -223,16 +230,16 @@ def test_point_on_and_the_origin_are_valid_references():
     assert part.volume == pytest.approx(800 * 10)
 
 
-def test_a_misspelled_origin_is_refused():
+def test_a_misspelled_origin_is_refused() -> None:
     with pytest.raises(ValueError, match="no entity 'orign'"):
-        build(
+        _ = build(
             sketch(RING_AND_DISC, [{"kind": "coincident", "a": "e1.p0", "b": "orign"}])
         )
 
 
-def test_extruding_a_sketch_with_nothing_closed_says_so():
+def test_extruding_a_sketch_with_nothing_closed_says_so() -> None:
     open_line = sketch([{"id": "e1", "kind": "line", "p0": [0, 0], "p1": [5, 5]}])
     with pytest.raises(ProfileError, match="no closed region"):
-        build(
+        _ = build(
             open_line, {"id": "f2", "type": "extrude", "profile": "f1", "distance": 3}
         )

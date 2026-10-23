@@ -11,19 +11,22 @@ import pytest
 
 pytest.importorskip("planegcs")
 
+from pathlib import Path
+
 from conftest import running
 from solver_cases import rough_rectangle
 
 from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.model import JSONObject
 from sprocket_engine.rpc import RpcError
 
-SKETCH = {"id": "s1", "type": "sketch", "plane": "XY", **rough_rectangle()}
-DOCUMENT = {"features": [SKETCH], "rollback_index": 1}
-LENGTH = {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40}
+SKETCH: JSONObject = {"id": "s1", "type": "sketch", "plane": "XY", **rough_rectangle()}
+DOCUMENT: JSONObject = {"features": [SKETCH], "rollback_index": 1}
+LENGTH: JSONObject = {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40}
 
 
 @pytest.fixture
-def sketch_client(tmp_path):
+def sketch_client(tmp_path: Path):
     from sprocket_engine.rpc import Client
 
     with running(DOCUMENT, tmp_path) as daemon, Client(daemon.socket_path) as client:
@@ -35,16 +38,20 @@ def length(sketch, entity_id):
     return math.dist(entity["p0"], entity["p1"])
 
 
-def test_constraints_without_ids_get_them_when_the_document_loads(tmp_path):
+def test_constraints_without_ids_get_them_when_the_document_loads(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "old.sprocket"
-    path.write_text(json.dumps(DOCUMENT))
+    _ = path.write_text(json.dumps(DOCUMENT))
     constraints = Document.load(path).features[0]["constraints"]
     assert [constraint["id"] for constraint in constraints] == [
         f"c{n}" for n in range(1, 9)
     ]
 
 
-def test_a_dimension_moves_the_geometry_and_takes_a_degree_of_freedom(sketch_client):
+def test_a_dimension_moves_the_geometry_and_takes_a_degree_of_freedom(
+    sketch_client,
+) -> None:
     before = sketch_client.call(
         "add_constraint", feature="s1", constraint={"kind": "vertical", "e": "e2"}
     )
@@ -54,7 +61,9 @@ def test_a_dimension_moves_the_geometry_and_takes_a_degree_of_freedom(sketch_cli
     assert result["dof"] == before["dof"] - 1
 
 
-def test_an_edit_that_has_no_solution_is_refused_and_names_the_conflict(sketch_client):
+def test_an_edit_that_has_no_solution_is_refused_and_names_the_conflict(
+    sketch_client,
+) -> None:
     sketch_client.call("add_constraint", feature="s1", constraint=LENGTH)
     revision = sketch_client.call("get_document")["revision"]
     with pytest.raises(RpcError) as caught:
@@ -65,7 +74,7 @@ def test_an_edit_that_has_no_solution_is_refused_and_names_the_conflict(sketch_c
     assert sketch_client.call("get_document")["revision"] == revision
 
 
-def test_updating_a_dimension_by_id_moves_the_geometry(sketch_client):
+def test_updating_a_dimension_by_id_moves_the_geometry(sketch_client) -> None:
     added = sketch_client.call("add_constraint", feature="s1", constraint=LENGTH)
     result = sketch_client.call(
         "update_constraint",
@@ -76,7 +85,9 @@ def test_updating_a_dimension_by_id_moves_the_geometry(sketch_client):
     assert length(result["sketch"], "e1") == pytest.approx(25)
 
 
-def test_an_id_still_means_the_same_constraint_after_another_is_removed(sketch_client):
+def test_an_id_still_means_the_same_constraint_after_another_is_removed(
+    sketch_client,
+) -> None:
     added = sketch_client.call("add_constraint", feature="s1", constraint=LENGTH)
     sketch_client.call("remove_constraint", feature="s1", constraint_id="c1")
     result = sketch_client.call(
@@ -88,7 +99,7 @@ def test_an_id_still_means_the_same_constraint_after_another_is_removed(sketch_c
     assert length(result["sketch"], "e1") == pytest.approx(25)
 
 
-def test_removing_a_constraint_frees_the_geometry(sketch_client):
+def test_removing_a_constraint_frees_the_geometry(sketch_client) -> None:
     added = sketch_client.call("add_constraint", feature="s1", constraint=LENGTH)
     removed = sketch_client.call(
         "remove_constraint", feature="s1", constraint_id=added["constraint_id"]
@@ -100,7 +111,9 @@ def test_removing_a_constraint_frees_the_geometry(sketch_client):
     )
 
 
-def test_removing_an_entity_removes_the_constraints_that_mention_it(sketch_client):
+def test_removing_an_entity_removes_the_constraints_that_mention_it(
+    sketch_client,
+) -> None:
     result = sketch_client.call("remove_entity", feature="s1", entity_id="e4")
     assert [entity["id"] for entity in result["sketch"]["entities"]] == [
         "e1",
@@ -112,14 +125,14 @@ def test_removing_an_entity_removes_the_constraints_that_mention_it(sketch_clien
     )
 
 
-def test_an_added_entity_is_numbered_after_the_highest(sketch_client):
+def test_an_added_entity_is_numbered_after_the_highest(sketch_client) -> None:
     result = sketch_client.call(
         "add_entity", feature="s1", entity={"kind": "circle", "c": [10, 10], "r": 2}
     )
     assert result["entity_id"] == "e5"
 
 
-def test_moving_an_entity_keeps_what_the_constraints_hold(sketch_client):
+def test_moving_an_entity_keeps_what_the_constraints_hold(sketch_client) -> None:
     result = sketch_client.call(
         "update_entity", feature="s1", entity_id="e1", changes={"p1": [38, 9]}
     )
@@ -131,7 +144,7 @@ def test_a_dimension_may_be_a_parameter_and_the_stored_constraint_keeps_the_expr
     tmp_path,
 ):
     document = Document([dict(SKETCH)], 1, {"width": 30})
-    document.apply_edits(
+    _ = document.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -148,7 +161,7 @@ def test_a_dimension_may_be_a_parameter_and_the_stored_constraint_keeps_the_expr
     assert length(stored, "e1") == pytest.approx(30)
 
 
-def test_a_sketch_edit_on_something_else_is_refused():
+def test_a_sketch_edit_on_something_else_is_refused() -> None:
     document = Document(
         [
             {
@@ -161,7 +174,7 @@ def test_a_sketch_edit_on_something_else_is_refused():
         1,
     )
     with pytest.raises(DocumentError, match="not a sketch of lines"):
-        document.apply_edits(
+        _ = document.apply_edits(
             [
                 {
                     "op": "edit_sketch",
@@ -175,7 +188,7 @@ def test_a_sketch_edit_on_something_else_is_refused():
         )
 
 
-def test_the_mcp_tools_reach_the_daemon(sketch_client):
+def test_the_mcp_tools_reach_the_daemon(sketch_client) -> None:
     pytest.importorskip("mcp")
     from sprocket_engine.mcp_server import call, sketch_tools
 
@@ -189,10 +202,12 @@ def test_the_mcp_tools_reach_the_daemon(sketch_client):
     assert "c9" in result[0].text
 
 
-def test_symmetric_puts_two_points_at_mirror_images_across_a_line(tmp_path):
+def test_symmetric_puts_two_points_at_mirror_images_across_a_line(
+    tmp_path: Path,
+) -> None:
     from sprocket_engine.rpc import Client
 
-    sketch = {
+    sketch: JSONObject = {
         "id": "s1",
         "type": "sketch",
         "plane": "XY",
@@ -208,7 +223,7 @@ def test_symmetric_puts_two_points_at_mirror_images_across_a_line(tmp_path):
         running({"features": [sketch], "rollback_index": 1}, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
     ):
-        client.call(
+        _ = client.call(
             "add_constraint",
             feature="s1",
             constraint={"kind": "symmetric", "a": "e2.p0", "b": "e3.p0", "e": "e1"},
@@ -224,7 +239,7 @@ def test_symmetric_puts_two_points_at_mirror_images_across_a_line(tmp_path):
         assert copy["p1"] == pytest.approx([-15, 10])
         # The mirror needs a line: a circle is refused with a reason.
         with pytest.raises(RpcError, match="expected line"):
-            client.call(
+            _ = client.call(
                 "add_constraint",
                 feature="s1",
                 constraint={"kind": "symmetric", "a": "e2.p0", "b": "e3.p0", "e": "e4"},

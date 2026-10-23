@@ -5,17 +5,18 @@ import math
 import pytest
 
 from sprocket_engine.document import Document
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 
-BOX = [
+BOX: list[JSONObject] = [
     {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 10}},
     {"id": "box", "type": "extrude", "profile": "bs", "distance": 10},
 ]
-SIDES = {
+SIDES: JSONObject = {
     "select": [{"op": "faces"}, {"op": "within", "box": [-11, -6, 1, 11, 6, 9]}],
     "expected_count": 4,
 }
-TOP = {
+TOP: JSONObject = {
     "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
     "expected_count": 1,
 }
@@ -31,7 +32,7 @@ def top_size(part):
     return size.X, size.Y
 
 
-def test_a_negative_angle_leans_the_walls_outward():
+def test_a_negative_angle_leans_the_walls_outward() -> None:
     part, _ = build(
         BOX
         + [
@@ -49,8 +50,8 @@ def test_a_negative_angle_leans_the_walls_outward():
     assert top_size(part) == pytest.approx((20 + grow, 10 + grow))
 
 
-def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
-    neutral = {"feature": "box", "face": TOP}
+def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base() -> None:
+    neutral: JSONObject = {"feature": "box", "face": TOP}
     part, _ = build(
         BOX
         + [
@@ -70,9 +71,9 @@ def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
     )
 
 
-def test_drafting_a_face_that_lies_in_the_pull_plane_fails_with_a_reason():
+def test_drafting_a_face_that_lies_in_the_pull_plane_fails_with_a_reason() -> None:
     with pytest.raises(ValueError, match="draft d failed"):
-        build(
+        _ = build(
             BOX
             + [
                 {

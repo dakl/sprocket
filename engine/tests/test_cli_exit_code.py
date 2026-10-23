@@ -13,12 +13,12 @@ from pathlib import Path
 import pytest
 
 import sprocket_engine
-from sprocket_engine.cli import _build_document
+from sprocket_engine.cli import build_document
 
 GOLDEN_DOCUMENT = Path(__file__).parent / "golden" / "rect_extrude" / "document.json"
 
 
-def _run(monkeypatch, argv: list[str]) -> int:
+def _run(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> int:
     """Runs the console-script entry point (sprocket_engine:main, per
     pyproject) and returns the code it exits with.
     """
@@ -29,13 +29,15 @@ def _run(monkeypatch, argv: list[str]) -> int:
     return 0 if code is None else code
 
 
-def test_a_graceful_build_failure_exits_nonzero(tmp_path: Path, capsys, monkeypatch):
+def test_a_graceful_build_failure_exits_nonzero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A cache dir that cannot be created makes replay() raise before it reaches
-    any feature, so _build_document returns (False, message) rather than
+    any feature, so build_document returns (False, message) rather than
     raising - the graceful failure path. It must still exit 1.
     """
     blocked_cache = tmp_path / "cache"
-    blocked_cache.write_text("a file where the cache dir should go")
+    _ = blocked_cache.write_text("a file where the cache dir should go")
 
     code = _run(
         monkeypatch,
@@ -53,7 +55,9 @@ def test_a_graceful_build_failure_exits_nonzero(tmp_path: Path, capsys, monkeypa
     assert capsys.readouterr().err.startswith("error: ")
 
 
-def test_a_successful_build_exits_zero(tmp_path: Path, monkeypatch):
+def test_a_successful_build_exits_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     code = _run(
         monkeypatch,
         [
@@ -117,7 +121,7 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     tmp_path: Path, capsys, monkeypatch, document: str, expected: str
 ):
     document_path = tmp_path / "document.json"
-    document_path.write_text(document)
+    _ = document_path.write_text(document)
 
     code = _run(
         monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
@@ -137,7 +141,7 @@ def test_a_binary_file_is_a_readable_error_not_a_traceback(
     _load_document does not catch it.
     """
     document_path = tmp_path / "part.stl"
-    document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
+    _ = document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
 
     code = _run(
         monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
@@ -149,14 +153,14 @@ def test_a_binary_file_is_a_readable_error_not_a_traceback(
     assert "Traceback" not in stderr
 
 
-def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
+def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path) -> None:
     """`serve` swallows every exception into one response line, so a traceback
     there reached the app as an unreadable `output`. Same message as `build`.
     """
     document_path = tmp_path / "document.json"
-    document_path.write_text(json.dumps({"features": {"f1": {"type": "sketch"}}}))
+    _ = document_path.write_text(json.dumps({"features": {"f1": {"type": "sketch"}}}))
 
-    success, output, failed_id = _build_document(
+    success, output, failed_id = build_document(
         document_path, None, None, tmp_path / "cache"
     )
 

@@ -4,13 +4,16 @@ Another client stands in for the agent. A notification reaches a client on its
 next call, so each test pings the listener to read what was sent.
 """
 
+from pathlib import Path
+
 import pytest
 
-from sprocket_engine.rpc import Client, RpcError
+from sprocket_engine.model import JSONObject
+from sprocket_engine.rpc import Client, Daemon, RpcError
 
 
 @pytest.fixture
-def listener(daemon):
+def listener(daemon: Daemon):
     seen = []
     with Client(
         daemon.socket_path,
@@ -18,7 +21,7 @@ def listener(daemon):
     ) as connected:
         # The daemon registers a connection on its own thread, after connect()
         # returns. A reply proves it has, so nothing sent next is missed.
-        connected.call("ping")
+        _ = connected.call("ping")
         connected.seen = seen
         yield connected
 
@@ -28,8 +31,8 @@ def heard(listener, method):
     return [params for name, params in listener.seen if name == method]
 
 
-def test_what_the_viewer_picks_is_what_an_agent_reads(client):
-    client.call("set_selection", handles=["f0", "e1"], revision=0)
+def test_what_the_viewer_picks_is_what_an_agent_reads(client: Client) -> None:
+    _ = client.call("set_selection", handles=["f0", "e1"], revision=0)
     selection = client.call("get_selection")
     assert selection["handles"] == ["f0", "e1"]
     assert selection["stale"] is False
@@ -51,9 +54,9 @@ def test_a_selection_taken_at_an_older_revision_is_stale_and_drops_the_sentences
     assert "descriptions" not in selection
 
 
-def taller(client):
+def taller(client: Client):
     """Moves the top face up; the bottom face stays where it was."""
-    client.call(
+    _ = client.call(
         "apply_edit",
         edits=[
             {
@@ -69,17 +72,19 @@ def taller(client):
     )
 
 
-def _faces(client):
+def _faces(client: Client):
     return {
         item["handle"]: (tuple(item["centre"]), item["area"])
         for item in client.call("describe_geometry")["faces"]
     }
 
 
-def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(client):
+def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(
+    client: Client,
+) -> None:
     """A live update must not take the person's pick away from them."""
     before = _faces(client)
-    client.call("set_selection", handles=list(before), revision=0)
+    _ = client.call("set_selection", handles=list(before), revision=0)
     taller(client)
     after = _faces(client)
     unchanged = [handle for handle, key in before.items() if key in after.values()]
@@ -94,13 +99,13 @@ def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(cl
     assert len(selection["descriptions"]) == len(unchanged)
 
 
-def test_a_face_the_rebuild_moved_drops_out_of_the_selection(client):
+def test_a_face_the_rebuild_moved_drops_out_of_the_selection(client: Client) -> None:
     before = _faces(client)
     taller(client)
     after = _faces(client)
-    client.call("undo")
+    _ = client.call("undo")
     moved = next(handle for handle, key in before.items() if key not in after.values())
-    client.call(
+    _ = client.call(
         "set_selection",
         handles=[moved],
         revision=client.call("get_document")["revision"],
@@ -109,73 +114,81 @@ def test_a_face_the_rebuild_moved_drops_out_of_the_selection(client):
     assert client.call("get_selection")["handles"] == []
 
 
-def test_describe_geometry_carries_the_selection(client):
-    client.call("set_selection", handles=["f3"], revision=0)
+def test_describe_geometry_carries_the_selection(client: Client) -> None:
+    _ = client.call("set_selection", handles=["f3"], revision=0)
     assert client.call("describe_geometry")["selection"]["handles"] == ["f3"]
 
 
-def test_a_new_pick_replaces_the_old_one_and_an_empty_pick_clears_it(client):
-    client.call("set_selection", handles=["f0"], revision=0)
-    client.call("set_selection", handles=["f1"], revision=0)
+def test_a_new_pick_replaces_the_old_one_and_an_empty_pick_clears_it(
+    client: Client,
+) -> None:
+    _ = client.call("set_selection", handles=["f0"], revision=0)
+    _ = client.call("set_selection", handles=["f1"], revision=0)
     assert client.call("get_selection")["handles"] == ["f1"]
-    client.call("set_selection", handles=[], revision=0)
+    _ = client.call("set_selection", handles=[], revision=0)
     assert client.call("get_selection")["handles"] == []
 
 
-def test_a_pick_is_announced_to_the_other_clients(client, listener):
-    client.call("set_selection", handles=["f0"], sketches=["s1"], revision=0)
+def test_a_pick_is_announced_to_the_other_clients(client: Client, listener) -> None:
+    _ = client.call("set_selection", handles=["f0"], sketches=["s1"], revision=0)
     announced = heard(listener, "selection_changed")
     assert announced[-1]["handles"] == ["f0"]
     assert announced[-1]["sketches"] == ["s1"]
 
 
-def test_sketch_ids_that_are_not_sketches_are_left_out(client):
-    client.call("set_selection", sketches=["s1", "e1", "nope"], revision=0)
+def test_sketch_ids_that_are_not_sketches_are_left_out(client: Client) -> None:
+    _ = client.call("set_selection", sketches=["s1", "e1", "nope"], revision=0)
     assert client.call("get_selection")["sketches"] == ["s1"]
 
 
-def test_a_handle_that_is_not_a_handle_is_refused(client):
+def test_a_handle_that_is_not_a_handle_is_refused(client: Client) -> None:
     with pytest.raises(RpcError):
-        client.call("set_selection", handles=["face 3"])
+        _ = client.call("set_selection", handles=["face 3"])
     assert client.call("get_selection")["handles"] == []
 
 
-def test_highlight_reaches_the_viewer_and_leaves_the_selection_alone(client, listener):
-    client.call("set_selection", handles=["f0"], revision=0)
-    client.call("highlight", handles=["f1", "e2"])
+def test_highlight_reaches_the_viewer_and_leaves_the_selection_alone(
+    client: Client, listener
+) -> None:
+    _ = client.call("set_selection", handles=["f0"], revision=0)
+    _ = client.call("highlight", handles=["f1", "e2"])
     assert heard(listener, "highlight")[-1]["handles"] == ["f1", "e2"]
     assert client.call("get_selection")["handles"] == ["f0"]
 
 
-def test_highlight_refuses_a_handle_the_part_does_not_have(client, listener):
+def test_highlight_refuses_a_handle_the_part_does_not_have(
+    client: Client, listener
+) -> None:
     with pytest.raises(RpcError, match="out of range"):
-        client.call("highlight", handles=["f999"])
+        _ = client.call("highlight", handles=["f999"])
     assert heard(listener, "highlight") == []
 
 
-def test_an_empty_highlight_clears_it(client, listener):
-    client.call("highlight", handles=[])
+def test_an_empty_highlight_clears_it(client: Client, listener) -> None:
+    _ = client.call("highlight", handles=[])
     assert heard(listener, "highlight")[-1] == {"handles": [], "sketches": []}
 
 
-def test_opening_another_document_clears_the_selection(client, listener, tmp_path):
-    client.call("set_selection", handles=["f0"], revision=0)
-    client.call("new_document", path=str(tmp_path / "other.sprocket"))
+def test_opening_another_document_clears_the_selection(
+    client: Client, listener, tmp_path: Path
+) -> None:
+    _ = client.call("set_selection", handles=["f0"], revision=0)
+    _ = client.call("new_document", path=str(tmp_path / "other.sprocket"))
     assert client.call("get_selection")["handles"] == []
     assert heard(listener, "selection_changed")[-1]["handles"] == []
 
 
-def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
+def test_fillet_these_can_be_built_from_what_the_agent_reads(client: Client) -> None:
     """M4.5's done-when: the person picks an edge, the agent reads it and fillets it."""
     edge = next(
         item
         for item in client.call("describe_geometry")["edges"]
         if item["centre"][2] == 10
     )
-    client.call("set_selection", handles=[edge["handle"]], revision=0)
+    _ = client.call("set_selection", handles=[edge["handle"]], revision=0)
 
     picked = client.call("get_selection")["descriptions"][0]
-    fillet = {
+    fillet: JSONObject = {
         "id": "f1",
         "type": "fillet",
         "base": "e1",

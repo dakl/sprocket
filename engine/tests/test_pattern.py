@@ -2,10 +2,11 @@ import math
 
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.ops.sketch import sketch_entities
 from sprocket_engine.replay import replay
 
-BOARD = [
+BOARD: list[JSONObject] = [
     {
         "id": "bs",
         "type": "sketch",
@@ -22,7 +23,7 @@ BOARD = [
     },
     {"id": "pin", "type": "extrude", "profile": "ps", "distance": 2},
 ]
-GRID = {
+GRID: JSONObject = {
     "linear": {"direction": [1, 0, 0], "count": 5, "spacing": 3},
     "linear2": {"direction": [0, 1, 0], "count": 2, "spacing": 4},
 }
@@ -32,7 +33,7 @@ def build(*features):
     return replay({"features": BOARD + list(features)})
 
 
-def test_a_grid_of_pins_joins_the_board():
+def test_a_grid_of_pins_joins_the_board() -> None:
     part = build(
         {"id": "pp", "type": "pattern", "tool": "pin", "base": "board", **GRID}
     )
@@ -46,8 +47,8 @@ def test_a_grid_of_pins_joins_the_board():
     assert len(part.faces()) == 6 + 10 * 5  # the board, then 4 walls and a top per pin
 
 
-def test_cut_mode_drills_the_copies_out():
-    tall = {
+def test_cut_mode_drills_the_copies_out() -> None:
+    tall: JSONObject = {
         "id": "pin",
         "type": "extrude",
         "profile": "ps",
@@ -72,7 +73,7 @@ def test_cut_mode_drills_the_copies_out():
     assert part.volume == pytest.approx(300 - 10)
 
 
-def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies():
+def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies() -> None:
     _, ctx = replay(
         {
             "features": BOARD
@@ -96,7 +97,7 @@ def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies():
     assert pytest.approx((0, 0), abs=1e-9) == (centre.X, centre.Y)
 
 
-SQUARE = [
+SQUARE: list[JSONObject] = [
     {"id": "e1", "kind": "line", "p0": [0, 0], "p1": [2, 0]},
     {"id": "e2", "kind": "line", "p0": [2, 0], "p1": [2, 2]},
     {"id": "e3", "kind": "line", "p0": [2, 2], "p1": [0, 2]},
@@ -104,8 +105,8 @@ SQUARE = [
 ]
 
 
-def test_a_sketch_pattern_copies_entities_before_regions_are_found():
-    sketch = {
+def test_a_sketch_pattern_copies_entities_before_regions_are_found() -> None:
+    sketch: JSONObject = {
         "id": "s",
         "type": "sketch",
         "plane": "XY",
@@ -144,8 +145,8 @@ def test_a_sketch_pattern_copies_entities_before_regions_are_found():
     assert pytest.approx(10) == one.bounding_box().min.X
 
 
-def test_a_circular_sketch_pattern_turns_copies_about_the_centre():
-    sketch = {
+def test_a_circular_sketch_pattern_turns_copies_about_the_centre() -> None:
+    sketch: JSONObject = {
         "id": "s",
         "type": "sketch",
         "plane": "XY",
@@ -166,8 +167,8 @@ def test_a_circular_sketch_pattern_turns_copies_about_the_centre():
     assert part.volume == pytest.approx(6 * math.pi)
 
 
-def test_a_sketch_pattern_must_name_real_entities():
-    sketch = {
+def test_a_sketch_pattern_must_name_real_entities() -> None:
+    sketch: JSONObject = {
         "id": "s",
         "type": "sketch",
         "plane": "XY",
@@ -175,4 +176,4 @@ def test_a_sketch_pattern_must_name_real_entities():
         "patterns": [{"entities": ["e9"], "linear": {"count": 2, "step": [5, 0]}}],
     }
     with pytest.raises(ValueError, match="e9"):
-        replay({"features": [sketch]})
+        _ = replay({"features": [sketch]})

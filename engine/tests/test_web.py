@@ -16,25 +16,28 @@ import pytest
 
 from sprocket_engine.document import Document
 from sprocket_engine.mesh import FORMAT
+from sprocket_engine.model import JSONObject
 from sprocket_engine.rpc import Daemon, Session
 from sprocket_engine.web import WebApp, make_server
 
-SKETCH = {
+SKETCH: JSONObject = {
     "id": "s1",
     "type": "sketch",
     "plane": "XY",
     "rect": {"width": 40, "height": 30},
 }
-EXTRUDE = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
+EXTRUDE: JSONObject = {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10}
 
 
 @pytest.fixture
 def server(tmp_path: Path):
     path = tmp_path / "part.sprocket"
-    path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
+    _ = path.write_text(
+        json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2})
+    )
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
-    (viewer_dir / "index.html").write_text("<title>viewer</title>")
+    _ = (viewer_dir / "index.html").write_text("<title>viewer</title>")
 
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(
@@ -78,12 +81,12 @@ def feature_ids(base: str) -> list[str]:
     return [entry["id"] for entry in json.loads(get(base, "/features.json"))]
 
 
-def test_serves_the_viewer_files(server):
+def test_serves_the_viewer_files(server) -> None:
     base, _ = server
     assert b"<title>viewer</title>" in get(base, "/index.html")
 
 
-def test_the_mesh_route_serves_the_built_part(server):
+def test_the_mesh_route_serves_the_built_part(server) -> None:
     base, _ = server
     header = mesh_header(base)
     assert header["format"] == FORMAT
@@ -97,41 +100,41 @@ def rpc(base: str, method: str, **params) -> dict:
     return reply["result"]
 
 
-def test_an_empty_document_has_no_mesh_and_the_viewer_sees_a_404(server):
+def test_an_empty_document_has_no_mesh_and_the_viewer_sees_a_404(server) -> None:
     base, _ = server
-    rpc(
+    _ = rpc(
         base,
         "apply_edit",
         edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}],
     )
     with pytest.raises(urllib.error.HTTPError) as caught:
-        get(base, "/part.mesh")
+        _ = get(base, "/part.mesh")
     assert caught.value.code == 404
 
 
-def test_the_timeline_carries_each_full_feature_for_the_parameter_form(server):
+def test_the_timeline_carries_each_full_feature_for_the_parameter_form(server) -> None:
     base, _ = server
     entries = json.loads(get(base, "/features.json"))
     assert entries[1]["feature"] == EXTRUDE
     assert [entry["active"] for entry in entries] == [True, True]
 
 
-def test_the_schemas_route_lists_every_op(server):
+def test_the_schemas_route_lists_every_op(server) -> None:
     base, _ = server
     assert {"sketch", "extrude", "fillet"} <= set(
         json.loads(get(base, "/schemas.json"))
     )
 
 
-def test_rpc_route_takes_the_daemons_methods(server):
+def test_rpc_route_takes_the_daemons_methods(server) -> None:
     base, _ = server
     reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": "ping"})
     assert reply["result"]["ok"] is True
 
 
-def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server):
+def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server) -> None:
     base, _ = server
-    feature = {
+    feature: JSONObject = {
         "id": "f3",
         "type": "extrude_face",
         "base": "e1",
@@ -150,12 +153,17 @@ def test_an_edit_through_rpc_changes_the_served_timeline_and_mesh(server):
     assert mesh_header(base)["counts"]["faces"] == 6
 
 
-def test_a_page_on_another_origin_cannot_edit_the_document(server):
+def test_a_page_on_another_origin_cannot_edit_the_document(server) -> None:
     """Any web page in the user's browser can reach 127.0.0.1. A simple POST
     needs no permission from the server, so the server has to check.
     """
     base, _ = server
-    body = {"jsonrpc": "2.0", "id": 1, "method": "set_rollback", "params": {"index": 0}}
+    body: JSONObject = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "set_rollback",
+        "params": {"index": 0},
+    }
     refused = post(base, "/rpc", body, headers={"Origin": "https://evil.example"})
     assert refused["status"] == 403
     rebound = post(base, "/rpc", body, headers={"Host": "evil.example"})
@@ -191,7 +199,7 @@ def test_opening_another_document_at_the_same_revision_serves_its_mesh(
             }
         )
     )
-    post(
+    _ = post(
         base,
         "/rpc",
         {
@@ -215,7 +223,7 @@ def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(
     and the page never started. Here 20 clients connect before the server
     accepts any.
     """
-    (tmp_path / "index.html").write_text("<title>viewer</title>")
+    _ = (tmp_path / "index.html").write_text("<title>viewer</title>")
     http = make_server(WebApp(None, tmp_path), 0)
     clients = []
     try:
@@ -243,7 +251,7 @@ def get_with_headers(base: str, route: str, headers: dict | None = None):
         return error.code, dict(error.headers), error.read()
 
 
-def test_the_export_route_hands_the_part_over_as_a_download(server):
+def test_the_export_route_hands_the_part_over_as_a_download(server) -> None:
     """A 40 x 30 x 10 box: a box is 12 triangles and 8 corners, whatever the writer does."""
     import io
     import re
@@ -270,7 +278,7 @@ def test_the_export_route_hands_the_part_over_as_a_download(server):
     assert len(re.findall(r"<vertex ", model)) == 8
 
 
-def test_the_export_route_refuses_what_it_cannot_serve(server):
+def test_the_export_route_refuses_what_it_cannot_serve(server) -> None:
     base, _ = server
     assert get_with_headers(base, "/export?format=obj")[0] == 400
     assert get_with_headers(base, "/export")[0] == 400
@@ -280,7 +288,7 @@ def test_the_export_route_refuses_what_it_cannot_serve(server):
         )[0]
         == 403
     )
-    rpc(
+    _ = rpc(
         base,
         "apply_edit",
         edits=[{"op": "delete", "id": "e1"}, {"op": "delete", "id": "s1"}],

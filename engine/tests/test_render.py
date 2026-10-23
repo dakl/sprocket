@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.render import (
     BACKGROUND,
     RenderError,
@@ -20,7 +21,7 @@ from sprocket_engine.render import (
 )
 from sprocket_engine.replay import replay
 
-BOX = {
+BOX: JSONObject = {
     "features": [
         {
             "id": "s1",
@@ -38,7 +39,7 @@ def read_png(path: Path) -> np.ndarray:
     """Decodes what `render.py` writes: 8-bit RGB, filter 0 on every row."""
     data = path.read_bytes()
     assert data[:8] == b"\x89PNG\r\n\x1a\n"
-    chunks = {}
+    chunks: JSONObject = {}
     offset = 8
     while offset < len(data):
         (length,) = struct.unpack(">I", data[offset : offset + 4])
@@ -81,11 +82,11 @@ def dominant_colours(image: np.ndarray, floor: int = 1000) -> list[tuple]:
 
 
 def read_png_of(shape, path: Path, **kwargs) -> np.ndarray:
-    render_png(shape, path, **kwargs)
+    _ = render_png(shape, path, **kwargs)
     return read_png(path)
 
 
-def test_an_iso_box_shows_three_distinct_faces(box, tmp_path: Path):
+def test_an_iso_box_shows_three_distinct_faces(box, tmp_path: Path) -> None:
     """The whole reason the light sits off the camera axis.
 
     A headlight shades every visible face of a box 0.577 on the iso view, so
@@ -96,7 +97,7 @@ def test_an_iso_box_shows_three_distinct_faces(box, tmp_path: Path):
     assert len(dominant_colours(image)) == 3
 
 
-def test_edges_are_drawn_over_the_faces(box, tmp_path: Path):
+def test_edges_are_drawn_over_the_faces(box, tmp_path: Path) -> None:
     """Without the outline a fillet and a chamfer are the same grey lump.
 
     Seen from above a box is one flat shade, so any pixel darker than that one
@@ -109,7 +110,7 @@ def test_edges_are_drawn_over_the_faces(box, tmp_path: Path):
     assert darker > 500
 
 
-def test_highlight_paints_the_face_geometry_names(box, tmp_path: Path):
+def test_highlight_paints_the_face_geometry_names(box, tmp_path: Path) -> None:
     """One face ordering across the system.
 
     `geometry.describe_faces` calls one face the front of this part. If the two
@@ -134,14 +135,14 @@ def test_highlight_paints_the_face_geometry_names(box, tmp_path: Path):
     assert (plain_warm & plain_lit).sum() == 0
 
 
-def test_a_render_reports_what_it_drew(box, tmp_path: Path):
+def test_a_render_reports_what_it_drew(box, tmp_path: Path) -> None:
     info = render_png(box, tmp_path / "iso.png", camera="top", width=200, height=160)
     assert (info["width"], info["height"], info["camera"]) == (200, 160, "top")
     assert info["faces"] == len(box.faces())
     assert read_png(tmp_path / "iso.png").shape == (160, 200, 3)
 
 
-def test_opposite_cameras_do_not_render_the_same_image(box, tmp_path: Path):
+def test_opposite_cameras_do_not_render_the_same_image(box, tmp_path: Path) -> None:
     """A camera direction that is ignored, or applied with the wrong sign,
     still produces a plausible picture. Two of them disagreeing is the check.
     """
@@ -150,16 +151,16 @@ def test_opposite_cameras_do_not_render_the_same_image(box, tmp_path: Path):
     assert not np.array_equal(top, front)
 
 
-def test_an_unknown_camera_is_refused(box, tmp_path: Path):
+def test_an_unknown_camera_is_refused(box, tmp_path: Path) -> None:
     with pytest.raises(RenderError, match="camera"):
-        render_png(box, tmp_path / "nope.png", camera="sideways")
+        _ = render_png(box, tmp_path / "nope.png", camera="sideways")
 
 
-def test_a_silly_size_is_refused(box, tmp_path: Path):
+def test_a_silly_size_is_refused(box, tmp_path: Path) -> None:
     with pytest.raises(RenderError):
-        render_png(box, tmp_path / "nope.png", width=4, height=4)
+        _ = render_png(box, tmp_path / "nope.png", width=4, height=4)
 
 
-def test_an_out_of_range_highlight_handle_is_refused(box, tmp_path: Path):
+def test_an_out_of_range_highlight_handle_is_refused(box, tmp_path: Path) -> None:
     with pytest.raises(RenderError):
-        render_png(box, tmp_path / "nope.png", highlight=["f99"])
+        _ = render_png(box, tmp_path / "nope.png", highlight=["f99"])

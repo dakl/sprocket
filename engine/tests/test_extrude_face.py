@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 from sprocket_engine.selectors import SelectorError
 
@@ -31,27 +32,27 @@ def _with_push(distance, point=(0, 0, 10), normal=(0, 0, 1)):
     return document
 
 
-def test_push_pull_adds_material_on_the_picked_face(tmp_path: Path):
+def test_push_pull_adds_material_on_the_picked_face(tmp_path: Path) -> None:
     part = replay(_with_push(5), cache_dir=tmp_path / "cache")
     assert part.volume == pytest.approx(8000 + 40 * 20 * 5, rel=1e-6)
 
 
-def test_push_pull_picks_the_face_nearest_the_click_point(tmp_path: Path):
+def test_push_pull_picks_the_face_nearest_the_click_point(tmp_path: Path) -> None:
     # click near a corner of the top face, not its centre - nearest_to must
     # still land on the top face, not one of the four side faces.
     part = replay(_with_push(5, point=(19, 9, 10)), cache_dir=tmp_path / "cache")
     assert part.volume == pytest.approx(8000 + 40 * 20 * 5, rel=1e-6)
 
 
-def test_push_pull_cuts_material_when_pushed_inward(tmp_path: Path):
+def test_push_pull_cuts_material_when_pushed_inward(tmp_path: Path) -> None:
     part = replay(_with_push(-3), cache_dir=tmp_path / "cache")
     assert part.volume == pytest.approx(8000 - 40 * 20 * 3, rel=1e-6)
 
 
-def test_push_pull_off_a_bare_sketch_extrudes_instead_of_fusing(tmp_path: Path):
+def test_push_pull_off_a_bare_sketch_extrudes_instead_of_fusing(tmp_path: Path) -> None:
     # base is a flat sketch here, not a solid yet, so there's nothing to
     # fuse/cut against - this used to raise "Null TopoDS_Shape object".
-    document = {
+    document: JSONObject = {
         "schema_version": 1,
         "units": {"length": "mm"},
         "features": [
@@ -80,7 +81,9 @@ def test_push_pull_off_a_bare_sketch_extrudes_instead_of_fusing(tmp_path: Path):
     assert part.volume == pytest.approx(40 * 20 * 10, rel=1e-6)
 
 
-def test_push_pull_rejects_a_selector_matching_more_than_one_face(tmp_path: Path):
+def test_push_pull_rejects_a_selector_matching_more_than_one_face(
+    tmp_path: Path,
+) -> None:
     document = json.loads(json.dumps(RECT_EXTRUDE))
     document["features"].append(
         {
@@ -95,4 +98,4 @@ def test_push_pull_rejects_a_selector_matching_more_than_one_face(tmp_path: Path
         }
     )
     with pytest.raises(SelectorError, match="matched 6 faces"):
-        replay(document, cache_dir=tmp_path / "cache")
+        _ = replay(document, cache_dir=tmp_path / "cache")

@@ -43,6 +43,8 @@ def float_list(array: npt.NDArray[np.float32]) -> list[float]:
     return array.tolist()  # pyright: ignore[reportAny]  # numpy types tolist() as Any
 
 
-def int_list(array: npt.NDArray[np.int64]) -> list[int]:
+def int_list(
+    array: npt.NDArray[np.int64] | npt.NDArray[np.int32] | npt.NDArray[np.uint32],
+) -> list[int]:
     """A 1-D integer array as a list of Python ints."""
     return array.tolist()  # pyright: ignore[reportAny]  # numpy types tolist() as Any

@@ -16,8 +16,11 @@ from sprocket_engine.replay import failed_feature, replay
 
 pytest.importorskip("planegcs")
 
+from pathlib import Path
+
 from conftest import running
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.rpc import Client, RpcError
 from sprocket_engine.sketch_reference import project_edge
 
@@ -48,7 +51,7 @@ def rectangle(left, bottom, right, top, extra=()):
 # The outer rectangle hangs off the origin by its bottom right corner, so its
 # left edge sits at -width. Changing the width moves that edge, which is what a
 # dimension to it has to follow.
-OUTER = {
+OUTER: JSONObject = {
     "id": "f1",
     "type": "sketch",
     "plane": "XY",
@@ -69,9 +72,20 @@ OUTER = {
         ],
     ),
 }
-INNER = {"id": "f2", "type": "sketch", "plane": "XY", **rectangle(-90, 10, -20, 40)}
-GAP = {"id": "gap", "kind": "distance_x", "a": "e1.p0", "b": "e4.p1", "value": 10}
-LEFT_OF_OUTER = {"sketch": "f1", "entity": "e4"}
+INNER: JSONObject = {
+    "id": "f2",
+    "type": "sketch",
+    "plane": "XY",
+    **rectangle(-90, 10, -20, 40),
+}
+GAP: JSONObject = {
+    "id": "gap",
+    "kind": "distance_x",
+    "a": "e1.p0",
+    "b": "e4.p1",
+    "value": 10,
+}
+LEFT_OF_OUTER: JSONObject = {"sketch": "f1", "entity": "e4"}
 
 
 def document():
@@ -102,7 +116,7 @@ def built(document):
     return replay(document.for_replay(), return_context=True)[1]
 
 
-def test_a_line_is_projected_to_where_the_planes_put_it():
+def test_a_line_is_projected_to_where_the_planes_put_it() -> None:
     from build123d import Edge
     from build123d import Plane as B3dPlane
 
@@ -121,15 +135,15 @@ def test_a_line_is_projected_to_where_the_planes_put_it():
     }
 
 
-def test_an_edge_that_runs_straight_at_the_plane_has_no_projection():
+def test_an_edge_that_runs_straight_at_the_plane_has_no_projection() -> None:
     from build123d import Edge
     from build123d import Plane as B3dPlane
 
     with pytest.raises(ValueError, match="projects to a point"):
-        project_edge(Edge.make_line((3, 4, 0), (3, 4, 9)), B3dPlane.XY)
+        _ = project_edge(Edge.make_line((3, 4, 0), (3, 4, 9)), B3dPlane.XY)
 
 
-def test_a_slanted_line_projects_by_dropping_the_height():
+def test_a_slanted_line_projects_by_dropping_the_height() -> None:
     from build123d import Edge
     from build123d import Plane as B3dPlane
 
@@ -137,7 +151,7 @@ def test_a_slanted_line_projects_by_dropping_the_height():
     assert projected == {"kind": "line", "p0": [0.0, 0.0], "p1": [30.0, 40.0]}
 
 
-def test_a_circle_projects_to_a_circle_only_onto_a_parallel_plane():
+def test_a_circle_projects_to_a_circle_only_onto_a_parallel_plane() -> None:
     from build123d import Edge
     from build123d import Plane as B3dPlane
 
@@ -148,10 +162,10 @@ def test_a_circle_projects_to_a_circle_only_onto_a_parallel_plane():
         "r": 7.0,
     }
     with pytest.raises(ValueError, match="parallel"):
-        project_edge(ring, B3dPlane.XZ)
+        _ = project_edge(ring, B3dPlane.XZ)
 
 
-def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below():
+def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below() -> None:
     from build123d import Edge
     from build123d import Plane as B3dPlane
 
@@ -166,7 +180,7 @@ def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below():
     assert down["c"] == [0.0, 0.0] and down["r"] == 10
 
 
-def test_projecting_adds_a_locked_construction_entity_with_its_source():
+def test_projecting_adds_a_locked_construction_entity_with_its_source() -> None:
     doc = document()
     new_id = project(doc)
     added = entity(doc.features[1], new_id)
@@ -176,18 +190,18 @@ def test_projecting_adds_a_locked_construction_entity_with_its_source():
     assert added["p0"] == [-100, 60] and added["p1"] == [-100, 0]
 
 
-def test_projecting_the_same_edge_twice_is_refused():
+def test_projecting_the_same_edge_twice_is_refused() -> None:
     doc = document()
-    project(doc)
+    _ = project(doc)
     with pytest.raises(DocumentError, match="already projected as 'e5'"):
-        project(doc)
+        _ = project(doc)
 
 
-def test_a_projected_entity_cannot_be_edited_only_removed():
+def test_a_projected_entity_cannot_be_edited_only_removed() -> None:
     doc = document()
-    project(doc)
+    _ = project(doc)
     with pytest.raises(DocumentError, match="locked"):
-        doc.apply_edits(
+        _ = doc.apply_edits(
             [
                 {
                     "op": "edit_sketch",
@@ -200,7 +214,7 @@ def test_a_projected_entity_cannot_be_edited_only_removed():
             None,
             "test",
         )
-    doc.apply_edits(
+    _ = doc.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -215,10 +229,10 @@ def test_a_projected_entity_cannot_be_edited_only_removed():
     assert all(item["id"] != "e5" for item in doc.features[1]["entities"])
 
 
-def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width():
+def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width() -> None:
     doc = document()
     reference = project(doc)
-    doc.apply_edits(
+    _ = doc.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -236,7 +250,7 @@ def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width():
         "test",
     )
     # The reference is e5. The gap runs from its lower end to the inner rectangle's.
-    doc.apply_edits(
+    _ = doc.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -256,7 +270,7 @@ def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width():
     inner = doc.features[1]
     assert entity(inner, "e4")["p1"][0] == pytest.approx(-90)
 
-    doc.apply_edits(
+    _ = doc.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -283,21 +297,21 @@ def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width():
     assert entity(doc.features[1], "e4")["p0"][0] == pytest.approx(-130)
 
 
-def test_a_reference_is_not_a_region_so_profiles_do_not_change():
+def test_a_reference_is_not_a_region_so_profiles_do_not_change() -> None:
     from sprocket_engine.ops.sketch import sketch_profiles
 
     doc = document()
     before = sketch_profiles(doc.features[1])
-    project(doc)
+    _ = project(doc)
     assert sketch_profiles(doc.features[1]) == before
 
 
-def test_the_solver_holds_a_reference_still_while_the_rest_is_dragged():
+def test_the_solver_holds_a_reference_still_while_the_rest_is_dragged() -> None:
     from sprocket_engine import solver
 
     doc = document()
-    project(doc)
-    sketch = {
+    _ = project(doc)
+    sketch: JSONObject = {
         "entities": doc.features[1]["entities"],
         "constraints": [{"kind": "coincident", "a": "e1.p0", "b": "e5.p1"}],
     }
@@ -308,10 +322,10 @@ def test_the_solver_holds_a_reference_still_while_the_rest_is_dragged():
     assert entity(result["sketch"], "e5")["p1"] == [-100, 0]
 
 
-def test_distance_y_is_signed_from_a_to_b():
+def test_distance_y_is_signed_from_a_to_b() -> None:
     from sprocket_engine import solver
 
-    sketch = {
+    sketch: JSONObject = {
         "entities": [
             {"id": "e1", "kind": "line", "p0": [0, 0], "p1": [5, 5]},
             {"id": "e2", "kind": "line", "p0": [1, 1], "p1": [9, 9]},
@@ -326,25 +340,25 @@ def test_distance_y_is_signed_from_a_to_b():
     assert entity(result["sketch"], "e2")["p1"][1] == pytest.approx(-4)
 
 
-def test_a_source_that_no_longer_exists_names_the_reference():
+def test_a_source_that_no_longer_exists_names_the_reference() -> None:
     doc = document()
-    project(doc)
+    _ = project(doc)
     doc.features[1]["entities"][-1]["reference"] = {"sketch": "f1", "entity": "e9"}
     with pytest.raises(Exception, match="reference 'e5' of sketch 'f2'") as caught:
-        replay(doc.for_replay())
+        _ = replay(doc.for_replay())
     failed = failed_feature(caught.value)
     assert failed is not None
     assert failed.feature_id == "f2"
 
 
-def test_the_sketch_a_reference_names_cannot_be_deleted():
+def test_the_sketch_a_reference_names_cannot_be_deleted() -> None:
     doc = document()
-    project(doc)
+    _ = project(doc)
     with pytest.raises(DocumentError, match="still reference"):
-        doc.apply_edits([{"op": "delete", "id": "f1"}], None, "test")
+        _ = doc.apply_edits([{"op": "delete", "id": "f1"}], None, "test")
 
 
-def test_a_body_edge_is_projected_onto_a_sketch_above_it():
+def test_a_body_edge_is_projected_onto_a_sketch_above_it() -> None:
     doc = Document(
         [
             {
@@ -365,8 +379,10 @@ def test_a_body_edge_is_projected_onto_a_sketch_above_it():
         {},
     )
     # The box spans u -20..20, v -15..15, so its right-hand top edge is the line u = 20.
-    edge = {"select": [{"op": "edges"}, {"op": "nearest_to", "point": [20, 0, 10]}]}
-    doc.apply_edits(
+    edge: JSONObject = {
+        "select": [{"op": "edges"}, {"op": "nearest_to", "point": [20, 0, 10]}]
+    }
+    _ = doc.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -382,7 +398,7 @@ def test_a_body_edge_is_projected_onto_a_sketch_above_it():
     assert sorted([added["p0"], added["p1"]]) == [[20, -15], [20, 15]]
 
 
-def test_the_daemon_projects_for_a_viewer_and_an_agent(tmp_path):
+def test_the_daemon_projects_for_a_viewer_and_an_agent(tmp_path: Path) -> None:
     with (
         running({"features": [OUTER, INNER], "rollback_index": 2}, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
@@ -392,12 +408,12 @@ def test_the_daemon_projects_for_a_viewer_and_an_agent(tmp_path):
         assert shown["entity"] == {"kind": "line", "p0": [-100, 60], "p1": [-100, 0]}
         added = client.call("add_reference", feature="f2", source=LEFT_OF_OUTER)
         assert added["entity_id"] == "e5"
-        client.call(
+        _ = client.call(
             "add_constraint",
             feature="f2",
             constraint={"kind": "distance_x", "a": "e5.p1", "b": "e4.p1", "value": 10},
         )
-        client.call(
+        _ = client.call(
             "update_constraint",
             feature="f1",
             constraint_id="width",
@@ -409,14 +425,14 @@ def test_the_daemon_projects_for_a_viewer_and_an_agent(tmp_path):
         }
         assert entity(features["f2"], "e4")["p0"][0] == pytest.approx(-140)
         with pytest.raises(RpcError, match="cannot project"):
-            client.call(
+            _ = client.call(
                 "project_reference",
                 plane="XY",
                 source={"sketch": "f1", "entity": "e99"},
             )
 
 
-def test_the_agent_tool_adds_a_reference(tmp_path):
+def test_the_agent_tool_adds_a_reference(tmp_path: Path) -> None:
     from sprocket_engine import mcp_server
 
     assert "sketch_add_reference" in mcp_server.SKETCH_TOOL_NAMES
@@ -430,13 +446,13 @@ def test_the_agent_tool_adds_a_reference(tmp_path):
         assert "e5" in reply[0].text
 
 
-def test_the_viewer_files_draw_a_sketch_as_solved_around_its_references():
+def test_the_viewer_files_draw_a_sketch_as_solved_around_its_references() -> None:
     from sprocket_engine.replay import build_shape
     from sprocket_engine.viewer_files import features_summary
 
     doc = document()
     reference = project(doc)
-    doc.apply_edits(
+    _ = doc.apply_edits(
         [
             {
                 "op": "edit_sketch",

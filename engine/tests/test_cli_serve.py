@@ -8,12 +8,16 @@ import io
 import json
 from pathlib import Path
 
-from sprocket_engine.cli import _build_document, _serve
+import pytest
+
+from sprocket_engine.cli import build_document, serve
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 
-def test_rollback_to_empty_clears_stale_exports_instead_of_failing(tmp_path: Path):
+def test_rollback_to_empty_clears_stale_exports_instead_of_failing(
+    tmp_path: Path,
+) -> None:
     document_path = tmp_path / "document.json"
     document = json.loads(
         (
@@ -21,14 +25,14 @@ def test_rollback_to_empty_clears_stale_exports_instead_of_failing(tmp_path: Pat
         ).read_text()
     )
     document["rollback_index"] = 0
-    document_path.write_text(json.dumps(document))
+    _ = document_path.write_text(json.dumps(document))
 
     stl_out = tmp_path / "part.stl"
-    stl_out.write_bytes(b"stale from before the rollback")
+    _ = stl_out.write_bytes(b"stale from before the rollback")
     mesh_out = tmp_path / "part.mesh"
-    mesh_out.write_bytes(b"stale from before the rollback")
+    _ = mesh_out.write_bytes(b"stale from before the rollback")
 
-    success, output, failed_id = _build_document(
+    success, output, failed_id = build_document(
         document_path, None, stl_out, tmp_path / "cache", mesh_out
     )
 
@@ -39,7 +43,7 @@ def test_rollback_to_empty_clears_stale_exports_instead_of_failing(tmp_path: Pat
     assert not mesh_out.exists()
 
 
-def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
+def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path) -> None:
     """Editing a sketch can leave a later op unbuildable. The user needs the
     part they still have, plus the id of the op that no longer applies.
     """
@@ -62,10 +66,10 @@ def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
         }
     )
     document["rollback_index"] = 3
-    document_path.write_text(json.dumps(document))
+    _ = document_path.write_text(json.dumps(document))
 
     stl_out = tmp_path / "part.stl"
-    success, output, failed_id = _build_document(
+    success, output, failed_id = build_document(
         document_path, None, stl_out, tmp_path / "cache"
     )
 
@@ -75,7 +79,9 @@ def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
     assert stl_out.exists()
 
 
-def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):
+def test_serve_answers_one_line_per_request(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
     stl_out = tmp_path / "part.stl"
     mesh_out = tmp_path / "part.mesh"
     requests = (
@@ -93,7 +99,7 @@ def test_serve_answers_one_line_per_request(monkeypatch, capsys, tmp_path):
     )
     monkeypatch.setattr("sys.stdin", io.StringIO(requests))
 
-    _serve()
+    _ = serve()
 
     lines = capsys.readouterr().out.strip().splitlines()
     assert len(lines) == 2

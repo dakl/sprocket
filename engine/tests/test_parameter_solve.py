@@ -15,9 +15,12 @@ from sprocket_engine.replay import replay
 
 pytest.importorskip("planegcs")
 
+from pathlib import Path
+
 from conftest import running
 from test_sketch_reference import entity, rectangle
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.rpc import Client
 
 
@@ -53,7 +56,7 @@ def box_sketch(width="=w", extra=()):
     }
 
 
-EXTRUDE = {"id": "x", "type": "extrude", "profile": "s", "distance": 10}
+EXTRUDE: JSONObject = {"id": "x", "type": "extrude", "profile": "s", "distance": 10}
 
 
 def volume(document):
@@ -67,10 +70,10 @@ def set_w(document, value):
     return document.log[-1]
 
 
-def test_a_parameter_that_drives_a_dimension_moves_the_sketch_and_the_part():
+def test_a_parameter_that_drives_a_dimension_moves_the_sketch_and_the_part() -> None:
     document = Document([box_sketch(), EXTRUDE], 2, {"w": 40})
     assert volume(document) == pytest.approx(8000)
-    set_w(document, 60)
+    _ = set_w(document, 60)
     assert volume(document) == pytest.approx(12000)
     sketch = document.features[0]
     assert entity(sketch, "e1")["p1"] == pytest.approx([60, 0])
@@ -82,19 +85,21 @@ def test_a_parameter_that_drives_a_dimension_moves_the_sketch_and_the_part():
         if isinstance(item.get("value"), str)
     ] == ["=w"]
     # And it follows again, down as well as up.
-    set_w(document, 25)
+    _ = set_w(document, 25)
     assert volume(document) == pytest.approx(5000)
 
 
-def test_an_expression_over_a_parameter_follows_too():
+def test_an_expression_over_a_parameter_follows_too() -> None:
     document = Document([box_sketch("=2 * half"), EXTRUDE], 2, {"half": 20})
-    document.apply_edits(
+    _ = document.apply_edits(
         [{"op": "set_parameter", "name": "half", "value": 35}], None, "test"
     )
     assert volume(document) == pytest.approx(70 * 20 * 10)
 
 
-def test_a_parameter_no_sketch_uses_does_not_solve_anything(monkeypatch):
+def test_a_parameter_no_sketch_uses_does_not_solve_anything(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from sprocket_engine import solver
 
     def fail(*args, **kwargs):
@@ -104,18 +109,23 @@ def test_a_parameter_no_sketch_uses_does_not_solve_anything(monkeypatch):
         [box_sketch(40), {**EXTRUDE, "distance": "=depth"}], 2, {"depth": 10}
     )
     monkeypatch.setattr(solver, "solve", fail)
-    document.apply_edits(
+    _ = document.apply_edits(
         [{"op": "set_parameter", "name": "depth", "value": 12}], None, "test"
     )
     assert volume(document) == pytest.approx(40 * 20 * 12)
 
 
-def test_a_sketch_that_projects_from_the_driven_one_follows_it():
+def test_a_sketch_that_projects_from_the_driven_one_follows_it() -> None:
     """The gap from the outer rectangle's right edge holds, so the inner one moves with the outer width."""
     outer = box_sketch()
-    inner = {"id": "f2", "type": "sketch", "plane": "XY", **rectangle(45, 5, 55, 15)}
+    inner: JSONObject = {
+        "id": "f2",
+        "type": "sketch",
+        "plane": "XY",
+        **rectangle(45, 5, 55, 15),
+    }
     document = Document(copy.deepcopy([outer, inner]), 2, {"w": 40})
-    document.apply_edits(
+    _ = document.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -128,7 +138,7 @@ def test_a_sketch_that_projects_from_the_driven_one_follows_it():
         "test",
     )
     reference = document.log[-1]["entity_id"]
-    document.apply_edits(
+    _ = document.apply_edits(
         [
             {
                 "op": "edit_sketch",
@@ -146,7 +156,7 @@ def test_a_sketch_that_projects_from_the_driven_one_follows_it():
         "test",
     )
     assert entity(document.features[1], "e4")["p1"][0] == pytest.approx(45)
-    set_w(document, 60)
+    _ = set_w(document, 60)
     ctx = replay(document.for_replay(), return_context=True)[1]
     assert entity(ctx.features["f2"], reference)["p0"][0] == pytest.approx(60)
     assert entity(ctx.features["f2"], "e4")["p1"][0] == pytest.approx(65)
@@ -154,7 +164,9 @@ def test_a_sketch_that_projects_from_the_driven_one_follows_it():
     assert entity(document.features[1], "e4")["p1"][0] == pytest.approx(65)
 
 
-def test_a_value_that_leaves_the_sketch_unsolvable_is_refused_and_changes_nothing():
+def test_a_value_that_leaves_the_sketch_unsolvable_is_refused_and_changes_nothing() -> (
+    None
+):
     # A second dimension on the same width, fixed at 40: only w = 40 satisfies both.
     over = box_sketch(
         extra=[
@@ -165,14 +177,16 @@ def test_a_value_that_leaves_the_sketch_unsolvable_is_refused_and_changes_nothin
     with pytest.raises(
         DocumentError, match=r"sketch 's' with no solution.*(width|twice)"
     ):
-        document.apply_edits(
+        _ = document.apply_edits(
             [{"op": "set_parameter", "name": "w", "value": 60}], None, "test"
         )
     assert document.parameters == {"w": 40}
     assert entity(document.features[0], "e1")["p1"] == [40, 0]
 
 
-def test_without_the_solver_the_reply_names_the_sketches_it_could_not_move(monkeypatch):
+def test_without_the_solver_the_reply_names_the_sketches_it_could_not_move(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import sprocket_engine
 
     monkeypatch.setitem(sys.modules, "sprocket_engine.solver", None)
@@ -183,7 +197,7 @@ def test_without_the_solver_the_reply_names_the_sketches_it_could_not_move(monke
     assert entity(document.features[0], "e1")["p1"] == [40, 0]
 
 
-def test_the_daemon_moves_the_sketch_and_undo_puts_it_back(tmp_path):
+def test_the_daemon_moves_the_sketch_and_undo_puts_it_back(tmp_path: Path) -> None:
     with (
         running(
             {
@@ -196,9 +210,9 @@ def test_the_daemon_moves_the_sketch_and_undo_puts_it_back(tmp_path):
         Client(daemon.socket_path) as client,
     ):
         assert client.call("measure")["volume"] == pytest.approx(8000)
-        client.call("set_parameter", name="w", value=60)
+        _ = client.call("set_parameter", name="w", value=60)
         assert client.call("measure")["volume"] == pytest.approx(12000)
-        client.call("undo")
+        _ = client.call("undo")
         assert client.call("measure")["volume"] == pytest.approx(8000)
         assert entity(client.call("get_document")["features"][0], "e1")[
             "p1"

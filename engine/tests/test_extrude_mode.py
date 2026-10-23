@@ -6,9 +6,10 @@ grow downward from a sketch on its bottom face.
 
 import pytest
 
+from sprocket_engine.model import JSONObject
 from sprocket_engine.replay import replay
 
-BOX = [
+BOX: list[JSONObject] = [
     {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 20, "height": 20}},
     {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
     {"id": "f3", "type": "sketch", "plane": "XY", "rect": {"width": 10, "height": 10}},
@@ -18,34 +19,40 @@ PAD_VOLUME = 10 * 10 * 4
 
 
 def build(**extrude):
-    feature = {"id": "f4", "type": "extrude", "profile": "f3", "base": "f2", **extrude}
+    feature: JSONObject = {
+        "id": "f4",
+        "type": "extrude",
+        "profile": "f3",
+        "base": "f2",
+        **extrude,
+    }
     return replay({"features": BOX + [feature]})
 
 
-def test_join_with_a_negative_distance_grows_the_part_below_the_sketch_plane():
+def test_join_with_a_negative_distance_grows_the_part_below_the_sketch_plane() -> None:
     part = build(distance=-4, mode="join")
     assert part.volume == pytest.approx(BOX_VOLUME + PAD_VOLUME)
     assert pytest.approx(-4) == part.bounding_box().min.Z
 
 
-def test_cut_with_a_positive_distance_cuts_up_into_the_part():
+def test_cut_with_a_positive_distance_cuts_up_into_the_part() -> None:
     part = build(distance=4, mode="cut")
     assert part.volume == pytest.approx(BOX_VOLUME - PAD_VOLUME)
 
 
-def test_intersect_keeps_only_the_overlap():
+def test_intersect_keeps_only_the_overlap() -> None:
     part = build(distance=4, mode="intersect")
     assert part.volume == pytest.approx(PAD_VOLUME)
 
 
-def test_no_mode_keeps_the_sign_rule_for_old_documents():
+def test_no_mode_keeps_the_sign_rule_for_old_documents() -> None:
     # A negative distance cuts, here into the air below the box, which is the gap `mode` closes.
     legacy = build(distance=-4)
     assert legacy.volume == pytest.approx(BOX_VOLUME)
     assert pytest.approx(0) == legacy.bounding_box().min.Z
 
 
-def test_symmetric_extrudes_both_ways():
+def test_symmetric_extrudes_both_ways() -> None:
     part = replay(
         {
             "features": [
@@ -64,11 +71,11 @@ def test_symmetric_extrudes_both_ways():
     assert pytest.approx((-5, 5)) == (box.min.Z, box.max.Z)
 
 
-def test_new_takes_no_base_and_combines_need_one():
+def test_new_takes_no_base_and_combines_need_one() -> None:
     with pytest.raises(ValueError, match="takes no base"):
-        build(distance=4, mode="new")
+        _ = build(distance=4, mode="new")
     with pytest.raises(ValueError, match="needs a base"):
-        replay(
+        _ = replay(
             {
                 "features": [
                     BOX[0],
@@ -84,10 +91,10 @@ def test_new_takes_no_base_and_combines_need_one():
         )
 
 
-def test_a_plane_facing_down_has_v_along_world_minus_y():
+def test_a_plane_facing_down_has_v_along_world_minus_y() -> None:
     """Documented in the sketch schema: v = normal x x_dir."""
-    down = {"origin": [0, 0, 0], "normal": [0, 0, -1], "x_dir": [1, 0, 0]}
-    sketch = {
+    down: JSONObject = {"origin": [0, 0, 0], "normal": [0, 0, -1], "x_dir": [1, 0, 0]}
+    sketch: JSONObject = {
         "id": "s",
         "type": "sketch",
         "plane": down,
