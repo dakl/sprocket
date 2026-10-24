@@ -451,7 +451,9 @@
       left: 0;
       width: 210px;
       max-height: calc(100% - 126px);
-      overflow-y: auto;
+      /* The tree scrolls, not the panel, so the resize handle stays the panel's full height. */
+      display: flex;
+      flex-direction: column;
       background: rgba(28, 28, 28, 0.95);
       border: 1px solid #333;
       border-left: none;
@@ -470,7 +472,18 @@
       border-bottom: 1px solid #333;
     }
 
-    #browser-tree { padding: 4px 0 8px; }
+    #browser-tree { padding: 4px 0 8px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+    /* Drag the right edge to make the panel wider. The width is kept per viewer in localStorage. */
+    #browser-resize {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      bottom: 0;
+      width: 8px;
+      cursor: ew-resize;
+    }
+    #browser-resize:hover, #browser-resize.dragging { background: linear-gradient(to right, transparent 3px, #5be0a0 3px, #5be0a0 5px, transparent 5px); }
 
     .browser-row {
       display: flex;
@@ -755,6 +768,7 @@
   <aside id="browser">
     <div id="browser-header">BROWSER</div>
     <div id="browser-tree"></div>
+    <div id="browser-resize" title="Drag to resize"></div>
   </aside>
   <div id="sketch-plane-panel">
     <span>Sketch on:</span>
@@ -3494,6 +3508,41 @@
       }
     }
 
+    // The browser panel's width, dragged from its right edge and kept per
+    // viewer. Clamped so the panel can neither vanish nor cover the view.
+    const BROWSER_MIN_WIDTH = 160;
+    const browserEl = document.getElementById("browser");
+    const browserResizeEl = document.getElementById("browser-resize");
+    function setBrowserWidth(width) {
+      const clamped = Math.round(Math.min(Math.max(width, BROWSER_MIN_WIDTH), window.innerWidth * 0.6));
+      browserEl.style.width = clamped + "px";
+      return clamped;
+    }
+    try {
+      const stored = Number(localStorage.getItem("sprocket.browserWidth"));
+      if (stored) setBrowserWidth(stored);
+    } catch (error) {
+      // Blocked storage: the panel starts at its CSS width.
+    }
+    browserResizeEl.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      browserResizeEl.setPointerCapture(event.pointerId);
+      browserResizeEl.classList.add("dragging");
+      const startX = event.clientX;
+      const startWidth = browserEl.getBoundingClientRect().width;
+      const move = (moveEvent) => setBrowserWidth(startWidth + moveEvent.clientX - startX);
+      const up = () => {
+        browserResizeEl.removeEventListener("pointermove", move);
+        browserResizeEl.classList.remove("dragging");
+        try {
+          localStorage.setItem("sprocket.browserWidth", String(Math.round(browserEl.getBoundingClientRect().width)));
+        } catch (error) {
+          // Blocked storage: the width lasts until the page reloads.
+        }
+      };
+      browserResizeEl.addEventListener("pointermove", move);
+      browserResizeEl.addEventListener("pointerup", up, { once: true });
+    });
 
     function swatchButton(hex, name) {
       const button = document.createElement("button");

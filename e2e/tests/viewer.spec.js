@@ -456,6 +456,26 @@ test("a body's eye shows, ghosts and hides it, and a hidden ghost is not drawn",
   expect((await rpc(request, "get_bodies")).bodies[0].ghost).toBe(false);
 });
 
+test("dragging the browser panel's right edge makes it wider, and the width survives a reload", async ({ page }) => {
+  const width = () => page.locator("#browser").evaluate((element) => element.getBoundingClientRect().width);
+  const before = await width();
+  const handle = await page.locator("#browser-resize").boundingBox();
+  if (!handle) throw new Error("no resize handle");
+  const y = handle.y + 20;
+  await page.mouse.move(handle.x + handle.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 + 120, y, { steps: 5 });
+  await page.mouse.up();
+  expect(await width()).toBeCloseTo(before + 120, -1);
+
+  await page.reload();
+  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  expect(await width()).toBeCloseTo(before + 120, -1);
+  await page.evaluate(() => localStorage.removeItem("sprocket.browserWidth"));
+});
+
+// --- Material presets ------------------------------------------------------------
+
 test("a finish picked for a face and for a body reaches the document, the mesh and the materials drawn", async ({ page, request }) => {
   await rpc(request, "set_appearances", { appearances: [] });
   await settled(page);
