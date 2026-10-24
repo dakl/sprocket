@@ -23,9 +23,55 @@ final class Updater: NSObject {
         controller.startUpdater()
     }
 
-    /// Sprocket > Check for Updates…
+    /// Sprocket > Check for Updates…, and Check Now in Settings.
     @objc func checkForUpdates(_ sender: Any?) {
         controller.checkForUpdates(sender)
+    }
+
+    /// Sparkle keeps both switches in UserDefaults, so they hold when the
+    /// updater has not started.
+    var updater: SPUUpdater { controller.updater }
+}
+
+/// What the Settings window shows about updates. Sparkle reports when it can
+/// check again and when it last checked through KVO, so this republishes both.
+final class UpdateSettings: ObservableObject {
+    @Published private(set) var canCheck = false
+    @Published private(set) var lastCheck: Date?
+    private var observations: [NSKeyValueObservation] = []
+
+    var isEnabled: Bool { Updater.shared.isEnabled }
+
+    init() {
+        let updater = Updater.shared.updater
+        observations = [
+            updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] updater, _ in
+                DispatchQueue.main.async { self?.canCheck = updater.canCheckForUpdates }
+            },
+            updater.observe(\.lastUpdateCheckDate, options: [.initial, .new]) { [weak self] updater, _ in
+                DispatchQueue.main.async { self?.lastCheck = updater.lastUpdateCheckDate }
+            },
+        ]
+    }
+
+    var checksAutomatically: Bool {
+        get { Updater.shared.updater.automaticallyChecksForUpdates }
+        set {
+            objectWillChange.send()
+            Updater.shared.updater.automaticallyChecksForUpdates = newValue
+        }
+    }
+
+    var downloadsAutomatically: Bool {
+        get { Updater.shared.updater.automaticallyDownloadsUpdates }
+        set {
+            objectWillChange.send()
+            Updater.shared.updater.automaticallyDownloadsUpdates = newValue
+        }
+    }
+
+    func checkNow() {
+        Updater.shared.checkForUpdates(nil)
     }
 }
 

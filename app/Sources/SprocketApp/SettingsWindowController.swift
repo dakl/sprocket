@@ -22,12 +22,18 @@ private struct SettingsView: View {
     // The slider moves in log2 steps, so 0.5x and 2x sit the same distance
     // from 1x.
     @AppStorage(AppSettings.zoomSensitivityKey) private var zoomSensitivity = AppSettings.defaultZoomSensitivity
+    @StateObject private var updates = UpdateSettings()
 
     private var exponent: Binding<Double> {
         Binding(
             get: { log2(AppSettings.clamp(zoomSensitivity)) },
             set: { zoomSensitivity = AppSettings.clamp(pow(2, ($0 * 4).rounded() / 4)) }
         )
+    }
+
+    private var lastCheckText: String {
+        guard let date = updates.lastCheck else { return "Never checked" }
+        return "Last checked \(date.formatted(.relative(presentation: .named)))"
     }
 
     var body: some View {
@@ -57,6 +63,27 @@ private struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(width: 280)
+            }
+            LabeledContent("Updates") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Check for updates automatically", isOn: $updates.checksAutomatically)
+                    Toggle("Download and install updates automatically", isOn: $updates.downloadsAutomatically)
+                        .disabled(!updates.checksAutomatically)
+                    HStack {
+                        Button("Check Now") { updates.checkNow() }
+                            .disabled(!updates.canCheck)
+                        Text(lastCheckText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !updates.isEnabled {
+                        Text("Only a release build updates itself. This one runs from source.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!updates.isEnabled)
+                .frame(width: 280, alignment: .leading)
             }
         }
         .padding(20)
