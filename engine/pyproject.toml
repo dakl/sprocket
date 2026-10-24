@@ -1,6 +1,6 @@
 [project]
 name = "sprocket-engine"
-version = "0.12.3"
+version = "0.13.0"
 description = "Sprocket's headless geometry engine: JSON op log -> build123d -> BREP"
 readme = "README.md"
 authors = [
