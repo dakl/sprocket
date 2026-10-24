@@ -369,7 +369,7 @@ test("right-click a face, pick a colour: the face is coloured in the document an
 
   const again = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(again.x, again.y, { button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body"]);
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body", "Draw body as ghost"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await expect(page.locator("#colour-popover")).toBeVisible();
   await page.locator('#colour-popover .palette .swatch[data-hex="#2f9e44"]').click();
@@ -406,7 +406,7 @@ test("right-click a face, pick a colour: the face is coloured in the document an
 test("a body row's right-click menu colours and hides the body; the swatch still works", async ({ page, request }) => {
   const row = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first();
   await row.click({ button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide"]);
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide", "Draw as ghost"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#d83a2e");
@@ -426,7 +426,35 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   await rpc(request, "set_body", { id: "f2", color: null });
 });
 
-// --- Material presets ------------------------------------------------------------
+test("a body's eye shows, ghosts and hides it, and a hidden ghost is not drawn", async ({ page, request }) => {
+  const eye = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().locator(".browser-eye");
+  const drawn = () => page.evaluate(() => window.__tcad.bodies[0].drawn);
+  await expect(eye).toHaveAttribute("data-display", "shown");
+
+  // Option-click draws it as a ghost, which cannot be picked.
+  await eye.click({ modifiers: ["Alt"] });
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].ghost).toBe(true);
+  await expect.poll(drawn).toBe("ghost");
+  await expect(eye).toHaveAttribute("data-display", "ghost");
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await settled(page);
+  expect((await page.evaluate(() => window.__tcad.selection)).face).not.toBe(top);
+
+  // A plain click hides the ghost. Before, a translucent body ignored hiding.
+  await eye.click();
+  await expect.poll(drawn).toBe("hidden");
+  await expect(eye).toHaveAttribute("data-display", "hidden");
+  // Showing it again brings back the ghost, and the menu turns it solid.
+  await eye.click();
+  await expect.poll(drawn).toBe("ghost");
+  await eye.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Draw solid" }).click();
+  await expect.poll(drawn).toBe("shown");
+  expect((await rpc(request, "get_bodies")).bodies[0].ghost).toBe(false);
+});
 
 test("a finish picked for a face and for a body reaches the document, the mesh and the materials drawn", async ({ page, request }) => {
   await rpc(request, "set_appearances", { appearances: [] });

@@ -767,14 +767,19 @@ def _set_parameter(daemon: Daemon, params: dict) -> dict:
 
 
 def _set_visibility(daemon: Daemon, params: dict) -> dict:
-    """Shows or hides a body. Undoable, but not an edit: no log entry, no
-    timeline row. Hidden bodies still export."""
+    """Shows, hides or ghosts a body.
+
+    Undoable, but not an edit: no log entry, no timeline row. Hidden and
+    ghosted bodies still export.
+    """
     document = daemon.session.document
     before = document.snapshot()
     before["view_only"] = True
     if params.get("base_revision") is not None and params["base_revision"] != document.revision:
         raise StaleRevision(params["base_revision"], document.revision)
-    revision = document.set_visibility(params.get("id"), params.get("visible"))
+    revision = document.set_visibility(
+        params.get("id"), params.get("visible"), params.get("ghost")
+    )
     daemon.undo_stack.append(before)
     del daemon.undo_stack[:-UNDO_LIMIT]
     daemon.redo_stack.clear()
@@ -782,17 +787,23 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
 
 
 def _set_body(daemon: Daemon, params: dict) -> dict:
-    """Name, colour and material are a logged edit. `visible`, when given, goes through
-    `set_visibility` first, so it stays view state."""
+    """Name, colour and material are a logged edit.
+
+    `visible` and `ghost`, when given, go through `set_visibility` first, so
+    they stay view state.
+    """
     result = None
-    if "visible" in params:
-        result = _set_visibility(daemon, {"id": params.get("id"), "visible": params["visible"], "base_revision": params.get("base_revision")})
+    if "visible" in params or "ghost" in params:
+        names = ("id", "visible", "ghost", "base_revision")
+        view = {name: params.get(name) for name in names}
+        result = _set_visibility(daemon, view)
     changes = {name: params[name] for name in ("name", "color", "material") if name in params}
     if changes:
         based = {} if result is None else {"base_revision": None}
         result = _edit(daemon, [{"op": "set_body", "id": params.get("id"), **changes}], {**params, **based})
     if result is None:
-        raise DocumentError("set_body needs name, color, material or visible")
+        message = "set_body needs name, color, material, visible or ghost"
+        raise DocumentError(message)
     return result
 
 
@@ -849,6 +860,7 @@ def _get_bodies(daemon: Daemon, params: dict) -> dict:
                 "color": body["color"],
                 "material": body["material"],
                 "visible": body["visible"],
+                "ghost": body["ghost"],
                 "reference": body["reference"],
                 "tip": body["tip"],
                 "volume": round(body["shape"].volume, 6),
