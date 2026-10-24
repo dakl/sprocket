@@ -87,7 +87,11 @@ def tessellate(shape) -> dict:
     )
     if len(instances) != 1:
         raise ValueError(f"expected one tessellated instance, got {len(instances)}")
-    instance = instances[0]
+    # ocp-tessellate caches its result per shape and hands back the same
+    # dict, so placing it in place moved a reference again on every rebuild
+    # that hit the cache. The helpers below replace arrays, so a shallow copy
+    # keeps the cached one as tessellated.
+    instance = dict(instances[0])
     _place(instance, _location_of(shapes, 0))
     _drop_degenerate_edges(shape, instance)
     return instance
