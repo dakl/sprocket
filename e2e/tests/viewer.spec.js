@@ -428,7 +428,7 @@ test("a body row's right-click menu colours and hides the body; the swatch still
 
 test("a body's eye shows, ghosts and hides it, and a hidden ghost is not drawn", async ({ page, request }) => {
   const eye = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().locator(".browser-eye");
-  const drawn = () => page.evaluate(() => window.__tcad.bodies[0].drawn);
+  const drawn = () => page.evaluate(() => /** @type {any} */ (globalThis).__tcad.bodies[0].drawn);
   await expect(eye).toHaveAttribute("data-display", "shown");
 
   // Option-click draws it as a ghost, which cannot be picked.
@@ -437,11 +437,11 @@ test("a body's eye shows, ghosts and hides it, and a hidden ghost is not drawn",
   await expect.poll(drawn).toBe("ghost");
   await expect(eye).toHaveAttribute("data-display", "ghost");
   const { faces } = await rpc(request, "describe_geometry");
-  const top = faces.findIndex((face) => face.normal && face.normal[2] === 1);
-  const point = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
+  const top = faces.findIndex((/** @type {{ normal?: number[] }} */ face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => /** @type {any} */ (globalThis).__tcad.screenPointOf({ face }), top);
   await page.mouse.click(point.x, point.y);
   await settled(page);
-  expect((await page.evaluate(() => window.__tcad.selection)).face).not.toBe(top);
+  expect((await page.evaluate(() => /** @type {any} */ (globalThis).__tcad.selection)).face).not.toBe(top);
 
   // A plain click hides the ghost. Before, a translucent body ignored hiding.
   await eye.click();
@@ -460,7 +460,9 @@ test("dragging the browser panel's right edge makes it wider, and the width surv
   const width = () => page.locator("#browser").evaluate((element) => element.getBoundingClientRect().width);
   const before = await width();
   const handle = await page.locator("#browser-resize").boundingBox();
-  if (!handle) throw new Error("no resize handle");
+  if (!handle) {
+    throw new Error("no resize handle");
+  }
   const y = handle.y + 20;
   await page.mouse.move(handle.x + handle.width / 2, y);
   await page.mouse.down();
@@ -469,7 +471,7 @@ test("dragging the browser panel's right edge makes it wider, and the width surv
   expect(await width()).toBeCloseTo(before + 120, -1);
 
   await page.reload();
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null);
+  await page.waitForFunction(() => /** @type {any} */ (globalThis).__tcad && /** @type {any} */ (globalThis).__tcad.mesh !== null);
   expect(await width()).toBeCloseTo(before + 120, -1);
   await page.evaluate(() => localStorage.removeItem("sprocket.browserWidth"));
 });
