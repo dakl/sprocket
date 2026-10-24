@@ -111,7 +111,7 @@
     return high < low ? low : Math.min(high, Math.max(low, value));
   }
 
-  const api = { LEADER, GAP, MARGIN, layoutLabels, leaderEnd };
+  const api = { LEADER, MARGIN, layoutLabels, leaderEnd };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FloatingLabels = api;
 })(typeof window !== "undefined" ? window : globalThis);
