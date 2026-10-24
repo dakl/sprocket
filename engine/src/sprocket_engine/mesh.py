@@ -87,7 +87,9 @@ def tessellate(shape) -> dict:
     )
     if len(instances) != 1:
         raise ValueError(f"expected one tessellated instance, got {len(instances)}")
-    instance = instances[0]
+    # ocp-tessellate caches meshes by shape and hands back the same dict, so
+    # work on a copy: placing the cached one moves it again on every export.
+    instance = dict(instances[0])
     _place(instance, _location_of(shapes, 0))
     _drop_degenerate_edges(shape, instance)
     return instance

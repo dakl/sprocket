@@ -1,6 +1,7 @@
 """Reference bodies: another document or a STEP file shown for design, never exported."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -168,3 +169,24 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     face_normals = np.array([tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()])
     nearest = np.abs(normals @ face_normals.T).max(axis=1)
     assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)
+
+
+def test_meshing_a_reference_again_draws_it_in_the_same_place(tmp_path: Path) -> None:
+    # ocp-tessellate caches its meshes by shape, so a second export of the same
+    # reference (hiding and showing a body re-exports the mesh) gets the same
+    # buffers back. Placing them in place moved the cached copy, and every
+    # export after the first drew the reference one placement further away.
+    from test_mesh import read_mesh
+
+    write(tmp_path, "board.sprocket", BOARD)
+    reference = {"id": "ref", "type": "reference", "file": "board.sprocket",
+                 "rotate": [90, 0, 30], "translate": [40, -10, 25]}
+    _, part, ctx = build(tmp_path, [reference, *TRAY])
+    bodies = with_settings(ctx.bodies, {})
+    export_mesh(part, tmp_path / "first.mesh", None, bodies)
+    export_mesh(part, tmp_path / "second.mesh", None, bodies)
+
+    _, first = read_mesh(tmp_path / "first.mesh")
+    _, second = read_mesh(tmp_path / "second.mesh")
+    assert second["vertices"] == pytest.approx(first["vertices"])
+    assert second["normals"] == pytest.approx(first["normals"])
