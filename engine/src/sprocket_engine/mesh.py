@@ -277,7 +277,7 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                 # and solid for a part, so older documents write the same bytes.
                 **(
                     {"ghost": body["ghost"]}
-                    if body.get("ghost", body["reference"]) != body["reference"]
+                    if "ghost" in body and body["ghost"] != body["reference"]
                     else {}
                 ),
             })

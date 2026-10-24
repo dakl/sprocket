@@ -93,7 +93,7 @@ def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
         merged.append({
             **body, "name": own.get("name", body["id"]), "color": own.get("color"),
             "material": own.get("material"), "visible": own.get("visible", True),
-            "ghost": own.get("ghost", body["reference"]),
+            "ghost": own["ghost"] if "ghost" in own else body["reference"],
         })
     return merged
 

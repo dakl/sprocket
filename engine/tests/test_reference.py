@@ -68,14 +68,16 @@ def test_a_reference_is_a_ghost_by_default_and_any_body_can_be_set_either_way(
     _ = write(tmp_path, "board.sprocket", BOARD)
     document, part, ctx = build(tmp_path, REFERENCED_TRAY)
     mesh_path = tmp_path / "part.mesh"
-    header = export_mesh(part, mesh_path, None, with_settings(ctx.bodies, document.bodies))
+    settings = with_settings(ctx.bodies, document.bodies)
+    header = export_mesh(part, mesh_path, None, settings)
     # The default writes no key, so an older document's mesh keeps its bytes.
     assert ghosts(header) == [("tray", None), ("ref", None)]
 
     _ = document.set_visibility("ref", ghost=False)
     _ = document.set_visibility("tray", ghost=True)
     assert document.bodies == {"ref": {"ghost": False}, "tray": {"ghost": True}}
-    header = export_mesh(part, mesh_path, None, with_settings(ctx.bodies, document.bodies))
+    settings = with_settings(ctx.bodies, document.bodies)
+    header = export_mesh(part, mesh_path, None, settings)
     assert ghosts(header) == [("tray", True), ("ref", False)]
 
     # Back to the default stores nothing, and ghost and visible are kept apart.

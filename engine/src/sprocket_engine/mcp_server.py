@@ -201,7 +201,8 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "get_bodies",
-            "The bodies the document builds, in order: id, name, colour, visibility, ghost, volume and face count. "
+            "The bodies the document builds, in order: id, name, colour, "
+            "visibility, ghost, volume and face count. "
             "A feature with no base starts a body, and the body's id is that feature's id.",
             {},
         ),
@@ -246,8 +247,10 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "set_body",
-            "Names, colours, finishes (material preset), hides, shows or ghosts one body. A hidden or ghosted body still exports. Hiding and "
-            "ghosting are view state: they can be undone, but add no log entry and no timeline row. A null name or colour goes back to its default.",
+            "Names, colours, finishes (material preset), hides, shows or ghosts "
+            "one body. A hidden or ghosted body still exports. Hiding and "
+            "ghosting are view state: they can be undone, but add no log entry "
+            "and no timeline row. A null name or colour goes back to its default.",
             {
                 "id": {"type": "string", "description": "the body id from get_bodies"},
                 "name": {"type": ["string", "null"]},
@@ -256,7 +259,10 @@ def document_tools() -> list[types.Tool]:
                 "visible": {"type": "boolean", "description": "false hides the body in the viewer; it still exports"},
                 "ghost": {
                     "type": "boolean",
-                    "description": "true draws the body translucent with faint edges, false solid; a reference body is a ghost by default",
+                    "description": (
+                        "true draws the body translucent with faint edges, false "
+                        "solid; a reference body is a ghost by default"
+                    ),
                 },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
             },

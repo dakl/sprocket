@@ -795,7 +795,7 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
     result = None
     if "visible" in params or "ghost" in params:
         names = ("id", "visible", "ghost", "base_revision")
-        view = {name: params.get(name) for name in names}
+        view: dict[str, object] = {name: params.get(name) for name in names}
         result = _set_visibility(daemon, view)
     changes = {name: params[name] for name in ("name", "color", "material") if name in params}
     if changes:
