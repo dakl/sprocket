@@ -225,7 +225,7 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)
 
 
-def test_a_moved_shape_meshes_in_the_same_place_every_time():
+def test_a_moved_shape_meshes_in_the_same_place_every_time() -> None:
     # ocp-tessellate caches its result per shape and returns the same dict.
     # Placing that dict in place moved a reference once more on each rebuild
     # that hit the cache, so toggling any body's visibility made references
