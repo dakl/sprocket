@@ -270,7 +270,8 @@ class Document:
         self.parameters = dict(parameters or {})
         # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
         self.appearances = list(appearances or [])
-        # Settings per body, keyed by body id: {"name", "color", "visible", "material"}.
+        # Settings per body, keyed by body id:
+        # {"name", "color", "visible", "ghost", "material"}.
         self.bodies = dict(bodies or {})
         self.revision = revision
         self.log = list(log or [])
@@ -542,16 +543,35 @@ class Document:
             self.log.append({"author": author, "action": action, "at": _now(), "revision": self.revision})
         return self.revision
 
-    def set_visibility(self, body_id: str, visible: bool) -> int:
-        """Shows or hides one body: view state, saved with the document but not
-        an edit, so it adds nothing to the log. The daemon still puts it on the
-        undo stack. A hidden body still exports."""
-        self.index_of(body_id)
-        if not isinstance(visible, bool):
-            raise DocumentError("'visible' must be true or false")
-        settings = {key: value for key, value in self.bodies.get(body_id, {}).items() if key != "visible"}
-        if not visible:
-            settings["visible"] = False
+    def set_visibility(
+        self, body_id: str, visible: object = None, ghost: object = None
+    ) -> int:
+        """Shows, hides or ghosts one body.
+
+        A ghost draws translucent, with faint edges. This is view state, saved
+        with the document but not an edit, so it adds nothing to the log. The
+        daemon still puts it on the undo stack. A hidden or ghosted body still
+        exports. A reference body is a ghost unless set otherwise, so `ghost`
+        is stored only where it differs from that default. The flags come from
+        JSON, so they are checked here.
+        """
+        index = self.index_of(body_id)
+        if visible is None and ghost is None:
+            message = "set_visibility needs 'visible' or 'ghost'"
+            raise DocumentError(message)
+        for name, value in (("visible", visible), ("ghost", ghost)):
+            if value is not None and not isinstance(value, bool):
+                message = f"'{name}' must be true or false"
+                raise DocumentError(message)
+        settings = dict(self.bodies.get(body_id, {}))
+        if visible is not None:
+            settings.pop("visible", None)
+            if not visible:
+                settings["visible"] = False
+        if ghost is not None:
+            settings.pop("ghost", None)
+            if ghost != (self.features[index].get("type") == "reference"):
+                settings["ghost"] = ghost
         if settings:
             self.bodies[body_id] = settings
         else:
@@ -798,7 +818,7 @@ class Document:
         `set_visibility`."""
         body_id = edit.get("id")
         self.index_of(body_id)
-        if "visible" in edit:
+        if "visible" in edit or "ghost" in edit:
             raise DocumentError("visibility is view state, not an edit: use set_visibility")
         settings = dict(self.bodies.get(body_id, {}))
         for name in ("name", "color", "material"):
@@ -908,17 +928,18 @@ def _check_appearances(appearances) -> None:
 def _check_body_settings(settings) -> None:
     if not isinstance(settings, dict):
         raise DocumentError("body settings must be a JSON object")
-    unknown = set(settings) - {"name", "color", "visible", "material"}
+    unknown = set(settings) - {"name", "color", "visible", "ghost", "material"}
     if unknown:
-        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible, material)")
+        raise DocumentError(f"unknown body settings {sorted(unknown)} (known: name, color, visible, ghost, material)")
     if "material" in settings and settings["material"] not in PRESETS:
         raise DocumentError(f"unknown material {settings['material']!r} (known: {', '.join(PRESETS)})")
     if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
         raise DocumentError("a body name must be a non-empty string")
     if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):
         raise DocumentError(f"a body color must be #rrggbb, not {settings['color']!r}")
-    if "visible" in settings and not isinstance(settings["visible"], bool):
-        raise DocumentError("a body's visible must be true or false")
+    for name in ("visible", "ghost"):
+        if name in settings and not isinstance(settings[name], bool):
+            raise DocumentError(f"a body's {name} must be true or false")
 
 
 def _referenced_ids(feature: dict) -> list[str]:

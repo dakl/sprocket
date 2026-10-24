@@ -369,7 +369,7 @@ test("right-click a face, pick a colour: the face is coloured in the document an
 
   const again = await page.evaluate((face) => window.__tcad.screenPointOf({ face }), top);
   await page.mouse.click(again.x, again.y, { button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body"]);
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Body colour…", "Hide body", "Draw body as ghost"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await expect(page.locator("#colour-popover")).toBeVisible();
   await page.locator('#colour-popover .palette .swatch[data-hex="#2f9e44"]').click();
@@ -406,7 +406,7 @@ test("right-click a face, pick a colour: the face is coloured in the document an
 test("a body row's right-click menu colours and hides the body; the swatch still works", async ({ page, request }) => {
   const row = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first();
   await row.click({ button: "right" });
-  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide"]);
+  await expect.poll(() => page.evaluate(() => window.__tcad.contextMenu)).toEqual(["Colour…", "Hide", "Draw as ghost"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#d83a2e");
@@ -424,6 +424,56 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   });
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
   await rpc(request, "set_body", { id: "f2", color: null });
+});
+
+test("a body's eye shows, ghosts and hides it, and a hidden ghost is not drawn", async ({ page, request }) => {
+  const eye = page.locator(".browser-row").filter({ has: page.locator(".browser-swatch") }).first().locator(".browser-eye");
+  const drawn = () => page.evaluate(() => /** @type {any} */ (globalThis).__tcad.bodies[0].drawn);
+  await expect(eye).toHaveAttribute("data-display", "shown");
+
+  // Option-click draws it as a ghost, which cannot be picked.
+  await eye.click({ modifiers: ["Alt"] });
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].ghost).toBe(true);
+  await expect.poll(drawn).toBe("ghost");
+  await expect(eye).toHaveAttribute("data-display", "ghost");
+  const { faces } = await rpc(request, "describe_geometry");
+  const top = faces.findIndex((/** @type {{ normal?: number[] }} */ face) => face.normal && face.normal[2] === 1);
+  const point = await page.evaluate((face) => /** @type {any} */ (globalThis).__tcad.screenPointOf({ face }), top);
+  await page.mouse.click(point.x, point.y);
+  await settled(page);
+  expect((await page.evaluate(() => /** @type {any} */ (globalThis).__tcad.selection)).face).not.toBe(top);
+
+  // A plain click hides the ghost. Before, a translucent body ignored hiding.
+  await eye.click();
+  await expect.poll(drawn).toBe("hidden");
+  await expect(eye).toHaveAttribute("data-display", "hidden");
+  // Showing it again brings back the ghost, and the menu turns it solid.
+  await eye.click();
+  await expect.poll(drawn).toBe("ghost");
+  await eye.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Draw solid" }).click();
+  await expect.poll(drawn).toBe("shown");
+  expect((await rpc(request, "get_bodies")).bodies[0].ghost).toBe(false);
+});
+
+test("dragging the browser panel's right edge makes it wider, and the width survives a reload", async ({ page }) => {
+  const width = () => page.locator("#browser").evaluate((element) => element.getBoundingClientRect().width);
+  const before = await width();
+  const handle = await page.locator("#browser-resize").boundingBox();
+  if (!handle) {
+    throw new Error("no resize handle");
+  }
+  const y = handle.y + 20;
+  await page.mouse.move(handle.x + handle.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 + 120, y, { steps: 5 });
+  await page.mouse.up();
+  expect(await width()).toBeCloseTo(before + 120, -1);
+
+  await page.reload();
+  await page.waitForFunction(() => /** @type {any} */ (globalThis).__tcad && /** @type {any} */ (globalThis).__tcad.mesh !== null);
+  expect(await width()).toBeCloseTo(before + 120, -1);
+  await page.evaluate(() => localStorage.removeItem("sprocket.browserWidth"));
 });
 
 // --- Material presets ------------------------------------------------------------

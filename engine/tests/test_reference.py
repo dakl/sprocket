@@ -1,13 +1,14 @@
 """Reference bodies: another document or a STEP file shown for design, never exported."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
 from build123d import Box, export_step, import_step
 
 from conftest import running
-from sprocket_engine.document import Document
+from sprocket_engine.document import Document, DocumentError
 from sprocket_engine.export import write_step
 from sprocket_engine.mesh import export_mesh
 from sprocket_engine.replay import replay, with_settings
@@ -52,6 +53,60 @@ def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
     assert header["counts"]["faces"] == 12
     write_step(part, tmp_path / "part.step", bodies)
     assert import_step(tmp_path / "part.step").volume == pytest.approx(1600)
+
+
+REFERENCED_TRAY = [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY]
+
+
+def ghosts(header: dict[str, list[dict[str, object]]]) -> list[tuple[object, object]]:
+    return [(body["id"], body.get("ghost")) for body in header["bodies"]]
+
+
+def test_a_reference_is_a_ghost_by_default_and_any_body_can_be_set_either_way(
+    tmp_path: Path,
+) -> None:
+    _ = write(tmp_path, "board.sprocket", BOARD)
+    document, part, ctx = build(tmp_path, REFERENCED_TRAY)
+    mesh_path = tmp_path / "part.mesh"
+    settings = with_settings(ctx.bodies, document.bodies)
+    header = export_mesh(part, mesh_path, None, settings)
+    # The default writes no key, so an older document's mesh keeps its bytes.
+    assert ghosts(header) == [("tray", None), ("ref", None)]
+
+    _ = document.set_visibility("ref", ghost=False)
+    _ = document.set_visibility("tray", ghost=True)
+    assert document.bodies == {"ref": {"ghost": False}, "tray": {"ghost": True}}
+    settings = with_settings(ctx.bodies, document.bodies)
+    header = export_mesh(part, mesh_path, None, settings)
+    assert ghosts(header) == [("tray", True), ("ref", False)]
+
+    # Back to the default stores nothing, and ghost and visible are kept apart.
+    _ = document.set_visibility("ref", ghost=True)
+    _ = document.set_visibility("tray", visible=False)
+    _ = document.set_visibility("tray", ghost=False)
+    assert document.bodies == {"tray": {"visible": False}}
+    with pytest.raises(DocumentError, match="needs 'visible' or 'ghost'"):
+        _ = document.set_visibility("tray")
+    with pytest.raises(DocumentError, match="'ghost' must be true or false"):
+        _ = document.set_visibility("tray", ghost="yes")
+
+
+def test_ghosting_a_body_is_undoable_view_state(tmp_path: Path) -> None:
+    _ = write(tmp_path, "board.sprocket", BOARD)
+    with (
+        running({"features": REFERENCED_TRAY}, tmp_path) as daemon,
+        Client(daemon.socket_path) as client,
+    ):
+        log_length = len(daemon.session.document.log)
+        assert ghosts(client.call("get_bodies")) == [("ref", True), ("tray", False)]
+        _ = client.call("set_body", id="ref", ghost=False)
+        assert ghosts(client.call("get_bodies"))[0] == ("ref", False)
+        _ = client.call("undo")
+        assert ghosts(client.call("get_bodies"))[0] == ("ref", True)
+        assert len(daemon.session.document.log) == log_length
+        edit = {"op": "set_body", "id": "tray", "ghost": True}
+        with pytest.raises(Exception, match="use set_visibility"):
+            _ = client.call("apply_edit", edits=[edit], author="test")
 
 
 def test_a_step_reference_moves_by_translate(tmp_path):

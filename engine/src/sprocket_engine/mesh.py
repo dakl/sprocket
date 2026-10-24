@@ -273,6 +273,13 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                 "edges": len(item["segments_per_edge"]),
                 # Only when set, so a document with no finishes writes the same bytes as before.
                 **({"material": body["material"]} if body.get("material") else {}),
+                # Only when it differs from the default, a ghost for a reference body
+                # and solid for a part, so older documents write the same bytes.
+                **(
+                    {"ghost": body["ghost"]}
+                    if "ghost" in body and body["ghost"] != body["reference"]
+                    else {}
+                ),
             })
         if appearances or any(body.get("color") for body in ordered):
             instance["face_colors"] = body_colours(ordered, face_counts, shape, appearances)
