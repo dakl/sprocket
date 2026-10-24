@@ -581,6 +581,31 @@
     #sketch-state { color: #5be0a0; }
 
     #sketch-labels { position: fixed; left: 0; top: 0; pointer-events: none; }
+    /* Floating labels (L): under every panel, over the canvas. */
+    #floating-labels { position: fixed; inset: 0; pointer-events: none; z-index: 1; display: none; }
+    #floating-labels.on { display: block; }
+    #floating-leaders { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
+    #floating-leaders line { stroke: rgba(230, 230, 230, 0.6); stroke-width: 1; }
+    #floating-leaders circle { fill: #e6e6e6; }
+    #floating-leaders .sketch line { stroke: rgba(91, 224, 160, 0.7); }
+    #floating-leaders .sketch circle { fill: #5be0a0; }
+    .floating-label {
+      position: absolute;
+      pointer-events: auto;
+      background: rgba(30, 30, 30, 0.88);
+      color: #e6e6e6;
+      border: 1px solid #555;
+      font: 12px -apple-system, sans-serif;
+      line-height: 16px;
+      padding: 0 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    .floating-label.sketch { color: #5be0a0; border-color: #2f6e50; }
+    .floating-label.reference { color: #999; cursor: default; }
+    .floating-label.selected { border-color: #ffaa00; color: #ffaa00; }
     .sketch-dimension-label {
       position: fixed;
       pointer-events: auto;
@@ -759,6 +784,7 @@
       <div class="tool-group">
         <div class="tool-group-buttons">
           <button class="tool-button" id="tool-measure" title="Measure (I): the selection, or each body's volume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 3 6 6L9 21l-6-6z" /><path d="m7 13 2 2" /><path d="m11 9 2 2" /><path d="m15 5 2 2" /></svg></button>
+          <button class="tool-button" id="tool-labels" title="Labels (L): name every body and sketch"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
           <button class="tool-button" id="tool-section" title="Section view: cut the part with a plane"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1" /><path d="M2 12h20" stroke-dasharray="3 2" /></svg></button>
         </div>
         <div class="tool-group-label">INSPECT</div>
@@ -817,6 +843,7 @@
     <button id="sketch-cancel">Cancel</button>
   </div>
   <div id="sketch-labels"></div>
+  <div id="floating-labels"><svg id="floating-leaders"></svg></div>
   <input id="sketch-dimension" type="text" autocomplete="off" spellcheck="false" />
   <div id="timeline"><div id="playhead" title="Drag to roll the model back and forward"></div></div>
   <aside id="properties" hidden></aside>
@@ -837,6 +864,7 @@
   <script src="live.js"></script>
   <script src="colours.js"></script>
   <script src="wheel-zoom.js"></script>
+  <script src="labels.js"></script>
   <script src="vendor/planegcs.js"></script>
   <script src="sketch-solver.js"></script>
   <script src="sketch-model.js"></script>
@@ -3176,6 +3204,197 @@
       else measureEl.style.display = "none";
     }
     toolMeasureEl.addEventListener("click", toggleMeasure);
+
+    // Floating labels: a name chip for every body and sketch on screen, with a
+    // leader line to it. View state only, so not an edit and not on the undo
+    // stack. labels.js places the chips; this places the anchors and draws.
+    const floatingLabelsEl = document.getElementById("floating-labels");
+    const floatingLeadersEl = document.getElementById("floating-leaders");
+    const toolLabelsEl = document.getElementById("tool-labels");
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    let labelsOn = false;
+    let shownLabels = []; // the last layout, for __tcad.labels
+    const labelChips = new Map(); // "body:<id>" or "sketch:<id>" -> {element, text, width, height}
+    function toggleLabels() {
+      labelsOn = !labelsOn;
+      toolLabelsEl.classList.toggle("active", labelsOn);
+      floatingLabelsEl.classList.toggle("on", labelsOn);
+      if (!labelsOn) {
+        labelChips.forEach(({ element }) => element.remove());
+        labelChips.clear();
+        floatingLeadersEl.replaceChildren();
+        shownLabels = [];
+      }
+    }
+    toolLabelsEl.addEventListener("click", toggleLabels);
+
+    /// Each body's bounding-box centre in the mesh's own frame, keyed by body
+    /// id: the body's faces are one run of geometry groups (see mesh.py).
+    /// Cached on the geometry, so it goes when a rebuild replaces it.
+    function bodyCentres(geometry) {
+      if (geometry.userData.bodyCentres) return geometry.userData.bodyCentres;
+      const positions = geometry.attributes.position;
+      const indices = geometry.index;
+      const centreOf = (start, count) => {
+        const box = new THREE.Box3();
+        const point = new THREE.Vector3();
+        for (let i = start; i < start + count; i++) box.expandByPoint(point.fromBufferAttribute(positions, indices.getX(i)));
+        return box.isEmpty() ? null : box.getCenter(new THREE.Vector3());
+      };
+      const centres = new Map();
+      const bodies = geometry.userData.bodies;
+      if (!bodies.length) centres.set(null, centreOf(0, indices.count));
+      let face = 0;
+      for (const body of bodies) {
+        const first = geometry.groups[face];
+        const last = geometry.groups[face + body.faces - 1];
+        if (first && last) centres.set(body.id, centreOf(first.start, last.start + last.count - first.start));
+        face += body.faces;
+      }
+      geometry.userData.bodyCentres = centres;
+      return centres;
+    }
+
+    /// What gets a label now: [{key, kind, id, text, world, reference, selected}].
+    function labelTargets() {
+      const targets = [];
+      if (mesh && mesh.visible) {
+        const centres = bodyCentres(mesh.geometry);
+        const bodies = mesh.geometry.userData.bodies;
+        const listed = bodies.length ? bodies : [{ id: null, name: "Body1" }];
+        for (const body of listed) {
+          if (bodies.length && bodyDisplay(body) === "hidden") continue;
+          const centre = centres.get(body.id);
+          if (!centre) continue;
+          targets.push({
+            key: "body:" + body.id,
+            kind: "body",
+            id: body.id,
+            text: body.name + (body.reference ? " (reference)" : ""),
+            world: mesh.localToWorld(centre.clone()),
+            reference: Boolean(body.reference),
+            selected: body.id !== null && selectedBodyId === body.id,
+          });
+        }
+      }
+      for (const { feature, line } of sketchOutlines) {
+        if (!line.visible) continue;
+        const geometry = line.geometry;
+        if (!geometry.boundingBox) geometry.computeBoundingBox();
+        if (geometry.boundingBox.isEmpty()) continue;
+        targets.push({
+          key: "sketch:" + feature.id,
+          kind: "sketch",
+          id: feature.id,
+          text: feature.id,
+          world: line.localToWorld(geometry.boundingBox.getCenter(new THREE.Vector3())),
+          reference: false,
+          selected: Boolean(selectedSketch && selectedSketch.id === feature.id),
+        });
+      }
+      return targets;
+    }
+
+    function labelChip(target) {
+      let chip = labelChips.get(target.key);
+      if (!chip) {
+        const element = document.createElement("div");
+        element.dataset.key = target.key;
+        element.addEventListener("click", () => clickLabel(target.kind, target.id));
+        floatingLabelsEl.appendChild(element);
+        chip = { element, text: null, width: 0, height: 0 };
+        labelChips.set(target.key, chip);
+      }
+      chip.element.className = "floating-label " + target.kind + (target.reference ? " reference" : "") + (target.selected ? " selected" : "");
+      // Measured only when the text changes: offsetWidth forces a layout.
+      if (chip.text !== target.text) {
+        chip.element.textContent = target.text;
+        chip.text = target.text;
+        chip.width = chip.element.offsetWidth;
+        chip.height = chip.element.offsetHeight;
+      }
+      return chip;
+    }
+
+    /// A click on a chip picks what it names, as a click on its browser row does.
+    function clickLabel(kind, id) {
+      if (kind === "body") {
+        const body = partBodies().find((candidate) => candidate.id === id);
+        if (body) selectBody(body.id);
+        return;
+      }
+      const feature = browserFeatures.find((candidate) => candidate.id === id);
+      if (feature && feature.active && !hiddenSketchIDs.has(feature.id)) selectSketchForExtrude(feature);
+    }
+
+    /// The part of the canvas no panel covers, where a label can be read: below
+    /// the toolbar, right of the browser and above the timeline.
+    const labelPanels = ["toolbar", "browser", "timeline"].map((id) => document.getElementById(id));
+    function labelView(rect) {
+      let { left, top, right, bottom } = rect;
+      // The panels are position: fixed, so offsetParent cannot say whether one
+      // shows; a hidden one has an empty rect.
+      const [toolbar, browser, timeline] = labelPanels.map((element) => {
+        const box = element && element.getBoundingClientRect();
+        return box && box.width > 0 && box.height > 0 ? box : null;
+      });
+      if (toolbar) top = Math.max(top, toolbar.bottom);
+      if (browser) left = Math.max(left, browser.right);
+      if (timeline) bottom = Math.min(bottom, timeline.top);
+      return { left, top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+    }
+
+    /// Runs every frame while labels are on.
+    function placeLabels() {
+      if (!labelsOn) return;
+      // A sketch being drawn has its own dimension chips; these would crowd it.
+      floatingLabelsEl.style.visibility = sketchStage ? "hidden" : "";
+      if (sketchStage) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const anchors = [];
+      const used = new Map();
+      for (const target of labelTargets()) {
+        const ndc = target.world.clone().project(camera);
+        // Behind the camera, past the far plane or off screen: no label.
+        if (ndc.z > 1 || Math.abs(ndc.x) > 1 || Math.abs(ndc.y) > 1) continue;
+        const chip = labelChip(target);
+        used.set(target.key, { chip, target });
+        anchors.push({
+          id: target.key,
+          x: rect.left + ((ndc.x + 1) / 2) * rect.width,
+          y: rect.top + ((1 - ndc.y) / 2) * rect.height,
+          width: chip.width,
+          height: chip.height,
+        });
+      }
+      for (const [key, { element }] of labelChips) {
+        if (used.has(key)) continue;
+        element.remove();
+        labelChips.delete(key);
+      }
+      const placed = FloatingLabels.layoutLabels(anchors, labelView(rect));
+      const leaders = [];
+      shownLabels = placed.map((label) => {
+        const { chip, target } = used.get(label.id);
+        chip.element.style.transform = "translate(" + label.x + "px, " + label.y + "px)";
+        const end = FloatingLabels.leaderEnd(label);
+        const group = document.createElementNS(SVG_NS, "g");
+        group.setAttribute("class", target.kind);
+        const line = document.createElementNS(SVG_NS, "line");
+        line.setAttribute("x1", String(label.anchorX));
+        line.setAttribute("y1", String(label.anchorY));
+        line.setAttribute("x2", String(end.x));
+        line.setAttribute("y2", String(end.y));
+        const dot = document.createElementNS(SVG_NS, "circle");
+        dot.setAttribute("cx", String(label.anchorX));
+        dot.setAttribute("cy", String(label.anchorY));
+        dot.setAttribute("r", "2.5");
+        group.append(line, dot);
+        leaders.push(group);
+        return { ...label, kind: target.kind, id: target.id, text: target.text };
+      });
+      floatingLeadersEl.replaceChildren(...leaders);
+    }
     const millimetres = (value) => String(Number(value.toFixed(2)));
     function updateMeasure() {
       if (!measureOn || !canCallDaemon()) return;
@@ -4791,6 +5010,8 @@
         armModify("hole");
       } else if (event.key === "i" || event.key === "I") {
         toggleMeasure();
+      } else if ((event.key === "l" || event.key === "L") && !event.metaKey && !event.ctrlKey) {
+        toggleLabels();
       } else if (event.key === "Escape" && !extrudeArmed) {
         clearSelection();
       } else if (event.key === "Escape" && extrudeArmed) {
@@ -5757,6 +5978,7 @@
       placeHandle();
       sketcher.frame();
       renderer.render(scene, camera);
+      placeLabels();
       renderViewCube();
     }
     animate();
@@ -5800,6 +6022,10 @@
         if (!section) return null;
         const clipped = [].concat(mesh ? mesh.material : [], edgeLines ? edgeLines.material : []).filter((material) => material.clippingPlanes && material.clippingPlanes.length);
         return { ...section, clipped: clipped.length, cap: Boolean(sectionCap) };
+      },
+      /// The floating labels on screen: [{kind, id, text, x, y, width, height, anchorX, anchorY}], empty when off.
+      get labels() {
+        return shownLabels.map((label) => ({ ...label }));
       },
       /// The measure readout's text, empty when it is hidden.
       get measure() {

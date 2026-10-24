@@ -1,0 +1,164 @@
+{
+ "view": {
+  "left": 211,
+  "top": 54.5,
+  "width": 386,
+  "height": 642.5
+ },
+ "anchors": [
+  {
+   "id": "body:shell",
+   "x": 298.5,
+   "y": 382.9,
+   "width": 112,
+   "height": 18
+  },
+  {
+   "id": "body:floor",
+   "x": 298.5,
+   "y": 413.9,
+   "width": 71,
+   "height": 18
+  },
+  {
+   "id": "body:mezz",
+   "x": 302.2,
+   "y": 365.4,
+   "width": 101,
+   "height": 18
+  },
+  {
+   "id": "body:clamp",
+   "x": 298.5,
+   "y": 338.4,
+   "width": 72,
+   "height": 18
+  },
+  {
+   "id": "body:turntable",
+   "x": 298.5,
+   "y": 303.5,
+   "width": 64,
+   "height": 18
+  },
+  {
+   "id": "body:ref_opi",
+   "x": 156.3,
+   "y": 431.5,
+   "width": 179,
+   "height": 18
+  },
+  {
+   "id": "body:ref_adapter",
+   "x": 203.8,
+   "y": 270.7,
+   "width": 193,
+   "height": 18
+  },
+  {
+   "id": "body:ref_ina226",
+   "x": 338.3,
+   "y": 477.3,
+   "width": 116,
+   "height": 18
+  },
+  {
+   "id": "body:ref_buck",
+   "x": 459.2,
+   "y": 448.3,
+   "width": 167,
+   "height": 18
+  },
+  {
+   "id": "body:ref_amp",
+   "x": 215.1,
+   "y": 480.7,
+   "width": 169,
+   "height": 18
+  },
+  {
+   "id": "body:ref_charger",
+   "x": 440.3,
+   "y": 276.7,
+   "width": 157,
+   "height": 18
+  },
+  {
+   "id": "body:ref_mic",
+   "x": 329.7,
+   "y": 215.0,
+   "width": 149,
+   "height": 18
+  },
+  {
+   "id": "body:ref_speaker",
+   "x": 81.5,
+   "y": 517.6,
+   "width": 161,
+   "height": 18
+  },
+  {
+   "id": "body:ref_c1",
+   "x": 267.4,
+   "y": 353.4,
+   "width": 139,
+   "height": 18
+  },
+  {
+   "id": "body:ref_brg_lower",
+   "x": 298.5,
+   "y": 323.7,
+   "width": 244,
+   "height": 18
+  },
+  {
+   "id": "body:ref_brg_upper",
+   "x": 298.5,
+   "y": 299.1,
+   "width": 246,
+   "height": 18
+  },
+  {
+   "id": "body:ref_holder0",
+   "x": 353.3,
+   "y": 540.2,
+   "width": 198,
+   "height": 18
+  },
+  {
+   "id": "body:ref_holder1",
+   "x": 411.5,
+   "y": 344.0,
+   "width": 198,
+   "height": 18
+  },
+  {
+   "id": "body:ref_holder2",
+   "x": 133.4,
+   "y": 386.5,
+   "width": 198,
+   "height": 18
+  },
+  {
+   "id": "body:ref_servo",
+   "x": 327.6,
+   "y": 376.1,
+   "width": 217,
+   "height": 18
+  },
+  {
+   "id": "body:ref_placeholders",
+   "x": 473.4,
+   "y": 395.5,
+   "width": 249,
+   "height": 18
+  },
+  {
+   "id": "sketch:shell_arc_s",
+   "x": 351.6,
+   "y": 290.9,
+   "width": 75,
+   "height": 18
+  }
+ ]
+}
