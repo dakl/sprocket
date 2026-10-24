@@ -5,12 +5,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from build123d import Box, export_step, import_step
+from build123d import Box, Location, export_step, import_step
 
 from conftest import running
 from sprocket_engine.document import Document, DocumentError
 from sprocket_engine.export import write_step
-from sprocket_engine.mesh import export_mesh
+from sprocket_engine.mesh import export_mesh, tessellate
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
 
@@ -223,3 +223,15 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     face_normals = np.array([tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()])
     nearest = np.abs(normals @ face_normals.T).max(axis=1)
     assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)
+
+
+def test_a_moved_shape_meshes_in_the_same_place_every_time():
+    # ocp-tessellate caches its result per shape and returns the same dict.
+    # Placing that dict in place moved a reference once more on each rebuild
+    # that hit the cache, so toggling any body's visibility made references
+    # jump: a box at x 95..105 came back at 190..200 on the third call.
+    box = Box(10, 10, 10).moved(Location((100, 0, 0)))
+    for _ in range(4):
+        vertices = tessellate(box)["vertices"].reshape(-1, 3)
+        assert vertices[:, 0].min() == pytest.approx(95)
+        assert vertices[:, 0].max() == pytest.approx(105)
