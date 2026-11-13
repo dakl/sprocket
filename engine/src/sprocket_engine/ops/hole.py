@@ -26,9 +26,7 @@ SCHEMA = {
         "base": {"type": "string", "description": "id of the feature being drilled"},
         "sketch": {
             "type": "string",
-            "description": (
-                "id of a sketch feature whose circle centres place the holes"
-            ),
+            "description": ("id of a sketch feature whose circle centres place the holes"),
         },
         "entities": {
             "type": "array",
@@ -103,20 +101,14 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
             entity["c"]
             for entity in sketch_entities(sketch)
             if entity["kind"] == "circle"
-            and (
-                entity["id"] in wanted
-                if wanted is not None
-                else not entity.get("construction")
-            )
+            and (entity["id"] in wanted if wanted is not None else not entity.get("construction"))
         ]
     elif "circle" in sketch:
         uvs = [sketch["circle"].get("center", [0, 0])]
     else:
         uvs = []
     if not uvs:
-        raise ValueError(
-            f"sketch {feature['sketch']!r} has no circles to place holes at"
-        )
+        raise ValueError(f"sketch {feature['sketch']!r} has no circles to place holes at")
     direction = -plane.z_dir
     return [(plane.from_local_coords((u, v)), direction) for u, v in uvs]
 

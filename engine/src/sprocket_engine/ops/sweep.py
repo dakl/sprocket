@@ -45,7 +45,6 @@ def apply(feature: dict, ctx):
     )
     if tool.volume <= 0:
         raise ValueError(
-            f"sweep {feature['id']} made no solid: is the profile across the start of "
-            "the path?"
+            f"sweep {feature['id']} made no solid: is the profile across the start of the path?"
         )
     return combine(feature, tool, ctx)

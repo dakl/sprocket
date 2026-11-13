@@ -63,9 +63,7 @@ def test_cut_mode_bores_the_swept_profile_out_of_the_base():
 
 def test_named_entities_pick_the_path_and_construction_is_left_out_by_default():
     """e2 is construction, so the default path is e1 alone. Naming both follows both."""
-    sketch = route(
-        line("e1", [0, 0], [10, 0]), line("e2", [10, 0], [10, 10], construction=True)
-    )
+    sketch = route(line("e1", [0, 0], [10, 0]), line("e2", [10, 0], [10, 10], construction=True))
     sweep = {
         "id": "pipe",
         "type": "sweep",

@@ -71,16 +71,10 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
             order.append(root)
         tip_of[root] = feature_id
         tool = feature.get("tool")
-        if (
-            feature.get("type") in CONSUMES_TOOL
-            and tool in root_of
-            and root_of[tool] != root
-        ):
+        if feature.get("type") in CONSUMES_TOOL and tool in root_of and root_of[tool] != root:
             consumed.add(root_of[tool])
     # A reference body is never consumed: cutting with it keeps it on screen.
-    reference = {
-        root for root in order if ctx.features[root].get("type") == "reference"
-    }
+    reference = {root for root in order if ctx.features[root].get("type") == "reference"}
     return [
         {
             "id": root,
@@ -150,9 +144,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         op = REGISTRY.get(op_type)
         if op is None:
             raise _tagged(
-                ReplayError(
-                    f"unknown op type {op_type!r} in feature {feature.get('id')!r}"
-                ),
+                ReplayError(f"unknown op type {op_type!r} in feature {feature.get('id')!r}"),
                 feature,
                 index,
             )
@@ -160,9 +152,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         try:
             jsonschema.validate(feature, op.schema)
         except jsonschema.ValidationError as exc:
-            error = ReplayError(
-                f"feature {feature.get('id')!r} failed validation: {exc.message}"
-            )
+            error = ReplayError(f"feature {feature.get('id')!r} failed validation: {exc.message}")
             raise _tagged(error, feature, index) from exc
 
         key = feature_cache_key(feature, upstream_key)
@@ -217,6 +207,7 @@ def build_shape(
     """Replays as much of the document as still builds.
 
 
+
     Returns (shape, failed_feature_id, context). The context holds every
     feature's result, which a sketch on a face needs to find its plane. A feature that no longer builds is not
     a failed build: editing a sketch can break a later op, and the caller still
@@ -254,9 +245,7 @@ def build_shape(
         return shape, failed_id, ctx
 
 
-def _trailing_sketches(
-    features: list[dict], start: int, stop: int, ctx: Context
-) -> str | None:
+def _trailing_sketches(features: list[dict], start: int, stop: int, ctx: Context) -> str | None:
     """Puts the sketches between the last solid and `stop` into `ctx.features`.
 
     Replay stops at the last solid, because a sketch makes no part. But a sketch

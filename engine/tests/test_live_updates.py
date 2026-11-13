@@ -64,9 +64,7 @@ def test_the_engines_own_save_is_not_a_change_on_disk(daemon, client):
     assert client.call("get_file_status")["changed_on_disk"] is False
 
 
-def test_a_file_replaced_on_disk_is_reloaded_as_an_undoable_step(
-    daemon, client, listener
-):
+def test_a_file_replaced_on_disk_is_reloaded_as_an_undoable_step(daemon, client, listener):
     revision = client.call("get_document")["revision"]
     replacement = {
         **BOX_DOCUMENT,
@@ -106,9 +104,7 @@ def test_a_half_written_file_is_left_alone_until_it_reads(daemon, client):
     assert daemon.check_file() == "reloaded"
 
 
-def test_unsaved_edits_and_a_changed_file_are_a_conflict_not_a_reload(
-    daemon, client, listener
-):
+def test_unsaved_edits_and_a_changed_file_are_a_conflict_not_a_reload(daemon, client, listener):
     daemon.autosave = False
     client.call("apply_edit", edits=[TALLER], author="viewer")
     theirs = {
@@ -134,9 +130,7 @@ def test_unsaved_edits_and_a_changed_file_are_a_conflict_not_a_reload(
     assert client.call("get_file_status")["conflict"] is None
 
 
-def test_keeping_the_file_in_a_conflict_still_lets_undo_bring_the_edit_back(
-    daemon, client
-):
+def test_keeping_the_file_in_a_conflict_still_lets_undo_bring_the_edit_back(daemon, client):
     daemon.autosave = False
     client.call("apply_edit", edits=[TALLER], author="viewer")
     theirs = {
@@ -207,10 +201,7 @@ def test_the_watcher_reloads_a_rewritten_file_within_a_second(tmp_path):
             },
         )
         deadline = time.monotonic() + 1.0
-        while (
-            client.call("get_document")["revision"] == revision
-            and time.monotonic() < deadline
-        ):
+        while client.call("get_document")["revision"] == revision and time.monotonic() < deadline:
             time.sleep(0.02)
         assert client.call("get_document")["features"][1]["distance"] == 12
         # Its own saves from here on are not changes.
@@ -235,9 +226,7 @@ BOARD = {
 
 
 def taller_board(height):
-    return {
-        "features": [BOARD["features"][0], {**BOARD["features"][1], "distance": height}]
-    }
+    return {"features": [BOARD["features"][0], {**BOARD["features"][1], "distance": height}]}
 
 
 def case_document(board_path):

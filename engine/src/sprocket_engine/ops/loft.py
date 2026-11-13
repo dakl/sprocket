@@ -26,8 +26,7 @@ SCHEMA = {
         "ruled": {
             "type": "boolean",
             "description": (
-                "straight sides between sections instead of a smooth skin. Default "
-                "false."
+                "straight sides between sections instead of a smooth skin. Default false."
             ),
         },
         "base": {

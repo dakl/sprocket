@@ -91,9 +91,7 @@ def test_the_mesh_route_serves_the_built_part(server):
 
 
 def rpc(base: str, method: str, **params) -> dict:
-    reply = post(
-        base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-    )
+    reply = post(base, "/rpc", {"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
     return reply["result"]
 
 
@@ -118,9 +116,7 @@ def test_the_timeline_carries_each_full_feature_for_the_parameter_form(server):
 
 def test_the_schemas_route_lists_every_op(server):
     base, _ = server
-    assert {"sketch", "extrude", "fillet"} <= set(
-        json.loads(get(base, "/schemas.json"))
-    )
+    assert {"sketch", "extrude", "fillet"} <= set(json.loads(get(base, "/schemas.json")))
 
 
 def test_rpc_route_takes_the_daemons_methods(server):
@@ -168,9 +164,7 @@ def test_a_page_on_another_origin_cannot_edit_the_document(server):
     assert "result" in allowed
 
 
-def test_opening_another_document_at_the_same_revision_serves_its_mesh(
-    server, tmp_path
-):
+def test_opening_another_document_at_the_same_revision_serves_its_mesh(server, tmp_path):
     """Both documents are at revision 0.
 
     A mesh cached by revision alone would keep serving the box.
@@ -222,9 +216,7 @@ def test_a_burst_of_connections_waits_in_the_queue_instead_of_being_reset(
     clients = []
     try:
         port = http.server_address[1]
-        clients = [
-            socket.create_connection(("127.0.0.1", port), timeout=1) for _ in range(20)
-        ]
+        clients = [socket.create_connection(("127.0.0.1", port), timeout=1) for _ in range(20)]
         threading.Thread(target=http.serve_forever, daemon=True).start()
         for client in clients:
             client.sendall(b"GET /index.html HTTP/1.0\r\n\r\n")
@@ -277,10 +269,7 @@ def test_the_export_route_refuses_what_it_cannot_serve(server):
     assert get_with_headers(base, "/export?format=obj")[0] == 400
     assert get_with_headers(base, "/export")[0] == 400
     assert (
-        get_with_headers(
-            base, "/export?format=stl", {"Origin": "https://evil.example"}
-        )[0]
-        == 403
+        get_with_headers(base, "/export?format=stl", {"Origin": "https://evil.example"})[0] == 403
     )
     rpc(
         base,

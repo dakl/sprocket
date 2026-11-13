@@ -26,6 +26,4 @@ def apply(feature: dict, ctx):
     only an empty match is an error.
     """
     base = ctx.results[feature["base"]]
-    return b3d_fillet(
-        resolve_edges(base, feature["edges"], ctx), radius=feature["radius"]
-    )
+    return b3d_fillet(resolve_edges(base, feature["edges"], ctx), radius=feature["radius"])

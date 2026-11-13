@@ -142,9 +142,7 @@ def test_the_viewer_gets_the_thread_to_draw():
     ]
     document = Document(features)
     _, ctx = replay(document.for_replay(), return_context=True)
-    entry = next(
-        item for item in features_summary(document, None, ctx) if item["id"] == "t"
-    )
+    entry = next(item for item in features_summary(document, None, ctx) if item["id"] == "t")
     assert entry["thread"]["designation"] == "M3"
     assert entry["thread"]["internal"] is True
 

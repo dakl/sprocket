@@ -35,9 +35,7 @@ def widen(client, half_width):
         [-half_width, 15],
     ]
     sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": polygon}
-    return client.call(
-        "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
-    )
+    return client.call("apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}])
 
 
 def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
@@ -90,9 +88,9 @@ def test_a_selector_that_finds_a_different_number_fails_loudly(client):
     )
     pentagon = [[-20, -15], [20, -15], [25, 0], [20, 15], [-20, 15]]
     sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": pentagon}
-    built = client.call(
-        "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
-    )["built"]
+    built = client.call("apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}])[
+        "built"
+    ]
     assert built["ok"] is False
     assert built["failed_feature"] == "r1"
 

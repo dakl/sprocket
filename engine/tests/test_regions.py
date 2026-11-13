@@ -173,9 +173,7 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
 
 
 def test_construction_geometry_bounds_no_region():
-    regions = find_regions(
-        [*rectangle(0, 0, 40, 20), circle("c", 20, 10, 4, construction=True)]
-    )
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 10, 4, construction=True)])
     assert len(regions) == 1
 
 
@@ -208,9 +206,7 @@ def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart():
     with pytest.raises(ProfileError, match="gives no 'inside' point"):
         pick_region(regions, {"bounded_by": ["c", "r3"]})
     for twin in twins:
-        picked = pick_region(
-            regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)}
-        )
+        picked = pick_region(regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)})
         assert picked.inside == twin.inside
 
 
@@ -222,9 +218,7 @@ def test_a_reference_that_matches_nothing_is_an_error_not_a_guess():
 
 def test_the_bounded_by_order_in_a_reference_does_not_matter():
     regions = find_regions(rectangle(0, 0, 40, 20))
-    assert pick_region(
-        regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}
-    ).area == pytest.approx(800)
+    assert pick_region(regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}).area == pytest.approx(800)
 
 
 coordinate = st.integers(min_value=-20, max_value=20)
@@ -241,17 +235,13 @@ coordinate = st.integers(min_value=-20, max_value=20)
     st.integers(1, 30),
     st.integers(1, 30),
 )
-def test_the_regions_of_two_rectangles_add_up_to_their_union(
-    ax, ay, aw, ah, bx, by, bw, bh
-):
+def test_the_regions_of_two_rectangles_add_up_to_their_union(ax, ay, aw, ah, bx, by, bw, bh):
     """Whatever the overlap, and including rectangles that share an edge or a
     corner, the regions tile the union exactly once.
     """
     overlap_w = max(0, min(ax + aw, bx + bw) - max(ax, bx))
     overlap_h = max(0, min(ay + ah, by + bh) - max(ay, by))
     union = aw * ah + bw * bh - overlap_w * overlap_h
-    entities = rectangle(ax, ay, ax + aw, ay + ah, "a") + rectangle(
-        bx, by, bx + bw, by + bh, "b"
-    )
+    entities = rectangle(ax, ay, ax + aw, ay + ah, "a") + rectangle(bx, by, bx + bw, by + bh, "b")
     regions = find_regions(entities)
     assert sum(region.area for region in regions) == pytest.approx(union, rel=1e-6)

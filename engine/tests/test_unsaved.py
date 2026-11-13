@@ -75,9 +75,7 @@ def test_save_refuses_to_overwrite_a_file_changed_on_disk(manual, client):
     assert client.call("get_file_status")["conflict"] is not None
 
 
-def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(
-    manual, client
-):
+def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(manual, client):
     client.call("apply_edit", edits=[TALLER])
     recovered = json.loads(manual.recovery_path.read_text())
     assert recovered["path"] == str(manual.session.document.path)

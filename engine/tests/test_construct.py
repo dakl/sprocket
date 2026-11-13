@@ -138,9 +138,7 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
         "type": "axis",
         "axis": {
             "base": "post",
-            "face": {
-                "select": [{"op": "faces"}, {"op": "nearest_to", "point": [7, 0, 4]}]
-            },
+            "face": {"select": [{"op": "faces"}, {"op": "nearest_to", "point": [7, 0, 4]}]},
         },
     }
     ring = {
@@ -312,31 +310,20 @@ def test_pick_axis_names_a_cylindrical_face_and_a_circular_edge_by_the_body_they
         with Client(daemon.socket_path) as client:
             geometry = client.call("describe_geometry")
             round_face = next(
-                face["handle"]
-                for face in geometry["faces"]
-                if face["kind"] == "CYLINDER"
+                face["handle"] for face in geometry["faces"] if face["kind"] == "CYLINDER"
             )
             axis = client.call("pick_axis", handle=round_face)
             assert axis["axis"]["base"] == "post"
             assert "face" in axis["axis"]
             assert axis["resolved"]["origin"][:2] == pytest.approx([10, 0])
             assert abs(axis["resolved"]["direction"][2]) == pytest.approx(1)
-            circle = next(
-                edge["handle"] for edge in geometry["edges"] if edge["kind"] == "CIRCLE"
-            )
+            circle = next(edge["handle"] for edge in geometry["edges"] if edge["kind"] == "CIRCLE")
             around = client.call("pick_axis", handle=circle)
             assert around["axis"]["base"] == "post"
             assert "edge" in around["axis"]
             assert around["resolved"]["origin"][:2] == pytest.approx([10, 0])
-            line = next(
-                edge["handle"] for edge in geometry["edges"] if edge["kind"] == "LINE"
-            )
-            assert (
-                client.call("pick_axis", handle=line)["resolved"]["direction"]
-                is not None
-            )
-            flat = next(
-                face["handle"] for face in geometry["faces"] if face["kind"] == "PLANE"
-            )
+            line = next(edge["handle"] for edge in geometry["edges"] if edge["kind"] == "LINE")
+            assert client.call("pick_axis", handle=line)["resolved"]["direction"] is not None
+            flat = next(face["handle"] for face in geometry["faces"] if face["kind"] == "PLANE")
             with pytest.raises(Exception, match="no axis"):
                 client.call("pick_axis", handle=flat)

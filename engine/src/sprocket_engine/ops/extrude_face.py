@@ -12,8 +12,7 @@ from .registry import register
 SCHEMA = {
     "type": "object",
     "description": (
-        "Push/pull one face of an existing solid. Positive adds material, negative "
-        "cuts into it."
+        "Push/pull one face of an existing solid. Positive adds material, negative cuts into it."
     ),
     "required": ["id", "type", "base", "face", "distance"],
     "properties": {
@@ -38,9 +37,7 @@ def apply(feature: dict, ctx):
     base = ctx.results[feature["base"]]
     faces = resolve_selector(base, feature["face"], ctx)
     if len(faces) != 1:
-        raise SelectorError(
-            f"face selector matched {len(faces)} faces, expected exactly 1"
-        )
+        raise SelectorError(f"face selector matched {len(faces)} faces, expected exactly 1")
 
     distance = feature["distance"]
     tool = b3d_extrude(faces[0], amount=distance)

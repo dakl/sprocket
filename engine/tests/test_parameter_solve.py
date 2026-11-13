@@ -61,9 +61,7 @@ def volume(document):
 
 
 def set_w(document, value):
-    document.apply_edits(
-        [{"op": "set_parameter", "name": "w", "value": value}], None, "test"
-    )
+    document.apply_edits([{"op": "set_parameter", "name": "w", "value": value}], None, "test")
     return document.log[-1]
 
 
@@ -77,9 +75,7 @@ def test_a_parameter_that_drives_a_dimension_moves_the_sketch_and_the_part():
     assert entity(sketch, "e3")["p0"] == pytest.approx([60, 20])
     # The dimension still reads the parameter.
     assert [
-        item["value"]
-        for item in sketch["constraints"]
-        if isinstance(item.get("value"), str)
+        item["value"] for item in sketch["constraints"] if isinstance(item.get("value"), str)
     ] == ["=w"]
     # And it follows again, down as well as up.
     set_w(document, 25)
@@ -88,9 +84,7 @@ def test_a_parameter_that_drives_a_dimension_moves_the_sketch_and_the_part():
 
 def test_an_expression_over_a_parameter_follows_too():
     document = Document([box_sketch("=2 * half"), EXTRUDE], 2, {"half": 20})
-    document.apply_edits(
-        [{"op": "set_parameter", "name": "half", "value": 35}], None, "test"
-    )
+    document.apply_edits([{"op": "set_parameter", "name": "half", "value": 35}], None, "test")
     assert volume(document) == pytest.approx(70 * 20 * 10)
 
 
@@ -100,13 +94,9 @@ def test_a_parameter_no_sketch_uses_does_not_solve_anything(monkeypatch):
     def fail(*_args, **_kwargs):
         raise AssertionError("the solver ran for a parameter that no sketch uses")
 
-    document = Document(
-        [box_sketch(40), {**EXTRUDE, "distance": "=depth"}], 2, {"depth": 10}
-    )
+    document = Document([box_sketch(40), {**EXTRUDE, "distance": "=depth"}], 2, {"depth": 10})
     monkeypatch.setattr(solver, "solve", fail)
-    document.apply_edits(
-        [{"op": "set_parameter", "name": "depth", "value": 12}], None, "test"
-    )
+    document.apply_edits([{"op": "set_parameter", "name": "depth", "value": 12}], None, "test")
     assert volume(document) == pytest.approx(40 * 20 * 12)
 
 
@@ -157,17 +147,11 @@ def test_a_sketch_that_projects_from_the_driven_one_follows_it():
 def test_a_value_that_leaves_the_sketch_unsolvable_is_refused_and_changes_nothing():
     # A second dimension on the same width, fixed at 40: only w = 40 satisfies both.
     over = box_sketch(
-        extra=[
-            {"id": "twice", "kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40}
-        ]
+        extra=[{"id": "twice", "kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40}]
     )
     document = Document([over, EXTRUDE], 2, {"w": 40})
-    with pytest.raises(
-        DocumentError, match=r"sketch 's' with no solution.*(width|twice)"
-    ):
-        document.apply_edits(
-            [{"op": "set_parameter", "name": "w", "value": 60}], None, "test"
-        )
+    with pytest.raises(DocumentError, match=r"sketch 's' with no solution.*(width|twice)"):
+        document.apply_edits([{"op": "set_parameter", "name": "w", "value": 60}], None, "test")
     assert document.parameters == {"w": 40}
     assert entity(document.features[0], "e1")["p1"] == [40, 0]
 
@@ -200,6 +184,6 @@ def test_the_daemon_moves_the_sketch_and_undo_puts_it_back(tmp_path):
         assert client.call("measure")["volume"] == pytest.approx(12000)
         client.call("undo")
         assert client.call("measure")["volume"] == pytest.approx(8000)
-        assert entity(client.call("get_document")["features"][0], "e1")[
-            "p1"
-        ] == pytest.approx([40, 0])
+        assert entity(client.call("get_document")["features"][0], "e1")["p1"] == pytest.approx(
+            [40, 0]
+        )

@@ -56,9 +56,7 @@ def test_shell_open_selector_must_match_faces():
         ]
     }
     with pytest.raises(Exception, match="matched no faces"):
-        build(
-            {"id": "h", "type": "shell", "base": "b", "thickness": 2, "open": nothing}
-        )
+        build({"id": "h", "type": "shell", "base": "b", "thickness": 2, "open": nothing})
 
 
 # ---- hole ------------------------------------------------------------------
@@ -86,9 +84,7 @@ def test_a_counterbore_adds_the_head_cylinder():
             "head_depth": 3,
         }
     )
-    assert part.volume == pytest.approx(
-        4000 - math.pi * 4 * 10 - math.pi * (16 - 4) * 3
-    )
+    assert part.volume == pytest.approx(4000 - math.pi * 4 * 10 - math.pi * (16 - 4) * 3)
 
 
 def test_a_countersink_adds_a_90_degree_cone():

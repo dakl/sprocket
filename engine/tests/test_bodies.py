@@ -105,9 +105,10 @@ def test_the_mesh_lists_bodies_in_face_order_with_colours(tmp_path):
         },
     }
     header, colours = read_mesh_after(export_mesh, part, bodies, [lid_top], tmp_path)
-    assert [
-        (body["name"], body["faces"], body["visible"]) for body in header["bodies"]
-    ] == [("Case", 6, True), ("Lid", 3, False)]
+    assert [(body["name"], body["faces"], body["visible"]) for body in header["bodies"]] == [
+        ("Case", 6, True),
+        ("Lid", 3, False),
+    ]
     assert [body["tip"] for body in header["bodies"]] == ["case", "lid"]
     assert colours[:6].tolist() == [0xFF0000] * 6
     # The appearance indexes the part's faces, so it must land on the lid's top.
@@ -140,11 +141,7 @@ def test_a_plain_one_body_step_is_not_relabelled(tmp_path):
     write_step(part, tmp_path / "without.step")
 
     def strip(path):
-        return [
-            line
-            for line in path.read_text().splitlines()
-            if not line.startswith("FILE_NAME")
-        ]
+        return [line for line in path.read_text().splitlines() if not line.startswith("FILE_NAME")]
 
     assert strip(tmp_path / "with.step") == strip(tmp_path / "without.step")
 
@@ -171,13 +168,9 @@ def test_set_body_validates_and_undo_restores(tmp_path):
     document.apply_edits([{"op": "set_body", "id": "lid", "color": None}], None, "test")
     assert document.bodies == {"lid": {"name": "Lid"}}
     with pytest.raises(DocumentError, match="#rrggbb"):
-        document.apply_edits(
-            [{"op": "set_body", "id": "lid", "color": "green"}], None, "test"
-        )
+        document.apply_edits([{"op": "set_body", "id": "lid", "color": "green"}], None, "test")
     with pytest.raises(DocumentError, match="no feature"):
-        document.apply_edits(
-            [{"op": "set_body", "id": "nope", "name": "x"}], None, "test"
-        )
+        document.apply_edits([{"op": "set_body", "id": "nope", "name": "x"}], None, "test")
     document.restore(before, "test")
     assert document.bodies == {}
     path = tmp_path / "d.sprocket"
@@ -185,9 +178,7 @@ def test_set_body_validates_and_undo_restores(tmp_path):
     document.save(path)
     assert Document.load(path).bodies == {"case": {"visible": False}}
     with pytest.raises(DocumentError, match="use set_visibility"):
-        document.apply_edits(
-            [{"op": "set_body", "id": "case", "visible": True}], None, "test"
-        )
+        document.apply_edits([{"op": "set_body", "id": "case", "visible": True}], None, "test")
 
 
 def test_hiding_a_body_is_undoable_view_state_with_no_log_entry(tmp_path):
@@ -266,9 +257,7 @@ def test_an_agent_reads_and_sets_bodies_and_resolves_a_plane_through_mcp(tmp_pat
 def test_set_appearances_replaces_face_colours_and_undo_brings_them_back(tmp_path):
     top = {
         "color": "#00ff00",
-        "select": {
-            "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}]
-        },
+        "select": {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}]},
     }
     with (
         running({"features": CASE[:2]}, tmp_path) as daemon,
@@ -277,9 +266,7 @@ def test_set_appearances_replaces_face_colours_and_undo_brings_them_back(tmp_pat
         client.call("set_appearances", appearances=[top])
         assert client.call("get_document")["appearances"] == [top]
         with pytest.raises(Exception, match="appearances"):
-            client.call(
-                "set_appearances", appearances=[{"color": "green", "select": {}}]
-            )
+            client.call("set_appearances", appearances=[{"color": "green", "select": {}}])
         client.call("undo")
         assert client.call("get_document")["appearances"] == []
 

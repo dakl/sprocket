@@ -61,9 +61,7 @@ def drive(daemon, work):
 
 
 def text_of(result) -> str:
-    return "".join(
-        part.text for part in result.content if isinstance(part, types.TextContent)
-    )
+    return "".join(part.text for part in result.content if isinstance(part, types.TextContent))
 
 
 def test_every_registered_op_is_callable_as_a_tool(daemon):
@@ -96,10 +94,7 @@ def test_every_op_tool_describes_what_the_op_does(daemon):
     tools = drive(daemon, lambda session: session.list_tools())
     for tool in tools.tools:
         if tool.name.startswith("add_"):
-            assert (
-                tool.description
-                == REGISTRY[tool.name[len("add_") :]].schema["description"]
-            )
+            assert tool.description == REGISTRY[tool.name[len("add_") :]].schema["description"]
 
 
 def test_adding_a_feature_names_it_and_reports_the_build(daemon):
@@ -128,9 +123,7 @@ def test_render_view_returns_the_image_itself(daemon):
         )
 
     result = drive(daemon, work)
-    image = next(
-        part for part in result.content if isinstance(part, types.ImageContent)
-    )
+    image = next(part for part in result.content if isinstance(part, types.ImageContent))
     assert image.mime_type == "image/png"
     assert base64.b64decode(image.data)[:8] == b"\x89PNG\r\n\x1a\n"
     assert json.loads(text_of(result))["width"] == 200
@@ -160,9 +153,7 @@ def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
 
 def test_a_feature_the_engine_rejects_is_reported_not_raised(daemon):
     async def work(session):
-        return await session.call_tool(
-            "add_extrude", {"profile": "nope", "distance": 10}
-        )
+        return await session.call_tool("add_extrude", {"profile": "nope", "distance": 10})
 
     result = drive(daemon, work)
     assert result.is_error is True

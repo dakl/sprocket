@@ -83,9 +83,7 @@ def test_a_sphere_is_centred_on_the_plane():
 
 def test_a_missing_size_or_a_fat_torus_says_what_is_wrong():
     with pytest.raises(ValueError, match="needs width"):
-        build(
-            [{"id": "p", "type": "primitive", "shape": "box", "depth": 1, "height": 1}]
-        )
+        build([{"id": "p", "type": "primitive", "shape": "box", "depth": 1, "height": 1}])
     with pytest.raises(ValueError, match="smaller than its major_radius"):
         build(
             [
@@ -136,17 +134,13 @@ BAR = {
 
 
 def test_move_with_base_moves_the_body_itself():
-    part, ctx = build(
-        [BAR, {"id": "m", "type": "move", "base": "bar", "translate": [0, 0, 7]}]
-    )
+    part, ctx = build([BAR, {"id": "m", "type": "move", "base": "bar", "translate": [0, 0, 7]}])
     assert len(ctx.bodies) == 1
     assert pytest.approx(7) == part.bounding_box().min.Z
 
 
 def test_move_with_tool_leaves_the_original_and_makes_a_new_body():
-    part, ctx = build(
-        [BAR, {"id": "m", "type": "move", "tool": "bar", "translate": [0, 30, 0]}]
-    )
+    part, ctx = build([BAR, {"id": "m", "type": "move", "tool": "bar", "translate": [0, 30, 0]}])
     assert [body["id"] for body in ctx.bodies] == ["bar", "m"]
     assert part.volume == pytest.approx(2000)
 
@@ -182,6 +176,4 @@ def test_move_of_something_that_is_not_a_solid_is_refused():
         "rect": {"width": 1, "height": 1},
     }
     with pytest.raises(ValueError, match="not a solid"):
-        build(
-            [sketch, {"id": "m", "type": "move", "base": "s", "translate": [1, 0, 0]}]
-        )
+        build([sketch, {"id": "m", "type": "move", "base": "s", "translate": [1, 0, 0]}])

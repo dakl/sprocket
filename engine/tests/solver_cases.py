@@ -98,9 +98,7 @@ def sprocket_plate(teeth=13, pitch=6.35, roller=3.3, tip=15.0, cap_radius=0.55):
             {"kind": "coincident", "a": f"cap{k}.p1", "b": f"dn{k}.p0"},
             {"kind": "coincident", "a": f"dn{k}.p1", "b": f"seat{(k + 1) % teeth}.p1"},
         ]
-    constraints += [
-        {"kind": "radius", "e": arc["id"], "value": arc["r"]} for arc in arcs
-    ]
+    constraints += [{"kind": "radius", "e": arc["id"], "value": arc["r"]} for arc in arcs]
     return {"entities": arcs + lines, "constraints": constraints}
 
 

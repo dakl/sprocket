@@ -67,9 +67,7 @@ def solid_of(feature: dict):
     if missing:
         raise ValueError(f"a {shape} needs {', '.join(missing)}")
     if shape == "box":
-        return Box(
-            feature["width"], feature["depth"], feature["height"], align=ON_PLANE
-        )
+        return Box(feature["width"], feature["depth"], feature["height"], align=ON_PLANE)
     if shape == "cylinder":
         return Cylinder(feature["radius"], feature["height"], align=ON_PLANE)
     if shape == "cone":

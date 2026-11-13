@@ -80,9 +80,7 @@ def _add_constraint(feature: dict, edit: dict, _project=None) -> dict:
 
 def _update_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraints = feature.get("constraints", [])
-    constraint = constraints[
-        _index_of(constraints, edit.get("constraint_id"), "constraint")
-    ]
+    constraint = constraints[_index_of(constraints, edit.get("constraint_id"), "constraint")]
     constraint.update(_changes(edit))
     return {"constraint_id": constraint["id"]}
 
@@ -96,9 +94,7 @@ def _remove_constraint(feature: dict, edit: dict, _project=None) -> dict:
 def _add_entity(feature: dict, edit: dict, _project=None) -> dict:
     entity = _object(edit, "entity")
     if "reference" in entity:
-        raise ValueError(
-            "a projected reference is added with add_reference, not add_entity"
-        )
+        raise ValueError("a projected reference is added with add_reference, not add_entity")
     if entity.get("kind") not in ENTITY_KINDS:
         raise ValueError(
             f"entity kind {entity.get('kind')!r} is not one of {', '.join(ENTITY_KINDS)}"
@@ -112,9 +108,7 @@ def _add_reference(feature: dict, edit: dict, project=None) -> dict:
     """Projects an edge of an earlier sketch or body into this sketch, locked, as a construction entity."""
     source = _object(edit, "source")
     if project is None:
-        raise ValueError(
-            "projecting needs the document's earlier features to project from"
-        )
+        raise ValueError("projecting needs the document's earlier features to project from")
     for entity in feature["entities"]:
         if entity.get("reference") == source:
             raise ValueError(f"that is already projected as {entity['id']!r}")
@@ -133,9 +127,7 @@ def _add_reference(feature: dict, edit: dict, project=None) -> dict:
 
 
 def _update_entity(feature: dict, edit: dict, _project=None) -> dict:
-    entity = feature["entities"][
-        _index_of(feature["entities"], edit.get("entity_id"), "entity")
-    ]
+    entity = feature["entities"][_index_of(feature["entities"], edit.get("entity_id"), "entity")]
     if entity.get("reference"):
         raise ValueError(
             f"{entity['id']!r} is a projected reference and is locked: remove it, or "
@@ -158,9 +150,7 @@ def _remove_entity(feature: dict, edit: dict, _project=None) -> dict:
         )
 
     feature["constraints"] = [
-        constraint
-        for constraint in feature.get("constraints", [])
-        if not mentions(constraint)
+        constraint for constraint in feature.get("constraints", []) if not mentions(constraint)
     ]
     return {"entity_id": entity_id}
 
@@ -181,8 +171,7 @@ def _solve(sketch: dict) -> dict:
         from . import solver
     except ImportError:
         raise ValueError(
-            "editing a sketch needs the constraint solver: install "
-            "sprocket-engine[solver]"
+            "editing a sketch needs the constraint solver: install sprocket-engine[solver]"
         ) from None
     return solver.solve(sketch)
 

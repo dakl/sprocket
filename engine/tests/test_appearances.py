@@ -35,8 +35,6 @@ def test_mesh_carries_the_colour_buffer_only_when_asked(tmp_path):
 
 def test_document_rejects_a_bad_colour(tmp_path):
     path = tmp_path / "bad.sprocket"
-    path.write_text(
-        '{"features": [], "appearances": [{"color": "red", "select": {"select": []}}]}'
-    )
+    path.write_text('{"features": [], "appearances": [{"color": "red", "select": {"select": []}}]}')
     with pytest.raises(DocumentError, match="appearances"):
         Document.load(path)

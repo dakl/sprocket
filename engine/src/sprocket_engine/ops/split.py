@@ -40,14 +40,11 @@ def apply(feature: dict, ctx):
     solids = [solid for side in sides if side is not None for solid in side.solids()]
     if not solids:
         raise ValueError(
-            f"split {feature['id']} kept nothing: the plane misses the side you asked "
-            "for"
+            f"split {feature['id']} kept nothing: the plane misses the side you asked for"
         )
     if len(solids) == len(base.solids()) and abs(
         sum(solid.volume for solid in solids) - base.volume
     ) < 1e-9 * max(base.volume, 1):
-        raise ValueError(
-            f"split {feature['id']}: the plane does not cross {feature['base']!r}"
-        )
+        raise ValueError(f"split {feature['id']}: the plane does not cross {feature['base']!r}")
     # The two sides share the cut face. A deep copy gives each solid its own.
     return Part([copy.deepcopy(solid) for solid in solids])

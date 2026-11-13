@@ -48,8 +48,7 @@ SCHEMA = {
         "base": {
             "type": "string",
             "description": (
-                "id of the feature the copies combine with. Without it, the copies "
-                "are a new body."
+                "id of the feature the copies combine with. Without it, the copies are a new body."
             ),
         },
         "mode": {"enum": ["join", "cut"], "description": "default join"},
@@ -63,9 +62,7 @@ SCHEMA = {
                 "count": COUNT,
                 "angle": {
                     "type": "number",
-                    "description": (
-                        "degrees spanned, default 360 (copies spread evenly)"
-                    ),
+                    "description": ("degrees spanned, default 360 (copies spread evenly)"),
                 },
             },
         },

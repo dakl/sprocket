@@ -160,9 +160,7 @@ def _place(instance: dict, location) -> None:
         )
     normals = instance["normals"].reshape(-1, 3).astype(np.float64)
     instance["normals"] = (
-        (normals @ rotation.T)
-        .astype(instance["normals"].dtype)
-        .reshape(instance["normals"].shape)
+        (normals @ rotation.T).astype(instance["normals"].dtype).reshape(instance["normals"].shape)
     )
 
 
@@ -250,8 +248,9 @@ def _painted(shape, appearances):
 
 
 def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None:
-    """(roughness, metalness) per face: the body's finish, then appearances
-    that name one. None when nothing has a finish, so the buffer is left out.
+    """(roughness, metalness) per face: the body's finish, then appearances that name one.
+
+    None when nothing has a finish, so the buffer is left out.
     """
     if not any(body.get("material") for body in bodies) and not any(
         "material" in item for item in appearances or []
@@ -333,9 +332,7 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                 }
             )
         if appearances or any(body.get("color") for body in ordered):
-            instance["face_colors"] = body_colours(
-                ordered, face_counts, shape, appearances
-            )
+            instance["face_colors"] = body_colours(ordered, face_counts, shape, appearances)
         finishes = face_materials(ordered, face_counts, shape, appearances)
         if finishes is not None:
             instance["face_materials"] = finishes

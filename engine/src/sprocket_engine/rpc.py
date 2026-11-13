@@ -136,13 +136,10 @@ class Session:
         shape, failed = self.shape()
         if shape is None and failed:
             raise DocumentError(
-                f"feature {failed!r} does not build, and nothing before it builds a "
-                "solid"
+                f"feature {failed!r} does not build, and nothing before it builds a solid"
             )
         if shape is None:
-            raise DocumentError(
-                "this document builds to nothing, so there is no geometry yet"
-            )
+            raise DocumentError("this document builds to nothing, so there is no geometry yet")
         return shape
 
 
@@ -379,16 +376,13 @@ class Daemon:
     def _note_references(self) -> None:
         document = self.session.document
         self.reference_digests = {
-            feature_id: reference_digest(path)
-            for feature_id, path in document.reference_sources()
+            feature_id: reference_digest(path) for feature_id, path in document.reference_sources()
         }
         self.watched_references = document.referenced_files()
 
     def watched_files(self) -> list[Path]:
         document = self.session.document
-        return ([document.path] if document.path else []) + list(
-            self.watched_references
-        )
+        return ([document.path] if document.path else []) + list(self.watched_references)
 
     def on_file_change(self, path: Path) -> str | None:
         if path == self.session.document.path:
@@ -445,9 +439,7 @@ class Daemon:
     def start_watching(self, interval: float = 0.25) -> None:
         if self._watcher is None:
             self._note_references()
-            self._watcher = FileWatcher(
-                self.watched_files, self.on_file_change, interval
-            )
+            self._watcher = FileWatcher(self.watched_files, self.on_file_change, interval)
             self._watcher.start()
 
     # ---- running -----------------------------------------------------------
@@ -574,9 +566,7 @@ def _handle_line(daemon: Daemon, line: bytes):
 
     handler = METHODS.get(method)
     if handler is None:
-        return _error(
-            request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)"
-        )
+        return _error(request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)")
 
     try:
         if method in UNLOCKED:
@@ -646,9 +636,7 @@ def _document_state(daemon: Daemon) -> dict:
     }
 
 
-def _commit(
-    daemon: Daemon, revision: int, save: bool = True, opened: bool = False
-) -> dict:
+def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = False) -> dict:
     """What every mutating method returns, and the side effects that go with it.
 
     It rebuilds before replying, and says which feature failed if one did. An
@@ -797,8 +785,9 @@ def _document_moved(daemon: Daemon, params: dict) -> dict:
 
 
 def _restore_recovery(daemon: Daemon, params: dict) -> dict:
-    """Puts back the edits a recovery file holds (see `Daemon.write_recovery`)
-    as one undoable step. They stay unsaved until the person saves them.
+    """Puts back the edits a recovery file holds (see `Daemon.write_recovery`) as one undoable step.
+
+    They stay unsaved until the person saves them.
     """
     raw = params.get("file")
     if not raw:
@@ -840,28 +829,18 @@ def _edit(daemon: Daemon, edits, params: dict) -> dict:
     revision = document.apply_edits(
         edits, params.get("base_revision"), params.get("author", "agent:unknown")
     )
-    if any(
-        isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits
-    ):
+    if any(isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits):
         daemon.undo_stack.append(before)
         del daemon.undo_stack[:-UNDO_LIMIT]
         daemon.redo_stack.clear()
     result = _commit(daemon, revision)
     # Fields whose "=param" expression a new number replaced, for the viewer to say so.
-    unlinked = [
-        item
-        for entry in document.log[-len(edits) :]
-        for item in entry.get("unlinked", [])
-    ]
+    unlinked = [item for entry in document.log[-len(edits) :] for item in entry.get("unlinked", [])]
     if unlinked:
         result["unlinked"] = unlinked
     # Sketches a parameter moved that could not be solved again, because the
     # solver is not installed.
-    unsolved = [
-        item
-        for entry in document.log[-len(edits) :]
-        for item in entry.get("unsolved", [])
-    ]
+    unsolved = [item for entry in document.log[-len(edits) :] for item in entry.get("unsolved", [])]
     if unsolved:
         result["unsolved"] = unsolved
     return result
@@ -901,14 +880,9 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
     document = daemon.session.document
     before = document.snapshot()
     before["view_only"] = True
-    if (
-        params.get("base_revision") is not None
-        and params["base_revision"] != document.revision
-    ):
+    if params.get("base_revision") is not None and params["base_revision"] != document.revision:
         raise StaleRevision(params["base_revision"], document.revision)
-    revision = document.set_visibility(
-        params.get("id"), params.get("visible"), params.get("ghost")
-    )
+    revision = document.set_visibility(params.get("id"), params.get("visible"), params.get("ghost"))
     daemon.undo_stack.append(before)
     del daemon.undo_stack[:-UNDO_LIMIT]
     daemon.redo_stack.clear()
@@ -926,9 +900,7 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
         names = ("id", "visible", "ghost", "base_revision")
         view: dict[str, object] = {name: params.get(name) for name in names}
         result = _set_visibility(daemon, view)
-    changes = {
-        name: params[name] for name in ("name", "color", "material") if name in params
-    }
+    changes = {name: params[name] for name in ("name", "color", "material") if name in params}
     if changes:
         based = {} if result is None else {"base_revision": None}
         result = _edit(
@@ -996,8 +968,7 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
             break
     if selector is None:
         raise DocumentError(
-            f"no box around {handle}'s centre picks it out alone: another face shares "
-            "that centre"
+            f"no box around {handle}'s centre picks it out alone: another face shares that centre"
         )
     return {
         "handle": handle,
@@ -1084,11 +1055,7 @@ def _sketch_method(action: str):
     def method(daemon: Daemon, params: dict) -> dict:
         edit = {"op": "edit_sketch", "action": action, "id": params.get("feature")}
         edit.update(
-            {
-                field: params[field]
-                for field in SKETCH_EDIT_FIELDS[action]
-                if field in params
-            }
+            {field: params[field] for field in SKETCH_EDIT_FIELDS[action] if field in params}
         )
         result = _edit(daemon, [edit], params)
         document = daemon.session.document
@@ -1122,9 +1089,7 @@ def _step_history(daemon: Daemon, take_from: list, put_on: list, params: dict) -
     if view_only:
         current["view_only"] = True
     put_on.append(current)
-    revision = document.restore(
-        snapshot, params.get("author", "agent:unknown"), log=not view_only
-    )
+    revision = document.restore(snapshot, params.get("author", "agent:unknown"), log=not view_only)
     return {**_commit(daemon, revision), "changed": True}
 
 
@@ -1226,9 +1191,7 @@ def _get_profiles(daemon: Daemon, params: dict) -> dict:
     document = daemon.session.document
     feature = document.for_replay()["features"][document.index_of(feature_id)]
     if feature.get("type") != "sketch":
-        raise DocumentError(
-            f"feature {feature_id!r} is a {feature.get('type')}, not a sketch"
-        )
+        raise DocumentError(f"feature {feature_id!r} is a {feature.get('type')}, not a sketch")
     # As the build left it: a sketch with projected references is solved around
     # them there.
     feature = daemon.session.context().features.get(feature_id, feature)
@@ -1324,16 +1287,13 @@ def _selection_view(daemon: Daemon) -> dict:
     selection = daemon.selection
     view = {
         **selection,
-        "stale": bool(selection["handles"])
-        and selection["revision"] != document.revision,
+        "stale": bool(selection["handles"]) and selection["revision"] != document.revision,
     }
     if selection["handles"] and not view["stale"]:
         shape, _ = daemon.session.shape()
         if shape is not None:
             described = describe(shape)
-            items = {
-                item["handle"]: item for item in described["faces"] + described["edges"]
-            }
+            items = {item["handle"]: item for item in described["faces"] + described["edges"]}
             view["descriptions"] = [
                 items.get(handle, {"handle": handle, "description": None})
                 for handle in selection["handles"]
@@ -1534,9 +1494,7 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
     if params.get("handles") is None:
         selection = _selection_view(daemon)
         if selection["stale"]:
-            raise DocumentError(
-                "the selection is stale: the part was rebuilt since it was picked"
-            )
+            raise DocumentError("the selection is stale: the part was rebuilt since it was picked")
         handles = selection["handles"]
     else:
         handles = _handles(params)
@@ -1554,11 +1512,7 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
             shape,
             ctx,
             handles,
-            [
-                feature["id"]
-                for feature in features[:tip]
-                if feature.get("type") not in NOT_SOLIDS
-            ],
+            [feature["id"] for feature in features[:tip] if feature.get("type") not in NOT_SOLIDS],
         )
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
@@ -1589,9 +1543,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         if body["reference"]:
             continue
         faces = body["shape"].faces()
-        local = next(
-            (index for index, item in enumerate(faces) if item.is_same(face)), None
-        )
+        local = next((index for index, item in enumerate(faces) if item.is_same(face)), None)
         if local is not None:
             break
     else:
@@ -1645,9 +1597,7 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
     kind = "face" if handle[0] == "f" else "edge"
     for body in daemon.session.bodies():
         items = body["shape"].faces() if kind == "face" else body["shape"].edges()
-        local = next(
-            (index for index, item in enumerate(items) if item.is_same(picked)), None
-        )
+        local = next((index for index, item in enumerate(items) if item.is_same(picked)), None)
         if local is not None:
             break
     else:
@@ -1692,9 +1642,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
     ctx = daemon.session.context()
     for body in daemon.session.bodies():
         edges = body["shape"].edges()
-        local = next(
-            (index for index, item in enumerate(edges) if item.is_same(edge)), None
-        )
+        local = next((index for index, item in enumerate(edges) if item.is_same(edge)), None)
         if local is not None:
             break
     else:
@@ -1819,9 +1767,7 @@ def _section(daemon: Daemon, params: dict) -> dict:
         )
     if params.get("path"):
         if section is None:
-            raise DocumentError(
-                "the plane misses the part, so there is no section to write"
-            )
+            raise DocumentError("the plane misses the part, so there is no section to write")
         try:
             write_section(section, params["path"])
         except ExportError as exc:
@@ -1860,9 +1806,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
             write_stl(shape, params["stl"])
             written["stl"] = params["stl"]
         if params.get("stl_dir"):
-            written["stl_dir"] = [
-                str(path) for path in write_stl_dir(bodies, params["stl_dir"])
-            ]
+            written["stl_dir"] = [str(path) for path in write_stl_dir(bodies, params["stl_dir"])]
         if params.get("3mf"):
             write_3mf(bodies, params["3mf"])
             written["3mf"] = params["3mf"]
@@ -2111,9 +2055,7 @@ class Client:
                 message = json.loads(line)
                 if message.get("id") != request_id:
                     if self.on_notification and "method" in message:
-                        self.on_notification(
-                            message["method"], message.get("params", {})
-                        )
+                        self.on_notification(message["method"], message.get("params", {}))
                     continue
                 if "error" in message:
                     error = message["error"]

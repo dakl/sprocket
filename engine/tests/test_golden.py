@@ -86,9 +86,7 @@ def test_geometry_equals_the_expected_step(case, parts):
         # Measured: an identical pair gives exactly 0.0, so this leaves room for
         # a sliver without leaving room for a real difference. The smallest
         # feature in the suite is a 1000 mm^3 notch.
-        assert volume == pytest.approx(0.0, abs=1e-6), (
-            f"{case}: {name} left {volume} mm^3"
-        )
+        assert volume == pytest.approx(0.0, abs=1e-6), f"{case}: {name} left {volume} mm^3"
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -121,9 +119,9 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
     write_step(part, fresh_step)
     write_stl(part, fresh_stl)
 
-    assert normalised_step(fresh_step) == normalised_step(
-        case_dir(case) / EXPECTED_STEP
-    ), f"{case}: STEP changed beyond its timestamp"
+    assert normalised_step(fresh_step) == normalised_step(case_dir(case) / EXPECTED_STEP), (
+        f"{case}: STEP changed beyond its timestamp"
+    )
     assert fresh_stl.read_bytes() == (case_dir(case) / EXPECTED_STL).read_bytes(), (
         f"{case}: STL changed"
     )
@@ -144,8 +142,7 @@ def test_every_case_ships_its_expected_files(case):
         )
 
     assert set(capture_identity(case)) == set(engine_identity()), (
-        f"{case}'s {CAPTURE_STAMP} does not describe the same fields as "
-        "engine_identity()"
+        f"{case}'s {CAPTURE_STAMP} does not describe the same fields as engine_identity()"
     )
 
 
@@ -183,6 +180,4 @@ def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path):
 
     moved = tmp_path / "moved.step"
     moved.write_bytes(header % b"2026-09-28T07:43:02" + point % b"-20.5")
-    assert normalised_step(moved) != normalised_step(morning), (
-        "the scrub hides a moved vertex"
-    )
+    assert normalised_step(moved) != normalised_step(morning), "the scrub hides a moved vertex"

@@ -1,6 +1,7 @@
 """`sprocket web`: the viewer in a plain browser, on top of the daemon.
 
 
+
 The spec's architecture rule is that the viewer must run outside the Swift app,
 or an agent and Playwright have nothing to drive. In the app, the daemon writes
 `part.mesh` and `features.json` next to the viewer (`--viewer-dir`) and Swift
@@ -61,9 +62,7 @@ class WebApp:
     def features_json(self) -> list[dict]:
         with self.daemon.lock:
             _, failed = self.daemon.session.shape()
-            return features_summary(
-                self.document, failed, self.daemon.session.context()
-            )
+            return features_summary(self.document, failed, self.daemon.session.context())
 
     def mesh_bytes(self) -> bytes | None:
         """The mesh for the current revision, or None for an empty document."""
@@ -79,14 +78,13 @@ class WebApp:
                 shape, _ = self.daemon.session.shape()
                 self._mesh = (
                     key,
-                    mesh_bytes(
-                        shape, self.document.appearances, self.daemon.session.bodies()
-                    ),
+                    mesh_bytes(shape, self.document.appearances, self.daemon.session.bodies()),
                 )
             return self._mesh[1]
 
     def export_bytes(self, kind: str) -> tuple[bytes, str]:
         """The part as `kind` ("stl", "3mf" or "step"), and the file name to offer it under.
+
         Raises DocumentError when there is nothing to export.
         """
         with self.daemon.lock:
@@ -146,9 +144,7 @@ def make_handler(app: WebApp):
                 if route == "/part.mesh":
                     data = app.mesh_bytes()
                     if data is None:
-                        self.send_error(
-                            HTTPStatus.NOT_FOUND, "the document builds to nothing"
-                        )
+                        self.send_error(HTTPStatus.NOT_FOUND, "the document builds to nothing")
                         return
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "application/octet-stream")
@@ -199,9 +195,7 @@ def make_handler(app: WebApp):
                     return
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", EXPORT_TYPES[kind])
-                self.send_header(
-                    "Content-Disposition", f'attachment; filename="{name}"'
-                )
+                self.send_header("Content-Disposition", f'attachment; filename="{name}"')
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -234,18 +228,14 @@ def make_handler(app: WebApp):
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
             except json.JSONDecodeError as exc:
-                self._send_json(
-                    {"error": f"not valid JSON: {exc}"}, HTTPStatus.BAD_REQUEST
-                )
+                self._send_json({"error": f"not valid JSON: {exc}"}, HTTPStatus.BAD_REQUEST)
                 return
             try:
                 if route == "/rpc":
                     response = _handle_line(app.daemon, json.dumps(body).encode())
                     self._send_json(response if response is not None else {})
                 else:
-                    self._send_json(
-                        {"error": f"no route {route}"}, HTTPStatus.NOT_FOUND
-                    )
+                    self._send_json({"error": f"no route {route}"}, HTTPStatus.NOT_FOUND)
             except Exception as exc:  # noqa: BLE001
                 self._send_json(
                     {"error": f"{type(exc).__name__}: {exc}"},

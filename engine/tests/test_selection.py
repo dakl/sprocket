@@ -167,9 +167,7 @@ def test_opening_another_document_clears_the_selection(client, listener, tmp_pat
 def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
     """M4.5's done-when: the person picks an edge, the agent reads it and fillets it."""
     edge = next(
-        item
-        for item in client.call("describe_geometry")["edges"]
-        if item["centre"][2] == 10
+        item for item in client.call("describe_geometry")["edges"] if item["centre"][2] == 10
     )
     client.call("set_selection", handles=[edge["handle"]], revision=0)
 
@@ -179,9 +177,7 @@ def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
         "type": "fillet",
         "base": "e1",
         "radius": 1,
-        "edges": {
-            "select": [{"op": "edges"}, {"op": "nearest_to", "point": picked["centre"]}]
-        },
+        "edges": {"select": [{"op": "edges"}, {"op": "nearest_to", "point": picked["centre"]}]},
     }
     result = client.call("apply_edit", edits=[{"op": "insert", "feature": fillet}])
     assert result["built"]["ok"] is True

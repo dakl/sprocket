@@ -102,9 +102,7 @@ def test_circle_extrudes_to_a_cylinder():
 
 
 def test_circle_center_offsets_the_profile():
-    """A dropped `center` still gives the right volume, so this asserts the
-    position instead.
-    """
+    """A dropped `center` still gives the right volume, so this asserts the position instead."""
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},

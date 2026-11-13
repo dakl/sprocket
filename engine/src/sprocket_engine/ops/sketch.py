@@ -97,8 +97,7 @@ ENTITY_SCHEMA = {
         "id": {
             "type": "string",
             "description": (
-                "Stable for the life of the sketch. Profiles and constraints refer to "
-                "it."
+                "Stable for the life of the sketch. Profiles and constraints refer to it."
             ),
         },
         "kind": {"enum": ["line", "arc", "circle"]},
@@ -119,8 +118,7 @@ ENTITY_SCHEMA = {
         "a1": {
             "type": "number",
             "description": (
-                "arc end angle in radians. The arc runs counter-clockwise from a0 to "
-                "a1."
+                "arc end angle in radians. The arc runs counter-clockwise from a0 to a1."
             ),
         },
         "construction": {
@@ -178,9 +176,7 @@ CONSTRAINT_SCHEMA = {
     "properties": {
         "id": {
             "type": "string",
-            "description": (
-                "c<n>. Stable for the life of the sketch. Filled in when missing."
-            ),
+            "description": ("c<n>. Stable for the life of the sketch. Filled in when missing."),
         },
         "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
         "e": {
@@ -199,15 +195,13 @@ CONSTRAINT_SCHEMA = {
         "b": {
             "type": "string",
             "description": (
-                "second entity or point. For point_on, the line, circle or arc it "
-                "lies on"
+                "second entity or point. For point_on, the line, circle or arc it lies on"
             ),
         },
         "value": {
             "type": "number",
             "description": (
-                "mm for distance, distance_x, distance_y, radius and diameter; "
-                "degrees for angle"
+                "mm for distance, distance_x, distance_y, radius and diameter; degrees for angle"
             ),
         },
     },
@@ -256,9 +250,7 @@ SKETCH_PATTERN_SCHEMA = {
                 },
                 "angle": {
                     "type": "number",
-                    "description": (
-                        "degrees spanned, default 360 (copies spread evenly)"
-                    ),
+                    "description": ("degrees spanned, default 360 (copies spread evenly)"),
                 },
             },
         },
@@ -373,9 +365,7 @@ def _face_plane(plane_ref, ctx) -> Plane:
     # not what type it is.
     if (
         face.geom_type != GeomType.PLANE
-        and not GeomLib_IsPlanarSurface(
-            BRep_Tool.Surface_s(face.wrapped), 1e-7
-        ).IsPlanar()
+        and not GeomLib_IsPlanarSurface(BRep_Tool.Surface_s(face.wrapped), 1e-7).IsPlanar()
     ):
         raise ValueError(
             "a sketch needs a planar face, and the selector found a "
@@ -406,9 +396,7 @@ def _polygon_area(points) -> float:
         abs(
             sum(
                 x1 * y2 - x2 * y1
-                for (x1, y1), (x2, y2) in zip(
-                    points, points[1:] + points[:1], strict=False
-                )
+                for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1], strict=False)
             )
         )
         / 2
@@ -454,13 +442,10 @@ def sketch_entities(feature: dict) -> list[dict]:
     entities = list(feature.get("entities", []))
     by_id = {entity["id"]: entity for entity in entities}
     for pattern in feature.get("patterns", []):
-        missing = [
-            entity_id for entity_id in pattern["entities"] if entity_id not in by_id
-        ]
+        missing = [entity_id for entity_id in pattern["entities"] if entity_id not in by_id]
         if missing:
             raise ValueError(
-                f"sketch pattern names {', '.join(missing)}, which are not entities of "
-                "this sketch"
+                f"sketch pattern names {', '.join(missing)}, which are not entities of this sketch"
             )
         if "linear" in pattern:
             first, second = (
@@ -481,10 +466,7 @@ def sketch_entities(feature: dict) -> list[dict]:
             circular = pattern["circular"]
             angle, count = circular.get("angle", 360), circular["count"]
             step = angle / count if angle % 360 == 0 else angle / max(count - 1, 1)
-            moves = [
-                (0.0, 0.0, math.radians(step * k), circular["center"])
-                for k in range(count)
-            ]
+            moves = [(0.0, 0.0, math.radians(step * k), circular["center"]) for k in range(count)]
         for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
             entities.extend(
                 _moved(by_id[entity_id], index, du, dv, turn, centre)
@@ -507,8 +489,7 @@ PATH_SCHEMA = {
             "items": {"type": "string"},
             "minItems": 1,
             "description": (
-                "ids of the entities on the path. Default: every entity that is not "
-                "construction."
+                "ids of the entities on the path. Default: every entity that is not construction."
             ),
         },
     },
@@ -537,9 +518,7 @@ def sketch_path(path_ref: dict, ctx) -> Wire:
     else:
         entities = [entity for entity in entities if not entity.get("construction")]
     plane = resolve_plane(sketch["plane"], ctx)
-    wires = Wire.combine(
-        [plane * entity_edge(entity) for entity in entities], tol=FUZZY
-    )
+    wires = Wire.combine([plane * entity_edge(entity) for entity in entities], tol=FUZZY)
     if len(wires) != 1:
         raise ProfileError(
             f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate "
@@ -566,16 +545,10 @@ def check_entities(feature: dict) -> None:
     for entity in feature["entities"]:
         entity_id = entity["id"]
         if entity_id in kinds:
-            raise ValueError(
-                f"sketch {feature['id']!r} has two entities with id {entity_id!r}"
-            )
-        missing = [
-            name for name in _ENTITY_FIELDS[entity["kind"]] if name not in entity
-        ]
+            raise ValueError(f"sketch {feature['id']!r} has two entities with id {entity_id!r}")
+        missing = [name for name in _ENTITY_FIELDS[entity["kind"]] if name not in entity]
         if missing:
-            raise ValueError(
-                f"{entity['kind']} {entity_id!r} needs {', '.join(missing)}"
-            )
+            raise ValueError(f"{entity['kind']} {entity_id!r} needs {', '.join(missing)}")
         kinds[entity_id] = entity["kind"]
 
     def check_reference(constraint, name):
@@ -600,23 +573,18 @@ def check_entities(feature: dict) -> None:
         if constraint_id is not None:
             if constraint_id in constraint_ids:
                 raise ValueError(
-                    f"sketch {feature['id']!r} has two constraints with id "
-                    f"{constraint_id!r}"
+                    f"sketch {feature['id']!r} has two constraints with id {constraint_id!r}"
                 )
             constraint_ids.add(constraint_id)
         wanted = CONSTRAINT_FIELDS[constraint["kind"]]
         missing = [name for name in wanted if name not in constraint]
         if missing:
-            raise ValueError(
-                f"constraint {constraint['kind']!r} needs {', '.join(missing)}"
-            )
+            raise ValueError(f"constraint {constraint['kind']!r} needs {', '.join(missing)}")
         # horizontal and vertical act on one line, or on two points.
         if constraint["kind"] in ("horizontal", "vertical") and not (
             "e" in constraint or ("a" in constraint and "b" in constraint)
         ):
-            raise ValueError(
-                f"constraint {constraint['kind']!r} needs 'e', or 'a' and 'b'"
-            )
+            raise ValueError(f"constraint {constraint['kind']!r} needs 'e', or 'a' and 'b'")
         for name in ("a", "b", "e"):
             if name in constraint:
                 check_reference(constraint, name)

@@ -1,9 +1,9 @@
-"""The mesh file's whole purpose is that triangle N belongs to B-rep face K
-(see mesh.py). The viewer builds one geometry group per face from
-`triangles_per_face` and highlights a picked face by its group index, so if
-those run lengths stop lining up with `shape.faces()` the viewer highlights
-the wrong surface while still drawing a part that looks correct. That failure
-is invisible on screen, so it gets a test.
+"""The mesh file's whole purpose is that triangle N belongs to B-rep face K (see mesh.py).
+
+The viewer builds one geometry group per face from `triangles_per_face` and highlights a picked face
+by its group index, so if those run lengths stop lining up with `shape.faces()` the viewer
+highlights the wrong surface while still drawing a part that looks correct. That failure is
+invisible on screen, so it gets a test.
 
 The reader here is deliberately written from the format docstring rather than
 from mesh.py's constants: it is a second implementation, so a change to the
@@ -71,9 +71,7 @@ def box_mesh(tmp_path_factory):
 def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh):
     _part, written_header, (header, buffers) = box_mesh
 
-    assert header == written_header, (
-        "export_mesh returned a header the file does not contain"
-    )
+    assert header == written_header, "export_mesh returned a header the file does not contain"
     assert header["format"] == "sprocket-mesh"
     counts = header["counts"]
 
@@ -159,9 +157,7 @@ def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
     first_face_triangles = int(buffers["triangles_per_face"][0])
     first_face_vertices = buffers["indices"][: first_face_triangles * 3]
     face_normals = normals[np.unique(first_face_vertices)]
-    assert np.allclose(face_normals, face_normals[0], atol=1e-5), (
-        "face 0 of a box should be planar"
-    )
+    assert np.allclose(face_normals, face_normals[0], atol=1e-5), "face 0 of a box should be planar"
 
 
 def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh):
@@ -194,9 +190,7 @@ def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh)
             ):
                 uses[(min(a, b), max(a, b))] += 1
 
-        assert max(uses.values()) <= 2, (
-            f"face {face_index} has an edge used by three triangles"
-        )
+        assert max(uses.values()) <= 2, f"face {face_index} has an edge used by three triangles"
         if any(count == 2 for count in uses.values()):
             faces_sharing_an_interior_edge += 1
 
@@ -209,9 +203,7 @@ def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh)
             degree[b] += 1
         assert set(degree.values()) == {2}, f"face {face_index} has an open boundary"
 
-    assert faces_sharing_an_interior_edge == len(part.faces()), (
-        "a face split its interior edges"
-    )
+    assert faces_sharing_an_interior_edge == len(part.faces()), "a face split its interior edges"
 
 
 def test_node_normals_agree_with_the_triangle_winding(box_mesh):

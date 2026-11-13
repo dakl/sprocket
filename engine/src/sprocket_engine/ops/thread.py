@@ -53,9 +53,7 @@ SCHEMA = {
         "pitch": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "description": (
-                "mm. Default the ISO coarse pitch, so give it only for a fine thread."
-            ),
+            "description": ("mm. Default the ISO coarse pitch, so give it only for a fine thread."),
         },
         "modeled": {
             "type": "boolean",
@@ -103,9 +101,7 @@ def thread_geometry(feature: dict, ctx) -> dict:
     pitch = feature.get("pitch", ISO_COARSE[feature["designation"]])
     diameter = 2 * radius
     low, high = (
-        (major - 1.25 * pitch, major + 0.05)
-        if internal
-        else (major - 0.5 * pitch, major + 0.05)
+        (major - 1.25 * pitch, major + 0.05) if internal else (major - 0.5 * pitch, major + 0.05)
     )
     if not low <= diameter <= high:
         kind = "hole" if internal else "shaft"

@@ -52,15 +52,11 @@ edit comes back with the current document so you can rebase."""
 EDIT_PROPERTIES = {
     "index": {
         "type": "integer",
-        "description": (
-            "where in the timeline to insert it (default: at the rollback bar)"
-        ),
+        "description": ("where in the timeline to insert it (default: at the rollback bar)"),
     },
     "base_revision": {
         "type": "integer",
-        "description": (
-            "the revision you last read; omit only when nothing else is editing"
-        ),
+        "description": ("the revision you last read; omit only when nothing else is editing"),
     },
 }
 
@@ -74,13 +70,9 @@ def op_tool_schema(schema: dict) -> dict:
     daemon can name a feature perfectly well.
     """
     properties = {
-        name: value
-        for name, value in schema.get("properties", {}).items()
-        if name != "type"
+        name: value for name, value in schema.get("properties", {}).items() if name != "type"
     }
-    required = [
-        name for name in schema.get("required", []) if name not in ("type", "id")
-    ]
+    required = [name for name in schema.get("required", []) if name not in ("type", "id")]
     # `description` goes too: it is already the tool's own description, and an
     # agent pays for every copy of it in the listing.
     dropped = ("properties", "required", "type", "description")
@@ -95,9 +87,7 @@ def op_tool_schema(schema: dict) -> dict:
     return tool_schema
 
 
-def _tool(
-    name: str, description: str, properties: dict, required: list[str] | None = None
-):
+def _tool(name: str, description: str, properties: dict, required: list[str] | None = None):
     return types.Tool(
         name=name,
         description=description,
@@ -149,8 +139,7 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "describe_geometry",
-            "Every face and edge of the built part, with a handle and a sentence "
-            "describing it.",
+            "Every face and edge of the built part, with a handle and a sentence describing it.",
             {},
         ),
         _tool(
@@ -348,9 +337,7 @@ def document_tools() -> list[types.Tool]:
             {
                 "handle": {
                     "type": "string",
-                    "description": (
-                        "a planar face handle from describe_geometry, like 'f3'"
-                    ),
+                    "description": ("a planar face handle from describe_geometry, like 'f3'"),
                 }
             },
             ["handle"],
@@ -381,15 +368,11 @@ def document_tools() -> list[types.Tool]:
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
                 "material": {
                     "enum": [*PRESETS, None],
-                    "description": (
-                        "surface finish preset; null goes back to the default"
-                    ),
+                    "description": ("surface finish preset; null goes back to the default"),
                 },
                 "visible": {
                     "type": "boolean",
-                    "description": (
-                        "false hides the body in the viewer; it still exports"
-                    ),
+                    "description": ("false hides the body in the viewer; it still exports"),
                 },
                 "ghost": {
                     "type": "boolean",
@@ -411,9 +394,7 @@ def document_tools() -> list[types.Tool]:
             {
                 "name": {"type": "string"},
                 "value": {
-                    "description": (
-                        "a number, or an expression string starting with '='"
-                    ),
+                    "description": ("a number, or an expression string starting with '='"),
                     "type": ["number", "string", "null"],
                 },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
@@ -545,8 +526,7 @@ def sketch_tools() -> list[types.Tool]:
                 "entity": {
                     "type": "object",
                     "description": (
-                        "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, "
-                        "with kind"
+                        "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind"
                     ),
                 },
             },
@@ -569,8 +549,7 @@ def sketch_tools() -> list[types.Tool]:
                 "source": {
                     "type": "object",
                     "description": (
-                        "{'sketch': 'f1', 'entity': 'e3'} or {'feature': 'f2', "
-                        "'edge': <selector>}"
+                        "{'sketch': 'f1', 'entity': 'e3'} or {'feature': 'f2', 'edge': <selector>}"
                     ),
                 },
             },
@@ -578,8 +557,7 @@ def sketch_tools() -> list[types.Tool]:
         ),
         _tool(
             "sketch_update_entity",
-            common
-            + "The solver moves the entity to the nearest place that obeys the constraints.",
+            common + "The solver moves the entity to the nearest place that obeys the constraints.",
             {**SKETCH_TOOL_PROPERTIES, "entity_id": ENTITY_ID, "changes": CHANGES},
             ["feature", "entity_id", "changes"],
         ),
@@ -603,9 +581,7 @@ def op_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name=f"add_{name}",
-            description=op.schema.get(
-                "description", f"Adds a {name} feature to the timeline."
-            ),
+            description=op.schema.get("description", f"Adds a {name} feature to the timeline."),
             input_schema=op_tool_schema(op.schema),
         )
         for name, op in sorted(REGISTRY.items())
@@ -614,9 +590,7 @@ def op_tools() -> list[types.Tool]:
 
 def _next_id(client: Client, op_name: str) -> str:
     """A short id the agent did not have to invent, unique in this document."""
-    existing = {
-        feature.get("id") for feature in client.call("get_document")["features"]
-    }
+    existing = {feature.get("id") for feature in client.call("get_document")["features"]}
     index = 1
     while f"{op_name}{index}" in existing:
         index += 1
@@ -629,17 +603,13 @@ SKETCH_TOOL_NAMES = {tool.name for tool in sketch_tools()}
 def call(client: Client, name: str, arguments: dict) -> list:
     """Runs one tool against the daemon and returns MCP content."""
     if name in SKETCH_TOOL_NAMES:
-        return _json_content(
-            client.call(name[len("sketch_") :], author=AUTHOR, **arguments)
-        )
+        return _json_content(client.call(name[len("sketch_") :], author=AUTHOR, **arguments))
 
     if name.startswith("add_"):
         op_name = name[len("add_") :]
         if op_name not in REGISTRY:
             raise ValueError(f"no op named {op_name!r}")
-        feature = {
-            key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES
-        }
+        feature = {key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES}
         feature["type"] = op_name
         feature.setdefault("id", _next_id(client, op_name))
         edit = {"op": "insert", "feature": feature}
@@ -716,24 +686,18 @@ def _render(client: Client, arguments: dict, method: str = "render_view") -> lis
 
 
 def _json_content(result) -> list:
-    return [
-        types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))
-    ]
+    return [types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))]
 
 
 def build_server(client: Client) -> Server:
     async def on_list_tools(_ctx, _params):
-        return types.ListToolsResult(
-            tools=document_tools() + sketch_tools() + op_tools()
-        )
+        return types.ListToolsResult(tools=document_tools() + sketch_tools() + op_tools())
 
     async def on_call_tool(_ctx, params):
         try:
             # The client is blocking, and blocking the event loop would stall
             # the stdio transport for the whole of a replay.
-            content = await asyncio.to_thread(
-                call, client, params.name, params.arguments or {}
-            )
+            content = await asyncio.to_thread(call, client, params.name, params.arguments or {})
             return types.CallToolResult(content=content)
         except RpcError as exc:
             # A refused edit is the agent's to fix, not a transport failure, so
@@ -744,17 +708,13 @@ def build_server(client: Client) -> Server:
                 payload["data"] = exc.data
             return types.CallToolResult(
                 content=[
-                    types.TextContent(
-                        type="text", text=json.dumps(payload, indent=1, default=str)
-                    )
+                    types.TextContent(type="text", text=json.dumps(payload, indent=1, default=str))
                 ],
                 is_error=True,
             )
         except Exception as exc:  # noqa: BLE001
             return types.CallToolResult(
-                content=[
-                    types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")
-                ],
+                content=[types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")],
                 is_error=True,
             )
 
@@ -779,21 +739,15 @@ def find_socket(extra_folder: Path | None = None) -> Path:
         candidates = list(extra_folder.glob("sprocket-*.sock"))
     else:
         folders = {Path(tempfile.gettempdir()), Path("/tmp")}  # noqa: S108
-        candidates = [
-            path for folder in folders for path in folder.glob("sprocket-*.sock")
-        ]
+        candidates = [path for folder in folders for path in folder.glob("sprocket-*.sock")]
         candidates += Path("/var/folders").glob("*/*/T/sprocket-*.sock")
-    for path in sorted(
-        candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True
-    ):
+    for path in sorted(candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True):
         try:
             Client(path).close()
         except OSError:
             continue
         return path
-    raise RpcError(
-        INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket"
-    )
+    raise RpcError(INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket")
 
 
 class LazyClient:
@@ -803,9 +757,7 @@ class LazyClient:
     for the socket again, which is the new app's.
     """
 
-    def __init__(
-        self, socket_path: Path | None = None, search_folder: Path | None = None
-    ):
+    def __init__(self, socket_path: Path | None = None, search_folder: Path | None = None):
         self._socket_path = socket_path
         self._search_folder = search_folder
         self._client: Client | None = None
@@ -813,15 +765,11 @@ class LazyClient:
     def call(self, method: str, **params):
         for attempt in (1, 2):
             if self._client is None:
-                self._client = Client(
-                    self._socket_path or find_socket(self._search_folder)
-                )
+                self._client = Client(self._socket_path or find_socket(self._search_folder))
             try:
                 return self._client.call(method, **params)
             except (OSError, RpcError) as error:
-                if isinstance(error, RpcError) and "closed the connection" not in str(
-                    error
-                ):
+                if isinstance(error, RpcError) and "closed the connection" not in str(error):
                     raise
                 self.close()
                 if attempt == 2:
@@ -840,9 +788,7 @@ def run(socket_path: Path | None = None) -> int:
 
     async def main():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream, write_stream, server.create_initialization_options()
-            )
+            await server.run(read_stream, write_stream, server.create_initialization_options())
 
     try:
         asyncio.run(main())

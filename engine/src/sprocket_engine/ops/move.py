@@ -47,9 +47,7 @@ def apply(feature: dict, ctx):
     source = feature.get("base") or feature.get("tool")
     shape = ctx.results.get(source)
     if shape is None or not shape.solids():
-        raise ValueError(
-            f"move {feature['id']}: {source!r} is not a solid built before it"
-        )
+        raise ValueError(f"move {feature['id']}: {source!r} is not a solid built before it")
     moved = copy.deepcopy(shape)
     if "rotate" in feature:
         moved = moved.rotate(

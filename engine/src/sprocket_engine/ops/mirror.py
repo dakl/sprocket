@@ -31,9 +31,7 @@ SCHEMA = {
         },
         "mode": {
             "enum": ["join", "cut"],
-            "description": (
-                "default join. cut removes the original and the mirror from base"
-            ),
+            "description": ("default join. cut removes the original and the mirror from base"),
         },
     },
 }

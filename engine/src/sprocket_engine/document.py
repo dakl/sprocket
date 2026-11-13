@@ -70,8 +70,7 @@ class StaleRevision(DocumentError):
 
     def __init__(self, based_on: int, current: int):
         super().__init__(
-            f"edit was based on revision {based_on}, but the document is at revision "
-            f"{current}"
+            f"edit was based on revision {based_on}, but the document is at revision {current}"
         )
         self.based_on = based_on
         self.current = current
@@ -91,25 +90,20 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
     try:
         tree = ast.parse(expression, mode="eval")
     except SyntaxError as exc:
-        raise DocumentError(
-            f"cannot parse expression {expression!r}: {exc.msg}"
-        ) from None
+        raise DocumentError(f"cannot parse expression {expression!r}: {exc.msg}") from None
 
     def walk(node):
         if isinstance(node, ast.Expression):
             return walk(node.body)
         if isinstance(node, ast.Constant):
             if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
-                raise DocumentError(
-                    f"expression {expression!r} holds a non-numeric constant"
-                )
+                raise DocumentError(f"expression {expression!r} holds a non-numeric constant")
             return node.value
         if isinstance(node, ast.Name):
             if node.id not in parameters:
                 known = ", ".join(sorted(parameters)) or "none"
                 raise DocumentError(
-                    f"expression {expression!r} uses unknown parameter {node.id!r} "
-                    f"(known: {known})"
+                    f"expression {expression!r} uses unknown parameter {node.id!r} (known: {known})"
                 )
             return parameters[node.id]
         if isinstance(node, ast.BinOp) and type(node.op) in _BINARY:
@@ -117,8 +111,7 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
         if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY:
             return _UNARY[type(node.op)](walk(node.operand))
         raise DocumentError(
-            f"expression {expression!r} uses {type(node).__name__}, which is not "
-            "allowed here"
+            f"expression {expression!r} uses {type(node).__name__}, which is not allowed here"
         )
 
     try:
@@ -145,16 +138,13 @@ def resolve_parameters(parameters: dict) -> dict[str, float]:
 
         raw = parameters[name]
         if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
-            raise DocumentError(
-                f"parameter {name!r} must be a number or an expression string"
-            )
+            raise DocumentError(f"parameter {name!r} must be a number or an expression string")
         if not isinstance(raw, str):
             resolved[name] = float(raw)
             return resolved[name]
         if not raw.startswith(EXPRESSION_PREFIX):
             raise DocumentError(
-                f"parameter {name!r} is a string, so it must start with "
-                f"{EXPRESSION_PREFIX!r}"
+                f"parameter {name!r} is a string, so it must start with {EXPRESSION_PREFIX!r}"
             )
 
         resolving.append(name)
@@ -182,9 +172,7 @@ def _parse(expression: str) -> ast.Expression:
     try:
         return ast.parse(expression, mode="eval")
     except SyntaxError as exc:
-        raise DocumentError(
-            f"cannot parse expression {expression!r}: {exc.msg}"
-        ) from None
+        raise DocumentError(f"cannot parse expression {expression!r}: {exc.msg}") from None
 
 
 def resolve_value(value, parameters: dict[str, float]):
@@ -198,9 +186,7 @@ def resolve_value(value, parameters: dict[str, float]):
     return value
 
 
-def keep_expressions(
-    old, new, parameters: dict[str, float], unlinked: list, path: str = ""
-):
+def keep_expressions(old, new, parameters: dict[str, float], unlinked: list, path: str = ""):
     """`new` with the `"=param"` strings of `old` put back wherever the value did not change.
 
     The viewer and the engine's sketch solver work in numbers, so a sketch
@@ -278,9 +264,7 @@ def validate_feature(feature, parameters: dict[str, float]) -> dict:
     try:
         jsonschema.validate(resolved, op.schema)
     except jsonschema.ValidationError as exc:
-        raise DocumentError(
-            f"feature {feature_id!r} failed validation: {exc.message}"
-        ) from None
+        raise DocumentError(f"feature {feature_id!r} failed validation: {exc.message}") from None
     return resolved
 
 
@@ -304,9 +288,7 @@ class Document:
         bodies: dict | None = None,
     ):
         self.features = list(features or [])
-        self.rollback_index = (
-            len(self.features) if rollback_index is None else rollback_index
-        )
+        self.rollback_index = len(self.features) if rollback_index is None else rollback_index
         self.parameters = dict(parameters or {})
         # Colours by region, applied at mesh export: [{"color": "#rrggbb",
         # "select": <selector>}].
@@ -344,15 +326,11 @@ class Document:
             raw_bytes = path.read_bytes()
             raw = raw_bytes.decode()
         except OSError as exc:
-            raise DocumentError(
-                f"cannot read document {path}: {exc.strerror}"
-            ) from None
+            raise DocumentError(f"cannot read document {path}: {exc.strerror}") from None
         except UnicodeDecodeError:
             # A ValueError, not an OSError, so the clause above does not catch
             # it. Pointing at an .stl or .step instead of the .sprocket file lands here.
-            raise DocumentError(
-                f"{path} is not UTF-8 text, so it is not a document"
-            ) from None
+            raise DocumentError(f"{path} is not UTF-8 text, so it is not a document") from None
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -364,9 +342,7 @@ class Document:
         # a typo or the wrong file far more often than it is an empty part,
         # and defaulting it to [] builds nothing and reports success.
         features = data.get("features")
-        if not isinstance(features, list) or not all(
-            isinstance(item, dict) for item in features
-        ):
+        if not isinstance(features, list) or not all(isinstance(item, dict) for item in features):
             raise DocumentError(f"{path}: 'features' must be a list of objects")
 
         rollback_index = data.get("rollback_index", len(features))
@@ -374,8 +350,7 @@ class Document:
             raise DocumentError(f"{path}: 'rollback_index' must be an integer")
         if not 0 <= rollback_index <= len(features):
             raise DocumentError(
-                f"{path}: 'rollback_index' is {rollback_index}, outside "
-                f"0..{len(features)}"
+                f"{path}: 'rollback_index' is {rollback_index}, outside 0..{len(features)}"
             )
 
         parameters = data.get("parameters", {})
@@ -398,9 +373,7 @@ class Document:
 
         bodies = data.get("bodies", {})
         if not isinstance(bodies, dict):
-            raise DocumentError(
-                f"{path}: 'bodies' must be a JSON object keyed by body id"
-            )
+            raise DocumentError(f"{path}: 'bodies' must be a JSON object keyed by body id")
         for body_id, settings in bodies.items():
             try:
                 _check_body_settings(settings)
@@ -463,11 +436,7 @@ class Document:
     def file_sha256(self) -> str | None:
         """The hash of what is on disk at `path` now, or None if nothing is."""
         try:
-            return (
-                hashlib.sha256(self.path.read_bytes()).hexdigest()
-                if self.path
-                else None
-            )
+            return hashlib.sha256(self.path.read_bytes()).hexdigest() if self.path else None
         except OSError:
             return None
 
@@ -502,8 +471,7 @@ class Document:
         return [
             (feature.get("id"), (folder / feature["file"]).resolve())
             for feature in self.features
-            if feature.get("type") == "reference"
-            and isinstance(feature.get("file"), str)
+            if feature.get("type") == "reference" and isinstance(feature.get("file"), str)
         ]
 
     def referenced_files(self) -> list[Path]:
@@ -550,18 +518,13 @@ class Document:
         whoever put it back.
         """
         for entry in reversed(self.log):
-            if (
-                entry.get("action") == "insert"
-                and entry.get("feature_id") == feature_id
-            ):
+            if entry.get("action") == "insert" and entry.get("feature_id") == feature_id:
                 return entry.get("author")
         return None
 
     # ---- editing -----------------------------------------------------------
 
-    def apply_edits(
-        self, edits: list[dict], base_revision: int | None, author: str
-    ) -> int:
+    def apply_edits(self, edits: list[dict], base_revision: int | None, author: str) -> int:
         """Applies a list of edits as one unit and returns the new revision.
 
         All or nothing. The edits run against a copy, and the copy replaces the
@@ -640,9 +603,7 @@ class Document:
             )
         return self.revision
 
-    def set_visibility(
-        self, body_id: str, visible: object = None, ghost: object = None
-    ) -> int:
+    def set_visibility(self, body_id: str, visible: object = None, ghost: object = None) -> int:
         """Shows, hides or ghosts one body.
 
         A ghost draws translucent, with faint edges. This is view state, saved
@@ -732,9 +693,7 @@ class Document:
             raise DocumentError("an update cannot change a feature's id")
         self._check_references(feature, available=self.features[:index])
         unlinked = []
-        self.features[index] = keep_expressions(
-            self.features[index], feature, parameters, unlinked
-        )
+        self.features[index] = keep_expressions(self.features[index], feature, parameters, unlinked)
         detail = {"feature_id": feature_id, "index": index}
         if unlinked:
             detail["unlinked"] = unlinked
@@ -765,9 +724,7 @@ class Document:
         if isinstance(target, bool) or not isinstance(target, int):
             raise DocumentError("'index' must be an integer")
         if not 0 <= target < len(self.features):
-            raise DocumentError(
-                f"index {target} is outside 0..{len(self.features) - 1}"
-            )
+            raise DocumentError(f"index {target} is outside 0..{len(self.features) - 1}")
 
         moved = self.features.pop(index)
         self.features.insert(target, moved)
@@ -781,9 +738,7 @@ class Document:
         if isinstance(index, bool) or not isinstance(index, int):
             raise DocumentError("'index' must be an integer")
         if not 0 <= index <= len(self.features):
-            raise DocumentError(
-                f"rollback index {index} is outside 0..{len(self.features)}"
-            )
+            raise DocumentError(f"rollback index {index} is outside 0..{len(self.features)}")
         self.rollback_index = index
         return {"index": index}
 
@@ -795,9 +750,7 @@ class Document:
         if value is None:
             if name not in self.parameters:
                 raise DocumentError(f"no parameter named {name!r} to remove")
-            candidate = {
-                key: item for key, item in self.parameters.items() if key != name
-            }
+            candidate = {key: item for key, item in self.parameters.items() if key != name}
         else:
             candidate = {**self.parameters, name: value}
 
@@ -856,9 +809,7 @@ class Document:
                     unsolved.append(stored["id"])
                     continue
             constraints = new.get("constraints", [])
-            result = solver.solve(
-                {"entities": new["entities"], "constraints": constraints}
-            )
+            result = solver.solve({"entities": new["entities"], "constraints": constraints})
             if not result["ok"]:
                 names = ", ".join(
                     f"{constraints[i].get('id', i)} ({constraints[i]['kind']})"
@@ -886,9 +837,7 @@ class Document:
         index = self.index_of(feature_id)
         feature = copy.deepcopy(self.features[index])
         if feature.get("type") != "sketch" or "entities" not in feature:
-            raise DocumentError(
-                f"{feature_id!r} is not a sketch of lines, arcs and circles"
-            )
+            raise DocumentError(f"{feature_id!r} is not a sketch of lines, arcs and circles")
         parameters = self.resolved_parameters()
         try:
             detail = edit_sketch(
@@ -901,9 +850,7 @@ class Document:
             raise DocumentError(str(exc)) from None
         validate_feature(feature, parameters)
         unlinked = []
-        self.features[index] = keep_expressions(
-            self.features[index], feature, parameters, unlinked
-        )
+        self.features[index] = keep_expressions(self.features[index], feature, parameters, unlinked)
         if unlinked:
             detail["unlinked"] = unlinked
         return {"feature_id": feature_id, "index": index, **detail}
@@ -941,15 +888,9 @@ class Document:
         parameters = self.resolved_parameters()
         for index, stored in enumerate(self.features):
             fresh = built.get(stored.get("id"))
-            if (
-                stored.get("type") != "sketch"
-                or fresh is None
-                or not has_references(fresh)
-            ):
+            if stored.get("type") != "sketch" or fresh is None or not has_references(fresh):
                 continue
-            if not _same_numbers(
-                resolve_value(stored, parameters)["entities"], fresh["entities"]
-            ):
+            if not _same_numbers(resolve_value(stored, parameters)["entities"], fresh["entities"]):
                 self.features[index] = keep_expressions(
                     stored, {**stored, "entities": fresh["entities"]}, parameters, []
                 )
@@ -964,9 +905,7 @@ class Document:
         body_id = edit.get("id")
         self.index_of(body_id)
         if "visible" in edit or "ghost" in edit:
-            raise DocumentError(
-                "visibility is view state, not an edit: use set_visibility"
-            )
+            raise DocumentError("visibility is view state, not an edit: use set_visibility")
         settings = dict(self.bodies.get(body_id, {}))
         for name in ("name", "color", "material"):
             if name not in edit:
@@ -982,11 +921,7 @@ class Document:
             self.bodies.pop(body_id, None)
         return {
             "body": body_id,
-            **{
-                name: edit[name]
-                for name in ("name", "color", "material")
-                if name in edit
-            },
+            **{name: edit[name] for name in ("name", "color", "material") if name in edit},
         }
 
     def _set_appearances(self, edit: dict) -> dict:
@@ -1059,18 +994,16 @@ def _nested_references(path: Path) -> list[Path]:
 
 
 def reference_digest(path: Path, seen: frozenset = frozenset()) -> str | None:
-    """SHA-256 of a referenced file and, for a .sprocket, of everything it
-    references in turn. It goes in the BREP cache key, so an edit two
-    references deep rebuilds this document too.
+    """SHA-256 of a referenced file and, for a .sprocket, of everything it references in turn.
+
+    It goes in the BREP cache key, so an edit two references deep rebuilds this document too.
     """
     if not path.is_file():
         return None
     digest = hashlib.sha256(path.read_bytes())
     if path not in seen:
         for nested in _nested_references(path):
-            digest.update(
-                (reference_digest(nested, seen | {path}) or "missing").encode()
-            )
+            digest.update((reference_digest(nested, seen | {path}) or "missing").encode())
     return digest.hexdigest()
 
 
@@ -1105,13 +1038,9 @@ def _check_body_settings(settings) -> None:
         raise DocumentError(
             f"unknown material {settings['material']!r} (known: {', '.join(PRESETS)})"
         )
-    if "name" in settings and not (
-        isinstance(settings["name"], str) and settings["name"]
-    ):
+    if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
         raise DocumentError("a body name must be a non-empty string")
-    if "color" in settings and not re.fullmatch(
-        r"#[0-9a-fA-F]{6}", str(settings["color"])
-    ):
+    if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):
         raise DocumentError(f"a body color must be #rrggbb, not {settings['color']!r}")
     for name in ("visible", "ghost"):
         if name in settings and not isinstance(settings[name], bool):
@@ -1120,9 +1049,7 @@ def _check_body_settings(settings) -> None:
 
 def _referenced_ids(feature: dict) -> list[str]:
     referenced = [
-        feature[field]
-        for field in REFERENCE_FIELDS
-        if isinstance(feature.get(field), str)
+        feature[field] for field in REFERENCE_FIELDS if isinstance(feature.get(field), str)
     ]
     # A sketch on a face names the feature that holds the face.
     plane = feature.get("plane")
@@ -1131,24 +1058,18 @@ def _referenced_ids(feature: dict) -> list[str]:
     # A plane, an axis or a pattern direction may name a construct feature, or the
     # body an axis is found on.
     named = [plane, feature.get("axis"), (feature.get("circular") or {}).get("axis")]
-    named += [
-        (feature.get(key) or {}).get("direction") for key in ("linear", "linear2")
-    ]
+    named += [(feature.get(key) or {}).get("direction") for key in ("linear", "linear2")]
     for item in named:
         if isinstance(item, dict):
             referenced.extend(
-                item[key]
-                for key in ("construct", "base")
-                if isinstance(item.get(key), str)
+                item[key] for key in ("construct", "base") if isinstance(item.get(key), str)
             )
     # A projected reference names the sketch or body it was projected from.
     for entity in feature.get("entities") or []:
         source = entity.get("reference") if isinstance(entity, dict) else None
         if isinstance(source, dict):
             referenced.extend(
-                source[key]
-                for key in ("sketch", "feature")
-                if isinstance(source.get(key), str)
+                source[key] for key in ("sketch", "feature") if isinstance(source.get(key), str)
             )
     # A sweep path and picked regions name their sketches one level down.
     path = feature.get("path")
@@ -1169,14 +1090,8 @@ def _same_numbers(a, b) -> bool:
     if isinstance(a, dict) and isinstance(b, dict):
         return a.keys() == b.keys() and all(_same_numbers(a[key], b[key]) for key in a)
     if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(
-            _same_numbers(x, y) for x, y in zip(a, b, strict=False)
-        )
-    if (
-        isinstance(a, (int, float))
-        and isinstance(b, (int, float))
-        and not isinstance(a, bool)
-    ):
+        return len(a) == len(b) and all(_same_numbers(x, y) for x, y in zip(a, b, strict=False))
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
         return abs(a - b) < 1e-9
     return a == b
 

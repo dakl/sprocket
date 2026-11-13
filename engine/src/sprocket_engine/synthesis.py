@@ -29,8 +29,7 @@ def parse_handles(handles: list[str], shape) -> tuple[str, list]:
     kinds = {handle[0] for handle in handles}
     if not kinds <= set(STARTER_OF) or len(kinds) != 1:
         raise SelectorError(
-            "resolve_selection takes faces or edges, not a mix: ['f0', 'f2'] or "
-            "['e1', 'e5']"
+            "resolve_selection takes faces or edges, not a mix: ['f0', 'f2'] or ['e1', 'e5']"
         )
     starter = STARTER_OF[kinds.pop()]
     universe = getattr(shape, starter)()
@@ -71,9 +70,7 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
     def exact(steps) -> bool:
         items = resolved(steps)
         return (
-            items is not None
-            and _indices(items, universe) == target
-            and len(items) == len(target)
+            items is not None and _indices(items, universe) == target and len(items) == len(target)
         )
 
     found = []  # (rank, strategy, steps)
@@ -81,13 +78,10 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
     def keep(steps, strategy):
         # A chain that starts from what a feature made follows that feature
         # when its dimensions change, so it is preferred, and then the shortest.
-        found.append(
-            ((0 if strategy == "new_since" else 1, len(steps)), strategy, steps)
-        )
+        found.append(((0 if strategy == "new_since" else 1, len(steps)), strategy, steps))
 
     prefixes = [([], "structure")] + [
-        ([{"op": "new_since", "feature": feature_id}], "new_since")
-        for feature_id in feature_ids
+        ([{"op": "new_since", "feature": feature_id}], "new_since") for feature_id in feature_ids
     ]
     for prefix, strategy in prefixes:
         for narrowing in [[]] + [[{"op": "filter_by", "axis": axis}] for axis in AXES]:

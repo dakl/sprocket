@@ -118,9 +118,7 @@ def test_highlight_paints_the_face_geometry_names(box, tmp_path: Path):
     from sprocket_engine.geometry import describe_faces
 
     front = next(face for face in describe_faces(box) if "front" in face["description"])
-    image = read_png_of(
-        box, tmp_path / "front.png", camera="front", highlight=[front["handle"]]
-    )
+    image = read_png_of(box, tmp_path / "front.png", camera="front", highlight=[front["handle"]])
     lit = np.any(image != np.array(BACKGROUND, dtype=np.uint8), axis=2)
     # The part colour is a blue-grey, the highlight an orange, so the sign of
     # red minus blue separates them whatever the shading does to the brightness.

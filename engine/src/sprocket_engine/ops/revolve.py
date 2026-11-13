@@ -5,9 +5,7 @@ from .registry import register
 
 SCHEMA = {
     "type": "object",
-    "description": (
-        "Sweeps a sketch around an axis. Always makes a new body, never a cut."
-    ),
+    "description": ("Sweeps a sketch around an axis. Always makes a new body, never a cut."),
     "required": ["id", "type", "profile", "axis"],
     "properties": {
         "id": {"type": "string"},

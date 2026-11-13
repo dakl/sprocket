@@ -49,6 +49,9 @@ build-backend = "uv_build"
 # when Daniel decided it is wrong for this repo; the reason sits beside it.
 [tool.ruff]
 target-version = "py312"
+# 100, not 88: the docstrings open with one full sentence, and most of those
+# run past 88 columns. Daniel's call, 2026-11-13.
+line-length = 100
 
 [tool.ruff.lint]
 select = ["ALL"]

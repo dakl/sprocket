@@ -91,9 +91,7 @@ def profile_faces(feature: dict, ctx):
     if "profiles" not in feature:
         whole = ctx.results[feature["profile"]]
         if not whole.faces():
-            raise ProfileError(
-                f"sketch {feature['profile']!r} has no closed region to extrude"
-            )
+            raise ProfileError(f"sketch {feature['profile']!r} has no closed region to extrude")
         return whole
     picked = []
     # Region detection splits the whole sketch, so it runs once per sketch, not
@@ -141,9 +139,7 @@ def combine(feature: dict, tool, ctx, mode: str | None = None):
     solids = list(result) if isinstance(result, ShapeList) else [result]
     part = Part(solids)
     if not solids or part.volume == 0:
-        raise ValueError(
-            f"{mode} of {feature['id']} with {base_id} left an empty solid"
-        )
+        raise ValueError(f"{mode} of {feature['id']} with {base_id} left an empty solid")
     return part
 
 

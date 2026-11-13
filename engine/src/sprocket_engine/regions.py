@@ -36,9 +36,7 @@ class ProfileError(Exception):
 class Region:
     face: Face  # in the sketch frame, normal +Z
     bounded_by: list[str]  # sorted entity ids
-    inside: tuple[
-        float, float
-    ]  # a point strictly inside, to tell equal bounded_by apart
+    inside: tuple[float, float]  # a point strictly inside, to tell equal bounded_by apart
     outline: list[tuple[float, float]]  # tessellated outer boundary, counter-clockwise
     holes: list[list[tuple[float, float]]]
     area: float
@@ -106,9 +104,7 @@ def _clean(cell: Face) -> Face:
     A line that ends inside a region stays behind as a wire that is not closed, and
     a face carrying it extrudes to an invalid solid.
     """
-    face = Face(
-        cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed]
-    )
+    face = Face(cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed])
     return (
         face
         if face.normal_at().Z > 0
@@ -198,9 +194,7 @@ def find_regions(entities: list[dict]) -> list[Region]:
     display only. A region is named by `bounded_by` and `inside`.
     """
     source = [
-        (entity["id"], entity_edge(entity))
-        for entity in entities
-        if not entity.get("construction")
+        (entity["id"], entity_edge(entity)) for entity in entities if not entity.get("construction")
     ]
     if not source:
         return []
@@ -233,9 +227,7 @@ def find_regions(entities: list[dict]) -> list[Region]:
 
 
 def _contains(region: Region, point: tuple[float, float]) -> bool:
-    classifier = BRepClass_FaceClassifier(
-        region.face.wrapped, gp_Pnt(point[0], point[1], 0), FUZZY
-    )
+    classifier = BRepClass_FaceClassifier(region.face.wrapped, gp_Pnt(point[0], point[1], 0), FUZZY)
     return classifier.State() == TopAbs_IN
 
 
@@ -260,7 +252,6 @@ def pick_region(regions: list[Region], reference: dict) -> Region:
         matches = [region for region in matches if _contains(region, tuple(point))]
     if len(matches) != 1:
         raise ProfileError(
-            f"profile bounded by {wanted} matches {len(matches)} regions, expected "
-            "exactly 1"
+            f"profile bounded by {wanted} matches {len(matches)} regions, expected exactly 1"
         )
     return matches[0]

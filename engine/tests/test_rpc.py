@@ -186,25 +186,19 @@ def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(tmp_path
     path = tmp_path / "part.sprocket"
     path.write_text(json.dumps({"features": [], "rollback_index": 0}))
     long_socket = tmp_path / ("d" * 120 + ".sock")
-    daemon = Daemon(
-        Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket
-    )
+    daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket)
     with pytest.raises(DocumentError, match="shorter --socket"):
         daemon.start_in_background()
 
 
 def distance_of_e1(client) -> float:
-    return next(f for f in client.call("get_document")["features"] if f["id"] == "e1")[
-        "distance"
-    ]
+    return next(f for f in client.call("get_document")["features"] if f["id"] == "e1")["distance"]
 
 
 def set_distance(client, distance: float) -> None:
     client.call(
         "apply_edit",
-        edits=[
-            {"op": "update", "id": "e1", "feature": {**EXTRUDE, "distance": distance}}
-        ],
+        edits=[{"op": "update", "id": "e1", "feature": {**EXTRUDE, "distance": distance}}],
     )
 
 
@@ -258,10 +252,7 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
     daemon.start_in_background()
     try:
         assert (viewer_dir / "part.mesh").exists()
-        assert (
-            "extrude"
-            in json.loads((viewer_dir / "features.json").read_text())[1]["type"]
-        )
+        assert "extrude" in json.loads((viewer_dir / "features.json").read_text())[1]["type"]
         assert "sketch" in json.loads((viewer_dir / "schemas.json").read_text())
 
         with Client(daemon.socket_path) as client:
@@ -269,17 +260,14 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
         # An empty document deletes the mesh, which the viewer reads as nothing to show.
         assert not (viewer_dir / "part.mesh").exists()
         assert [
-            entry["active"]
-            for entry in json.loads((viewer_dir / "features.json").read_text())
+            entry["active"] for entry in json.loads((viewer_dir / "features.json").read_text())
         ] == [False, False]
     finally:
         daemon.shutdown()
         shutil.rmtree(socket_dir, ignore_errors=True)
 
 
-def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
-    tmp_path: Path, monkeypatch
-):
+def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path, monkeypatch):
     """The part builds, but the export refuses it.
 
     The daemon used to log that to stderr and leave the previous document's mesh on
@@ -311,16 +299,9 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
             on_notification=lambda _method, params: heard.append(params),
         ) as client:
             client.call("set_rollback", index=1)
-            client.call(
-                "ping"
-            )  # reading a reply is what delivers the queued notification
-        assert (
-            heard[-1]["viewer_error"]
-            == "ValueError: tessellation disagrees with the B-rep"
-        )
-        assert not (viewer_dir / "part.mesh").exists(), (
-            "the old mesh would show the wrong part"
-        )
+            client.call("ping")  # reading a reply is what delivers the queued notification
+        assert heard[-1]["viewer_error"] == "ValueError: tessellation disagrees with the B-rep"
+        assert not (viewer_dir / "part.mesh").exists(), "the old mesh would show the wrong part"
         assert len(json.loads((viewer_dir / "features.json").read_text())) == 2, (
             "the timeline is still written"
         )
@@ -337,21 +318,15 @@ def write_document(path: Path, features: list[dict]) -> Path:
     return path
 
 
-def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(
-    client, tmp_path
-):
+def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(client, tmp_path):
     other = write_document(tmp_path / "other.sprocket", [SKETCH])
     before = other.read_text()
-    client.call(
-        "set_parameter", name="width", value=40
-    )  # an undoable edit on the first document
+    client.call("set_parameter", name="width", value=40)  # an undoable edit on the first document
 
     opened = client.call("open_document", path=str(other))
 
     assert opened["path"] == str(other)
-    assert [feature["id"] for feature in client.call("get_document")["features"]] == [
-        "s1"
-    ]
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1"]
     assert client.call("get_document")["path"] == str(other)
     assert other.read_text() == before, "opening a file must not rewrite it"
     assert client.call("undo")["changed"] is False, (
@@ -411,9 +386,7 @@ def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
 
     client.call("set_parameter", name="width", value=55)
     assert Document.load(copy).parameters == {"width": 55}
-    assert Document.load(original).parameters == {}, (
-        "the first file is where it was left"
-    )
+    assert Document.load(original).parameters == {}, "the first file is where it was left"
 
 
 def test_an_agent_cannot_swap_the_users_document():
@@ -438,9 +411,7 @@ def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
         "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
         "expected_count": 1,
     }
-    plane = client.call(
-        "resolve_plane", plane={"feature": "e1", "face": top, "offset": 1}
-    )["plane"]
+    plane = client.call("resolve_plane", plane={"feature": "e1", "face": top, "offset": 1})["plane"]
     assert plane["normal"] == [0, 0, 1]
     assert plane["origin"] == [0, 0, 11]
     with pytest.raises(RpcError, match="does not resolve"):
@@ -468,9 +439,7 @@ def test_face_edges_lists_the_edges_that_bound_a_face(client):
     """Every face of the 40 x 30 x 10 box has four edges, and the top face's sit at z = 10."""
     geometry = client.call("describe_geometry")
     top = next(
-        face["handle"]
-        for face in geometry["faces"]
-        if face.get("normal", [0, 0, 0])[2] == 1
+        face["handle"] for face in geometry["faces"] if face.get("normal", [0, 0, 0])[2] == 1
     )
     edges = client.call("face_edges", handle=top)["edges"]
     assert len(edges) == 4

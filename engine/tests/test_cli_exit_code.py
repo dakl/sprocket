@@ -119,9 +119,7 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     document_path = tmp_path / "document.json"
     document_path.write_text(document)
 
-    code = _run(
-        monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
-    )
+    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -129,9 +127,7 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     assert "Traceback" not in stderr
 
 
-def test_a_binary_file_is_a_readable_error_not_a_traceback(
-    tmp_path: Path, capsys, monkeypatch
-):
+def test_a_binary_file_is_a_readable_error_not_a_traceback(tmp_path: Path, capsys, monkeypatch):
     """Picking an .stl or .step instead of the .json is an easy mistake. read_text
     raises UnicodeDecodeError for it - a ValueError, so the OSError clause in
     _load_document does not catch it.
@@ -139,9 +135,7 @@ def test_a_binary_file_is_a_readable_error_not_a_traceback(
     document_path = tmp_path / "part.stl"
     document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
 
-    code = _run(
-        monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
-    )
+    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -156,9 +150,7 @@ def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
     document_path = tmp_path / "document.json"
     document_path.write_text(json.dumps({"features": {"f1": {"type": "sketch"}}}))
 
-    success, output, failed_id = _build_document(
-        document_path, None, None, tmp_path / "cache"
-    )
+    success, output, failed_id = _build_document(document_path, None, None, tmp_path / "cache")
 
     assert success is False
     assert "'features' must be a list of objects" in output

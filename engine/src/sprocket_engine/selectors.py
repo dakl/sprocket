@@ -54,9 +54,7 @@ def _nearest(candidates, point, normal=None):
     def score(item):
         center = item.center()
         dist = (
-            (center.X - point[0]) ** 2
-            + (center.Y - point[1]) ** 2
-            + (center.Z - point[2]) ** 2
+            (center.X - point[0]) ** 2 + (center.Y - point[1]) ** 2 + (center.Z - point[2]) ** 2
         ) ** 0.5
         if normal is not None:
             n = item.normal_at(center)
@@ -113,11 +111,7 @@ def _at_end(current, axis: str, end: str):
     values = [getattr(item.center(), axis) for item in current]
     edge = max(values) if end == "max" else min(values)
     return ShapeList(
-        [
-            item
-            for item, value in zip(current, values, strict=False)
-            if abs(value - edge) <= LEVEL
-        ]
+        [item for item, value in zip(current, values, strict=False) if abs(value - edge) <= LEVEL]
     )
 
 
@@ -156,9 +150,7 @@ def _new_since(current, starter: str, feature_id: str, ctx):
         return ShapeList(current)
     before = ctx.results.get(base_id)
     if before is None:
-        raise SelectorError(
-            f"new_since {feature_id!r}: its base {base_id!r} has no result"
-        )
+        raise SelectorError(f"new_since {feature_id!r}: its base {base_id!r} has no result")
     olds = [_signature(old) for old in getattr(before, starter)()]
     # A ShapeList, so the steps after this one can still sort and filter.
     return ShapeList([item for item in current if not _unchanged(item, olds)])
@@ -227,11 +219,7 @@ def resolve_edges(shape, selector, ctx=None):
     matched = resolve_selector(shape, selector, ctx)
     if not matched:
         raise SelectorError("edge selector matched no edges")
-    other_kinds = {
-        type(item).__name__ for item in matched if not isinstance(item, Edge)
-    }
+    other_kinds = {type(item).__name__ for item in matched if not isinstance(item, Edge)}
     if other_kinds:
-        raise SelectorError(
-            f"edge selector matched {sorted(other_kinds)}, expected edges"
-        )
+        raise SelectorError(f"edge selector matched {sorted(other_kinds)}, expected edges")
     return matched

@@ -159,9 +159,7 @@ def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below():
     up = project_edge(quarter, B3dPlane.XY)
     assert (up["a0"], up["a1"]) == pytest.approx((0, math.pi / 2))
     # The plane facing -Z flips v, so the same arc runs from -90 to 0 degrees there.
-    down = project_edge(
-        quarter, B3dPlane(origin=(0, 0, 0), z_dir=(0, 0, -1), x_dir=(1, 0, 0))
-    )
+    down = project_edge(quarter, B3dPlane(origin=(0, 0, 0), z_dir=(0, 0, -1), x_dir=(1, 0, 0)))
     assert (down["a0"], down["a1"]) == pytest.approx((-math.pi / 2, 0))
     assert down["c"] == [0.0, 0.0]
     assert down["r"] == 10
@@ -405,10 +403,7 @@ def test_the_daemon_projects_for_a_viewer_and_an_agent(tmp_path):
             constraint_id="width",
             changes={"value": 150},
         )
-        features = {
-            feature["id"]: feature
-            for feature in client.call("get_document")["features"]
-        }
+        features = {feature["id"]: feature for feature in client.call("get_document")["features"]}
         assert entity(features["f2"], "e4")["p0"][0] == pytest.approx(-140)
         with pytest.raises(RpcError, match="cannot project"):
             client.call(
@@ -460,9 +455,7 @@ def test_the_viewer_files_draw_a_sketch_as_solved_around_its_references():
     doc.features[0]["entities"][3]["p0"] = [-130, 60]
     doc.features[0]["entities"][3]["p1"] = [-130, 0]
     replayable = doc.for_replay()
-    _, failed, ctx = build_shape(
-        replayable["features"], replayable["rollback_index"], None
-    )
+    _, failed, ctx = build_shape(replayable["features"], replayable["rollback_index"], None)
     assert failed is None
     summary = {entry["id"]: entry for entry in features_summary(doc, failed, ctx)}
     assert entity(summary["f2"]["resolved"], reference)["p0"][0] == pytest.approx(-130)

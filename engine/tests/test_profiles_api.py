@@ -82,15 +82,11 @@ def test_a_parametric_sketch_reaches_the_viewer_as_numbers_and_keeps_its_express
     tmp_path,
 ):
     entities = json.loads(
-        json.dumps(RING_AND_DISC)
-        .replace("[40, 0]", '["=w", 0]')
-        .replace('"r": 4', '"r": "=w/10"')
+        json.dumps(RING_AND_DISC).replace("[40, 0]", '["=w", 0]').replace('"r": 4', '"r": "=w/10"')
     )
     document = {
         "parameters": {"w": 40},
-        "features": [
-            {"id": "f1", "type": "sketch", "plane": "XY", "entities": entities}
-        ],
+        "features": [{"id": "f1", "type": "sketch", "plane": "XY", "entities": entities}],
     }
     path = tmp_path / "part.sprocket"
     path.write_text(json.dumps(document))

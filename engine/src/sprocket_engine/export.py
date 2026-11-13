@@ -30,20 +30,15 @@ class ExportError(Exception):
 def _check_writable(path: Path, kind: str) -> None:
     if not path.parent.is_dir():
         raise ExportError(
-            f"cannot write {kind} file {path}: the directory {path.parent} does not "
-            "exist"
+            f"cannot write {kind} file {path}: the directory {path.parent} does not exist"
         )
     try:
         with path.open("ab"):
             pass
     except PermissionError:
-        raise ExportError(
-            f"cannot write {kind} file {path}: permission denied"
-        ) from None
+        raise ExportError(f"cannot write {kind} file {path}: permission denied") from None
     except OSError as exc:
-        raise ExportError(
-            f"cannot write {kind} file {path}: {exc.strerror or exc}"
-        ) from None
+        raise ExportError(f"cannot write {kind} file {path}: {exc.strerror or exc}") from None
 
 
 def _made(bodies) -> list[dict]:
@@ -101,9 +96,7 @@ def write_stl_dir(bodies, directory) -> list[Path]:
     """One STL per body, named after the body, in an existing directory."""
     directory = Path(directory)
     if not directory.is_dir():
-        raise ExportError(
-            f"cannot write STL files to {directory}: the directory does not exist"
-        )
+        raise ExportError(f"cannot write STL files to {directory}: the directory does not exist")
     written = []
     for body in _made(bodies):
         target = directory / f"{_file_name(body.get('name') or body['id'])}.stl"
@@ -126,8 +119,7 @@ def write_3mf(bodies, path) -> None:
                 mesher.add_shape(_labelled({**body, "shape": solid}))
             except Exception as exc:
                 raise ExportError(
-                    f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: "
-                    f"{exc}"
+                    f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}"
                 ) from exc
     try:
         mesher.write(str(path))
@@ -147,9 +139,7 @@ def section_of(shape, plane):
     faces = (
         []
         if cut is None
-        else (
-            cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else []
-        )
+        else (cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else [])
     )
     return plane.to_local_coords(Compound(list(faces))) if faces else None
 
@@ -159,9 +149,7 @@ def write_section(section, path) -> None:
     path = Path(path)
     kind = path.suffix.lower().lstrip(".")
     if kind not in ("dxf", "svg"):
-        raise ExportError(
-            f"cannot write a section to {path}: the file must end in .dxf or .svg"
-        )
+        raise ExportError(f"cannot write a section to {path}: the file must end in .dxf or .svg")
     _check_writable(path, kind.upper())
     if kind == "dxf":
         drawing = ExportDXF()

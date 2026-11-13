@@ -33,9 +33,7 @@ def build(*features):
 
 
 def test_a_grid_of_pins_joins_the_board():
-    part = build(
-        {"id": "pp", "type": "pattern", "tool": "pin", "base": "board", **GRID}
-    )
+    part = build({"id": "pp", "type": "pattern", "tool": "pin", "base": "board", **GRID})
     assert part.volume == pytest.approx(300 + 10 * 2)
     assert len(part.solids()) == 1
     box = part.bounding_box()
@@ -134,9 +132,7 @@ def test_a_sketch_pattern_copies_entities_before_regions_are_found():
                     "id": "x",
                     "type": "extrude",
                     "distance": 1,
-                    "profiles": [
-                        {"sketch": "s", "bounded_by": ["e1#2", "e2#2", "e3#2", "e4#2"]}
-                    ],
+                    "profiles": [{"sketch": "s", "bounded_by": ["e1#2", "e2#2", "e3#2", "e4#2"]}],
                 },
             ]
         }

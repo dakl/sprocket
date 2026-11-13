@@ -29,9 +29,7 @@ AXIS_SCHEMA = {
             "type": "object",
             "required": ["construct"],
             "description": 'An axis feature (type `axis`): {"construct": "f4"}.',
-            "properties": {
-                "construct": {"type": "string", "description": "id of an axis feature"}
-            },
+            "properties": {"construct": {"type": "string", "description": "id of an axis feature"}},
         },
         {
             "type": "object",
@@ -113,9 +111,7 @@ POINT_SCHEMA_OF_FEATURE = {
 def _feature(construct_id, kind, ctx):
     feature = ctx.features.get(construct_id) if ctx is not None else None
     if feature is None or feature.get("type") != kind:
-        raise ValueError(
-            f"{construct_id!r} is not a {kind} feature built before this one"
-        )
+        raise ValueError(f"{construct_id!r} is not a {kind} feature built before this one")
     return feature
 
 
@@ -131,9 +127,7 @@ def construct_plane(construct_id, ctx) -> Plane:
 def _one(shape, selector, kind, ctx):
     found = resolve_selector(shape, selector, ctx)
     if len(found) != 1:
-        raise SelectorError(
-            f"the axis selector matched {len(found)} {kind}s, expected exactly 1"
-        )
+        raise SelectorError(f"the axis selector matched {len(found)} {kind}s, expected exactly 1")
     return found[0]
 
 
@@ -161,8 +155,7 @@ def resolve_axis(axis_ref, ctx=None) -> Axis:
         shape = ctx.results.get(axis_ref["base"]) if ctx is not None else None
         if shape is None:
             raise ValueError(
-                f"the axis names {axis_ref['base']!r}, which is not built before this "
-                "one"
+                f"the axis names {axis_ref['base']!r}, which is not built before this one"
             )
         if "edge" in axis_ref:
             return _axis_of_edge(_one(shape, axis_ref["edge"], "edge", ctx))

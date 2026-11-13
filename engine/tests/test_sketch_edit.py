@@ -39,9 +39,7 @@ def test_constraints_without_ids_get_them_when_the_document_loads(tmp_path):
     path = tmp_path / "old.sprocket"
     path.write_text(json.dumps(DOCUMENT))
     constraints = Document.load(path).features[0]["constraints"]
-    assert [constraint["id"] for constraint in constraints] == [
-        f"c{n}" for n in range(1, 9)
-    ]
+    assert [constraint["id"] for constraint in constraints] == [f"c{n}" for n in range(1, 9)]
 
 
 def test_a_dimension_moves_the_geometry_and_takes_a_degree_of_freedom(sketch_client):
@@ -58,9 +56,7 @@ def test_an_edit_that_has_no_solution_is_refused_and_names_the_conflict(sketch_c
     sketch_client.call("add_constraint", feature="s1", constraint=LENGTH)
     revision = sketch_client.call("get_document")["revision"]
     with pytest.raises(RpcError) as caught:
-        sketch_client.call(
-            "add_constraint", feature="s1", constraint={**LENGTH, "value": 55}
-        )
+        sketch_client.call("add_constraint", feature="s1", constraint={**LENGTH, "value": 55})
     assert "c9" in caught.value.args[0]
     assert "c10" in caught.value.args[0]
     assert sketch_client.call("get_document")["revision"] == revision
@@ -108,9 +104,7 @@ def test_removing_an_entity_removes_the_constraints_that_mention_it(sketch_clien
         "e2",
         "e3",
     ]
-    assert not any(
-        "e4" in str(constraint) for constraint in result["sketch"]["constraints"]
-    )
+    assert not any("e4" in str(constraint) for constraint in result["sketch"]["constraints"])
 
 
 def test_an_added_entity_is_numbered_after_the_highest(sketch_client):
@@ -182,9 +176,7 @@ def test_the_mcp_tools_reach_the_daemon(sketch_client):
         "sketch_add_constraint",
         "sketch_add_entity",
     }
-    result = call(
-        sketch_client, "sketch_add_constraint", {"feature": "s1", "constraint": LENGTH}
-    )
+    result = call(sketch_client, "sketch_add_constraint", {"feature": "s1", "constraint": LENGTH})
     assert "c9" in result[0].text
 
 

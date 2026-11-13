@@ -16,9 +16,7 @@ EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 def test_rollback_to_empty_clears_stale_exports_instead_of_failing(tmp_path: Path):
     document_path = tmp_path / "document.json"
     document = json.loads(
-        (
-            Path(__file__).parent / "golden" / "rect_extrude" / "document.json"
-        ).read_text()
+        (Path(__file__).parent / "golden" / "rect_extrude" / "document.json").read_text()
     )
     document["rollback_index"] = 0
     document_path.write_text(json.dumps(document))
@@ -47,9 +45,7 @@ def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
     """
     document_path = tmp_path / "document.json"
     document = json.loads(
-        (
-            Path(__file__).parent / "golden" / "rect_extrude" / "document.json"
-        ).read_text()
+        (Path(__file__).parent / "golden" / "rect_extrude" / "document.json").read_text()
     )
     document["features"].append(
         {
@@ -67,9 +63,7 @@ def test_a_broken_feature_still_exports_the_part_before_it(tmp_path: Path):
     document_path.write_text(json.dumps(document))
 
     stl_out = tmp_path / "part.stl"
-    success, output, failed_id = _build_document(
-        document_path, None, stl_out, tmp_path / "cache"
-    )
+    success, output, failed_id = _build_document(document_path, None, stl_out, tmp_path / "cache")
 
     assert success is True
     assert failed_id == "f3"

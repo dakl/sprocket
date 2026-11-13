@@ -39,18 +39,13 @@ def source_edge(source: dict, ctx):
         sketch = ctx.features.get(source["sketch"])
         if sketch is None or sketch.get("type") != "sketch" or "entities" not in sketch:
             raise ValueError(
-                f"{source['sketch']!r} is not a sketch of entities built before this "
-                "one"
+                f"{source['sketch']!r} is not a sketch of entities built before this one"
             )
         found = [
-            entity
-            for entity in sketch_entities(sketch)
-            if entity["id"] == source.get("entity")
+            entity for entity in sketch_entities(sketch) if entity["id"] == source.get("entity")
         ]
         if not found:
-            raise ValueError(
-                f"sketch {source['sketch']!r} has no entity {source.get('entity')!r}"
-            )
+            raise ValueError(f"sketch {source['sketch']!r} has no entity {source.get('entity')!r}")
         return resolve_plane(sketch["plane"], ctx) * entity_edge(found[0])
     if "feature" in source and "edge" in source:
         shape = ctx.results.get(source["feature"])
@@ -95,9 +90,7 @@ def project_edge(edge, plane) -> dict:
             f"{edge.geom_type.name.lower()} one"
         )
     if abs(edge.normal().dot(plane.z_dir)) < FLAT:
-        raise ValueError(
-            "a circle projects as a circle only onto a plane parallel to it"
-        )
+        raise ValueError("a circle projects as a circle only onto a plane parallel to it")
     centre = local(edge.arc_center)
     radius = round(edge.radius, 9)
     if edge.is_closed:

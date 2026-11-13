@@ -36,9 +36,7 @@ def test_a_plane_that_misses_reports_nothing_and_writes_nothing(client, tmp_path
     assert (missed["faces"], missed["area"]) == (0, 0.0)
     assert "bounding_box" not in missed
     with pytest.raises(RpcError, match="the plane misses the part"):
-        client.call(
-            "section", plane={"name": "XY", "offset": 50}, path=str(tmp_path / "s.svg")
-        )
+        client.call("section", plane={"name": "XY", "offset": 50}, path=str(tmp_path / "s.svg"))
 
 
 def test_it_writes_svg_and_dxf_and_refuses_other_files(client, tmp_path):

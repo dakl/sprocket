@@ -20,9 +20,7 @@ PNG = base64.b64decode(
 )
 
 
-def fake_viewer(
-    socket_path: str, answer, ready: threading.Event, stop: threading.Event
-) -> None:
+def fake_viewer(socket_path: str, answer, ready: threading.Event, stop: threading.Event) -> None:
     """Answers every agent_pointer or capture_app it hears with `answer(method, params)`."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.connect(socket_path)
@@ -120,9 +118,7 @@ def test_a_waiting_call_does_not_hold_up_other_clients(daemon, client, monkeypat
     errors = []
     waiting = threading.Thread(
         target=lambda: errors.append(
-            pytest.raises(
-                RpcError, client.call, "agent_pointer", action="move", x=1, y=1
-            )
+            pytest.raises(RpcError, client.call, "agent_pointer", action="move", x=1, y=1)
         )
     )
     waiting.start()
