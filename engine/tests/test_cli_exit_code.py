@@ -44,7 +44,7 @@ def test_a_graceful_build_failure_exits_nonzero(tmp_path: Path, capsys, monkeypa
             str(tmp_path / "part.stl"),
             "--cache-dir",
             str(blocked_cache),
-        ]
+        ],
     )
 
     assert code == 1
@@ -61,15 +61,25 @@ def test_a_successful_build_exits_zero(tmp_path: Path, monkeypatch):
             str(tmp_path / "part.stl"),
             "--cache-dir",
             str(tmp_path / "cache"),
-        ]
+        ],
     )
 
     assert code == 0
     assert (tmp_path / "part.stl").exists()
 
 
-def test_a_missing_document_is_a_readable_error_not_a_traceback(tmp_path: Path, capsys, monkeypatch):
-    code = _run(monkeypatch, ["build", str(tmp_path / "does-not-exist.sprocket"), "--stl", str(tmp_path / "part.stl")])
+def test_a_missing_document_is_a_readable_error_not_a_traceback(
+    tmp_path: Path, capsys, monkeypatch
+):
+    code = _run(
+        monkeypatch,
+        [
+            "build",
+            str(tmp_path / "does-not-exist.sprocket"),
+            "--stl",
+            str(tmp_path / "part.stl"),
+        ],
+    )
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -80,14 +90,23 @@ def test_a_missing_document_is_a_readable_error_not_a_traceback(tmp_path: Path, 
 @pytest.mark.parametrize(
     "document, expected",
     [
-        ('{"features": {"f1": {"type": "sketch"}}}', "'features' must be a list of objects"),
+        (
+            '{"features": {"f1": {"type": "sketch"}}}',
+            "'features' must be a list of objects",
+        ),
         ('{"features": ["f1"]}', "'features' must be a list of objects"),
         ('{"units": {"length": "mm"}}', "'features' must be a list of objects"),
-        ('{"features": [], "rollback_index": "2"}', "'rollback_index' must be an integer"),
+        (
+            '{"features": [], "rollback_index": "2"}',
+            "'rollback_index' must be an integer",
+        ),
         # The type and the range are separate messages now: telling someone an
         # integer "must be an integer" sends them looking at the wrong thing.
         # Document.load is the one copy of both checks.
-        ('{"features": [], "rollback_index": 3}', "'rollback_index' is 3, outside 0..0"),
+        (
+            '{"features": [], "rollback_index": 3}',
+            "'rollback_index' is 3, outside 0..0",
+        ),
         ("{not json", "is not valid JSON"),
         ("[]", "must be a JSON object"),
     ],
@@ -98,7 +117,9 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     document_path = tmp_path / "document.json"
     document_path.write_text(document)
 
-    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
+    code = _run(
+        monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
+    )
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -106,14 +127,18 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     assert "Traceback" not in stderr
 
 
-def test_a_binary_file_is_a_readable_error_not_a_traceback(tmp_path: Path, capsys, monkeypatch):
+def test_a_binary_file_is_a_readable_error_not_a_traceback(
+    tmp_path: Path, capsys, monkeypatch
+):
     """Picking an .stl or .step instead of the .json is an easy mistake. read_text
     raises UnicodeDecodeError for it - a ValueError, so the OSError clause in
     _load_document does not catch it."""
     document_path = tmp_path / "part.stl"
     document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
 
-    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
+    code = _run(
+        monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
+    )
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -127,7 +152,9 @@ def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
     document_path = tmp_path / "document.json"
     document_path.write_text(json.dumps({"features": {"f1": {"type": "sketch"}}}))
 
-    success, output, failed_id = _build_document(document_path, None, None, tmp_path / "cache")
+    success, output, failed_id = _build_document(
+        document_path, None, None, tmp_path / "cache"
+    )
 
     assert success is False
     assert "'features' must be a list of objects" in output
@@ -135,9 +162,21 @@ def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
 
 
 @pytest.mark.parametrize("flag", ["--step", "--stl"])
-def test_an_export_to_a_missing_directory_names_the_directory(tmp_path: Path, capsys, monkeypatch, flag):
+def test_an_export_to_a_missing_directory_names_the_directory(
+    tmp_path: Path, capsys, monkeypatch, flag
+):
     target = tmp_path / "nowhere" / "part.out"
-    code = _run(monkeypatch, ["build", str(GOLDEN_DOCUMENT), flag, str(target), "--cache-dir", str(tmp_path / "cache")])
+    code = _run(
+        monkeypatch,
+        [
+            "build",
+            str(GOLDEN_DOCUMENT),
+            flag,
+            str(target),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+        ],
+    )
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -146,12 +185,24 @@ def test_an_export_to_a_missing_directory_names_the_directory(tmp_path: Path, ca
 
 
 @pytest.mark.parametrize("flag", ["--step", "--stl"])
-def test_an_export_to_a_read_only_directory_says_permission_denied(tmp_path: Path, capsys, monkeypatch, flag):
+def test_an_export_to_a_read_only_directory_says_permission_denied(
+    tmp_path: Path, capsys, monkeypatch, flag
+):
     locked = tmp_path / "locked"
     locked.mkdir()
     locked.chmod(0o500)
     try:
-        code = _run(monkeypatch, ["build", str(GOLDEN_DOCUMENT), flag, str(locked / "part.out"), "--cache-dir", str(tmp_path / "cache")])
+        code = _run(
+            monkeypatch,
+            [
+                "build",
+                str(GOLDEN_DOCUMENT),
+                flag,
+                str(locked / "part.out"),
+                "--cache-dir",
+                str(tmp_path / "cache"),
+            ],
+        )
     finally:
         locked.chmod(0o700)
 

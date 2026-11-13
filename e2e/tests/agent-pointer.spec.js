@@ -22,14 +22,23 @@ test.beforeEach(async ({ page, request }) => {
   await settled(page);
 });
 
-test("a click on a toolbar button opens its tool, and the pointer shows where it clicked", async ({ page, request }, info) => {
+test("a click on a toolbar button opens its tool, and the pointer shows where it clicked", async ({
+  page,
+  request,
+}, info) => {
   const answer = await rpc(request, "agent_pointer", { action: "click", target: "#tool-shell" });
   expect(answer.element).toMatch(/^button#tool-shell/);
   await expect(page.locator("#modify-panel")).toBeVisible();
   await expect(page.locator("#agent-pointer")).toHaveClass(/shown/);
   const box = await page.locator("#tool-shell").boundingBox();
   // The pointer slides there over 0.3 s, which a loaded machine can stretch.
-  await expect.poll(async () => Math.abs((await page.locator("#agent-pointer").boundingBox()).x - (box.x + box.width / 2)), SLOW).toBeLessThan(2);
+  await expect
+    .poll(
+      async () =>
+        Math.abs((await page.locator("#agent-pointer").boundingBox()).x - (box.x + box.width / 2)),
+      SLOW,
+    )
+    .toBeLessThan(2);
   await page.screenshot({ path: info.outputPath("agent-pointer.png") });
   // Enter applies the shell, as a person's key press would.
   await rpc(request, "agent_pointer", { action: "key", key: "Enter" });
@@ -51,11 +60,23 @@ test("typing goes into the focused field with input events", async ({ page, requ
   await rpc(request, "agent_pointer", { action: "click", target: "#modify-thickness" });
   await page.locator("#modify-thickness").fill("");
   await rpc(request, "agent_pointer", { action: "type", text: "1.5" });
-  await page.waitForFunction(() => globalThis.__tcad.modifying.feature && globalThis.__tcad.modifying.feature.thickness === 1.5, null, SLOW);
+  await page.waitForFunction(
+    () =>
+      globalThis.__tcad.modifying.feature && globalThis.__tcad.modifying.feature.thickness === 1.5,
+    null,
+    SLOW,
+  );
 });
 
 test("a selector that matches nothing comes back as the call's error", async ({ request }) => {
-  const response = await request.post("/rpc", { data: { jsonrpc: "2.0", id: 1, method: "agent_pointer", params: { action: "click", target: "#no-such" } } });
+  const response = await request.post("/rpc", {
+    data: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "agent_pointer",
+      params: { action: "click", target: "#no-such" },
+    },
+  });
   expect((await response.json()).error.message).toContain("no element matches #no-such");
 });
 

@@ -22,7 +22,8 @@ final class SprocketDocument: NSDocument {
     let engine = EngineDaemon()
     private let token = UUID().uuidString
     /// Where this document's daemon writes the viewer's three files.
-    private lazy var dataDir = AppPaths.documentDataRoot.appendingPathComponent(token, isDirectory: true)
+    private lazy var dataDir = AppPaths.documentDataRoot.appendingPathComponent(
+        token, isDirectory: true)
     /// `<pid>-<token>.json`, so a launch can tell a crashed run's files from a live one's.
     lazy var recoveryURL = AppPaths.recoveryDir.appendingPathComponent(
         "\(ProcessInfo.processInfo.processIdentifier)-\(token).json"
@@ -45,9 +46,13 @@ final class SprocketDocument: NSDocument {
     override class var writableTypes: [String] { [typeName] }
     override class func isNativeType(_ type: String) -> Bool { type == typeName }
 
-    override func writableTypes(for saveOperation: NSDocument.SaveOperationType) -> [String] { [Self.typeName] }
+    override func writableTypes(for saveOperation: NSDocument.SaveOperationType) -> [String] {
+        [Self.typeName]
+    }
 
-    override func fileNameExtension(forType typeName: String, saveOperation: NSDocument.SaveOperationType) -> String? {
+    override func fileNameExtension(
+        forType typeName: String, saveOperation: NSDocument.SaveOperationType
+    ) -> String? {
         "sprocket"
     }
 
@@ -76,21 +81,32 @@ final class SprocketDocument: NSDocument {
         do {
             document = try fileURL ?? makeHoldingFile()
             try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
-            try FileManager.default.createDirectory(at: AppPaths.recoveryDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: AppPaths.recoveryDir, withIntermediateDirectories: true)
         } catch {
             controller.showFailure("Could not start the engine: \(error.localizedDescription)")
             return
         }
-        engine.onExit = { [weak controller] in controller?.showFailure("The engine stopped. Close this window and open the file again.") }
-        engine.onSaveStateChanged = { [weak self] unsaved, author in self?.engineSaveStateChanged(unsaved, author: author) }
-        let engine = engine, dataDir = dataDir, recoveryURL = recoveryURL
+        engine.onExit = { [weak controller] in
+            controller?.showFailure(
+                "The engine stopped. Close this window and open the file again.")
+        }
+        engine.onSaveStateChanged = { [weak self] unsaved, author in
+            self?.engineSaveStateChanged(unsaved, author: author)
+        }
+        let engine = engine
+        let dataDir = dataDir
+        let recoveryURL = recoveryURL
         Task.detached { [weak self] in
             do {
                 try AppPaths.prepareViewerDir()
                 try engine.start(document: document, viewerDir: dataDir, recovery: recoveryURL)
                 await self?.engineStarted(in: controller)
             } catch {
-                await MainActor.run { controller.showFailure("Could not start the engine: \(error.localizedDescription)") }
+                await MainActor.run {
+                    controller.showFailure(
+                        "Could not start the engine: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -98,9 +114,10 @@ final class SprocketDocument: NSDocument {
     @MainActor
     private func engineStarted(in controller: DocumentWindowController) {
         isEngineReady = true
-        controller.showViewer(ViewerWebView(engine: engine, dataDir: dataDir) { [weak self] format in
-            self?.export(format)
-        })
+        controller.showViewer(
+            ViewerWebView(engine: engine, dataDir: dataDir) { [weak self] format in
+                self?.export(format)
+            })
         restorePendingRecovery()
     }
 
@@ -126,7 +143,9 @@ final class SprocketDocument: NSDocument {
         // The engine reloaded the file after another program wrote it. NSDocument
         // would otherwise refuse the next Save as a file changed behind its back.
         if author == "file", let fileURL {
-            fileModificationDate = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            fileModificationDate =
+                (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate
         }
     }
 
@@ -135,7 +154,9 @@ final class SprocketDocument: NSDocument {
     /// NSDocument's own safe save writes to a temporary file and swaps it in. The
     /// engine already writes atomically and has to know the final path, so the
     /// write goes straight to it.
-    override func writeSafely(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType) throws {
+    override func writeSafely(
+        to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType
+    ) throws {
         guard isEngineReady else { throw EngineError(message: "the engine has not started yet") }
         switch saveOperation {
         case .saveOperation where url == fileURL:
@@ -156,7 +177,10 @@ final class SprocketDocument: NSDocument {
     /// or the next Save would write to the old path.
     override func move(to url: URL, completionHandler: ((Error?) -> Void)? = nil) {
         super.move(to: url) { [weak self] error in
-            guard let self, error == nil else { completionHandler?(error); return }
+            guard let self, error == nil else {
+                completionHandler?(error)
+                return
+            }
             Task {
                 do {
                     _ = try await self.engine.call("document_moved", ["path": url.path])
@@ -210,7 +234,8 @@ final class SprocketDocument: NSDocument {
     }
 
     private func makeHoldingFile() throws -> URL {
-        try FileManager.default.createDirectory(at: AppPaths.untitledDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: AppPaths.untitledDir, withIntermediateDirectories: true)
         let url = AppPaths.untitledDir.appendingPathComponent("\(token).sprocket")
         try Data("{\"features\": []}\n".utf8).write(to: url)
         holdingURL = url

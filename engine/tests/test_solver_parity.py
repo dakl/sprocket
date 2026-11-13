@@ -28,19 +28,27 @@ RUNNER = Path(__file__).with_name("solver_parity.js")
 # different amounts, so allow a millionth of a millimetre.
 TOLERANCE = 1e-6
 
-needs_node = pytest.mark.skipif(NODE is None, reason="needs node to run the viewer's solver")
+needs_node = pytest.mark.skipif(
+    NODE is None, reason="needs node to run the viewer's solver"
+)
 
-SOLVE_AND_DRAG = [(name, "solve") for name in CASES] + [(name, "drag") for name, case in CASES.items() if case["drag"]]
+SOLVE_AND_DRAG = [(name, "solve") for name in CASES] + [
+    (name, "drag") for name, case in CASES.items() if case["drag"]
+]
 
 
 @pytest.fixture(scope="module")
 def viewer_answers(tmp_path_factory):
     cases = tmp_path_factory.mktemp("solver") / "cases.json"
     cases.write_text(json.dumps(CASES))
-    done = subprocess.run([NODE, str(RUNNER), str(cases)], capture_output=True, text=True, check=False)
+    done = subprocess.run(
+        [NODE, str(RUNNER), str(cases)], capture_output=True, text=True, check=False
+    )
     assert done.returncode == 0, done.stderr
-    marked = next(line for line in done.stdout.splitlines() if line.startswith("ANSWERS "))
-    return json.loads(marked[len("ANSWERS "):])
+    marked = next(
+        line for line in done.stdout.splitlines() if line.startswith("ANSWERS ")
+    )
+    return json.loads(marked[len("ANSWERS ") :])
 
 
 def numbers(sketch):
@@ -49,7 +57,9 @@ def numbers(sketch):
     described = {}
     for entity in sketch["entities"]:
         for name in POINTS[entity["kind"]]:
-            described[f"{entity['id']}.{name}"] = point_of(sketch, f"{entity['id']}.{name}")
+            described[f"{entity['id']}.{name}"] = point_of(
+                sketch, f"{entity['id']}.{name}"
+            )
         if entity["kind"] != "line":
             described[f"{entity['id']}.r"] = [entity["r"]]
     return described
@@ -57,7 +67,9 @@ def numbers(sketch):
 
 @needs_node
 @pytest.mark.parametrize("name, mode", SOLVE_AND_DRAG)
-def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(viewer_answers, name, mode):
+def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(
+    viewer_answers, name, mode
+):
     case = CASES[name]
     ours = solve(case["sketch"], case["drag"] if mode == "drag" else None)
     theirs = viewer_answers[name][mode]
@@ -79,28 +91,36 @@ def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(viewer_answers, n
 def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given():
     """Not a comparison: the numbers the dimensions ask for, so a pair of solvers
     that agree on a wrong answer would still fail."""
-    sketch = rough_rectangle([
-        {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
-        {"kind": "distance", "a": "e2.p0", "b": "e2.p1", "value": 20},
-        {"kind": "coincident", "a": "e1.p0", "b": "origin"},
-    ])
+    sketch = rough_rectangle(
+        [
+            {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
+            {"kind": "distance", "a": "e2.p0", "b": "e2.p1", "value": 20},
+            {"kind": "coincident", "a": "e1.p0", "b": "origin"},
+        ]
+    )
     result = solve(sketch)
     assert result["ok"] and result["dof"] == 0
     corners = {entity["id"]: entity for entity in result["sketch"]["entities"]}
     assert corners["e1"]["p0"] == pytest.approx([0, 0], abs=1e-9)
     assert corners["e1"]["p1"] == pytest.approx([40, 0], abs=1e-9)
     assert corners["e3"]["p0"] == pytest.approx([40, 20], abs=1e-9)
-    assert math.dist(corners["e2"]["p0"], corners["e2"]["p1"]) == pytest.approx(20, abs=1e-9)
+    assert math.dist(corners["e2"]["p0"], corners["e2"]["p1"]) == pytest.approx(
+        20, abs=1e-9
+    )
 
 
 def test_two_dimensions_that_disagree_are_named():
-    sketch = rough_rectangle([
-        {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
-        {"kind": "distance", "a": "e3.p0", "b": "e3.p1", "value": 30},
-    ])
+    sketch = rough_rectangle(
+        [
+            {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
+            {"kind": "distance", "a": "e3.p0", "b": "e3.p1", "value": 30},
+        ]
+    )
     result = solve(sketch)
     assert not result["ok"]
-    assert {8, 9} <= set(result["conflicting"]), "the two distance constraints are indices 8 and 9"
+    assert {8, 9} <= set(result["conflicting"]), (
+        "the two distance constraints are indices 8 and 9"
+    )
     assert result["sketch"] is sketch, "a refused sketch comes back untouched"
 
 

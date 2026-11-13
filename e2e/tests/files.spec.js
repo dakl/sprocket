@@ -39,17 +39,26 @@ const writeDocument = (name, document) => {
   return file;
 };
 
-test("opening a document replaces the part and the timeline, even at the same revision", async ({ page, request }) => {
+test("opening a document replaces the part and the timeline, even at the same revision", async ({
+  page,
+  request,
+}) => {
   const file = writeDocument("cylinder.sprocket", CYLINDER);
   await rpc(request, "open_document", { path: file });
   await page.waitForFunction(() => window.__tcad.timeline.some((entry) => entry.id === "e1"));
   await settled(page);
-  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.id))).toEqual(["s1", "e1"]);
+  expect(await page.evaluate(() => window.__tcad.timeline.map((entry) => entry.id))).toEqual([
+    "s1",
+    "e1",
+  ]);
   // 3 faces is the cylinder, and the box had 6 at the same revision, 0.
   await page.waitForFunction(() => window.__tcad.mesh && window.__tcad.mesh.faces === 3);
 });
 
-test("opening a document drops a sketch in progress, which belonged to the old one", async ({ page, request }) => {
+test("opening a document drops a sketch in progress, which belonged to the old one", async ({
+  page,
+  request,
+}) => {
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
   await page.waitForFunction(() => window.__tcad.sketch.active);
@@ -60,7 +69,10 @@ test("opening a document drops a sketch in progress, which belonged to the old o
   await settled(page);
 });
 
-test("opening a file leaves it as it was, and a bad file changes nothing", async ({ page, request }) => {
+test("opening a file leaves it as it was, and a bad file changes nothing", async ({
+  page,
+  request,
+}) => {
   const file = writeDocument("cylinder.sprocket", CYLINDER);
   const before = fs.readFileSync(file, "utf8");
   await rpc(request, "open_document", { path: file });
@@ -72,7 +84,9 @@ test("opening a file leaves it as it was, and a bad file changes nothing", async
   expect((await rpc(request, "get_document")).path).toBe(file);
 });
 
-test("save as writes a copy, and later edits go to the copy and not the first file", async ({ request }) => {
+test("save as writes a copy, and later edits go to the copy and not the first file", async ({
+  request,
+}) => {
   const copy = path.join(folder, "copy.sprocket");
   await rpc(request, "save_as", { path: copy });
   expect(JSON.parse(fs.readFileSync(copy, "utf8")).features).toHaveLength(2);

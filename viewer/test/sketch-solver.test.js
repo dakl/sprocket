@@ -9,7 +9,11 @@ test.before(async () => {
   gcs = await globalThis.Planegcs.createSolver();
 });
 
-const near = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, `${message || ""} expected ${expected}, got ${actual}`);
+const near = (actual, expected, message) =>
+  assert.ok(
+    Math.abs(actual - expected) < 1e-6,
+    `${message || ""} expected ${expected}, got ${actual}`,
+  );
 const length = ([ax, ay], [bx, by]) => Math.hypot(bx - ax, by - ay);
 
 /// Four lines drawn roughly as a rectangle, joined at the corners and held
@@ -99,7 +103,13 @@ test("a dimension typed from the measured value moves nothing", () => {
   const solved = solve(gcs, roughRectangle()).sketch;
   const bottom = line({ sketch: solved }, "e1");
   const measured = length(bottom.p0, bottom.p1);
-  const again = solve(gcs, { ...solved, constraints: [...solved.constraints, { kind: "distance", a: "e1.p0", b: "e1.p1", value: measured }] });
+  const again = solve(gcs, {
+    ...solved,
+    constraints: [
+      ...solved.constraints,
+      { kind: "distance", a: "e1.p0", b: "e1.p1", value: measured },
+    ],
+  });
   assert.ok(again.ok);
   near(length(line(again, "e1").p0, line(again, "e1").p1), measured);
 });
@@ -122,7 +132,10 @@ test("two dimensions that disagree are refused and the sketch is handed back unt
     { kind: "distance", a: "e1.p0", b: "e1.p1", value: 40 },
   ]);
   const solved = solve(gcs, sketch).sketch;
-  const conflicting = { ...solved, constraints: [...solved.constraints, { kind: "distance", a: "e3.p0", b: "e3.p1", value: 55 }] };
+  const conflicting = {
+    ...solved,
+    constraints: [...solved.constraints, { kind: "distance", a: "e3.p0", b: "e3.p1", value: 55 }],
+  };
   const result = solve(gcs, conflicting);
   assert.equal(result.ok, false);
   assert.ok(result.conflicting.length > 0);
@@ -130,7 +143,10 @@ test("two dimensions that disagree are refused and the sketch is handed back unt
 });
 
 test("a radius dimension resizes a circle and a diameter does the same in halves", () => {
-  const circle = { entities: [{ id: "e1", kind: "circle", c: [5, 5], r: 3 }], constraints: [{ kind: "diameter", e: "e1", value: 20 }] };
+  const circle = {
+    entities: [{ id: "e1", kind: "circle", c: [5, 5], r: 3 }],
+    constraints: [{ kind: "diameter", e: "e1", value: 20 }],
+  };
   near(solve(gcs, circle).sketch.entities[0].r, 10);
   circle.constraints = [{ kind: "radius", e: "e1", value: 7 }];
   near(solve(gcs, circle).sketch.entities[0].r, 7);
@@ -139,7 +155,10 @@ test("a radius dimension resizes a circle and a diameter does the same in halves
 test("an arc keeps its ends on the circle when its radius changes", () => {
   const sketch = {
     entities: [{ id: "e1", kind: "arc", c: [0, 0], r: 5, a0: 0, a1: Math.PI / 2 }],
-    constraints: [{ kind: "radius", e: "e1", value: 8 }, { kind: "fix", e: "e1.c" }],
+    constraints: [
+      { kind: "radius", e: "e1", value: 8 },
+      { kind: "fix", e: "e1.c" },
+    ],
   };
   const arc = solve(gcs, sketch).sketch.entities[0];
   near(arc.r, 8);
@@ -147,7 +166,10 @@ test("an arc keeps its ends on the circle when its radius changes", () => {
   // The angles are free, so they may drift a little. What must hold is that
   // both ends sit on the resized circle.
   for (const angle of [arc.a0, arc.a1]) {
-    near(length(arc.c, [arc.c[0] + arc.r * Math.cos(angle), arc.c[1] + arc.r * Math.sin(angle)]), 8);
+    near(
+      length(arc.c, [arc.c[0] + arc.r * Math.cos(angle), arc.c[1] + arc.r * Math.sin(angle)]),
+      8,
+    );
   }
 });
 
@@ -157,7 +179,10 @@ test("a line made tangent to a circle ends up one radius from its centre", () =>
       { id: "e1", kind: "line", p0: [-10, 6], p1: [10, 7] },
       { id: "e2", kind: "circle", c: [0, 0], r: 5 },
     ],
-    constraints: [{ kind: "tangent", a: "e1", b: "e2" }, { kind: "fix", e: "e2" }],
+    constraints: [
+      { kind: "tangent", a: "e1", b: "e2" },
+      { kind: "fix", e: "e2" },
+    ],
   };
   const moved = solve(gcs, sketch).sketch;
   const [a, b] = [moved.entities[0].p0, moved.entities[0].p1];
@@ -208,12 +233,21 @@ test("solving twice on one solver gives the same answer and leaks nothing", () =
 });
 
 test("a constraint the solver cannot use is an error that says why", () => {
-  const sketch = { entities: [{ id: "e1", kind: "line", p0: [0, 0], p1: [1, 0] }, { id: "e2", kind: "line", p0: [0, 1], p1: [1, 1] }], constraints: [{ kind: "tangent", a: "e1", b: "e2" }] };
+  const sketch = {
+    entities: [
+      { id: "e1", kind: "line", p0: [0, 0], p1: [1, 0] },
+      { id: "e2", kind: "line", p0: [0, 1], p1: [1, 1] },
+    ],
+    constraints: [{ kind: "tangent", a: "e1", b: "e2" }],
+  };
   assert.throws(() => solve(gcs, sketch), /cannot join a line and a line/);
 });
 
 test("fixing a circle holds its size as well as its centre", () => {
-  const circle = { entities: [{ id: "e1", kind: "circle", c: [1, 2], r: 3 }], constraints: [{ kind: "fix", e: "e1" }] };
+  const circle = {
+    entities: [{ id: "e1", kind: "circle", c: [1, 2], r: 3 }],
+    constraints: [{ kind: "fix", e: "e1" }],
+  };
   const { dof } = entityStates(gcs, circle);
   assert.equal(dof, 0);
 });
@@ -226,7 +260,11 @@ test("a corner dragged where a dimension forbids stops at the nearest legal plac
   const solved = solve(gcs, sketch).sketch;
   const dragged = solve(gcs, solved, { drag: { ref: "e1.p1", delta: [30, 0] } });
   assert.ok(dragged.ok, "an impossible drag is not an error");
-  near(length(line(dragged, "e1").p0, line(dragged, "e1").p1), 40, "the width dimension still holds");
+  near(
+    length(line(dragged, "e1").p0, line(dragged, "e1").p1),
+    40,
+    "the width dimension still holds",
+  );
 });
 
 test("point_on keeps a point on a line, a circle and an arc", () => {
@@ -262,7 +300,10 @@ test("coincident with the origin pins a point to [0, 0], and the origin never mo
   };
   const result = solve(gcs, sketch);
   assert.ok(result.ok);
-  assert.deepEqual(line(result, "e1").p0.map((value) => Math.round(value * 1e6) / 1e6), [0, 0]);
+  assert.deepEqual(
+    line(result, "e1").p0.map((value) => Math.round(value * 1e6) / 1e6),
+    [0, 0],
+  );
   const dragged = solve(gcs, result.sketch, { drag: { ref: "e1.p0", delta: [5, 5] } });
   assert.ok(dragged.ok);
   near(line(dragged, "e1").p0[0], 0, "the pinned point holds");
@@ -318,7 +359,14 @@ test("a projected reference stays where its source put it, and a dimension to it
   const sketch = {
     entities: [
       { id: "e1", kind: "line", p0: [-30, 0], p1: [-30, 20] },
-      { id: "e2", kind: "line", p0: [-10, 0], p1: [-10, 20], construction: true, reference: { sketch: "f1", entity: "e4" } },
+      {
+        id: "e2",
+        kind: "line",
+        p0: [-10, 0],
+        p1: [-10, 20],
+        construction: true,
+        reference: { sketch: "f1", entity: "e4" },
+      },
       { id: "c1", kind: "circle", c: [5, 5], r: 3, reference: { sketch: "f1", entity: "e9" } },
     ],
     constraints: [
@@ -334,7 +382,11 @@ test("a projected reference stays where its source put it, and a dimension to it
   assert.deepEqual(line(result, "c1").c, [5, 5]);
   near(line(result, "c1").r, 3, "a referenced circle keeps its size");
   // The reference cannot be pulled, even when a drag asks for it.
-  const dragged = solve(gcs, { entities: sketch.entities, constraints: [] }, { drag: { ref: "e1.p0", delta: [3, 0] } });
+  const dragged = solve(
+    gcs,
+    { entities: sketch.entities, constraints: [] },
+    { drag: { ref: "e1.p0", delta: [3, 0] } },
+  );
   assert.ok(dragged.ok);
   assert.deepEqual(line(dragged, "e2").p0, [-10, 0]);
 });
@@ -343,7 +395,13 @@ test("a dimension between two references, which cannot both move, is a conflict"
   const sketch = {
     entities: [
       { id: "e1", kind: "line", p0: [0, 0], p1: [0, 5], reference: { sketch: "f1", entity: "e1" } },
-      { id: "e2", kind: "line", p0: [10, 0], p1: [10, 5], reference: { sketch: "f1", entity: "e2" } },
+      {
+        id: "e2",
+        kind: "line",
+        p0: [10, 0],
+        p1: [10, 5],
+        reference: { sketch: "f1", entity: "e2" },
+      },
     ],
     constraints: [{ kind: "distance_x", a: "e1.p0", b: "e2.p0", value: 4 }],
   };

@@ -16,17 +16,24 @@ const BOX = {
 async function open(page, request, document) {
   await resetDocument(request, document);
   await page.goto("/index.html");
-  await page.waitForFunction((count) => globalThis.__tcad && globalThis.__tcad.timeline.length === count, document.features.length);
+  await page.waitForFunction(
+    (count) => globalThis.__tcad && globalThis.__tcad.timeline.length === count,
+    document.features.length,
+  );
   await settled(page);
 }
 
 const modifying = (page) => page.evaluate(() => globalThis.__tcad.modifying);
 const ready = (page, check) =>
-  page.waitForFunction((source) => {
-    const tool = globalThis.__tcad.modifying;
-    // biome-ignore lint/security/noGlobalEval: the check is test code passed as text
-    return tool?.ok && tool.feature && (0, eval)(source)(tool.feature);
-  }, check.toString(), SLOW);
+  page.waitForFunction(
+    (source) => {
+      const tool = globalThis.__tcad.modifying;
+      // biome-ignore lint/security/noGlobalEval: the check is test code passed as text
+      return tool?.ok && tool.feature && (0, eval)(source)(tool.feature);
+    },
+    check.toString(),
+    SLOW,
+  );
 
 async function commit(page, count) {
   await page.keyboard.press("Enter");
@@ -35,7 +42,10 @@ async function commit(page, count) {
   await expect(page.locator("#modify-panel")).toBeHidden();
 }
 
-test("Primitive makes a cylinder in an empty document, then cuts a box out of it", async ({ page, request }, info) => {
+test("Primitive makes a cylinder in an empty document, then cuts a box out of it", async ({
+  page,
+  request,
+}, info) => {
   await open(page, request, { features: [], rollback_index: 0 });
   await expect(page.locator("#tool-primitive")).toBeEnabled();
   await page.locator("#tool-primitive").click();
@@ -45,8 +55,16 @@ test("Primitive makes a cylinder in an empty document, then cuts a box out of it
   await expect(page.locator("#modify-width")).toBeHidden();
   await page.locator("#modify-radius").fill("5");
   await page.locator("#modify-height").fill("12");
-  await ready(page, (feature) => feature.shape === "cylinder" && feature.radius === 5 && feature.height === 12);
-  expect((await modifying(page)).feature).toEqual({ type: "primitive", shape: "cylinder", radius: 5, height: 12 });
+  await ready(
+    page,
+    (feature) => feature.shape === "cylinder" && feature.radius === 5 && feature.height === 12,
+  );
+  expect((await modifying(page)).feature).toEqual({
+    type: "primitive",
+    shape: "cylinder",
+    radius: 5,
+    height: 12,
+  });
   await page.screenshot({ path: info.outputPath("primitive-cylinder.png") });
   await commit(page, 1);
   expect((await rpc(request, "measure")).volume).toBeCloseTo(Math.PI * 25 * 12, 2);
@@ -65,7 +83,10 @@ test("Primitive makes a cylinder in an empty document, then cuts a box out of it
   expect((await rpc(request, "measure")).volume).toBeCloseTo(Math.PI * 25 * 12 - slab, 1);
 });
 
-test("Move shifts the picked body, and with Copy on leaves it and adds a turned copy", async ({ page, request }, info) => {
+test("Move shifts the picked body, and with Copy on leaves it and adds a turned copy", async ({
+  page,
+  request,
+}, info) => {
   await open(page, request, BOX);
   await expect(page.locator("#tool-move")).toBeEnabled();
   await page.locator("#tool-move").click();
@@ -73,7 +94,11 @@ test("Move shifts the picked body, and with Copy on leaves it and adds a turned 
   await expect(page.locator("#modify-info")).toContainText("distance or an angle");
   await page.locator("#modify-dz").fill("5");
   await ready(page, (feature) => feature.translate && feature.translate[2] === 5);
-  expect((await modifying(page)).feature).toEqual({ type: "move", base: "f2", translate: [0, 0, 5] });
+  expect((await modifying(page)).feature).toEqual({
+    type: "move",
+    base: "f2",
+    translate: [0, 0, 5],
+  });
   await commit(page, 3);
   const moved = await rpc(request, "measure");
   expect(moved.bounding_box.min[2]).toBeCloseTo(5, 4);

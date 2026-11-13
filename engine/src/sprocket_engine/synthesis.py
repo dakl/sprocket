@@ -28,12 +28,16 @@ def parse_handles(handles: list[str], shape) -> tuple[str, list]:
         raise SelectorError("resolve_selection needs at least one handle")
     kinds = {handle[0] for handle in handles}
     if not kinds <= set(STARTER_OF) or len(kinds) != 1:
-        raise SelectorError("resolve_selection takes faces or edges, not a mix: ['f0', 'f2'] or ['e1', 'e5']")
+        raise SelectorError(
+            "resolve_selection takes faces or edges, not a mix: ['f0', 'f2'] or ['e1', 'e5']"
+        )
     starter = STARTER_OF[kinds.pop()]
     universe = getattr(shape, starter)()
     for handle in handles:
         if not 0 <= int(handle[1:]) < len(universe):
-            raise SelectorError(f"handle {handle!r} is out of range, this shape has {len(universe)}")
+            raise SelectorError(
+                f"handle {handle!r} is out of range, this shape has {len(universe)}"
+            )
     return starter, universe
 
 
@@ -62,16 +66,25 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
 
     def exact(steps) -> bool:
         items = resolved(steps)
-        return items is not None and _indices(items, universe) == target and len(items) == len(target)
+        return (
+            items is not None
+            and _indices(items, universe) == target
+            and len(items) == len(target)
+        )
 
     found = []  # (rank, strategy, steps)
 
     def keep(steps, strategy):
         # A chain that starts from what a feature made follows that feature
         # when its dimensions change, so it is preferred, and then the shortest.
-        found.append(((0 if strategy == "new_since" else 1, len(steps)), strategy, steps))
+        found.append(
+            ((0 if strategy == "new_since" else 1, len(steps)), strategy, steps)
+        )
 
-    prefixes = [([], "structure")] + [([{"op": "new_since", "feature": feature_id}], "new_since") for feature_id in feature_ids]
+    prefixes = [([], "structure")] + [
+        ([{"op": "new_since", "feature": feature_id}], "new_since")
+        for feature_id in feature_ids
+    ]
     for prefix, strategy in prefixes:
         for narrowing in [[]] + [[{"op": "filter_by", "axis": axis}] for axis in AXES]:
             steps = [{"op": starter}, *prefix, *narrowing]
@@ -94,7 +107,17 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
         return _answer(steps, strategy, len(target))
 
     # Nothing structural picks exactly this set. Name it by where it is.
-    centres = [[round(coordinate, 6) for coordinate in (universe[index].center().X, universe[index].center().Y, universe[index].center().Z)] for index in sorted(target)]
+    centres = [
+        [
+            round(coordinate, 6)
+            for coordinate in (
+                universe[index].center().X,
+                universe[index].center().Y,
+                universe[index].center().Z,
+            )
+        ]
+        for index in sorted(target)
+    ]
     steps = [{"op": starter}, {"op": "nearest_each", "points": centres}]
     if len(target) == 1 and starter == "faces":
         # One flat face keeps the normal tie-break nearest_to has, so a pick next
@@ -102,9 +125,22 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
         face = universe[next(iter(target))]
         if face.geom_type.name == "PLANE":
             normal = face.normal_at(face.center())
-            steps = [{"op": starter}, {"op": "nearest_to", "point": centres[0], "normal": [round(normal.X, 6), round(normal.Y, 6), round(normal.Z, 6)]}]
+            steps = [
+                {"op": starter},
+                {
+                    "op": "nearest_to",
+                    "point": centres[0],
+                    "normal": [
+                        round(normal.X, 6),
+                        round(normal.Y, 6),
+                        round(normal.Z, 6),
+                    ],
+                },
+            ]
     if not exact(steps):
-        raise SelectorError("no selector picks exactly those, because some of them are the same distance from each other")
+        raise SelectorError(
+            "no selector picks exactly those, because some of them are the same distance from each other"
+        )
     return _answer(steps, "position", len(target))
 
 

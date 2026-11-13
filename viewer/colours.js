@@ -32,9 +32,19 @@
   /// "#rrggbb" in lower case from what a person typed ("A1B2C3", "#a1b2c3",
   /// "#abc"), or null when it is not a colour.
   function normaliseHex(text) {
-    const value = String(text || "").trim().replace(/^#/, "").toLowerCase();
+    const value = String(text || "")
+      .trim()
+      .replace(/^#/, "")
+      .toLowerCase();
     if (/^[0-9a-f]{6}$/.test(value)) return "#" + value;
-    if (/^[0-9a-f]{3}$/.test(value)) return "#" + value.split("").map((digit) => digit + digit).join("");
+    if (/^[0-9a-f]{3}$/.test(value))
+      return (
+        "#" +
+        value
+          .split("")
+          .map((digit) => digit + digit)
+          .join("")
+      );
     return null;
   }
 
@@ -53,7 +63,9 @@
   /// own entry had; `material: null` removes the finish. `shown` is the
   /// colour on screen, used when there is no own entry and no new colour.
   function withFaceAppearance(appearances, info, change, shown) {
-    const ownIndices = info.entries.filter((entry) => entry.faces === 1).map((entry) => entry.index);
+    const ownIndices = info.entries
+      .filter((entry) => entry.faces === 1)
+      .map((entry) => entry.index);
     const own = ownIndices.length ? appearances[ownIndices[ownIndices.length - 1]] : null;
     const color = normaliseHex(change.color) || (own && own.color) || normaliseHex(shown);
     const material = "material" in change ? change.material : own && own.material;
@@ -81,7 +93,17 @@
     return widest > 1 ? "Clear colour (" + widest + " faces)" : "Clear face colour";
   }
 
-  const api = { PALETTE, MATERIALS, RECENT_LIMIT, normaliseHex, pushRecent, withFaceColour, withFaceAppearance, withoutFaceColour, clearLabel };
+  const api = {
+    PALETTE,
+    MATERIALS,
+    RECENT_LIMIT,
+    normaliseHex,
+    pushRecent,
+    withFaceColour,
+    withFaceAppearance,
+    withoutFaceColour,
+    clearLabel,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ViewerColours = api;
 })(typeof window !== "undefined" ? window : globalThis);

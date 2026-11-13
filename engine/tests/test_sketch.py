@@ -10,7 +10,12 @@ def test_polygon_on_principal_plane():
         "schema_version": 1,
         "units": {"length": "mm"},
         "features": [
-            {"id": "f1", "type": "sketch", "plane": "XY", "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]]},
+            {
+                "id": "f1",
+                "type": "sketch",
+                "plane": "XY",
+                "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]],
+            },
             {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5},
         ],
     }
@@ -26,7 +31,11 @@ def test_polygon_on_arbitrary_plane_places_geometry_at_the_given_origin():
             {
                 "id": "f1",
                 "type": "sketch",
-                "plane": {"origin": [0, 0, 20], "normal": [0, 0, 1], "x_dir": [1, 0, 0]},
+                "plane": {
+                    "origin": [0, 0, 20],
+                    "normal": [0, 0, 1],
+                    "x_dir": [1, 0, 0],
+                },
                 "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]],
             },
             {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5},
@@ -65,7 +74,12 @@ def test_rect_still_works_alongside_polygon_support():
         "schema_version": 1,
         "units": {"length": "mm"},
         "features": [
-            {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+            {
+                "id": "f1",
+                "type": "sketch",
+                "plane": "XY",
+                "rect": {"width": 40, "height": 20, "center": [0, 0]},
+            },
             {"id": "f2", "type": "extrude", "profile": "f1", "distance": 10},
         ],
     }
@@ -93,7 +107,12 @@ def test_circle_center_offsets_the_profile():
         "schema_version": 1,
         "units": {"length": "mm"},
         "features": [
-            {"id": "f1", "type": "sketch", "plane": "XY", "circle": {"radius": 10, "center": [5, 0]}},
+            {
+                "id": "f1",
+                "type": "sketch",
+                "plane": "XY",
+                "circle": {"radius": 10, "center": [5, 0]},
+            },
             {"id": "f2", "type": "extrude", "profile": "f1", "distance": 5},
         ],
     }
@@ -125,7 +144,10 @@ def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
     "case, sketch",
     [
         ("no shape at all", {}),
-        ("two shapes at once", {"rect": {"width": 10, "height": 10}, "circle": {"radius": 5}}),
+        (
+            "two shapes at once",
+            {"rect": {"width": 10, "height": 10}, "circle": {"radius": 5}},
+        ),
         ("a radius of zero", {"circle": {"radius": 0}}),
     ],
 )

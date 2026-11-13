@@ -27,15 +27,15 @@ SELECTOR_DESCRIPTION = (
     'optional "normal" to break a tie across a thin wall, '
     '{"op": "at_end", "axis": "Z", "end": "max"} keeps everything level with the highest item along that '
     'axis ("min" for the lowest), which is how to say "the top edges" so a part that gains an edge there '
-    'is noticed, '
+    "is noticed, "
     '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which is the most '
     'robust way to say "the edges of that extrude", and '
     '{"op": "nearest_each", "points": [[x, y, z], ...]} takes the item nearest each point, and '
     '{"op": "within", "box": [x0, y0, z0, x1, y1, z1]} keeps the items whose centre lies inside the box. '
     'Add "expected_count": n beside "select" and a rebuild that finds a different number fails '
-    'the feature instead of rounding the wrong edges. '
+    "the feature instead of rounding the wrong edges. "
     'Every edge is {"select": [{"op": "edges"}]}. '
-    'resolve_selection turns picked handles into a selector.'
+    "resolve_selection turns picked handles into a selector."
 )
 
 
@@ -51,7 +51,11 @@ def _nearest(candidates, point, normal=None):
 
     def score(item):
         center = item.center()
-        dist = ((center.X - point[0]) ** 2 + (center.Y - point[1]) ** 2 + (center.Z - point[2]) ** 2) ** 0.5
+        dist = (
+            (center.X - point[0]) ** 2
+            + (center.Y - point[1]) ** 2
+            + (center.Z - point[2]) ** 2
+        ) ** 0.5
         if normal is not None:
             n = item.normal_at(center)
             dot = n.X * normal[0] + n.Y * normal[1] + n.Z * normal[2]
@@ -106,7 +110,9 @@ def _at_end(current, axis: str, end: str):
         return ShapeList(current)
     values = [getattr(item.center(), axis) for item in current]
     edge = max(values) if end == "max" else min(values)
-    return ShapeList([item for item, value in zip(current, values) if abs(value - edge) <= LEVEL])
+    return ShapeList(
+        [item for item, value in zip(current, values) if abs(value - edge) <= LEVEL]
+    )
 
 
 def _within(current, box):
@@ -121,7 +127,10 @@ def _within(current, box):
 
     def inside(item):
         centre = item.center()
-        return all(low[i] - LEVEL <= value <= high[i] + LEVEL for i, value in enumerate((centre.X, centre.Y, centre.Z)))
+        return all(
+            low[i] - LEVEL <= value <= high[i] + LEVEL
+            for i, value in enumerate((centre.X, centre.Y, centre.Z))
+        )
 
     return ShapeList([item for item in current if inside(item)])
 
@@ -132,13 +141,17 @@ def _new_since(current, starter: str, feature_id: str, ctx):
     nothing, so all of it is new."""
     feature = ctx.features.get(feature_id) if ctx is not None else None
     if feature is None:
-        raise SelectorError(f"new_since names {feature_id!r}, which is not a feature before this one")
+        raise SelectorError(
+            f"new_since names {feature_id!r}, which is not a feature before this one"
+        )
     base_id = feature.get("base")
     if not base_id:
         return ShapeList(current)
     before = ctx.results.get(base_id)
     if before is None:
-        raise SelectorError(f"new_since {feature_id!r}: its base {base_id!r} has no result")
+        raise SelectorError(
+            f"new_since {feature_id!r}: its base {base_id!r} has no result"
+        )
     olds = [_signature(old) for old in getattr(before, starter)()]
     # A ShapeList, so the steps after this one can still sort and filter.
     return ShapeList([item for item in current if not _unchanged(item, olds)])
@@ -162,7 +175,7 @@ def resolve_selector(shape, selector, ctx=None):
         elif op == "sort_by":
             current = current.sort_by(AXES[step["axis"]])
         elif op == "slice":
-            current = current[step.get("start"):step.get("stop")]
+            current = current[step.get("start") : step.get("stop")]
         elif op == "first":
             current = [current[0]]
         elif op == "last":
@@ -187,7 +200,9 @@ def resolve_selector(shape, selector, ctx=None):
 
     expected = selector.get("expected_count")
     if expected is not None and len(current) != expected:
-        raise SelectorError(f"selector matched {len(current)}, expected {expected}: the geometry it named has changed")
+        raise SelectorError(
+            f"selector matched {len(current)}, expected {expected}: the geometry it named has changed"
+        )
     return list(current)
 
 
@@ -202,7 +217,11 @@ def resolve_edges(shape, selector, ctx=None):
     matched = resolve_selector(shape, selector, ctx)
     if not matched:
         raise SelectorError("edge selector matched no edges")
-    other_kinds = {type(item).__name__ for item in matched if not isinstance(item, Edge)}
+    other_kinds = {
+        type(item).__name__ for item in matched if not isinstance(item, Edge)
+    }
     if other_kinds:
-        raise SelectorError(f"edge selector matched {sorted(other_kinds)}, expected edges")
+        raise SelectorError(
+            f"edge selector matched {sorted(other_kinds)}, expected edges"
+        )
     return matched

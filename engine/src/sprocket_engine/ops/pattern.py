@@ -4,7 +4,11 @@ from .registry import register
 from .construct import AXIS_SCHEMA, resolve_axis
 
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
-COUNT = {"type": "integer", "minimum": 1, "description": "copies along this direction, the original included"}
+COUNT = {
+    "type": "integer",
+    "minimum": 1,
+    "description": "copies along this direction, the original included",
+}
 
 LINEAR = {
     "type": "object",
@@ -31,8 +35,14 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "pattern"},
-        "tool": {"type": "string", "description": "id of the feature whose solid is copied"},
-        "base": {"type": "string", "description": "id of the feature the copies combine with. Without it, the copies are a new body."},
+        "tool": {
+            "type": "string",
+            "description": "id of the feature whose solid is copied",
+        },
+        "base": {
+            "type": "string",
+            "description": "id of the feature the copies combine with. Without it, the copies are a new body.",
+        },
         "mode": {"enum": ["join", "cut"], "description": "default join"},
         "linear": LINEAR,
         "linear2": {**LINEAR, "description": "a second direction, which makes a grid"},
@@ -42,7 +52,10 @@ SCHEMA = {
             "properties": {
                 "axis": AXIS_SCHEMA,
                 "count": COUNT,
-                "angle": {"type": "number", "description": "degrees spanned, default 360 (copies spread evenly)"},
+                "angle": {
+                    "type": "number",
+                    "description": "degrees spanned, default 360 (copies spread evenly)",
+                },
             },
         },
     },

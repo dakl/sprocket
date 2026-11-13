@@ -21,9 +21,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         EngineDaemon.removeStaleSockets()
 
         let recovered = offerRecovery()
-        let toOpen = startupDocuments().filter { url in !recovered.contains { $0.path == url.path } }
+        let toOpen = startupDocuments().filter { url in !recovered.contains { $0.path == url.path }
+        }
         for url in toOpen {
-            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) {
+                _, _, error in
                 if let error { NSApp.presentError(error) }
             }
         }
@@ -60,15 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `-NSDocumentRevisionsDebugMode`.
     private func startupDocuments() -> [URL] {
         if let path = CommandLine.arguments.dropFirst().first(where: { $0.hasSuffix(".sprocket") })
-            ?? ProcessInfo.processInfo.environment["SPROCKET_DOCUMENT"] {
+            ?? ProcessInfo.processInfo.environment["SPROCKET_DOCUMENT"]
+        {
             launchedOnNamedFile = true
             return [URL(fileURLWithPath: path)]
         }
-        let paths = UserDefaults.standard.stringArray(forKey: Self.openDocumentsKey)
+        let paths =
+            UserDefaults.standard.stringArray(forKey: Self.openDocumentsKey)
             // The single-window app kept one path under this key.
             ?? UserDefaults.standard.string(forKey: "lastDocument").map { [$0] }
             ?? []
-        return paths.filter { FileManager.default.fileExists(atPath: $0) }.map { URL(fileURLWithPath: $0) }
+        return paths.filter { FileManager.default.fileExists(atPath: $0) }.map {
+            URL(fileURLWithPath: $0)
+        }
     }
 
     /// Recovery files whose process is gone are edits a crash kept from being
@@ -80,10 +86,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !orphans.isEmpty else { return [] }
 
         let alert = NSAlert()
-        alert.messageText = orphans.count == 1
+        alert.messageText =
+            orphans.count == 1
             ? "Sprocket quit with unsaved changes in a document."
             : "Sprocket quit with unsaved changes in \(orphans.count) documents."
-        alert.informativeText = "Restore them to keep working on them. They stay unsaved until you save them."
+        alert.informativeText =
+            "Restore them to keep working on them. They stay unsaved until you save them."
         alert.addButton(withTitle: "Restore")
         alert.addButton(withTitle: "Discard")
         guard alert.runModal() == .alertFirstButtonReturn else {
@@ -94,14 +102,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var reopened: [URL] = []
         for file in orphans {
             if let target = Recovery.restoreTarget(for: file, untitledDir: AppPaths.untitledDir),
-               let document = try? NSDocumentController.shared.makeDocument(withContentsOf: target, ofType: SprocketDocument.typeName) as? SprocketDocument {
+                let document = try? NSDocumentController.shared.makeDocument(
+                    withContentsOf: target, ofType: SprocketDocument.typeName) as? SprocketDocument
+            {
                 open(document, restoring: file)
                 reopened.append(target)
-            } else if let document = try? NSDocumentController.shared.makeUntitledDocument(ofType: SprocketDocument.typeName) as? SprocketDocument {
+            } else if let document = try? NSDocumentController.shared.makeUntitledDocument(
+                ofType: SprocketDocument.typeName) as? SprocketDocument
+            {
                 open(document, restoring: file)
             }
             // The crashed run's holding file for an untitled document is no use now.
-            if let path = Recovery.documentPath(in: file), Recovery.isHoldingFile(path, untitledDir: AppPaths.untitledDir) {
+            if let path = Recovery.documentPath(in: file),
+                Recovery.isHoldingFile(path, untitledDir: AppPaths.untitledDir)
+            {
                 try? manager.removeItem(at: path)
             }
         }
