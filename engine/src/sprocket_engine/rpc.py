@@ -22,6 +22,7 @@ are no locks a client can hold, because an agent that dies holding one would
 freeze the user's app.
 """
 
+import base64
 import json
 import os
 import re
@@ -29,6 +30,8 @@ import socket
 import socketserver
 import threading
 import traceback
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .cache import default_cache_dir
@@ -176,6 +179,9 @@ class Daemon:
         self.watched_references: list[Path] = []
         self._clients: set = set()
         self._clients_lock = threading.Lock()
+        # Questions put to the viewer (`_ask_viewer`), by request id, until one answers.
+        self.viewer_waits: dict[str, ViewerWait] = {}
+        self.viewer_waits_lock = threading.Lock()
         self._server = None
 
     # ---- client registry ---------------------------------------------------
@@ -511,8 +517,11 @@ def _handle_line(daemon: Daemon, line: bytes):
         return _error(request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)")
 
     try:
-        with daemon.lock:
+        if method in UNLOCKED:
             result = handler(daemon, params)
+        else:
+            with daemon.lock:
+                result = handler(daemon, params)
     except StaleRevision as exc:
         return _error(
             request_id,
@@ -537,6 +546,15 @@ def _handle_line(daemon: Daemon, line: bytes):
     if request_id is None:  # a notification, no reply expected
         return None
     return {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+
+@dataclass
+class ViewerWait:
+    """One question put to the viewer: set once a viewer (or the app) answers."""
+
+    done: threading.Event = field(default_factory=threading.Event)
+    result: dict = field(default_factory=dict)
+    error: str | None = None
 
 
 def _error(request_id, code: int, message: str, data=None):
@@ -1584,6 +1602,96 @@ def _list_methods(daemon: Daemon, params: dict) -> dict:
     return {"methods": sorted(METHODS)}
 
 
+# ---- the viewer as an instrument ---------------------------------------------
+#
+# An agent drives the person's viewer the way the person does: a pointer it can
+# see moves and clicks, and a screenshot shows the whole window. The daemon only
+# relays. It broadcasts the request, the viewer (or, for a screenshot in the app,
+# Swift) does it and answers with `viewer_reply`, and the agent's call returns
+# that answer. These methods run outside `daemon.lock`: the answer arrives on
+# another connection while the asking one waits.
+
+POINTER_ACTIONS = ("move", "click", "double_click", "drag", "key", "type")
+POINTER_FIELDS = ("action", "x", "y", "to_x", "to_y", "target", "key", "text", "shift", "meta", "alt")
+POINTER_TIMEOUT_S = 10.0
+CAPTURE_TIMEOUT_S = 15.0
+
+
+def _ask_viewer(daemon: Daemon, method: str, params: dict, timeout: float) -> dict:
+    request = uuid.uuid4().hex
+    wait = ViewerWait()
+    with daemon.viewer_waits_lock:
+        daemon.viewer_waits[request] = wait
+    try:
+        daemon.broadcast(method, {"request": request, **params})
+        if not wait.done.wait(timeout):
+            message = f"no viewer answered {method} within {timeout:g} s. Is a viewer open on this document?"
+            raise DocumentError(message)
+    finally:
+        with daemon.viewer_waits_lock:
+            daemon.viewer_waits.pop(request, None)
+    if wait.error:
+        raise DocumentError(wait.error)
+    return wait.result
+
+
+def _agent_pointer(daemon: Daemon, params: dict) -> dict:
+    """Moves the agent's pointer in the viewer and acts there, as a person would.
+
+    `action` is move, click, double_click, drag, key or type. A point is `x`
+    and `y` in the viewer's CSS pixels, or `target`, a CSS selector whose
+    element's centre is used. A drag also takes `to_x` and `to_y`. `key` is a
+    key name as `KeyboardEvent.key` spells it, `text` is typed into the focused
+    field, and `shift`, `meta` and `alt` hold modifiers. The answer names the
+    element that took the action.
+    """
+    action = params.get("action", "click")
+    if action not in POINTER_ACTIONS:
+        message = f"'action' must be one of {', '.join(POINTER_ACTIONS)}"
+        raise DocumentError(message)
+    request = {name: params[name] for name in POINTER_FIELDS if name in params}
+    request["action"] = action
+    return _ask_viewer(daemon, "agent_pointer", request, POINTER_TIMEOUT_S)
+
+
+def _screenshot_app(daemon: Daemon, params: dict) -> dict:
+    """A PNG of the viewer as the person sees it, written to `path`.
+
+    In the app this is the whole window's web view, toolbar and panels
+    included (`scope: window`). A browser viewer can only give its 3D canvas
+    (`scope: canvas`).
+    """
+    path = params.get("path")
+    if not path:
+        message = "screenshot_app needs a 'path' to write the PNG to"
+        raise DocumentError(message)
+    result = _ask_viewer(daemon, "capture_app", {"path": str(path)}, CAPTURE_TIMEOUT_S)
+    encoded = result.pop("png_base64", None)
+    if encoded is not None:
+        Path(path).write_bytes(base64.b64decode(encoded))
+    if not Path(path).is_file():
+        message = "the viewer answered but wrote no PNG"
+        raise DocumentError(message)
+    return {"path": str(path), **result}
+
+
+def _viewer_reply(daemon: Daemon, params: dict) -> dict:
+    """A viewer's answer to `agent_pointer` or `capture_app`. The first answer wins."""
+    with daemon.viewer_waits_lock:
+        wait = daemon.viewer_waits.get(params.get("request", ""))
+    if wait is None or wait.done.is_set():
+        return {"accepted": False}
+    result = params.get("result")
+    wait.result = result if isinstance(result, dict) else {}
+    error = params.get("error")
+    wait.error = str(error) if error else None
+    wait.done.set()
+    return {"accepted": True}
+
+
+UNLOCKED = frozenset({"agent_pointer", "screenshot_app", "viewer_reply"})
+
+
 def _ping(daemon: Daemon, params: dict) -> dict:
     return {"ok": True, "revision": daemon.session.document.revision}
 
@@ -1631,6 +1739,9 @@ METHODS = {
     "validate_feature": _validate_feature,
     "list_methods": _list_methods,
     "ping": _ping,
+    "agent_pointer": _agent_pointer,
+    "screenshot_app": _screenshot_app,
+    "viewer_reply": _viewer_reply,
 }
 
 

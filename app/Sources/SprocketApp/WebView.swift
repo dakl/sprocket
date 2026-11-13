@@ -77,12 +77,34 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
         engine.onNotification = { [weak self] method, json in
             self?.run("window.__daemonNotification && window.__daemonNotification(\(Self.literal(method)), JSON.parse(\(Self.literal(json))));", method)
         }
+        engine.onCapture = { [weak self] request, path in self?.capture(request: request, path: path) }
         // What an agent points at. Encoded as JSON, so nothing in it runs as code.
         engine.onHighlight = { [weak self] handles, sketches in
             guard let data = try? JSONSerialization.data(withJSONObject: ["handles": handles, "sketches": sketches]),
                   let json = String(data: data, encoding: .utf8)
             else { return }
             self?.run("window.__highlight && window.__highlight(JSON.parse(\(Self.literal(json))));", "highlight")
+        }
+    }
+
+    /// Answers an agent's `screenshot_app`: the whole web view as the person
+    /// sees it, toolbar and panels included, written as a PNG to `path`.
+    /// `scale` is device pixels per CSS pixel, which agent_pointer's points use.
+    private func capture(request: String, path: String) {
+        webView.takeSnapshot(with: nil) { [weak self] image, error in
+            guard let self else { return }
+            var answer: [String: Any] = ["request": request]
+            if let image,
+               let tiff = image.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiff),
+               let png = bitmap.representation(using: .png, properties: [:]),
+               (try? png.write(to: URL(fileURLWithPath: path))) != nil {
+                let scale = image.size.width > 0 ? Double(bitmap.pixelsWide) / Double(image.size.width) : 1
+                answer["result"] = ["scope": "window", "width": bitmap.pixelsWide, "height": bitmap.pixelsHigh, "scale": scale]
+            } else {
+                answer["error"] = "the window could not be captured: \(error?.localizedDescription ?? "no image")"
+            }
+            self.engine.call(method: "viewer_reply", params: answer) { _ in }
         }
     }
 

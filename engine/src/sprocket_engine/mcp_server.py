@@ -184,6 +184,32 @@ def document_tools() -> list[types.Tool]:
             },
         ),
         _tool(
+            "screenshot_app",
+            "A picture of the person's viewer as they see it: in the app the whole window, toolbar, panels and "
+            "timeline included; in a browser only the 3D view. Use it with agent_pointer to drive and check the UI.",
+            {},
+        ),
+        _tool(
+            "agent_pointer",
+            "Moves a pointer the person can see in their viewer and acts with it: move, click, double_click, drag, "
+            "key or type. Aim with `x` and `y` in the viewer's CSS pixels (a screenshot_app picture from the app "
+            "is in device pixels: divide by its `scale`), or with `target`, a CSS selector such as '#tool-fillet'. "
+            "The answer names the element that took the action.",
+            {
+                "action": {"type": "string", "enum": ["move", "click", "double_click", "drag", "key", "type"], "default": "click"},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "target": {"type": "string", "description": "a CSS selector; its element's centre is the point"},
+                "to_x": {"type": "number", "description": "where a drag ends"},
+                "to_y": {"type": "number", "description": "where a drag ends"},
+                "key": {"type": "string", "description": "for key: a KeyboardEvent.key name, e.g. 'Enter', 'Escape', 'f'"},
+                "text": {"type": "string", "description": "for type: text typed into the focused field"},
+                "shift": {"type": "boolean"},
+                "meta": {"type": "boolean"},
+                "alt": {"type": "boolean"},
+            },
+        ),
+        _tool(
             "preview_feature",
             "Builds a feature without committing it, and reports whether it would work. "
             "Use this before adding anything you are not sure about.",
@@ -443,6 +469,12 @@ def call(client: Client, name: str, arguments: dict) -> list:
     if name == "render_view":
         return _render(client, arguments)
 
+    if name == "screenshot_app":
+        return _render(client, arguments, method="screenshot_app")
+
+    if name == "agent_pointer":
+        return _json_content(client.call(name, **arguments))
+
     if name in ("apply_edit", "set_rollback", "set_parameter", "set_body", "set_appearances"):
         return _json_content(client.call(name, author=AUTHOR, **arguments))
 
@@ -452,7 +484,7 @@ def call(client: Client, name: str, arguments: dict) -> list:
     raise ValueError(f"no tool named {name!r}")
 
 
-def _render(client: Client, arguments: dict) -> list:
+def _render(client: Client, arguments: dict, method: str = "render_view") -> list:
     """Renders to a temporary file, then hands back the bytes.
 
     The daemon writes PNGs to a path because the Swift app wants a file on
@@ -461,7 +493,7 @@ def _render(client: Client, arguments: dict) -> list:
     """
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "view.png"
-        info = client.call("render_view", path=str(path), **arguments)
+        info = client.call(method, path=str(path), **arguments)
         data = base64.b64encode(path.read_bytes()).decode()
     summary = dict(info)
     summary.pop("path", None)
