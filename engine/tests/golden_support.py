@@ -21,9 +21,15 @@ CASES = sorted(path.name for path in GOLDEN_DIR.iterdir() if path.is_dir())
 
 # Measured, not assumed. Two STEP exports of the same solid ten hours apart
 # differed on exactly one of 803 lines, the FILE_NAME timestamp, and every
-# float matched byte for byte. So one substitution is the whole of STEP
-# normalisation, and no STEP parser is needed.
+# float matched byte for byte. So for a one-body part one substitution is the
+# whole of STEP normalisation, and no STEP parser is needed. A part of several
+# bodies needs a second (2026-11-13, move_copy_rotated), below.
 STEP_TIMESTAMP = re.compile(rb"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+# A part of several bodies is written as an assembly, and OCCT numbers each
+# NEXT_ASSEMBLY_USAGE_OCCURRENCE from a counter that lives as long as the
+# process: the same part exported after another assembly says '3' where a fresh
+# process says '1'. The label orders the parts; it is not geometry.
+STEP_ASSEMBLY_ID = re.compile(rb"NEXT_ASSEMBLY_USAGE_OCCURRENCE\('\d+'")
 
 # Pinned rather than left to build123d's defaults, so a changed hash answers
 # "did the geometry change" and not "did a library default change".
@@ -93,7 +99,8 @@ def write_stl(part, path: Path) -> None:
 
 
 def normalised_step(path: Path) -> bytes:
-    return STEP_TIMESTAMP.sub(b"<timestamp>", Path(path).read_bytes())
+    step = STEP_TIMESTAMP.sub(b"<timestamp>", Path(path).read_bytes())
+    return STEP_ASSEMBLY_ID.sub(b"NEXT_ASSEMBLY_USAGE_OCCURRENCE('<n>'", step)
 
 
 def face_type_histogram(part) -> dict[str, int]:
