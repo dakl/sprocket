@@ -118,7 +118,9 @@ def describe_edges(shape) -> list[dict]:
             "kind": edge.geom_type.name,
             "length": round(edge.length, 9),
             "centre": _xyz(edge.center()),
-            "description": f"{edge.geom_type.name.lower()} edge, length {edge.length:.3f} mm",
+            "description": (
+                f"{edge.geom_type.name.lower()} edge, length {edge.length:.3f} mm"
+            ),
         }
         for index, edge in enumerate(shape.edges())
     ]
@@ -207,9 +209,11 @@ def _direction(item):
 
 
 def _angle(a, b) -> float | None:
-    """Degrees. Two flat faces: between their normals, 0 to 180, so faces that
-    face each other read 180. Two straight edges: 0 to 90, since a line has no
-    way round. A face and an edge: the line's angle to the plane, 0 to 90.
+    """Degrees.
+
+    Two flat faces: between their normals, 0 to 180, so faces that face each other
+    read 180. Two straight edges: 0 to 90, since a line has no way round. A face and
+    an edge: the line's angle to the plane, 0 to 90.
     """
     found = _direction(a), _direction(b)
     if None in found:

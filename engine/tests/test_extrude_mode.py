@@ -39,7 +39,8 @@ def test_intersect_keeps_only_the_overlap():
 
 
 def test_no_mode_keeps_the_sign_rule_for_old_documents():
-    # A negative distance cuts, here into the air below the box, which is the gap `mode` closes.
+    # A negative distance cuts, here into the air below the box, which is the gap
+    # `mode` closes.
     legacy = build(distance=-4)
     assert legacy.volume == pytest.approx(BOX_VOLUME)
     assert pytest.approx(0) == legacy.bounding_box().min.Z

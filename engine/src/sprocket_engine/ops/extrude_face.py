@@ -11,7 +11,10 @@ from .registry import register
 
 SCHEMA = {
     "type": "object",
-    "description": "Push/pull one face of an existing solid. Positive adds material, negative cuts into it.",
+    "description": (
+        "Push/pull one face of an existing solid. Positive adds material, negative "
+        "cuts into it."
+    ),
     "required": ["id", "type", "base", "face", "distance"],
     "properties": {
         "id": {"type": "string"},

@@ -93,7 +93,8 @@ def test_a_counterbore_adds_the_head_cylinder():
 
 def test_a_countersink_adds_a_90_degree_cone():
     part = build({**HOLE, "through": True, "kind": "countersink", "head_diameter": 8})
-    # Cone height (4 - 2) / tan(45) = 2. Frustum pi*h/3*(R^2 + Rr + r^2) less the bore inside it.
+    # Cone height (4 - 2) / tan(45) = 2. Frustum pi*h/3*(R^2 + Rr + r^2) less the
+    # bore inside it.
     extra = math.pi * 2 / 3 * (16 + 8 + 4) - math.pi * 4 * 2
     assert part.volume == pytest.approx(4000 - math.pi * 4 * 10 - extra)
     assert {face.geom_type.name for face in part.faces()} == {

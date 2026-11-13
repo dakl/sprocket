@@ -310,7 +310,8 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
             body_entries.append(
                 {
                     "id": body["id"],
-                    # The newest feature of the body: what a Modify tool names as its base.
+                    # The newest feature of the body: what a
+                    # Modify tool names as its base.
                     "tip": body.get("tip", body["id"]),
                     "name": body.get("name", body["id"]),
                     "color": body.get("color"),
@@ -318,9 +319,11 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                     "reference": body["reference"],
                     "faces": count,
                     "edges": len(item["segments_per_edge"]),
-                    # Only when set, so a document with no finishes writes the same bytes as before.
+                    # Only when set, so a document with no
+                    # finishes writes the same bytes as before.
                     **({"material": body["material"]} if body.get("material") else {}),
-                    # Only when it differs from the default, a ghost for a reference body
+                    # Only when it differs from the default, a
+                    # ghost for a reference body
                     # and solid for a part, so older documents write the same bytes.
                     **(
                         {"ghost": body["ghost"]}

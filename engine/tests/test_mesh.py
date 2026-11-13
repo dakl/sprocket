@@ -127,10 +127,11 @@ def test_edges_are_ready_to_draw_as_line_segments(box_mesh):
 
 
 def test_box_topology_is_pinned(box_mesh):
-    """A guard on OCCT, not on this code. Tessellation output is stable within
-    an OCP version and reorders across upgrades (see ENGINE_VERSIONS), so these
-    numbers changing means face indices moved and every stored face reference
-    now points somewhere else.
+    """A guard on OCCT, not on this code.
+
+    Tessellation output is stable within an OCP version and reorders across upgrades
+    (see ENGINE_VERSIONS), so these numbers changing means face indices moved and
+    every stored face reference now points somewhere else.
     """
     _part, _written, (header, _buffers) = box_mesh
 
@@ -214,11 +215,12 @@ def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh)
 
 
 def test_node_normals_agree_with_the_triangle_winding(box_mesh):
-    """The viewer takes a picked face's extrude axis from its node normal. It
-    used to compute that axis from the hit triangle's winding instead, so the
-    two have to point the same way or push/pull reverses: dragging outward
-    would cut in. They also have to point out of the solid, which the signed
-    volume below checks without trusting either of them.
+    """The viewer takes a picked face's extrude axis from its node normal.
+
+    It used to compute that axis from the hit triangle's winding instead, so the two
+    have to point the same way or push/pull reverses: dragging outward would cut in.
+    They also have to point out of the solid, which the signed volume below checks
+    without trusting either of them.
     """
     _part, _written, (_header, buffers) = box_mesh
 

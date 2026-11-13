@@ -1,5 +1,7 @@
-"""The primitive and move ops. The golden cases primitive_box_cylinder_cut and
-move_copy_rotated cover a box, a cylinder cut, and a rotated copy.
+"""The primitive and move ops.
+
+The golden cases primitive_box_cylinder_cut and move_copy_rotated cover a box, a
+cylinder cut, and a rotated copy.
 """
 
 import math

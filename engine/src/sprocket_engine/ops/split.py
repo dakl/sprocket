@@ -10,8 +10,10 @@ KEEP = {"above": Keep.TOP, "below": Keep.BOTTOM, "both": Keep.BOTH}
 SCHEMA = {
     "type": "object",
     "description": (
-        "Cuts a body in two along a plane. `keep` chooses the side above the plane (the way its normal points), "
-        "below it, or both. Both sides stay in the same body as separate solids, and 3MF writes them as separate objects."
+        "Cuts a body in two along a plane. `keep` chooses the side above the plane "
+        "(the way its normal points), "
+        "below it, or both. Both sides stay in the same body as separate solids, and "
+        "3MF writes them as separate objects."
     ),
     "required": ["id", "type", "base", "plane"],
     "properties": {
@@ -38,7 +40,8 @@ def apply(feature: dict, ctx):
     solids = [solid for side in sides if side is not None for solid in side.solids()]
     if not solids:
         raise ValueError(
-            f"split {feature['id']} kept nothing: the plane misses the side you asked for"
+            f"split {feature['id']} kept nothing: the plane misses the side you asked "
+            "for"
         )
     if len(solids) == len(base.solids()) and abs(
         sum(solid.volume for solid in solids) - base.volume

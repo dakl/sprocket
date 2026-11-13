@@ -46,7 +46,8 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             "resolved": feature,
         }
         if feature.get("type") == "sketch":
-            # A sketch with projected references is drawn as the build solved it around them.
+            # A sketch with projected references is drawn as the build
+            # solved it around them.
             built = ctx.features.get(raw.get("id")) if ctx is not None else None
             if built is not None and has_references(built):
                 feature = entry["resolved"] = built
@@ -84,9 +85,11 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
 
 
 def _drawable_plane(plane, ctx):
-    """A name or an explicit plane as stored. An offset or face plane becomes
-    explicit, because only the engine can find a face. None when it does not
-    resolve, such as a sketch after the feature that broke the build.
+    """A name or an explicit plane as stored.
+
+    An offset or face plane becomes explicit, because only the engine can find a
+    face. None when it does not resolve, such as a sketch after the feature that
+    broke the build.
     """
     if isinstance(plane, str) or "origin" in plane:
         return plane

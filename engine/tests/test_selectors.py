@@ -75,6 +75,7 @@ def test_unknown_selector_op_raises(tmp_path: Path):
 
 def test_new_since_keeps_what_a_feature_made_or_changed(tmp_path: Path):
     """After a fillet, the new faces are the round ones and the faces it trimmed.
+
     The bottom face was not touched, so it is not new.
     """
     document = {

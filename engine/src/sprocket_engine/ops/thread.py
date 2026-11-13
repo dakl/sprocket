@@ -31,10 +31,14 @@ ISO_COARSE = {
 SCHEMA = {
     "type": "object",
     "description": (
-        "Threads a cylindrical face: a hole gets an internal thread, a shaft an external one, over the face's whole "
-        "length. Cosmetic by default, which leaves the solid as it is and records the thread, so the viewer draws it "
-        "and the part stays light. `modeled: true` cuts the real ISO thread form, which needs the `threads` extra. "
-        "The face must fit the size: a shaft about the nominal diameter, a hole between the tap drill and the nominal."
+        "Threads a cylindrical face: a hole gets an internal thread, a shaft an "
+        "external one, over the face's whole "
+        "length. Cosmetic by default, which leaves the solid as it is and records the "
+        "thread, so the viewer draws it "
+        "and the part stays light. `modeled: true` cuts the real ISO thread form, "
+        "which needs the `threads` extra. "
+        "The face must fit the size: a shaft about the nominal diameter, a hole "
+        "between the tap drill and the nominal."
     ),
     "required": ["id", "type", "base", "face", "designation"],
     "properties": {
@@ -49,7 +53,9 @@ SCHEMA = {
         "pitch": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "description": "mm. Default the ISO coarse pitch, so give it only for a fine thread.",
+            "description": (
+                "mm. Default the ISO coarse pitch, so give it only for a fine thread."
+            ),
         },
         "modeled": {
             "type": "boolean",
@@ -61,26 +67,30 @@ SCHEMA = {
 
 def thread_geometry(feature: dict, ctx) -> dict:
     """Where the thread is: the face's axis, ends and radius, plus its size.
-    Read from the geometry each time, so a cached replay that skips `apply`
-    still gives the viewer the same answer.
+
+    Read from the geometry each time, so a cached replay that skips `apply` still
+    gives the viewer the same answer.
     """
     base = ctx.results[feature["base"]]
     faces = resolve_selector(base, feature["face"], ctx)
     if len(faces) != 1 or not isinstance(faces[0], Face):
         raise SelectorError(
-            f"thread {feature['id']} needs a selector that matches one face, and it matched {len(faces)}"
+            f"thread {feature['id']} needs a selector that matches one face, and it "
+            f"matched {len(faces)}"
         )
     face = faces[0]
     if face.geom_type != GeomType.CYLINDER:
         raise ValueError(
-            f"thread {feature['id']} needs a cylindrical face, and the selector found a {face.geom_type.name.lower()} face"
+            f"thread {feature['id']} needs a cylindrical face, and the selector found "
+            f"a {face.geom_type.name.lower()} face"
         )
     cylinder = BRepAdaptor_Surface(face.wrapped).Cylinder()
     axis = cylinder.Axis()
     origin = Vector(axis.Location())
     direction = Vector(axis.Direction()).normalized()
     radius = cylinder.Radius()
-    # The cylinder's v parameter runs along its axis, so the face's v range is where it starts and ends.
+    # The cylinder's v parameter runs along its axis, so the face's v range is
+    # where it starts and ends.
     _, _, v_min, v_max = BRepTools.UVBounds_s(face.wrapped)
     start = origin + direction * v_min
     # A hole's outward normal points at the axis.
@@ -100,7 +110,8 @@ def thread_geometry(feature: dict, ctx) -> dict:
     if not low <= diameter <= high:
         kind = "hole" if internal else "shaft"
         raise ValueError(
-            f"thread {feature['id']}: a {feature['designation']} {kind} is {low:g} to {high:g} mm across, and this face is {diameter:g} mm"
+            f"thread {feature['id']}: a {feature['designation']} {kind} is {low:g} to "
+            f"{high:g} mm across, and this face is {diameter:g} mm"
         )
     return {
         "start": [round(value, 9) for value in start],
@@ -152,6 +163,7 @@ def apply(feature: dict, ctx):
     result = _modeled(base, geometry)
     if not result.is_valid or len(result.solids()) != len(base.solids()):
         raise ValueError(
-            f"thread {feature['id']}: the modeled thread did not fuse into one valid solid; leave it cosmetic"
+            f"thread {feature['id']}: the modeled thread did not fuse into one valid "
+            "solid; leave it cosmetic"
         )
     return Part(result.solids())

@@ -86,8 +86,10 @@ def _split(edges: list[Edge]):
 
 
 def _touches(cell: Face, frame_box) -> bool:
-    """The outside cell runs to the frame. A real region never does, because
-    the frame is a quarter of the sketch wider on every side.
+    """The outside cell runs to the frame.
+
+    A real region never does, because the frame is a quarter of the sketch wider on
+    every side.
     """
     box = cell.bounding_box()
     return (
@@ -99,9 +101,10 @@ def _touches(cell: Face, frame_box) -> bool:
 
 
 def _clean(cell: Face) -> Face:
-    """Drops what the splitter leaves inside a cell. A line that ends inside a
-    region stays behind as a wire that is not closed, and a face carrying it
-    extrudes to an invalid solid.
+    """Drops what the splitter leaves inside a cell.
+
+    A line that ends inside a region stays behind as a wire that is not closed, and
+    a face carrying it extrudes to an invalid solid.
     """
     face = Face(
         cell.outer_wire(), [wire for wire in cell.inner_wires() if wire.is_closed]
@@ -157,8 +160,9 @@ def _counter_clockwise(points):
 
 
 def _interior_point(face: Face) -> tuple[float, float]:
-    """The centre of the face's largest triangle. A face's own centre can sit
-    outside it: a crescent's does.
+    """The centre of the face's largest triangle.
+
+    A face's own centre can sit outside it: a crescent's does.
     """
     vertices, triangles = face.tessellate(0.01)
     best, best_area = None, -1.0
@@ -250,11 +254,13 @@ def pick_region(regions: list[Region], reference: dict) -> Region:
         point = reference.get("inside")
         if point is None:
             raise ProfileError(
-                f"profile bounded by {wanted} matches {len(matches)} regions, and gives no 'inside' point to choose one"
+                f"profile bounded by {wanted} matches {len(matches)} regions, and "
+                "gives no 'inside' point to choose one"
             )
         matches = [region for region in matches if _contains(region, tuple(point))]
     if len(matches) != 1:
         raise ProfileError(
-            f"profile bounded by {wanted} matches {len(matches)} regions, expected exactly 1"
+            f"profile bounded by {wanted} matches {len(matches)} regions, expected "
+            "exactly 1"
         )
     return matches[0]

@@ -89,8 +89,9 @@ class Session:
         self.reference_rebuilds = 0
 
     def use(self, document: Document) -> None:
-        """Switches to another document. The cache is content-addressed, so
-        it stays where it is.
+        """Switches to another document.
+
+        The cache is content-addressed, so it stays where it is.
         """
         self.document = document
         self.generation += 1
@@ -100,8 +101,10 @@ class Session:
         self._built_revision = None
 
     def shape(self):
-        """Returns (shape, failed_feature_id). The shape is None for an empty
-        document, which is a valid state and not an error.
+        """Returns (shape, failed_feature_id).
+
+        The shape is None for an empty document, which is a valid state and not
+        an error.
         """
         if self._built_revision != self.document.revision:
             replayable = self.document.for_replay()
@@ -133,7 +136,8 @@ class Session:
         shape, failed = self.shape()
         if shape is None and failed:
             raise DocumentError(
-                f"feature {failed!r} does not build, and nothing before it builds a solid"
+                f"feature {failed!r} does not build, and nothing before it builds a "
+                "solid"
             )
         if shape is None:
             raise DocumentError(
@@ -225,8 +229,10 @@ class Daemon:
                 self.remove_client(client)
 
     def publish_viewer_files(self) -> str | None:
-        """Rewrites the viewer's files. Returns why the part could not be drawn,
-        or None, so a change notification can carry it to the viewer.
+        """Rewrites the viewer's files.
+
+        Returns why the part could not be drawn, or None, so a change
+        notification can carry it to the viewer.
         """
         if self.viewer_dir is None:
             return None
@@ -246,8 +252,9 @@ class Daemon:
         author: str | None = None,
         changes: list | None = None,
     ) -> None:
-        """`opened` says the document was replaced by another, not edited. A
-        viewer then drops its selection and refits the camera, and cannot
+        """`opened` says the document was replaced by another, not edited.
+
+        A viewer then drops its selection and refits the camera, and cannot
         trust that an unchanged revision number means an unchanged part.
 
         `author` and `changes` come off the log entries of this revision, so a
@@ -340,12 +347,16 @@ class Daemon:
         self.conflict = {
             "path": path,
             "file_sha256": on_disk,
-            "message": f"{Path(path).name} changed on disk, and this window has edits the file does not contain.",
+            "message": (
+                f"{Path(path).name} changed on disk, and this window has edits the "
+                "file does not contain."
+            ),
         }
         self.broadcast("document_conflict", self.conflict)
 
     def check_file(self) -> str | None:
         """Compares the file with the engine's last write and acts on it.
+
         Returns what it did: None, "reloaded", "conflict" or "unreadable".
         """
         with self.lock:
@@ -414,8 +425,10 @@ class Daemon:
             return "rebuilt"
 
     def reload_from_disk(self) -> dict:
-        """Takes the file's content as a new revision. The engine's previous
-        state goes on the undo stack, so one undo brings it back.
+        """Takes the file's content as a new revision.
+
+        The engine's previous state goes on the undo stack, so one undo brings
+        it back.
         """
         document = self.session.document
         fresh = Document.load(document.path)
@@ -654,7 +667,8 @@ def _commit(
         if daemon.autosave and daemon.conflict is None:
             daemon.save_document()
         else:
-            # Exact, not sticky: an undo back to what the file holds is not an unsaved edit.
+            # Exact, not sticky: an undo back to what the file holds is
+            # not an unsaved edit.
             daemon.unsaved = session.document.has_unsaved_changes()
     _carry_selection(daemon)
     daemon.announce_change(opened=opened)
@@ -683,9 +697,11 @@ def _get_document(daemon: Daemon, params: dict) -> dict:
 
 
 def _file_path(params: dict) -> Path:
-    """The document path a file method was given. Absolute, because the daemon's
-    working directory is not something a caller can see, and `.sprocket`, because
-    these methods write files and should not be a way to write any other kind.
+    """The document path a file method was given.
+
+    Absolute, because the daemon's working directory is not something a caller can
+    see, and `.sprocket`, because these methods write files and should not be a way
+    to write any other kind.
     """
     raw = params.get("path")
     if not isinstance(raw, str) or not raw:
@@ -699,8 +715,10 @@ def _file_path(params: dict) -> Path:
 
 
 def _switch_to(daemon: Daemon, document: Document) -> dict:
-    """Makes `document` the open one. The undo history belonged to the old one,
-    so it goes, and nothing is written: opening a file must not touch it.
+    """Makes `document` the open one.
+
+    The undo history belonged to the old one, so it goes, and nothing is written:
+    opening a file must not touch it.
     """
     daemon.session.use(document)
     daemon.undo_stack.clear()
@@ -719,15 +737,18 @@ def _switch_to(daemon: Daemon, document: Document) -> dict:
 
 
 def _open_document(daemon: Daemon, params: dict) -> dict:
-    """Replaces the open document with the one at `path`. A file that will not
-    load is refused and the open document is left as it was.
+    """Replaces the open document with the one at `path`.
+
+    A file that will not load is refused and the open document is left as it was.
     """
     return _switch_to(daemon, Document.load(_file_path(params)))
 
 
 def _new_document(daemon: Daemon, params: dict) -> dict:
-    """An empty document saved at `path`. An existing file is refused rather
-    than overwritten, because the caller picked a name, not a replacement.
+    """An empty document saved at `path`.
+
+    An existing file is refused rather than overwritten, because the caller picked a
+    name, not a replacement.
     """
     path = _file_path(params)
     if path.exists():
@@ -748,9 +769,11 @@ def _save_as(daemon: Daemon, params: dict) -> dict:
 
 
 def _save(daemon: Daemon, params: dict) -> dict:
-    """Writes the open document to its own file. The app calls it on Save when
-    the daemon runs with `--no-autosave`. A file changed on disk since the last
-    save is refused, not overwritten: that is `resolve_conflict`'s choice.
+    """Writes the open document to its own file.
+
+    The app calls it on Save when the daemon runs with `--no-autosave`. A file
+    changed on disk since the last save is refused, not overwritten: that is
+    `resolve_conflict`'s choice.
     """
     document = daemon.session.document
     if document.path is None:
@@ -762,8 +785,9 @@ def _save(daemon: Daemon, params: dict) -> dict:
 
 
 def _document_moved(daemon: Daemon, params: dict) -> dict:
-    """The file was renamed or moved by the app. Follows it without writing,
-    so unsaved edits stay unsaved.
+    """The file was renamed or moved by the app.
+
+    Follows it without writing, so unsaved edits stay unsaved.
     """
     path = _file_path(params)
     if not path.exists():
@@ -831,7 +855,8 @@ def _edit(daemon: Daemon, edits, params: dict) -> dict:
     ]
     if unlinked:
         result["unlinked"] = unlinked
-    # Sketches a parameter moved that could not be solved again, because the solver is not installed.
+    # Sketches a parameter moved that could not be solved again, because the
+    # solver is not installed.
     unsolved = [
         item
         for entry in document.log[-len(edits) :]
@@ -971,7 +996,8 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
             break
     if selector is None:
         raise DocumentError(
-            f"no box around {handle}'s centre picks it out alone: another face shares that centre"
+            f"no box around {handle}'s centre picks it out alone: another face shares "
+            "that centre"
         )
     return {
         "handle": handle,
@@ -1203,7 +1229,8 @@ def _get_profiles(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(
             f"feature {feature_id!r} is a {feature.get('type')}, not a sketch"
         )
-    # As the build left it: a sketch with projected references is solved around them there.
+    # As the build left it: a sketch with projected references is solved around
+    # them there.
     feature = daemon.session.context().features.get(feature_id, feature)
     return {"feature": feature_id, "profiles": sketch_profiles(feature)}
 
@@ -1233,6 +1260,7 @@ def _describe_geometry(daemon: Daemon, params: dict) -> dict:
 
 def _face_edges(daemon: Daemon, params: dict) -> dict:
     """The edge handles that bound face `handle`, in the order the part numbers them.
+
     The viewer's Fillet and Chamfer use it to round every edge of a picked face.
     """
     handle = params.get("handle")
@@ -1314,8 +1342,10 @@ def _selection_view(daemon: Daemon) -> dict:
 
 
 def _set_selection(daemon: Daemon, params: dict) -> dict:
-    """What the viewer calls on every pick. `revision` is the revision the
-    handles were picked at, and defaults to the current one.
+    """What the viewer calls on every pick.
+
+    `revision` is the revision the handles were picked at, and defaults to the
+    current one.
     """
     revision = params.get("revision", daemon.session.document.revision)
     if isinstance(revision, bool) or not isinstance(revision, int):
@@ -1399,8 +1429,9 @@ def _carry_selection(daemon: Daemon) -> None:
 
 def _resolve_conflict(daemon: Daemon, params: dict) -> dict:
     """Ends a conflict between the engine's edits and a file changed on disk.
-    `keep: "file"` reloads the file, and the engine's state goes on the undo
-    stack. `keep: "mine"` writes the engine's state over the file.
+
+    `keep: "file"` reloads the file, and the engine's state goes on the undo stack.
+    `keep: "mine"` writes the engine's state over the file.
     """
     keep = params.get("keep")
     if keep not in ("file", "mine"):
@@ -1534,8 +1565,9 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
 
 
 def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
-    """A sketch plane that follows a picked face: `{"feature", "face"}` for a
-    new sketch's `plane`, and where it lands now.
+    """A sketch plane that follows a picked face, and where it lands now.
+
+    The reply holds `{"feature", "face"}` for a new sketch's `plane`.
 
     The face is looked up in the body that owns it, and the selector is
     synthesised against that body's tip, which is what `resolve_plane` searches.
@@ -1713,6 +1745,7 @@ def _project_reference(daemon: Daemon, params: dict) -> dict:
 
 def _highlight(daemon: Daemon, params: dict) -> dict:
     """Shows handles in the viewer, in a colour that is not the selection's.
+
     An empty list clears it. It does not change what is selected.
     """
     handles = _handles(params)
@@ -1726,8 +1759,9 @@ def _highlight(daemon: Daemon, params: dict) -> dict:
 
 
 def _measure(daemon: Daemon, params: dict) -> dict:
-    """The part, one body (`body`), or one or two handles. The whole part also
-    lists each part body's volume and area.
+    """The part, one body (`body`), or one or two handles.
+
+    The whole part also lists each part body's volume and area.
     """
     session = daemon.session
     shape = session.require_shape()

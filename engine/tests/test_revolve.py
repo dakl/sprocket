@@ -1,6 +1,7 @@
-"""The full-turn geometry is pinned by tests/golden/revolve_ring. This covers
-the two things that case cannot reach: a partial angle, and an axis given as an
-explicit line rather than a name.
+"""The full-turn geometry is pinned by tests/golden/revolve_ring.
+
+This covers the two things that case cannot reach: a partial angle, and an axis given as
+an explicit line rather than a name.
 """
 
 import math

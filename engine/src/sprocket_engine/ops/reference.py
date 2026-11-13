@@ -9,9 +9,12 @@ VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItem
 SCHEMA = {
     "type": "object",
     "description": (
-        "Brings in another .sprocket document or a STEP file as a reference body: shown translucent, not "
-        "pickable and never exported. Use it to design around a part, as a boolean `tool`, or with "
-        "check_clearance. A relative `file` is relative to this document's folder. The referenced file is read "
+        "Brings in another .sprocket document or a STEP file as a reference body: "
+        "shown translucent, not "
+        "pickable and never exported. Use it to design around a part, as a boolean "
+        "`tool`, or with "
+        "check_clearance. A relative `file` is relative to this document's folder. "
+        "The referenced file is read "
         "again when it changes."
     ),
     "required": ["id", "type", "file"],

@@ -9,8 +9,10 @@ from .registry import register
 SCHEMA = {
     "type": "object",
     "description": (
-        "Moves a body: turns it `rotate.angle` degrees about `rotate.axis`, then shifts it by `translate`. "
-        "With `base` the body itself moves and later features see it there. With `tool` a moved copy becomes "
+        "Moves a body: turns it `rotate.angle` degrees about `rotate.axis`, then "
+        "shifts it by `translate`. "
+        "With `base` the body itself moves and later features see it there. With "
+        "`tool` a moved copy becomes "
         "a new body, and the original stays."
     ),
     "required": ["id", "type"],

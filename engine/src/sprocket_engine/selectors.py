@@ -44,10 +44,11 @@ class SelectorError(Exception):
 
 
 def _nearest(candidates, point, normal=None):
-    """Pick the item whose centre is closest to `point`. `normal` is a
-    tie-breaker: an item whose normal points away from the given one is
-    penalised, so a face pick near a shared edge doesn't jump to the wrong
-    side of a thin part.
+    """Pick the item whose centre is closest to `point`.
+
+    `normal` is a tie-breaker: an item whose normal points away from the given one
+    is penalised, so a face pick near a shared edge doesn't jump to the wrong side
+    of a thin part.
     """
 
     def score(item):
@@ -164,7 +165,9 @@ def _new_since(current, starter: str, feature_id: str, ctx):
 
 
 def resolve_selector(shape, selector, ctx=None):
-    """selector: {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}.
+    """The items of `shape` that `selector` picks.
+
+    A selector is {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}.
 
     `ctx` is the replay context, which `new_since` needs to see earlier features.
     """
@@ -207,7 +210,8 @@ def resolve_selector(shape, selector, ctx=None):
     expected = selector.get("expected_count")
     if expected is not None and len(current) != expected:
         raise SelectorError(
-            f"selector matched {len(current)}, expected {expected}: the geometry it named has changed"
+            f"selector matched {len(current)}, expected {expected}: the geometry it "
+            "named has changed"
         )
     return list(current)
 

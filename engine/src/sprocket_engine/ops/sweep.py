@@ -9,8 +9,10 @@ from .sketch import PATH_SCHEMA, sketch_path
 SCHEMA = {
     "type": "object",
     "description": (
-        "Moves a sketch profile along a path drawn in another sketch. Draw the profile across the start of the "
-        "path. Without a base it makes a new body; with one, `mode` joins (default), cuts or intersects."
+        "Moves a sketch profile along a path drawn in another sketch. Draw the "
+        "profile across the start of the "
+        "path. Without a base it makes a new body; with one, `mode` joins (default), "
+        "cuts or intersects."
     ),
     "required": ["id", "type", "path"],
     "oneOf": [{"required": ["profile"]}, {"required": ["profiles"]}],
@@ -43,6 +45,7 @@ def apply(feature: dict, ctx):
     )
     if tool.volume <= 0:
         raise ValueError(
-            f"sweep {feature['id']} made no solid: is the profile across the start of the path?"
+            f"sweep {feature['id']} made no solid: is the profile across the start of "
+            "the path?"
         )
     return combine(feature, tool, ctx)

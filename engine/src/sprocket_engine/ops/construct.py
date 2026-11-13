@@ -37,8 +37,10 @@ AXIS_SCHEMA = {
             "type": "object",
             "required": ["base", "edge"],
             "description": (
-                "Found on every rebuild from one edge of the feature `base`: a straight edge gives its own line, "
-                "and a circle or arc gives the line through its centre, square to its plane."
+                "Found on every rebuild from one edge of the feature `base`: a "
+                "straight edge gives its own line, "
+                "and a circle or arc gives the line through its centre, square to its "
+                "plane."
             ),
             "properties": {
                 "base": {"type": "string"},
@@ -51,7 +53,10 @@ AXIS_SCHEMA = {
         {
             "type": "object",
             "required": ["base", "face"],
-            "description": "The axis of a cylindrical, conical or revolved face of the feature `base`, from a selector that matches one face.",
+            "description": (
+                "The axis of a cylindrical, conical or revolved face of the feature "
+                "`base`, from a selector that matches one face."
+            ),
             "properties": {
                 "base": {"type": "string"},
                 "face": {
@@ -66,7 +71,8 @@ AXIS_SCHEMA = {
 PLANE_SCHEMA_OF_FEATURE = {
     "type": "object",
     "description": (
-        "A named plane that later features can use: a sketch plane, a mirror plane. `plane` is where it starts, "
+        "A named plane that later features can use: a sketch plane, a mirror plane. "
+        "`plane` is where it starts, "
         "any sketch plane form, and `offset` moves it along its normal."
     ),
     "required": ["id", "type", "plane"],
@@ -80,7 +86,10 @@ PLANE_SCHEMA_OF_FEATURE = {
 
 AXIS_SCHEMA_OF_FEATURE = {
     "type": "object",
-    "description": "A named axis that a circular pattern, a linear pattern or a revolve can use. `axis` says where it is.",
+    "description": (
+        "A named axis that a circular pattern, a linear pattern or a revolve can use. "
+        "`axis` says where it is."
+    ),
     "required": ["id", "type", "axis"],
     "properties": {
         "id": {"type": "string"},
@@ -134,12 +143,16 @@ def _axis_of_edge(edge) -> Axis:
     if edge.geom_type == GeomType.CIRCLE:
         return Axis(edge.arc_center, edge.normal())
     raise ValueError(
-        f"an axis needs a straight or circular edge, and this one is a {edge.geom_type.name.lower()}"
+        "an axis needs a straight or circular edge, and this one is a "
+        f"{edge.geom_type.name.lower()}"
     )
 
 
 def resolve_axis(axis_ref, ctx=None) -> Axis:
-    """The build123d Axis for any axis form. `ctx` is needed for the forms that name a feature."""
+    """The build123d Axis for any axis form.
+
+    `ctx` is needed for the forms that name a feature.
+    """
     if isinstance(axis_ref, str):
         return AXES[axis_ref]
     if "construct" in axis_ref:
@@ -148,7 +161,8 @@ def resolve_axis(axis_ref, ctx=None) -> Axis:
         shape = ctx.results.get(axis_ref["base"]) if ctx is not None else None
         if shape is None:
             raise ValueError(
-                f"the axis names {axis_ref['base']!r}, which is not built before this one"
+                f"the axis names {axis_ref['base']!r}, which is not built before this "
+                "one"
             )
         if "edge" in axis_ref:
             return _axis_of_edge(_one(shape, axis_ref["edge"], "edge", ctx))
@@ -156,7 +170,8 @@ def resolve_axis(axis_ref, ctx=None) -> Axis:
         axis = face.axis_of_rotation
         if axis is None:
             raise ValueError(
-                f"an axis needs a cylindrical, conical or revolved face, and this one is {face.geom_type.name.lower()}"
+                "an axis needs a cylindrical, conical or revolved face, and this one "
+                f"is {face.geom_type.name.lower()}"
             )
         return axis
     return Axis(tuple(axis_ref["origin"]), tuple(axis_ref["direction"]))

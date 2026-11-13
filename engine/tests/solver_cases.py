@@ -212,7 +212,8 @@ PROJECTED_EDGE = {
     ],
 }
 
-# A line and a circle mirrored across a held vertical line, as the viewer's Mirror makes them.
+# A line and a circle mirrored across a held vertical line, as the viewer's Mirror
+# makes them.
 MIRRORED = {
     "entities": [
         {"id": "e1", "kind": "line", "p0": [0, -20], "p1": [0, 20]},

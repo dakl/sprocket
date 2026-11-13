@@ -50,9 +50,10 @@ def default_cache_dir() -> Path:
 def prune(
     cache_dir: Path, max_age: float = MAX_AGE_SECONDS, max_bytes: int = MAX_BYTES
 ) -> int:
-    """Deletes stale `.brep` files and returns how many went. A hit touches
-    its file, so mtime is the last use. Only `.brep` and `.partial` files are
-    touched, so a `--cache-dir` that holds anything else keeps it.
+    """Deletes stale `.brep` files and returns how many went.
+
+    A hit touches its file, so mtime is the last use. Only `.brep` and `.partial`
+    files are touched, so a `--cache-dir` that holds anything else keeps it.
     """
     # A write that crashed before its rename leaves a .partial behind.
     for path in cache_dir.glob("*.partial"):
@@ -116,8 +117,10 @@ class BrepCache:
         return (Part if shape.solids() else Sketch)(shape.wrapped)
 
     def put(self, key: str, shape: Shape) -> None:
-        """Writes to a temporary name and renames it into place. Every open
-        document shares the folder, so a reader must never see half a file.
+        """Writes to a temporary name and renames it into place.
+
+        Every open document shares the folder, so a reader must never see half a
+        file.
         """
         path = self._path(key)
         partial = path.with_suffix(f".{os.getpid()}.partial")

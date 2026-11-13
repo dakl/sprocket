@@ -220,7 +220,8 @@ def test_symmetric_puts_two_points_at_mirror_images_across_a_line(tmp_path):
             constraint={"kind": "symmetric", "a": "e2.p1", "b": "e3.p1", "e": "e1"},
         )
         copy = next(item for item in result["sketch"]["entities"] if item["id"] == "e3")
-        # The line u = 0 negates u, so (5, 0) and (15, 10) land at (-5, 0) and (-15, 10).
+        # The line u = 0 negates u, so (5, 0) and (15, 10) land at (-5, 0) and
+        # (-15, 10).
         assert copy["p0"] == pytest.approx([-5, 0])
         assert copy["p1"] == pytest.approx([-15, 10])
         # The mirror needs a line: a circle is refused with a reason.

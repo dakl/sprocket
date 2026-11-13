@@ -49,6 +49,7 @@ def apply(feature: dict, ctx):
     part = Part(solids)
     if not solids or part.volume == 0:
         raise ValueError(
-            f"{feature['operation']} of {feature['base']} and {feature['tool']} left an empty solid"
+            f"{feature['operation']} of {feature['base']} and {feature['tool']} left "
+            "an empty solid"
         )
     return part

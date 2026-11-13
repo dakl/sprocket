@@ -30,7 +30,8 @@ class ExportError(Exception):
 def _check_writable(path: Path, kind: str) -> None:
     if not path.parent.is_dir():
         raise ExportError(
-            f"cannot write {kind} file {path}: the directory {path.parent} does not exist"
+            f"cannot write {kind} file {path}: the directory {path.parent} does not "
+            "exist"
         )
     try:
         with path.open("ab"):
@@ -125,7 +126,8 @@ def write_3mf(bodies, path) -> None:
                 mesher.add_shape(_labelled({**body, "shape": solid}))
             except Exception as exc:
                 raise ExportError(
-                    f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}"
+                    f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: "
+                    f"{exc}"
                 ) from None
     try:
         mesher.write(str(path))

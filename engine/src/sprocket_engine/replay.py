@@ -216,6 +216,7 @@ def build_shape(
 ) -> tuple[object, str | None, Context]:
     """Replays as much of the document as still builds.
 
+
     Returns (shape, failed_feature_id, context). The context holds every
     feature's result, which a sketch on a face needs to find its plane. A feature that no longer builds is not
     a failed build: editing a sketch can break a later op, and the caller still

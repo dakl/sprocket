@@ -67,8 +67,9 @@ def text_of(result) -> str:
 
 
 def test_every_registered_op_is_callable_as_a_tool(daemon):
-    """An op added later has to become agent-callable without editing the
-    adapter. The generated list is the only thing that makes that true.
+    """An op added later has to become agent-callable without editing the adapter.
+
+    The generated list is the only thing that makes that true.
     """
     tools = drive(daemon, lambda session: session.list_tools())
     names = {tool.name for tool in tools.tools}
@@ -136,8 +137,10 @@ def test_render_view_returns_the_image_itself(daemon):
 
 
 def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
-    """A stale revision is the agent's to fix. Raising it out of the tool call
-    loses the daemon's payload, which is the only thing that lets it rebase.
+    """A stale revision is the agent's to fix.
+
+    Raising it out of the tool call loses the daemon's payload, which is the only
+    thing that lets it rebase.
     """
 
     async def work(session):
@@ -205,7 +208,8 @@ def test_an_agent_can_read_the_selection_and_highlight_it(daemon):
 
 def test_the_client_finds_the_app_socket_and_follows_it_to_a_new_one(daemon):
     # A dead app leaves a file that refuses connections, and it is the newest.
-    # A socket path over about 100 characters cannot be connected, and pytest's tmp_path is longer.
+    # A socket path over about 100 characters cannot be connected, and pytest's
+    # tmp_path is longer.
     tmp_path = Path(daemon.socket_path).parent
     live = tmp_path / "sprocket-2.sock"
     live.symlink_to(daemon.socket_path)

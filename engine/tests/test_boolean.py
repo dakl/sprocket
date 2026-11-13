@@ -1,6 +1,7 @@
-"""tests/golden/boolean_notch pins subtract. This covers the other two
-operations and the empty-result guard, which no golden case can hold because a
-golden case has to produce a solid to measure.
+"""tests/golden/boolean_notch pins subtract.
+
+This covers the other two operations and the empty-result guard, which no golden case
+can hold because a golden case has to produce a solid to measure.
 
 All four use the same 40 x 20 x 10 box and a second box placed to overlap it
 over x 10..20, y -5..5, z 0..10, so the shared volume is 1000 mm3.

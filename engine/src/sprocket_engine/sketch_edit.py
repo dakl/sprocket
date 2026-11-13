@@ -32,7 +32,10 @@ def next_id(items: list[dict], prefix: str) -> str:
 
 
 def assign_constraint_ids(feature: dict) -> None:
-    """Gives every constraint without an id one. Documents from before M3.8 have none."""
+    """Gives every constraint without an id one.
+
+    Documents from before M3.8 have none.
+    """
     constraints = feature.get("constraints", [])
     for constraint in constraints:
         if "id" not in constraint:
@@ -135,7 +138,8 @@ def _update_entity(feature: dict, edit: dict, project=None) -> dict:
     ]
     if entity.get("reference"):
         raise ValueError(
-            f"{entity['id']!r} is a projected reference and is locked: remove it, or change its source"
+            f"{entity['id']!r} is a projected reference and is locked: remove it, or "
+            "change its source"
         )
     entity.update(_changes(edit))
     return {"entity_id": entity["id"]}
@@ -177,7 +181,8 @@ def _solve(sketch: dict) -> dict:
         from . import solver
     except ImportError:
         raise ValueError(
-            "editing a sketch needs the constraint solver: install sprocket-engine[solver]"
+            "editing a sketch needs the constraint solver: install "
+            "sprocket-engine[solver]"
         ) from None
     return solver.solve(sketch)
 

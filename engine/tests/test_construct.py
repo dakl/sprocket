@@ -131,7 +131,8 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
         {"id": "nib", "type": "extrude", "profile": "ns", "distance": 8},
     ]
     features = [hole_sketch, post, *pin]
-    # The post's side wall is the face nearest its seam, where OCCT puts a cylinder's centre.
+    # The post's side wall is the face nearest its seam, where OCCT puts a
+    # cylinder's centre.
     axis = {
         "id": "post_axis",
         "type": "axis",
@@ -153,7 +154,8 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
     result = ctx.results["ring"]
     assert len(result.solids()) == 4
     assert result.volume == pytest.approx(4 * math.pi * 1 * 8)
-    # The ring is about the post's axis at x = 10, so the pins sit 10 mm from it: x = 20, 10, 0 and 10.
+    # The ring is about the post's axis at x = 10, so the pins sit 10 mm from it:
+    # x = 20, 10, 0 and 10.
     xs = sorted(round(solid.center().X, 3) for solid in result.solids())
     assert xs == pytest.approx([0, 10, 10, 20])
 

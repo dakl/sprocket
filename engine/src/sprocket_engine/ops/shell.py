@@ -11,7 +11,8 @@ from .registry import register
 SCHEMA = {
     "type": "object",
     "description": (
-        "Hollows a solid into walls of one thickness. The faces in `open` are removed, which is how a box "
+        "Hollows a solid into walls of one thickness. The faces in `open` are "
+        "removed, which is how a box "
         "becomes a tray. With no `open` the part becomes a closed hollow solid."
     ),
     "required": ["id", "type", "base", "thickness"],
@@ -30,7 +31,10 @@ SCHEMA = {
         },
         "outward": {
             "type": "boolean",
-            "description": "Grow the walls outside the original surface instead of inside, so the inside keeps its size.",
+            "description": (
+                "Grow the walls outside the original surface instead of inside, so "
+                "the inside keeps its size."
+            ),
         },
     },
 }
@@ -57,6 +61,7 @@ def apply(feature: dict, ctx):
     part = Part(result.solids())
     if not part.solids() or part.volume <= 0:
         raise ValueError(
-            f"shell of {feature['base']} by {feature['thickness']} mm left no solid: the walls may be thicker than the part"
+            f"shell of {feature['base']} by {feature['thickness']} mm left no solid: "
+            "the walls may be thicker than the part"
         )
     return part

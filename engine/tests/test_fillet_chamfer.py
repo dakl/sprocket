@@ -37,9 +37,10 @@ def document_with(op: str, selector: dict) -> dict:
 
 @pytest.mark.parametrize("op", sorted(SIZES))
 def test_a_selector_matching_no_edges_fails_rather_than_doing_nothing(op):
-    """An upstream edit can leave a stored selector matching nothing. Replaying
-    it as a no-op gives back the part before the feature, which looks like the
-    edit was never made rather than like it broke.
+    """An upstream edit can leave a stored selector matching nothing.
+
+    Replaying it as a no-op gives back the part before the feature, which looks like
+    the edit was never made rather than like it broke.
     """
     selector = {
         "from": "part",

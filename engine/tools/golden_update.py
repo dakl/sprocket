@@ -68,9 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     if already_there and not args.approved:
         print(
             f"{args.case} already has {', '.join(already_there)}.\n"
-            "Regenerating an existing case replaces the expectation with whatever the engine now\n"
-            "produces, so a regression would be committed as correct. If the change is intended,\n"
-            "re-run with APPROVED=1 and say in the commit message what changed and why.",
+            "Regenerating an existing case replaces the expectation with whatever the "
+            "engine now\n"
+            "produces, so a regression would be committed as correct. If the change "
+            "is intended,\n"
+            "re-run with APPROVED=1 and say in the commit message what changed and "
+            "why.",
             file=sys.stderr,
         )
         return 2

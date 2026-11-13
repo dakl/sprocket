@@ -1,5 +1,7 @@
-"""The loft op. The geometry is the golden case loft_square_frustum; these
-cover a smooth skin, combining, a sketch on a lofted side, and the errors.
+"""The loft op.
+
+The geometry is the golden case loft_square_frustum; these cover a smooth skin,
+combining, a sketch on a lofted side, and the errors.
 """
 
 import math

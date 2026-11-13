@@ -39,8 +39,10 @@ PLANE_SCHEMA = {
             "type": "object",
             "required": ["origin", "normal", "x_dir"],
             "description": (
-                "An explicit plane. The sketch's v axis is normal x x_dir (right-handed), so u runs right and v up "
-                "when you look at the sketch from the side its normal points to. A plane facing -Z with x_dir +X "
+                "An explicit plane. The sketch's v axis is normal x x_dir "
+                "(right-handed), so u runs right and v up "
+                "when you look at the sketch from the side its normal points to. A "
+                "plane facing -Z with x_dir +X "
                 "therefore has v along world -Y: it is the part seen from below."
             ),
             "properties": {"origin": VECTOR3, "normal": VECTOR3, "x_dir": VECTOR3},
@@ -64,9 +66,12 @@ PLANE_SCHEMA = {
             "type": "object",
             "required": ["feature", "face"],
             "description": (
-                "On a planar face of an earlier feature, found again on every rebuild, so the sketch moves with "
-                "the face. The normal points out of the part. Sketch coordinates stay world-aligned: the origin is "
-                "the world origin projected onto the face. On a horizontal face u is world +X. On a vertical face "
+                "On a planar face of an earlier feature, found again on every "
+                "rebuild, so the sketch moves with "
+                "the face. The normal points out of the part. Sketch coordinates stay "
+                "world-aligned: the origin is "
+                "the world origin projected onto the face. On a horizontal face u is "
+                "world +X. On a vertical face "
                 "v is world +Z (up)."
             ),
             "properties": {
@@ -91,7 +96,10 @@ ENTITY_SCHEMA = {
     "properties": {
         "id": {
             "type": "string",
-            "description": "Stable for the life of the sketch. Profiles and constraints refer to it.",
+            "description": (
+                "Stable for the life of the sketch. Profiles and constraints refer to "
+                "it."
+            ),
         },
         "kind": {"enum": ["line", "arc", "circle"]},
         "p0": {**POINT2, "description": "line start"},
@@ -104,11 +112,16 @@ ENTITY_SCHEMA = {
         },
         "a0": {
             "type": "number",
-            "description": "arc start angle in radians, counter-clockwise from the plane's x axis",
+            "description": (
+                "arc start angle in radians, counter-clockwise from the plane's x axis"
+            ),
         },
         "a1": {
             "type": "number",
-            "description": "arc end angle in radians. The arc runs counter-clockwise from a0 to a1.",
+            "description": (
+                "arc end angle in radians. The arc runs counter-clockwise from a0 to "
+                "a1."
+            ),
         },
         "construction": {
             "type": "boolean",
@@ -117,8 +130,10 @@ ENTITY_SCHEMA = {
         "reference": {
             "type": "object",
             "description": (
-                "Marks a projected reference: this entity is an edge of an earlier sketch or body, projected onto this "
-                "sketch's plane and locked. Its numbers are refreshed from the source on every rebuild, so do not edit them. "
+                "Marks a projected reference: this entity is an edge of an earlier "
+                "sketch or body, projected onto this "
+                "sketch's plane and locked. Its numbers are refreshed from the source "
+                "on every rebuild, so do not edit them. "
                 '{"sketch": "f1", "entity": "e3"} names an entity of an earlier sketch. '
                 '{"feature": "f2", "edge": <selector>} names one straight or circular edge of that feature\'s body.'
             ),
@@ -148,7 +163,8 @@ CONSTRAINT_FIELDS = {
     # Points a and b are mirror images across the line e.
     "symmetric": ("a", "b", "e"),
     "distance": ("a", "b", "value"),
-    # b's u (distance_x) or v (distance_y) minus a's. Signed, so a before b gives a positive value.
+    # b's u (distance_x) or v (distance_y) minus a's. Signed, so a before b gives
+    # a positive value.
     "distance_x": ("a", "b", "value"),
     "distance_y": ("a", "b", "value"),
     "radius": ("e", "value"),
@@ -162,24 +178,37 @@ CONSTRAINT_SCHEMA = {
     "properties": {
         "id": {
             "type": "string",
-            "description": "c<n>. Stable for the life of the sketch. Filled in when missing.",
+            "description": (
+                "c<n>. Stable for the life of the sketch. Filled in when missing."
+            ),
         },
         "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
         "e": {
             "type": "string",
-            "description": "the one entity or point a constraint acts on. For symmetric, the line the points mirror across",
+            "description": (
+                "the one entity or point a constraint acts on. For symmetric, the "
+                "line the points mirror across"
+            ),
         },
         "a": {
             "type": "string",
-            "description": "first entity or point. For point_on, the point. For symmetric, a point",
+            "description": (
+                "first entity or point. For point_on, the point. For symmetric, a point"
+            ),
         },
         "b": {
             "type": "string",
-            "description": "second entity or point. For point_on, the line, circle or arc it lies on",
+            "description": (
+                "second entity or point. For point_on, the line, circle or arc it "
+                "lies on"
+            ),
         },
         "value": {
             "type": "number",
-            "description": "mm for distance, distance_x, distance_y, radius and diameter; degrees for angle",
+            "description": (
+                "mm for distance, distance_x, distance_y, radius and diameter; "
+                "degrees for angle"
+            ),
         },
     },
 }
@@ -227,7 +256,9 @@ SKETCH_PATTERN_SCHEMA = {
                 },
                 "angle": {
                     "type": "number",
-                    "description": "degrees spanned, default 360 (copies spread evenly)",
+                    "description": (
+                        "degrees spanned, default 360 (copies spread evenly)"
+                    ),
                 },
             },
         },
@@ -237,9 +268,12 @@ SKETCH_PATTERN_SCHEMA = {
 SCHEMA = {
     "type": "object",
     "description": (
-        "A flat drawing on a plane. Not a solid on its own: something has to extrude or revolve it. "
-        "Give `entities` for a drawing of lines, arcs and circles, and every closed region of it "
-        "becomes a profile an extrude can pick. Give `rect`, `polygon` or `circle` for a single shape."
+        "A flat drawing on a plane. Not a solid on its own: something has to extrude "
+        "or revolve it. "
+        "Give `entities` for a drawing of lines, arcs and circles, and every closed "
+        "region of it "
+        "becomes a profile an extrude can pick. Give `rect`, `polygon` or `circle` "
+        "for a single shape."
     ),
     "required": ["id", "type", "plane"],
     "oneOf": [
@@ -298,8 +332,10 @@ SCHEMA = {
 
 
 def resolve_plane(plane_ref, ctx=None):
-    """The build123d Plane a sketch sits on. A face plane needs `ctx`, the
-    replay context, to find the face in an earlier feature's result.
+    """The build123d Plane a sketch sits on.
+
+    A face plane needs `ctx`, the replay context, to find the face in an earlier
+    feature's result.
     """
     if isinstance(plane_ref, str):
         return ORIGIN_PLANES[plane_ref]
@@ -333,7 +369,8 @@ def _face_plane(plane_ref, ctx) -> Plane:
             f"sketch plane face selector matched {len(faces)} faces, expected exactly 1"
         )
     face = faces[0]
-    # A ruled loft's flat sides are B-spline surfaces, so ask whether it is flat, not what type it is.
+    # A ruled loft's flat sides are B-spline surfaces, so ask whether it is flat,
+    # not what type it is.
     if (
         face.geom_type != GeomType.PLANE
         and not GeomLib_IsPlanarSurface(
@@ -341,14 +378,16 @@ def _face_plane(plane_ref, ctx) -> Plane:
         ).IsPlanar()
     ):
         raise ValueError(
-            f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face"
+            "a sketch needs a planar face, and the selector found a "
+            f"{face.geom_type.name.lower()} face"
         )
     normal = face.normal_at(face.center()).normalized()
     origin = normal * normal.dot(face.center())
     if abs(normal.Z) > 0.999:
         x_dir = Vector(1, 0, 0)
     else:
-        # A vertical or slanted face: v (= normal x x_dir) points as close to world up as it can.
+        # A vertical or slanted face: v (= normal x x_dir) points as close to
+        # world up as it can.
         x_dir = Vector(0, 0, 1).cross(normal).normalized()
     return Plane(origin=origin, z_dir=normal, x_dir=x_dir)
 
@@ -420,7 +459,8 @@ def sketch_entities(feature: dict) -> list[dict]:
         ]
         if missing:
             raise ValueError(
-                f"sketch pattern names {', '.join(missing)}, which are not entities of this sketch"
+                f"sketch pattern names {', '.join(missing)}, which are not entities of "
+                "this sketch"
             )
         if "linear" in pattern:
             first, second = (
@@ -466,7 +506,10 @@ PATH_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
             "minItems": 1,
-            "description": "ids of the entities on the path. Default: every entity that is not construction.",
+            "description": (
+                "ids of the entities on the path. Default: every entity that is not "
+                "construction."
+            ),
         },
     },
 }
@@ -477,7 +520,8 @@ def sketch_path(path_ref: dict, ctx) -> Wire:
     sketch = ctx.features.get(path_ref["sketch"])
     if sketch is None or sketch["type"] != "sketch" or "entities" not in sketch:
         raise ProfileError(
-            f"path refers to {path_ref['sketch']!r}, which is not a sketch with entities earlier in the document"
+            f"path refers to {path_ref['sketch']!r}, which is not a sketch with "
+            "entities earlier in the document"
         )
     entities = sketch_entities(sketch)
     wanted = path_ref.get("entities")
@@ -486,7 +530,8 @@ def sketch_path(path_ref: dict, ctx) -> Wire:
         missing = [entity_id for entity_id in wanted if entity_id not in known]
         if missing:
             raise ProfileError(
-                f"path names {', '.join(missing)}, which are not entities of sketch {path_ref['sketch']!r}"
+                f"path names {', '.join(missing)}, which are not entities of sketch "
+                f"{path_ref['sketch']!r}"
             )
         entities = [entity for entity in entities if entity["id"] in wanted]
     else:
@@ -497,7 +542,8 @@ def sketch_path(path_ref: dict, ctx) -> Wire:
     )
     if len(wires) != 1:
         raise ProfileError(
-            f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate pieces, not one chain"
+            f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate "
+            "pieces, not one chain"
         )
     return wires[0]
 
@@ -539,11 +585,13 @@ def check_entities(feature: dict) -> None:
         entity_id, _, point = reference.partition(".")
         if entity_id not in kinds:
             raise ValueError(
-                f"constraint {constraint['kind']!r} refers to {reference!r}, and there is no entity {entity_id!r}"
+                f"constraint {constraint['kind']!r} refers to {reference!r}, and there "
+                f"is no entity {entity_id!r}"
             )
         if point and point not in _POINTS[kinds[entity_id]]:
             raise ValueError(
-                f"constraint {constraint['kind']!r} refers to {reference!r}, but a {kinds[entity_id]} has no point {point!r}"
+                f"constraint {constraint['kind']!r} refers to {reference!r}, but a "
+                f"{kinds[entity_id]} has no point {point!r}"
             )
 
     constraint_ids = set()
@@ -552,7 +600,8 @@ def check_entities(feature: dict) -> None:
         if constraint_id is not None:
             if constraint_id in constraint_ids:
                 raise ValueError(
-                    f"sketch {feature['id']!r} has two constraints with id {constraint_id!r}"
+                    f"sketch {feature['id']!r} has two constraints with id "
+                    f"{constraint_id!r}"
                 )
             constraint_ids.add(constraint_id)
         wanted = CONSTRAINT_FIELDS[constraint["kind"]]

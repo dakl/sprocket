@@ -70,7 +70,8 @@ class StaleRevision(DocumentError):
 
     def __init__(self, based_on: int, current: int):
         super().__init__(
-            f"edit was based on revision {based_on}, but the document is at revision {current}"
+            f"edit was based on revision {based_on}, but the document is at revision "
+            f"{current}"
         )
         self.based_on = based_on
         self.current = current
@@ -107,7 +108,8 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
             if node.id not in parameters:
                 known = ", ".join(sorted(parameters)) or "none"
                 raise DocumentError(
-                    f"expression {expression!r} uses unknown parameter {node.id!r} (known: {known})"
+                    f"expression {expression!r} uses unknown parameter {node.id!r} "
+                    f"(known: {known})"
                 )
             return parameters[node.id]
         if isinstance(node, ast.BinOp) and type(node.op) in _BINARY:
@@ -115,7 +117,8 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
         if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY:
             return _UNARY[type(node.op)](walk(node.operand))
         raise DocumentError(
-            f"expression {expression!r} uses {type(node).__name__}, which is not allowed here"
+            f"expression {expression!r} uses {type(node).__name__}, which is not "
+            "allowed here"
         )
 
     try:
@@ -126,8 +129,9 @@ def evaluate(expression: str, parameters: dict[str, float]) -> float:
 
 
 def resolve_parameters(parameters: dict) -> dict[str, float]:
-    """Turns a parameter table into plain numbers, resolving references between
-    them. Raises on a cycle rather than recursing until the stack dies.
+    """Turns a parameter table into plain numbers, resolving references between them.
+
+    Raises on a cycle rather than recursing until the stack dies.
     """
     resolved: dict[str, float] = {}
     resolving: list[str] = []
@@ -149,7 +153,8 @@ def resolve_parameters(parameters: dict) -> dict[str, float]:
             return resolved[name]
         if not raw.startswith(EXPRESSION_PREFIX):
             raise DocumentError(
-                f"parameter {name!r} is a string, so it must start with {EXPRESSION_PREFIX!r}"
+                f"parameter {name!r} is a string, so it must start with "
+                f"{EXPRESSION_PREFIX!r}"
             )
 
         resolving.append(name)
@@ -303,7 +308,8 @@ class Document:
             len(self.features) if rollback_index is None else rollback_index
         )
         self.parameters = dict(parameters or {})
-        # Colours by region, applied at mesh export: [{"color": "#rrggbb", "select": <selector>}].
+        # Colours by region, applied at mesh export: [{"color": "#rrggbb",
+        # "select": <selector>}].
         self.appearances = list(appearances or [])
         # Settings per body, keyed by body id:
         # {"name", "color", "visible", "ghost", "material"}.
@@ -368,7 +374,8 @@ class Document:
             raise DocumentError(f"{path}: 'rollback_index' must be an integer")
         if not 0 <= rollback_index <= len(features):
             raise DocumentError(
-                f"{path}: 'rollback_index' is {rollback_index}, outside 0..{len(features)}"
+                f"{path}: 'rollback_index' is {rollback_index}, outside "
+                f"0..{len(features)}"
             )
 
         parameters = data.get("parameters", {})
@@ -537,8 +544,10 @@ class Document:
         ]
 
     def _author_of(self, feature_id) -> str | None:
-        """Who added this feature, read back off the log. Newest insert wins,
-        because a deleted-then-reinserted id belongs to whoever put it back.
+        """Who added this feature, read back off the log.
+
+        Newest insert wins, because a deleted-then-reinserted id belongs to
+        whoever put it back.
         """
         for entry in reversed(self.log):
             if (
@@ -591,8 +600,10 @@ class Document:
         return self.revision
 
     def snapshot(self) -> dict:
-        """The editable state, deep-copied, for undo. The log is not part of it:
-        undoing an edit is itself an entry in the log, not an erasure.
+        """The editable state, deep-copied, for undo.
+
+        The log is not part of it: undoing an edit is itself an entry in the
+        log, not an erasure.
         """
         return copy.deepcopy(
             {
@@ -608,6 +619,7 @@ class Document:
         self, snapshot: dict, author: str, log: bool = True, action: str = "restore"
     ) -> int:
         """Puts back a state taken with `snapshot()` and returns the new revision.
+
         Undoing a view change (`log=False`) leaves no entry in the log. A reload
         from disk logs `action="reload"`.
         """
@@ -681,7 +693,8 @@ class Document:
         }.get(kind)
         if handler is None:
             raise DocumentError(
-                f"unknown edit op {kind!r} (known: insert, update, delete, move, set_rollback, set_parameter, edit_sketch, set_body, set_appearances)"
+                f"unknown edit op {kind!r} (known: insert, update, delete, move, "
+                "set_rollback, set_parameter, edit_sketch, set_body, set_appearances)"
             )
         detail = handler(edit)
         return {"author": author, "action": kind, "at": _now(), **detail}
@@ -737,7 +750,8 @@ class Document:
         ]
         if dependants:
             raise DocumentError(
-                f"cannot delete {feature_id!r}: {', '.join(repr(d) for d in dependants)} still reference it"
+                f"cannot delete {feature_id!r}: {', '.join(repr(d) for d in dependants)} "
+                "still reference it"
             )
         del self.features[index]
         if index < self.rollback_index:
@@ -836,7 +850,9 @@ class Document:
                 try:
                     new = with_references_updated(new, self._projector(index, after))
                 except Exception:
-                    # A reference that does not resolve is that feature's own failure to report, not this edit's.
+                    # A reference that does not resolve is that
+                    # feature's own failure to report, not this
+                    # edit's.
                     unsolved.append(stored["id"])
                     continue
             constraints = new.get("constraints", [])
@@ -939,10 +955,11 @@ class Document:
                 )
 
     def _set_body(self, edit: dict) -> dict:
-        """Changes one body's name or colour. A field set to None goes back to
-        its default. The body id is the id of the feature that started the
-        body, which need not be built yet. Visibility is not an edit: see
-        `set_visibility`.
+        """Changes one body's name or colour.
+
+        A field set to None goes back to its default. The body id is the id of
+        the feature that started the body, which need not be built yet.
+        Visibility is not an edit: see `set_visibility`.
         """
         body_id = edit.get("id")
         self.index_of(body_id)
@@ -973,8 +990,10 @@ class Document:
         }
 
     def _set_appearances(self, edit: dict) -> dict:
-        """Replaces the face colours: [{"color": "#rrggbb", "select": <selector>}],
-        applied in order over the body colours, later ones winning.
+        """Replaces the face colours with `edit["appearances"]`.
+
+        Each is [{"color": "#rrggbb", "select": <selector>}], applied in order over the
+        body colours, later ones winning.
         """
         appearances = edit.get("appearances")
         _check_appearances(appearances)
@@ -1018,8 +1037,10 @@ REFERENCE_FIELDS = ("base", "profile", "tool", "sketch")
 
 
 def _nested_references(path: Path) -> list[Path]:
-    """The files a referenced .sprocket references itself. Read as plain JSON,
-    because a file that does not load is the reference op's error to report.
+    """The files a referenced .sprocket references itself.
+
+    Read as plain JSON, because a file that does not load is the reference op's
+    error to report.
     """
     if path.suffix != ".sprocket" or not path.is_file():
         return []
@@ -1077,7 +1098,8 @@ def _check_body_settings(settings) -> None:
     unknown = set(settings) - {"name", "color", "visible", "ghost", "material"}
     if unknown:
         raise DocumentError(
-            f"unknown body settings {sorted(unknown)} (known: name, color, visible, ghost, material)"
+            f"unknown body settings {sorted(unknown)} (known: name, color, visible, "
+            "ghost, material)"
         )
     if "material" in settings and settings["material"] not in PRESETS:
         raise DocumentError(
@@ -1106,7 +1128,8 @@ def _referenced_ids(feature: dict) -> list[str]:
     plane = feature.get("plane")
     if isinstance(plane, dict) and isinstance(plane.get("feature"), str):
         referenced.append(plane["feature"])
-    # A plane, an axis or a pattern direction may name a construct feature, or the body an axis is found on.
+    # A plane, an axis or a pattern direction may name a construct feature, or the
+    # body an axis is found on.
     named = [plane, feature.get("axis"), (feature.get("circular") or {}).get("axis")]
     named += [
         (feature.get(key) or {}).get("direction") for key in ("linear", "linear2")

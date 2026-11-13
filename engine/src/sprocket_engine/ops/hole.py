@@ -11,9 +11,12 @@ DOWN = (Align.CENTER, Align.CENTER, Align.MAX)
 SCHEMA = {
     "type": "object",
     "description": (
-        "Drills holes into a solid: simple, counterbore or countersink. Place them at `points` along "
-        "`direction`, or at the centres of the circles in a `sketch`, drilled into the face the sketch sits "
-        "on (against the sketch normal). Give `depth`, or `through: true` to cut through the whole part."
+        "Drills holes into a solid: simple, counterbore or countersink. Place them at "
+        "`points` along "
+        "`direction`, or at the centres of the circles in a `sketch`, drilled into "
+        "the face the sketch sits "
+        "on (against the sketch normal). Give `depth`, or `through: true` to cut "
+        "through the whole part."
     ),
     "required": ["id", "type", "base", "diameter"],
     "oneOf": [{"required": ["points"]}, {"required": ["sketch"]}],
@@ -23,12 +26,17 @@ SCHEMA = {
         "base": {"type": "string", "description": "id of the feature being drilled"},
         "sketch": {
             "type": "string",
-            "description": "id of a sketch feature whose circle centres place the holes",
+            "description": (
+                "id of a sketch feature whose circle centres place the holes"
+            ),
         },
         "entities": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Only the circles with these ids. Default: every circle in the sketch that is not construction.",
+            "description": (
+                "Only the circles with these ids. Default: every circle in the sketch "
+                "that is not construction."
+            ),
         },
         "points": {
             "type": "array",

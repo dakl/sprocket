@@ -8,8 +8,10 @@ from sprocket_engine.regions import ProfileError, find_regions, pick_region
 
 
 def rectangle(x0, y0, x1, y1, tag="r", gap=0.0):
-    """Four lines. `gap` leaves the corner at (x1, y0) open by that much, as a
-    solver that stopped at its tolerance would.
+    """Four lines.
+
+    `gap` leaves the corner at (x1, y0) open by that much, as a solver that stopped
+    at its tolerance would.
     """
     return [
         {"id": f"{tag}1", "kind": "line", "p0": [x0, y0], "p1": [x1, y0]},
@@ -149,12 +151,13 @@ def toothed_wheel(teeth, tip=15.0):
 
 
 def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
-    """The viewer fills a region from its outline. The outline used to reverse
-    an edge whenever its end missed the last point by more than 1e-9, so a
-    sketch with rounded coordinates came out as a self-crossing polygon: the
-    face was right and the fill on screen was a tangle of triangles. A simple
-    polygon has the face's own area, give or take the chords that stand in for
-    the arcs.
+    """The viewer fills a region from its outline.
+
+    The outline used to reverse an edge whenever its end missed the last point by
+    more than 1e-9, so a sketch with rounded coordinates came out as a self-crossing
+    polygon: the face was right and the fill on screen was a tangle of triangles. A
+    simple polygon has the face's own area, give or take the chords that stand in
+    for the arcs.
     """
     (region,) = find_regions(toothed_wheel(8))
     shoelace = (

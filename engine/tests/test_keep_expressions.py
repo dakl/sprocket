@@ -1,4 +1,7 @@
-"""A viewer or solver edit writes numbers. The stored "=param" fields it did not change must stay expressions."""
+"""A viewer or solver edit writes numbers.
+
+The stored "=param" fields it did not change must stay expressions.
+"""
 
 import copy
 

@@ -1,5 +1,7 @@
-"""The sweep op: a profile moved along a sketched path. The geometry itself is
-the golden case sweep_square_bend; these cover combining and the errors.
+"""The sweep op: a profile moved along a sketched path.
+
+The geometry itself is the golden case sweep_square_bend; these cover combining and the
+errors.
 """
 
 import math

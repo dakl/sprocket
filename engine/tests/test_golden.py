@@ -40,8 +40,9 @@ from golden_support import (
 
 @pytest.fixture(scope="module")
 def parts(tmp_path_factory):
-    """One replay per case for all three layers. Replaying six documents three
-    times over costs more than the tests do.
+    """One replay per case for all three layers.
+
+    Replaying six documents three times over costs more than the tests do.
     """
     cache_root = tmp_path_factory.mktemp("golden-cache")
     return {case: build(case, cache_root / case) for case in CASES}
@@ -67,9 +68,11 @@ def test_fingerprint_matches_the_hand_computed_checks(case, parts):
 
 @pytest.mark.parametrize("case", CASES)
 def test_geometry_equals_the_expected_step(case, parts):
-    """Symmetric difference, both ways round. A one-way cut passes when the
-    result is a subset of what it should be: cutting a smaller solid out of the
-    expected one leaves nothing, and a missing feature would read as correct.
+    """Symmetric difference, both ways round.
+
+    A one-way cut passes when the result is a subset of what it should be: cutting a
+    smaller solid out of the expected one leaves nothing, and a missing feature
+    would read as correct.
     """
     part = parts[case]
     expected = import_step(case_dir(case) / EXPECTED_STEP)
@@ -90,9 +93,11 @@ def test_geometry_equals_the_expected_step(case, parts):
 
 @pytest.mark.parametrize("case", CASES)
 def test_exported_bytes_are_unchanged(case, parts, tmp_path):
-    """The brittle layer, and deliberately so. An OCCT or build123d upgrade will
-    fail this while the two layers above still pass, and that combination is the
-    signal to review the upgrade rather than a defect.
+    """The brittle layer, and deliberately so.
+
+    An OCCT or build123d upgrade will fail this while the two layers above still
+    pass, and that combination is the signal to review the upgrade rather than a
+    defect.
 
     STEP is compared with its FILE_NAME timestamp scrubbed, which is the only
     part of the file that varies between two exports of one solid.
@@ -139,7 +144,8 @@ def test_every_case_ships_its_expected_files(case):
         )
 
     assert set(capture_identity(case)) == set(engine_identity()), (
-        f"{case}'s {CAPTURE_STAMP} does not describe the same fields as engine_identity()"
+        f"{case}'s {CAPTURE_STAMP} does not describe the same fields as "
+        "engine_identity()"
     )
 
 
@@ -156,9 +162,11 @@ def test_replay_is_deterministic(tmp_path: Path):
 
 
 def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path):
-    """The byte layer above can pass by luck. Capture a case and run the suite in
-    the same second and the raw STEP files match, so the scrub never runs. This
-    tests the substitution itself, whatever the clock says.
+    """The byte layer above can pass by luck.
+
+    Capture a case and run the suite in the same second and the raw STEP files
+    match, so the scrub never runs. This tests the substitution itself, whatever the
+    clock says.
 
     The second half matters as much as the first: a scrub broad enough to hide a
     moved vertex would make the whole layer worthless.

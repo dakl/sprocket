@@ -280,7 +280,8 @@ def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width():
     assert entity(solved, "e2")["p0"][0] == pytest.approx(
         -130 + 70
     )  # the inner rectangle kept its own width
-    # The stored copy was brought up to date as well, which is what a viewer reopening the sketch reads.
+    # The stored copy was brought up to date as well, which is what a viewer
+    # reopening the sketch reads.
     doc.sync_references(built(doc).features)
     assert entity(doc.features[1], "e4")["p0"][0] == pytest.approx(-130)
 
@@ -305,7 +306,8 @@ def test_the_solver_holds_a_reference_still_while_the_rest_is_dragged():
     }
     result = solver.solve(sketch)
     assert result["ok"]
-    # Joined to the reference's lower end, the inner corner moves to it and the reference stays.
+    # Joined to the reference's lower end, the inner corner moves to it and the
+    # reference stays.
     assert entity(result["sketch"], "e1")["p0"] == pytest.approx([-100, 0])
     assert entity(result["sketch"], "e5")["p1"] == [-100, 0]
 
@@ -453,7 +455,8 @@ def test_the_viewer_files_draw_a_sketch_as_solved_around_its_references():
         None,
         "test",
     )
-    # A change in f1 that skips the solver, as an `update` from a viewer would: f2 is left stale on purpose.
+    # A change in f1 that skips the solver, as an `update` from a viewer would: f2
+    # is left stale on purpose.
     doc.features[0]["entities"][3]["p0"] = [-130, 60]
     doc.features[0]["entities"][3]["p1"] = [-130, 0]
     replayable = doc.for_replay()

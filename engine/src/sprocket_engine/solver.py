@@ -268,8 +268,10 @@ class _Build:
         raise ValueError(f"unknown constraint kind '{kind}'")
 
     def _fix(self, constraint: dict) -> list[int]:
-        """A point is fixed where it is. A whole entity fixes all its points,
-        and a whole circle holds its size too, as Fusion does.
+        """A point is fixed where it is.
+
+        A whole entity fixes all its points, and a whole circle holds its size
+        too, as Fusion does.
         """
         entity_id = constraint["e"]
         if "." in entity_id:

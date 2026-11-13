@@ -51,17 +51,25 @@ def main(argv: list[str] | None = None) -> int:
         "--cache-dir",
         type=Path,
         default=None,
-        help="BREP cache directory (default: the user cache folder, see cache.default_cache_dir)",
+        help=(
+            "BREP cache directory (default: the user cache folder, see "
+            "cache.default_cache_dir)"
+        ),
     )
 
     sub.add_parser(
         "serve",
-        help="read one JSON build request per line from stdin, keep build123d warm between builds",
+        help=(
+            "read one JSON build request per line from stdin, keep build123d warm "
+            "between builds"
+        ),
     )
 
     daemon = sub.add_parser(
         "daemon",
-        help="serve one document over a Unix socket, for the app, the viewer and agents",
+        help=(
+            "serve one document over a Unix socket, for the app, the viewer and agents"
+        ),
     )
     daemon.add_argument("document", type=Path, help="path to a document JSON file")
     daemon.add_argument(
@@ -77,7 +85,10 @@ def main(argv: list[str] | None = None) -> int:
         "--viewer-dir",
         type=Path,
         default=None,
-        help="write part.mesh, features.json and schemas.json here after every change, for a viewer opened from disk",
+        help=(
+            "write part.mesh, features.json and schemas.json here after every change, "
+            "for a viewer opened from disk"
+        ),
     )
     daemon.add_argument(
         "--no-autosave",
@@ -88,12 +99,18 @@ def main(argv: list[str] | None = None) -> int:
         "--recovery",
         type=Path,
         default=None,
-        help="with --no-autosave, copy unsaved edits here after every change, and delete the file once they are saved",
+        help=(
+            "with --no-autosave, copy unsaved edits here after every change, and "
+            "delete the file once they are saved"
+        ),
     )
 
     web = sub.add_parser(
         "web",
-        help="serve one document to the viewer in a plain browser, and to agents over the daemon socket",
+        help=(
+            "serve one document to the viewer in a plain browser, and to agents over "
+            "the daemon socket"
+        ),
     )
     web.add_argument("document", type=Path, help="path to a document JSON file")
     web.add_argument(
@@ -125,7 +142,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser(
         "schemas",
-        help="print every op's JSON Schema, which the viewer builds its parameter forms from",
+        help=(
+            "print every op's JSON Schema, which the viewer builds its parameter "
+            "forms from"
+        ),
     )
 
     mcp = sub.add_parser(
@@ -162,8 +182,10 @@ def _build_document(
     stl_dir: Path | None = None,
     three_mf: Path | None = None,
 ) -> tuple[bool, str, str | None]:
-    """Replays one document and exports it. Shared by `build` and `serve`
-    so the daemon path can't silently drift from the one-shot CLI path.
+    """Replays one document and exports it.
+
+    Shared by `build` and `serve` so the daemon path can't silently drift from the
+    one-shot CLI path.
 
     Returns (success, message, failed_feature_id). A feature that no longer
     builds is not a failed build: editing a sketch can break a later op, and
@@ -231,7 +253,8 @@ def _build_document(
     if header:
         counts = header["counts"]
         messages.append(
-            f"wrote {mesh} ({counts['faces']} faces, {counts['triangles']} triangles, {counts['edges']} edges)"
+            f"wrote {mesh} ({counts['faces']} faces, {counts['triangles']} triangles, "
+            f"{counts['edges']} edges)"
         )
     if len(bodies) > 1:
         messages.append(
@@ -348,7 +371,8 @@ def _web(args: argparse.Namespace) -> int:
     daemon.start_watching()
     server = make_server(WebApp(daemon, viewer_dir), args.port)
     print(
-        f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at {socket_path})",
+        f"serving http://127.0.0.1:{server.server_address[1]}/ (agents attach at "
+        f"{socket_path})",
         flush=True,
     )
     try:

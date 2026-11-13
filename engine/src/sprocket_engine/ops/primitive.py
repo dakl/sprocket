@@ -19,9 +19,12 @@ SIZES = {
 SCHEMA = {
     "type": "object",
     "description": (
-        "A solid of a standard shape on a sketch plane, centred at `at` ([u, v] on the plane, default [0, 0]). "
-        "A box, cylinder or cone stands on the plane and rises along its normal: box width runs along the plane's u, "
-        "depth along v. A sphere or torus is centred on the plane, the torus ring lying in it. Without a base it makes "
+        "A solid of a standard shape on a sketch plane, centred at `at` ([u, v] on "
+        "the plane, default [0, 0]). "
+        "A box, cylinder or cone stands on the plane and rises along its normal: box "
+        "width runs along the plane's u, "
+        "depth along v. A sphere or torus is centred on the plane, the torus ring "
+        "lying in it. Without a base it makes "
         "a new body; with one, `mode` joins (default), cuts or intersects."
     ),
     "required": ["id", "type", "shape"],

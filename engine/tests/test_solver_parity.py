@@ -53,8 +53,10 @@ def viewer_answers(tmp_path_factory):
 
 
 def numbers(sketch):
-    """Every number that describes the sketch, by name. An arc is compared by its
-    ends, not its angles, because two angles a turn apart draw the same arc.
+    """Every number that describes the sketch, by name.
+
+    An arc is compared by its ends, not its angles, because two angles a turn apart
+    draw the same arc.
     """
     described = {}
     for entity in sketch["entities"]:
@@ -131,8 +133,10 @@ def test_two_dimensions_that_disagree_are_named():
 
 
 def test_arcs_add_no_hidden_redundant_constraints():
-    """Duplicate arc rules made every arc redundant. Nothing reported it, but each
-    diagnosis then ran planegcs's slow redundancy search (24 ms on this plate, 14 without).
+    """Duplicate arc rules made every arc redundant.
+
+    Nothing reported it, but each diagnosis then ran planegcs's slow redundancy
+    search (24 ms on this plate, 14 without).
     """
     from solver_cases import sprocket_plate
 

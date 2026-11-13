@@ -29,7 +29,8 @@ def parse_handles(handles: list[str], shape) -> tuple[str, list]:
     kinds = {handle[0] for handle in handles}
     if not kinds <= set(STARTER_OF) or len(kinds) != 1:
         raise SelectorError(
-            "resolve_selection takes faces or edges, not a mix: ['f0', 'f2'] or ['e1', 'e5']"
+            "resolve_selection takes faces or edges, not a mix: ['f0', 'f2'] or "
+            "['e1', 'e5']"
         )
     starter = STARTER_OF[kinds.pop()]
     universe = getattr(shape, starter)()
@@ -53,8 +54,10 @@ def _indices(items, universe) -> set[int]:
 
 
 def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
-    """Returns {selector, strategy, steps, count}. `feature_ids` are the
-    features `new_since` may name, and `ctx` is the replay context they are in.
+    """Returns {selector, strategy, steps, count}.
+
+    `feature_ids` are the features `new_since` may name, and `ctx` is the replay
+    context they are in.
     """
     starter, universe = parse_handles(handles, shape)
     target = {int(handle[1:]) for handle in handles}
@@ -140,7 +143,8 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
             ]
     if not exact(steps):
         raise SelectorError(
-            "no selector picks exactly those, because some of them are the same distance from each other"
+            "no selector picks exactly those, because some of them are the same "
+            "distance from each other"
         )
     return _answer(steps, "position", len(target))
 

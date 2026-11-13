@@ -239,8 +239,10 @@ def test_moving_the_rollback_bar_is_not_undoable(client):
 
 
 def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Path):
-    """The Swift app opens the viewer from disk. After every change the
-    daemon rewrites the mesh and the timeline beside it, before it says so.
+    """The Swift app opens the viewer from disk.
+
+    After every change the daemon rewrites the mesh and the timeline beside it,
+    before it says so.
     """
     viewer_dir = tmp_path / "viewer"
     viewer_dir.mkdir()
@@ -278,10 +280,11 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
 def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
     tmp_path: Path, monkeypatch
 ):
-    """The part builds, but the export refuses it. The daemon used to log that
-    to stderr and leave the previous document's mesh on screen, so opening the
-    file looked like nothing happened. Now the mesh is deleted and the
-    notification carries the reason.
+    """The part builds, but the export refuses it.
+
+    The daemon used to log that to stderr and leave the previous document's mesh on
+    screen, so opening the file looked like nothing happened. Now the mesh is
+    deleted and the notification carries the reason.
     """
     from sprocket_engine import viewer_files
 
@@ -414,8 +417,9 @@ def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
 
 
 def test_an_agent_cannot_swap_the_users_document():
-    """Opening and saving are the user's, through the app's menus. The agent's
-    tools edit the open document and nothing else.
+    """Opening and saving are the user's, through the app's menus.
+
+    The agent's tools edit the open document and nothing else.
     """
     from sprocket_engine.mcp_server import document_tools, op_tools
 

@@ -124,7 +124,8 @@ def _resolve_highlight(handles, face_count: int) -> set[int]:
             raise RenderError(f"highlight {handle!r} must be a face handle like 'f2'")
         if not 0 <= index < face_count:
             raise RenderError(
-                f"highlight 'f{index}' is out of range, this shape has {face_count} faces"
+                f"highlight 'f{index}' is out of range, this shape has {face_count} "
+                "faces"
             )
         indices.add(index)
     return indices

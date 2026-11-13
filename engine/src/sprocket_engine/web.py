@@ -1,5 +1,6 @@
 """`sprocket web`: the viewer in a plain browser, on top of the daemon.
 
+
 The spec's architecture rule is that the viewer must run outside the Swift app,
 or an agent and Playwright have nothing to drive. In the app, the daemon writes
 `part.mesh` and `features.json` next to the viewer (`--viewer-dir`) and Swift
