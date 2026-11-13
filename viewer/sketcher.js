@@ -30,6 +30,11 @@
     trim: "Click the piece of a line, arc or circle to remove, between the shapes that cross it",
     extend: "Click near the end of a line or arc to run it on to the next shape",
     offset: "Click a line, arc or circle, move to the side, then type a distance and press Enter",
+    "center-rectangle": "Click the centre, then a corner",
+    polygon: "Click the centre, then a corner. Set the number of sides first",
+    slot: "Click one end's centre, the other end's centre, then the width",
+    "circle-3": "Click three points the circle passes through",
+    "tangent-arc": "Click the end of a line or arc, then where the arc ends",
   };
   // In the dimension box, between two points: which way to measure.
   const ORIENTATIONS = { a: "aligned", h: "horizontal", v: "vertical" };
@@ -38,7 +43,16 @@
     rectangle: ["Click the opposite corner"],
     circle: ["Click a point on the circle"],
     arc: ["Click the arc's end", "Click a point the arc passes through"],
+    "center-rectangle": ["Click a corner"],
+    polygon: ["Click a corner"],
+    slot: ["Click the other end's centre", "Click to set the width"],
+    "circle-3": ["Click a second point", "Click a third point"],
+    "tangent-arc": ["Click where the arc ends"],
   };
+  // Tools with no key of their own, only a button.
+  const BUTTON_TOOLS = ["center-rectangle", "polygon", "slot", "circle-3", "tangent-arc"];
+  // Tools that place points, so a click snaps to points and curves.
+  const DRAWING = ["line", "rectangle", "circle", "arc", ...BUTTON_TOOLS];
   const GLYPHS = { coincident: "•", point_on: "∘", horizontal: "—", vertical: "|", parallel: "∥", perpendicular: "⟂", tangent: "◠", equal: "=", fix: "▣", symmetric: "⇋" };
   const UNDO_LIMIT = 100;
   const STALE = /based on revision/;
@@ -176,6 +190,7 @@
 
       const preview = previewShape();
       if (preview) group.add(line(preview, COLOURS.preview));
+      for (const shape of previewShapes()) group.add(line(shape, COLOURS.preview));
       if (offsetPreview) offsetPreview.forEach((shape) => group.add(line(shape, COLOURS.preview)));
       if (hover && hover.project) group.add(segments(hover.project.segments, COLOURS.hover));
       renderLabels();
@@ -219,6 +234,38 @@
         if (pending.length === 1) return [from, to];
         const arc = model.arcThrough(from, pending[1].uv, to);
         return arc ? polyline({ kind: "arc", ...arc }) : [from, pending[1].uv];
+      }
+      return null;
+    }
+
+    /// For the shapes of several curves: every curve the next click would add.
+    function previewShapes() {
+      if (!hover || !pending.length || !BUTTON_TOOLS.includes(tool)) return [];
+      const made = buildShape([...pending, { uv: hover.uv }], model.emptySketch(), true);
+      if (made) return made.sketch.entities.map(polyline);
+      return pending.length > 1 ? [pending.map((point) => point.uv).concat([hover.uv])] : [[pending[0].uv, hover.uv]];
+    }
+
+    const sides = () => Number(ui.sides ? ui.sides.value : 6);
+
+    /// The new curves for a button tool from its clicked points, on `base`.
+    /// With `partial` (a preview), a tangent arc is only its curve.
+    function buildShape(points, base, partial) {
+      const uv = points.map((point) => point.uv);
+      if (tool === "center-rectangle") return model.addCenterRectangle(base, uv[0], uv[1]);
+      if (tool === "polygon") return model.addPolygon(base, uv[0], uv[1], sides());
+      if (tool === "slot") {
+        return uv.length < 3 ? null : model.addSlot(base, uv[0], uv[1], model.slotRadius(uv[0], uv[1], uv[2]));
+      }
+      if (tool === "circle-3") return uv.length < 3 ? null : model.addCircleThrough(base, uv[0], uv[1], uv[2]);
+      if (tool === "tangent-arc") {
+        const start = points[0].reference;
+        if (!start) return null;
+        const direction = model.exitDirection(sketch, start);
+        const made = direction && model.tangentArcThrough(uv[0], direction, uv[1]);
+        if (!made) return null;
+        if (partial) return { sketch: { entities: [{ id: "preview", kind: "arc", ...made.arc }], constraints: [] } };
+        return model.addTangentArc(base, start, uv[1]);
       }
       return null;
     }
@@ -542,7 +589,7 @@
       setMessage("");
       render();
     }
-    const TOOL_KEYS_INVERSE = Object.values(TOOL_KEYS);
+    const TOOL_KEYS_INVERSE = [...Object.values(TOOL_KEYS), ...BUTTON_TOOLS];
 
     /// The world axes that are shown and lie in the sketch plane, as the sketch
     /// axes a point can be put on. An axis that crosses the plane, or runs
@@ -572,6 +619,11 @@
         const direction = model.alignment(pending[0].uv, point.uv, ALIGN_DEGREES);
         if (direction === "horizontal") point = { uv: [point.uv[0], pending[0].uv[1]], reference: null, curve: null, align: direction };
         if (direction === "vertical") point = { uv: [pending[0].uv[0], point.uv[1]], reference: null, curve: null, align: direction };
+      }
+      if (tool === "tangent-arc" && !pending.length && !(point.reference && model.exitDirection(sketch, point.reference))) {
+        setMessage("Start on the end of a line or arc");
+        render();
+        return;
       }
       pending.push(point);
       if (pending.length < 1 + PLACING[tool].length) {
@@ -615,6 +667,14 @@
           });
         }
       }
+      if (BUTTON_TOOLS.includes(tool)) {
+        added = buildShape(points, sketch, false);
+        next = added && added.sketch;
+        if (added) joins = buttonJoins(points, added);
+        if (added && tool === "center-rectangle" && points[0].reference) next = model.centreOn(next, points[0].reference, added.diagonals);
+        // The circle has no point of its own where it was clicked, so a clicked sketch point goes on the circle.
+        if (added && tool === "circle-3") for (const point of points) if (point.reference) next = model.withConstraint(next, { kind: "point_on", a: point.reference, b: added.id });
+      }
       if (!next) {
         pending = [];
         setMessage("That shape has no size");
@@ -639,6 +699,16 @@
       render();
     }
     let chainStart = null;
+
+    /// Which new point each click of a button tool joins: [[snapped, fresh]].
+    /// A point clicked on an existing point or curve stays on it.
+    function buttonJoins(points, added) {
+      if (tool === "center-rectangle") return [[points[1], added.ids[2] + ".p0"]];
+      if (tool === "polygon") return [[points[0], added.circle + ".c"], [points[1], added.ids[0] + ".p0"]];
+      if (tool === "slot") return [[points[0], added.arcs[0] + ".c"], [points[1], added.arcs[1] + ".c"]];
+      if (tool === "tangent-arc") return [[points[1], added.id + "." + (added.startEnd === "p0" ? "p1" : "p0")]];
+      return [];
+    }
 
     function endChain() {
       pending = [];
@@ -690,8 +760,8 @@
 
     function applyConstraint(kind) {
       try {
-        const constraint = model.constraintFor(sketch, kind, selection);
-        if (change(model.withConstraint(sketch, constraint))) selection = [];
+        const constraints = model.constraintsFor(sketch, kind, selection);
+        if (change(constraints.reduce((next, constraint) => model.withConstraint(next, constraint), sketch))) selection = [];
       } catch (error) {
         setMessage(error.message);
       }
@@ -868,7 +938,7 @@
         return;
       }
       const under = ["line", "select", "dimension", "fillet", "trim", "extend", "offset"].includes(tool) ? model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) : null;
-      const snapped = tool === "line" || tool === "rectangle" || tool === "circle" || tool === "arc" ? target(uv) : { uv };
+      const snapped = DRAWING.includes(tool) ? target(uv) : { uv };
       hover = { uv: snapped.uv, hit: under, snap: snapped.reference || snapped.curve ? snapped : null };
       if (tool === "line" && pending.length && !snapped.reference && !snapped.curve) {
         const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
@@ -946,6 +1016,8 @@
 
     /// True when the sketcher used the key.
     function keyDown(event) {
+      // The polygon's side count is a number box: its keys are typing.
+      if (ui.sides && event.target === ui.sides) return false;
       if (event.target === ui.dimension) {
         const orientation = ORIENTATIONS[event.key.toLowerCase()];
         if (event.key === "Enter") acceptDimension();
@@ -1007,7 +1079,7 @@
       ui.constraints.forEach((button) => {
         let usable = true;
         try {
-          model.constraintFor(sketch, button.dataset.constraint, selection);
+          model.constraintsFor(sketch, button.dataset.constraint, selection);
         } catch (error) {
           usable = false;
         }

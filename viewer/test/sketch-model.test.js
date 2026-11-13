@@ -463,3 +463,151 @@ test("mirror refuses a pick that is not shapes plus a line, and the symmetric co
   assert.deepEqual(made, { kind: "symmetric", a: "e2.p0", b: "e2.p1", e: "e1" });
   assert.throws(() => model.constraintFor(sketch, "symmetric", ["e2.p0", "e2.p1"]), /two points and a line/);
 });
+
+// --- Shape tools: center rectangle, polygon, slot, three-point circle, tangent arc ---
+
+const checkSolves = (sketch, dof) => {
+  const solved = solve(gcs, sketch);
+  assert.ok(solved.ok, "the shape solves");
+  assert.deepEqual(solved.conflicting, []);
+  assert.deepEqual(solved.redundant, []);
+  if (dof !== undefined) assert.equal(solved.dof, dof);
+  return solved.sketch;
+};
+
+test("a center rectangle is centred on its first click and held there by two diagonals", () => {
+  const { sketch, ids, diagonals } = model.addCenterRectangle(model.emptySketch(), [10, 5], [30, 15]);
+  assert.equal(ids.length, 4);
+  assert.equal(diagonals.length, 2);
+  assert.ok(diagonals.every((id) => sketch.entities.find((entity) => entity.id === id).construction));
+  near(sketch.entities[0].p0[0], -10);
+  near(sketch.entities[0].p0[1], -5);
+  // Two corners: four freedoms, as a plain rectangle has.
+  checkSolves(sketch, 4);
+  assert.equal(model.addCenterRectangle(model.emptySketch(), [0, 0], [0, 5]), null);
+});
+
+test("a center rectangle drawn on the origin stays centred on it when a corner is dragged", () => {
+  const made = model.addCenterRectangle(model.emptySketch(), [0, 0], [20, 10]);
+  const centred = model.centreOn(made.sketch, model.ORIGIN, made.diagonals);
+  checkSolves(centred, 2);
+  const moved = solve(gcs, centred, { drag: { ref: made.ids[2] + ".p0", delta: [10, 10] } });
+  assert.ok(moved.ok);
+  const corner = moved.sketch.entities.find((entity) => entity.id === made.ids[2]).p0;
+  const opposite = moved.sketch.entities.find((entity) => entity.id === made.ids[0]).p0;
+  near(corner[0] + opposite[0], 0);
+  near(corner[1] + opposite[1], 0);
+  assert.ok(corner[0] > 25);
+});
+
+test("a polygon has equal sides on a construction circle and keeps four freedoms", () => {
+  const { sketch, ids, circle } = model.addPolygon(model.emptySketch(), [0, 0], [10, 0], 6);
+  assert.equal(ids.length, 6);
+  assert.ok(sketch.entities.find((entity) => entity.id === circle).construction);
+  const first = sketch.entities.find((entity) => entity.id === ids[0]);
+  near(Math.hypot(first.p1[0] - first.p0[0], first.p1[1] - first.p0[1]), 10);
+  // Centre, size and turn.
+  checkSolves(sketch, 4);
+  assert.equal(model.addPolygon(model.emptySketch(), [0, 0], [10, 0], 2), null);
+  assert.equal(model.addPolygon(model.emptySketch(), [0, 0], [0, 0], 6), null);
+});
+
+test("a slot is two parallel sides and two half circles held square by construction diameters, with five freedoms", () => {
+  const { sketch, ids, arcs } = model.addSlot(model.emptySketch(), [0, 0], [20, 0], 3);
+  assert.equal(ids.length, 2);
+  const [capA, capB] = arcs.map((id) => sketch.entities.find((entity) => entity.id === id));
+  near(capA.a1 - capA.a0, Math.PI);
+  near(capB.a1 - capB.a0, Math.PI);
+  // The ends meet the sides where they were drawn.
+  near(model.pointOnSketch(sketch, arcs[0] + ".p0")[1], 3);
+  near(model.pointOnSketch(sketch, arcs[1] + ".p1")[1], 3);
+  near(model.pointOnSketch(sketch, arcs[1] + ".p1")[0], 20);
+  // Two centres and a width.
+  const solved = checkSolves(sketch, 5);
+  const left = solved.entities.find((entity) => entity.id === ids[0]);
+  near(left.p0[1], 3);
+  near(model.slotRadius([0, 0], [20, 0], [7, -4]), 4);
+  // Dragging an end keeps the caps tangent and equal: the regression the tangent form failed.
+  // In pointer-sized steps, as the sketcher drags: one 9 mm jump can collapse a 3 mm slot to nothing.
+  let dragged = { sketch };
+  for (let step = 0; step < 10; step++) {
+    dragged = solve(gcs, dragged.sketch, { drag: { ref: arcs[1] + ".c", delta: [0.5, 0.8] } });
+    assert.ok(dragged.ok);
+  }
+  const [a, b] = arcs.map((id) => dragged.sketch.entities.find((entity) => entity.id === id));
+  near(a.r, b.r);
+  assert.ok(b.r > 2.5, "the slot keeps its width, not collapsing to a line");
+  near(b.a1 - b.a0, Math.PI);
+  const side = dragged.sketch.entities.find((entity) => entity.id === ids[0]);
+  const gap = Math.abs((side.p1[0] - side.p0[0]) * (b.c[1] - side.p0[1]) - (side.p1[1] - side.p0[1]) * (b.c[0] - side.p0[0])) / Math.hypot(side.p1[0] - side.p0[0], side.p1[1] - side.p0[1]);
+  near(gap, b.r);
+  assert.ok(solve(gcs, model.withConstraint(sketch, { kind: "radius", e: arcs[0], value: 5 })).ok);
+  assert.equal(model.addSlot(model.emptySketch(), [0, 0], [0, 0], 3), null);
+});
+
+test("a three-point circle passes through all three clicks", () => {
+  const { sketch, id } = model.addCircleThrough(model.emptySketch(), [10, 0], [0, 10], [-10, 0]);
+  const circle = sketch.entities.find((entity) => entity.id === id);
+  near(circle.c[0], 0);
+  near(circle.c[1], 0);
+  near(circle.r, 10);
+  assert.equal(model.addCircleThrough(model.emptySketch(), [0, 0], [1, 1], [2, 2]), null);
+});
+
+test("a tangent arc leaves the end of a line smoothly, on whichever side the end lies", () => {
+  const base = model.addLine(model.emptySketch(), [0, 0], [10, 0]).sketch;
+  // Up and to the left of the line's end: a counter-clockwise turn, starting at p0.
+  const left = model.addTangentArc(base, "e1.p1", [10, 10]);
+  assert.equal(left.startEnd, "p0");
+  const arc = left.sketch.entities.find((entity) => entity.id === left.id);
+  near(arc.c[0], 10);
+  near(arc.c[1], 5);
+  near(arc.r, 5);
+  near(model.pointOnSketch(left.sketch, left.id + ".p1")[1], 10);
+  checkSolves(left.sketch, 6);
+  // Dragging the far end keeps the centre square above the joint.
+  const dragged = solve(gcs, left.sketch, { drag: { ref: left.id + ".p1", delta: [3, 2] } });
+  assert.ok(dragged.ok);
+  near(dragged.sketch.entities.find((entity) => entity.id === left.id).c[0], 10);
+  // Below: a clockwise turn, which is stored the other way round.
+  const right = model.addTangentArc(base, "e1.p1", [10, -10]);
+  assert.equal(right.startEnd, "p1");
+  const start = model.pointOnSketch(right.sketch, right.id + ".p1");
+  near(start[0], 10);
+  near(start[1], 0);
+  checkSolves(right.sketch);
+  // Straight ahead there is no arc, and a circle has no end to start from.
+  assert.equal(model.addTangentArc(base, "e1.p1", [20, 0]), null);
+  assert.equal(model.addTangentArc(base, "e1.c", [20, 5]), null);
+});
+
+test("a tangent arc can follow another arc", () => {
+  const base = model.addArc(model.emptySketch(), [10, 0], [0, 10], [7.0710678, 7.0710678]).sketch;
+  const direction = model.exitDirection(base, "e1.p1");
+  // The quarter arc ends at (0, 10) heading in -u.
+  near(direction[0], -1);
+  near(direction[1], 0);
+  const made = model.addTangentArc(base, "e1.p1", [-10, 0]);
+  assert.ok(made);
+  checkSolves(made.sketch);
+});
+
+test("concentric and collinear are shorthands for coincident centres and points on a line", () => {
+  let sketch = model.addCircle(model.emptySketch(), [0, 0], 5).sketch;
+  sketch = model.addCircle(sketch, [1, 1], 8).sketch;
+  assert.deepEqual(model.constraintsFor(sketch, "concentric", ["e1", "e2"]), [{ kind: "coincident", a: "e1.c", b: "e2.c" }]);
+  assert.throws(() => model.constraintsFor(sketch, "concentric", ["e1"]), /two circles or arcs/);
+  let lines = model.addLine(model.emptySketch(), [0, 0], [10, 0]).sketch;
+  lines = model.addLine(lines, [12, 1], [20, 1]).sketch;
+  const collinear = model.constraintsFor(lines, "collinear", ["e1", "e2"]);
+  assert.equal(collinear.length, 2);
+  const joined = collinear.reduce((next, constraint) => model.withConstraint(next, constraint), lines);
+  const solved = checkSolves(joined);
+  // Both ends of the second line lie on the first, wherever the solver moved them.
+  const [first, second] = solved.entities;
+  const offLine = (point) => ((first.p1[0] - first.p0[0]) * (point[1] - first.p0[1]) - (first.p1[1] - first.p0[1]) * (point[0] - first.p0[0])) / Math.hypot(first.p1[0] - first.p0[0], first.p1[1] - first.p0[1]);
+  near(offLine(second.p0), 0);
+  near(offLine(second.p1), 0);
+  assert.throws(() => model.constraintsFor(lines, "collinear", ["e1.p0", "e2"]), /two lines/);
+  assert.equal(model.constraintsFor(lines, "horizontal", ["e1"])[0].kind, "horizontal");
+});
