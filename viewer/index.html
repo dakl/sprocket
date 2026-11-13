@@ -695,11 +695,45 @@
     }
 
     #view-cube-home:hover { color: #5be0a0; }
+    /* The agent's pointer: where an agent on the daemon points and clicks. */
+    #agent-pointer {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 1000;
+      pointer-events: none;
+      opacity: 0;
+      transition: left 0.3s ease, top 0.3s ease, opacity 0.3s;
+    }
+    #agent-pointer.shown { opacity: 1; }
+    #agent-pointer span {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #d97757;
+      color: #fff;
+      font: 600 11px -apple-system, sans-serif;
+      white-space: nowrap;
+    }
+    #agent-pointer .ripple {
+      position: absolute;
+      left: -12px;
+      top: -12px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #d97757;
+      animation: agent-ripple 0.4s ease-out forwards;
+    }
+    @keyframes agent-ripple { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
   </style>
 </head>
 <body>
   <div id="hint"></div>
   <div id="status"></div>
+  <div id="agent-pointer"><svg width="20" height="22" viewBox="0 0 20 22"><path d="M1 1l0 17 5-4 3.5 7 3-1.5-3.5-7 6.5 0z" fill="#d97757" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" /></svg><span>Agent</span></div>
   <div id="warning"></div>
   <div id="mesh-error"></div>
   <div id="measure-readout" aria-live="polite"></div>
@@ -1560,6 +1594,7 @@
     // them from the event stream below.
     window.__daemonNotification = function (method, params) {
       if (method === "document_conflict") showConflict(params);
+      if (method === "agent_pointer") agentPointer(params);
     };
 
     /// The engine could not write the part as a mesh, so it deleted the mesh
@@ -1934,6 +1969,9 @@
     if (/^https?:$/.test(window.location.protocol)) {
       const events = new EventSource("/events");
       events.addEventListener("highlight", (event) => showAgentHighlight(JSON.parse(event.data).params));
+      events.addEventListener("agent_pointer", (event) => agentPointer(JSON.parse(event.data).params));
+      // The app answers capture_app itself with the whole window; a browser can only give the canvas.
+      events.addEventListener("capture_app", (event) => captureCanvas(JSON.parse(event.data).params));
       events.addEventListener("document_changed", (event) => {
         const params = JSON.parse(event.data).params;
         const { revision, opened, viewer_error } = params;
@@ -2204,6 +2242,153 @@
     }
     // The app's Swift side calls this when the daemon sends a highlight.
     window.__highlight = showAgentHighlight;
+
+    // --- The agent's pointer ------------------------------------------------
+    // An agent on the daemon (agent_pointer) moves a pointer the person can see
+    // and acts where it lands, with the same DOM events a mouse or keyboard
+    // makes, so every control is tested the way it is used. The answer names
+    // the element that took the action, and goes back through viewer_reply.
+    const agentPointerEl = document.getElementById("agent-pointer");
+    let agentPointerHide = null;
+    const POINTER_MOVE_MS = 320;
+
+    /// `tag#id.class "title or text"`, short enough to read in an agent's reply.
+    function describeElement(picked) {
+      if (!picked) return null;
+      // A click on a button's icon names the button.
+      const element = picked.closest("button, a, label, input, select, textarea, [title]") || picked;
+      let name = element.tagName.toLowerCase();
+      if (element.id) name += "#" + element.id;
+      if (typeof element.className === "string" && element.className.trim()) name += "." + element.className.trim().split(/\s+/).join(".");
+      const words = (element.getAttribute("title") || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 60);
+      return words ? name + ' "' + words + '"' : name;
+    }
+
+    async function placeAgentPointer(x, y) {
+      clearTimeout(agentPointerHide);
+      agentPointerEl.classList.add("shown");
+      agentPointerEl.style.left = x + "px";
+      agentPointerEl.style.top = y + "px";
+      // A move and a fade-in both take this long, so a screenshot taken after the answer shows the pointer where it is.
+      await new Promise((resolve) => setTimeout(resolve, POINTER_MOVE_MS));
+      agentPointerHide = setTimeout(() => agentPointerEl.classList.remove("shown"), 8000);
+    }
+
+    function agentRipple() {
+      const ripple = document.createElement("div");
+      ripple.className = "ripple";
+      agentPointerEl.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 450);
+    }
+
+    /// Fires one mouse-like event at the element under (x, y), as the browser would.
+    function firePointer(type, x, y, mods, buttons) {
+      const element = document.elementFromPoint(x, y);
+      if (!element) return null;
+      const init = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons, shiftKey: Boolean(mods.shift), metaKey: Boolean(mods.meta), altKey: Boolean(mods.alt), view: window };
+      const event = type.startsWith("pointer") ? new PointerEvent(type, { ...init, pointerId: 1, pointerType: "mouse", isPrimary: true }) : new MouseEvent(type, init);
+      element.dispatchEvent(event);
+      return element;
+    }
+
+    function agentClick(x, y, mods) {
+      firePointer("pointerdown", x, y, mods, 1);
+      const element = firePointer("mousedown", x, y, mods, 1);
+      if (element && typeof element.focus === "function" && element.matches("input, select, textarea, button, [tabindex]")) element.focus();
+      firePointer("pointerup", x, y, mods, 0);
+      firePointer("mouseup", x, y, mods, 0);
+      firePointer("click", x, y, mods, 0);
+      return element;
+    }
+
+    function agentKey(key, mods) {
+      const target = document.activeElement || document.body;
+      const init = { key, bubbles: true, cancelable: true, shiftKey: Boolean(mods.shift), metaKey: Boolean(mods.meta), altKey: Boolean(mods.alt) };
+      const allowed = target.dispatchEvent(new KeyboardEvent("keydown", init));
+      target.dispatchEvent(new KeyboardEvent("keyup", init));
+      return { target, allowed };
+    }
+
+    /// Types into the focused field one character at a time, with an input event each.
+    function agentType(text) {
+      const field = document.activeElement;
+      if (!field || !("value" in field)) throw new Error("nothing focused takes text: click a field first");
+      for (const character of text) {
+        field.value += character;
+        field.dispatchEvent(new InputEvent("input", { bubbles: true, data: character, inputType: "insertText" }));
+      }
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+      return field;
+    }
+
+    async function agentPointer(params) {
+      const reply = (answer) => rpcCall("viewer_reply", { request: params.request, ...answer }).catch(() => {});
+      try {
+        const mods = { shift: params.shift, meta: params.meta, alt: params.alt };
+        let x = params.x;
+        let y = params.y;
+        if (params.target) {
+          const found = document.querySelector(params.target);
+          if (!found) throw new Error("no element matches " + params.target);
+          const box = found.getBoundingClientRect();
+          x = box.left + box.width / 2;
+          y = box.top + box.height / 2;
+        }
+        const action = params.action;
+        if (action === "key" || action === "type") {
+          if (Number.isFinite(x) && Number.isFinite(y)) await placeAgentPointer(x, y);
+          if (action === "key") {
+            if (!params.key) throw new Error("key needs a 'key'");
+            const { target, allowed } = agentKey(params.key, mods);
+            return reply({ result: { element: describeElement(target), default_prevented: !allowed } });
+          }
+          return reply({ result: { element: describeElement(agentType(String(params.text || ""))) } });
+        }
+        if (!(Number.isFinite(x) && Number.isFinite(y))) throw new Error(action + " needs 'x' and 'y' or a 'target'");
+        await placeAgentPointer(x, y);
+        let element;
+        if (action === "move") {
+          firePointer("pointermove", x, y, mods, 0);
+          element = firePointer("mousemove", x, y, mods, 0);
+        } else if (action === "click" || action === "double_click") {
+          agentRipple();
+          element = agentClick(x, y, mods);
+          if (action === "double_click") {
+            agentClick(x, y, mods);
+            firePointer("dblclick", x, y, mods, 0);
+          }
+        } else if (action === "drag") {
+          if (!(Number.isFinite(params.to_x) && Number.isFinite(params.to_y))) throw new Error("drag needs 'to_x' and 'to_y'");
+          element = firePointer("pointerdown", x, y, mods, 1);
+          firePointer("mousedown", x, y, mods, 1);
+          const steps = 12;
+          for (let step = 1; step <= steps; step++) {
+            const px = x + ((params.to_x - x) * step) / steps;
+            const py = y + ((params.to_y - y) * step) / steps;
+            agentPointerEl.style.left = px + "px";
+            agentPointerEl.style.top = py + "px";
+            firePointer("pointermove", px, py, mods, 1);
+            firePointer("mousemove", px, py, mods, 1);
+            await new Promise((resolve) => setTimeout(resolve, 16));
+          }
+          firePointer("pointerup", params.to_x, params.to_y, mods, 0);
+          firePointer("mouseup", params.to_x, params.to_y, mods, 0);
+        }
+        if (!element) throw new Error("nothing at " + Math.round(x) + ", " + Math.round(y));
+        return reply({ result: { element: describeElement(element), x: Math.round(x), y: Math.round(y) } });
+      } catch (error) {
+        return reply({ error: error.message });
+      }
+    }
+
+    /// A browser viewer's screenshot: only the 3D canvas, as a PNG, rendered now so the buffer is fresh.
+    function captureCanvas(params) {
+      renderer.render(scene, camera);
+      const data = renderer.domElement.toDataURL("image/png");
+      const result = { png_base64: data.slice(data.indexOf(",") + 1), scope: "canvas", width: renderer.domElement.width, height: renderer.domElement.height };
+      rpcCall("viewer_reply", { request: params.request, result }).catch(() => {});
+    }
+    window.__agentPointer = agentPointer;
 
     /// A pointer event as normalised device coordinates, which is what
     /// Raycaster.setFromCamera takes.

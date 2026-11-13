@@ -38,6 +38,9 @@ final class EngineDaemon {
     /// Called on the main queue when an agent highlights faces, edges or sketches.
     /// An empty pair clears the highlight.
     var onHighlight: (([String], [String]) -> Void)?
+    /// Called on the main queue when an agent asks for a screenshot of the
+    /// window (`capture_app`): the request id to answer and the PNG's path.
+    var onCapture: ((String, String) -> Void)?
     /// Called on the main queue if the connection drops, which means the engine died.
     var onExit: (() -> Void)?
 
@@ -236,11 +239,15 @@ final class EngineDaemon {
                 self.onDocumentChanged?(revision, opened, viewerError, json)
             }
         }
-        if let method = message["method"] as? String, method == "document_conflict",
+        if let method = message["method"] as? String, method == "document_conflict" || method == "agent_pointer",
            let params = message["params"] as? [String: Any],
            let data = try? JSONSerialization.data(withJSONObject: params),
            let json = String(data: data, encoding: .utf8) {
             DispatchQueue.main.async { self.onNotification?(method, json) }
+        }
+        if message["method"] as? String == "capture_app", let params = message["params"] as? [String: Any],
+           let request = params["request"] as? String, let path = params["path"] as? String {
+            DispatchQueue.main.async { self.onCapture?(request, path) }
         }
         if message["method"] as? String == "highlight", let params = message["params"] as? [String: Any] {
             let handles = params["handles"] as? [String] ?? []
