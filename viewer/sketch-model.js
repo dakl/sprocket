@@ -211,6 +211,203 @@
     return { sketch: next, ids };
   }
 
+  /// A rectangle drawn from its centre out to a corner, with two construction
+  /// diagonals between opposite corners. The diagonals cross at the centre, so a
+  /// point put on both of them holds the rectangle centred there (see
+  /// centreOn). Returns null for a flat one.
+  function addCenterRectangle(sketch, centre, corner) {
+    const opposite = [2 * centre[0] - corner[0], 2 * centre[1] - corner[1]];
+    const rectangle = addRectangle(sketch, opposite, corner);
+    if (!rectangle) return null;
+    let next = rectangle.sketch;
+    const { ids } = rectangle;
+    const diagonals = [
+      [ids[0], ids[2]],
+      [ids[1], ids[3]],
+    ].map(([from, to]) => {
+      const start = next.entities.find((entity) => entity.id === from).p0;
+      const end = next.entities.find((entity) => entity.id === to).p0;
+      const id = nextId(next);
+      next = withEntity(next, { id, kind: "line", p0: [...start], p1: [...end], construction: true });
+      next = withConstraint(next, { kind: "coincident", a: id + ".p0", b: from + ".p0" });
+      next = withConstraint(next, { kind: "coincident", a: id + ".p1", b: to + ".p0" });
+      return id;
+    });
+    return { sketch: next, ids, diagonals };
+  }
+
+  /// Holds the point `reference` where the lines `lines` cross.
+  function centreOn(sketch, reference, lines) {
+    return lines.reduce((next, line) => withConstraint(next, { kind: "point_on", a: reference, b: line }), sketch);
+  }
+
+  /// A regular polygon of `sides` sides inside a construction circle: one corner
+  /// at `vertex`, the circle centred on `centre`. Every corner lies on the circle
+  /// and every side equals the first, so the shape stays regular however it is
+  /// dragged or dimensioned. Returns {sketch, ids, circle} or null.
+  function addPolygon(sketch, centre, vertex, sides) {
+    const count = Math.round(sides);
+    if (!Number.isFinite(count) || count < 3 || count > 64) return null;
+    const r = distance(centre, vertex);
+    if (r < 1e-9) return null;
+    const circle = nextId(sketch);
+    let next = withEntity(sketch, { id: circle, kind: "circle", c: [...centre], r, construction: true });
+    const start = Math.atan2(vertex[1] - centre[1], vertex[0] - centre[0]);
+    const corners = Array.from({ length: count }, (_, index) => {
+      const angle = start + (TWO_PI * index) / count;
+      return [centre[0] + r * Math.cos(angle), centre[1] + r * Math.sin(angle)];
+    });
+    corners[0] = [...vertex];
+    const ids = corners.map((corner, index) => {
+      const added = addLine(next, corner, [...corners[(index + 1) % count]]);
+      next = added.sketch;
+      return added.id;
+    });
+    ids.forEach((id, index) => {
+      next = withConstraint(next, { kind: "coincident", a: id + ".p1", b: ids[(index + 1) % count] + ".p0" });
+      next = withConstraint(next, { kind: "point_on", a: id + ".p0", b: circle });
+      if (index > 0) next = withConstraint(next, { kind: "equal", a: ids[0], b: id });
+    });
+    return { sketch: next, ids, circle };
+  }
+
+  /// A slot: two half circles of radius `r` round the centres `a` and `b`, joined
+  /// by two straight sides. Each cap has a construction diameter, through its
+  /// centre and square to the sides, which the sides are parallel to each other:
+  /// that makes the caps tangent to the sides and equal. Tangent constraints
+  /// would say the same, but planegcs finds a tangent at a joined end
+  /// degenerate, and such a slot fails to drag or take a dimension.
+  /// Returns {sketch, ids: [side, side], arcs: [at a, at b], diameters} or null.
+  function addSlot(sketch, a, b, r) {
+    const length = distance(a, b);
+    if (length < 1e-9 || !(r > 1e-9)) return null;
+    const normal = [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+    const at = (point, sign) => [point[0] + sign * normal[0] * r, point[1] + sign * normal[1] * r];
+    const across = Math.atan2(normal[1], normal[0]);
+    let next = sketch;
+    const add = (entity) => {
+      const id = nextId(next);
+      next = withEntity(next, { id, ...entity });
+      return id;
+    };
+    const tie = (kind, fields) => {
+      next = withConstraint(next, { kind, ...fields });
+    };
+    const left = add({ kind: "line", p0: at(a, 1), p1: at(b, 1) });
+    const right = add({ kind: "line", p0: at(b, -1), p1: at(a, -1) });
+    // Each end cap runs counter-clockwise from one side to the other, round the outside.
+    const capA = add({ kind: "arc", c: [...a], r, a0: across, a1: across + Math.PI });
+    const capB = add({ kind: "arc", c: [...b], r, a0: across + Math.PI, a1: across + TWO_PI });
+    const diameters = [capA, capB].map((cap) => {
+      const arc = next.entities.find((entity) => entity.id === cap);
+      const ends = [arc.a0, arc.a1].map((angle) => [arc.c[0] + r * Math.cos(angle), arc.c[1] + r * Math.sin(angle)]);
+      const id = add({ kind: "line", p0: ends[0], p1: ends[1], construction: true });
+      tie("coincident", { a: id + ".p0", b: cap + ".p0" });
+      tie("coincident", { a: id + ".p1", b: cap + ".p1" });
+      tie("point_on", { a: cap + ".c", b: id });
+      tie("perpendicular", { a: left, b: id });
+      return id;
+    });
+    tie("coincident", { a: left + ".p0", b: capA + ".p0" });
+    tie("coincident", { a: right + ".p1", b: capA + ".p1" });
+    tie("coincident", { a: right + ".p0", b: capB + ".p0" });
+    tie("coincident", { a: left + ".p1", b: capB + ".p1" });
+    tie("parallel", { a: left, b: right });
+    return { sketch: next, ids: [left, right], arcs: [capA, capB], diameters };
+  }
+
+  /// The half width a slot from `a` to `b` gets when the pointer is at `point`:
+  /// the point's distance from the line through the centres.
+  function slotRadius(a, b, point) {
+    const length = distance(a, b);
+    if (length < 1e-9) return 0;
+    return Math.abs((b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])) / length;
+  }
+
+  function pointOnSketch(sketch, reference) {
+    const [id, name] = reference.split(".");
+    const entity = sketch.entities.find((item) => item.id === id);
+    if (name === "c") return entity.c;
+    if (entity.kind === "line") return entity[name];
+    const angle = name === "p0" ? entity.a0 : entity.a1;
+    return [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)];
+  }
+
+  /// The direction a curve leaves its end `reference` ("e1.p1"), pointing out of
+  /// the curve, as a unit [du, dv]. Null when the reference is not the end of a
+  /// line or arc.
+  function exitDirection(sketch, reference) {
+    const [id, name] = reference.split(".");
+    const entity = sketch.entities.find((item) => item.id === id);
+    if (!entity || !["p0", "p1"].includes(name)) return null;
+    let direction;
+    if (entity.kind === "line") {
+      const [from, to] = name === "p1" ? [entity.p0, entity.p1] : [entity.p1, entity.p0];
+      direction = [to[0] - from[0], to[1] - from[1]];
+    } else if (entity.kind === "arc") {
+      // Counter-clockwise the arc leaves p1 at +90° from its radius, and p0 the other way.
+      const angle = name === "p1" ? entity.a1 : entity.a0;
+      const sign = name === "p1" ? 1 : -1;
+      direction = [-Math.sin(angle) * sign, Math.cos(angle) * sign];
+    } else return null;
+    const size = Math.hypot(direction[0], direction[1]);
+    return size < 1e-12 ? null : [direction[0] / size, direction[1] / size];
+  }
+
+  /// The arc that leaves `start` along `direction` and ends at `end`, in the
+  /// stored counter-clockwise form, with `startEnd` naming which of its ends is
+  /// `start`. Null when `end` lies on the tangent line, where no arc fits.
+  function tangentArcThrough(start, direction, end) {
+    const normal = [-direction[1], direction[0]];
+    const gap = [start[0] - end[0], start[1] - end[1]];
+    const across = normal[0] * gap[0] + normal[1] * gap[1];
+    const squared = gap[0] ** 2 + gap[1] ** 2;
+    if (squared < 1e-18 || Math.abs(across) < 1e-6 * Math.sqrt(squared)) return null;
+    // The centre is on the normal through `start`, as far from `end` as from `start`.
+    const k = -squared / (2 * across);
+    const c = [start[0] + normal[0] * k, start[1] + normal[1] * k];
+    const angleOf = (point) => Math.atan2(point[1] - c[1], point[0] - c[0]);
+    // Centre on the left: the arc turns counter-clockwise from start, as stored.
+    const [first, second, startEnd] = k > 0 ? [start, end, "p0"] : [end, start, "p1"];
+    const a0 = angleOf(first);
+    let a1 = angleOf(second);
+    while (a1 <= a0) a1 += TWO_PI;
+    return { arc: { c, r: Math.abs(k), a0, a1 }, startEnd };
+  }
+
+  /// An arc that carries on smoothly from the end of a line or arc (`reference`)
+  /// to `end`. A construction radius runs from the arc's centre to the joint:
+  /// square to a line, or through the other arc's centre, which is what tangent
+  /// means there. (A tangent constraint at a joined end is degenerate in planegcs.)
+  /// Returns {sketch, id, startEnd, radius} or null.
+  function addTangentArc(sketch, reference, end) {
+    const direction = exitDirection(sketch, reference);
+    if (!direction) return null;
+    const start = pointOnSketch(sketch, reference);
+    const made = tangentArcThrough(start, direction, end);
+    if (!made) return null;
+    const id = nextId(sketch);
+    let next = withEntity(sketch, { id, kind: "arc", ...made.arc });
+    const radius = nextId(next);
+    next = withEntity(next, { id: radius, kind: "line", p0: [...made.arc.c], p1: [...start], construction: true });
+    const from = sketch.entities.find((entity) => entity.id === reference.split(".")[0]);
+    for (const constraint of [
+      { kind: "coincident", a: id + "." + made.startEnd, b: reference },
+      { kind: "coincident", a: radius + ".p0", b: id + ".c" },
+      { kind: "coincident", a: radius + ".p1", b: reference },
+      from.kind === "line" ? { kind: "perpendicular", a: radius, b: from.id } : { kind: "point_on", a: from.id + ".c", b: radius },
+    ]) {
+      next = withConstraint(next, constraint);
+    }
+    return { sketch: next, id, startEnd: made.startEnd, radius };
+  }
+
+  /// The circle through three clicked points. Returns {sketch, id} or null when they are in a line.
+  function addCircleThrough(sketch, a, b, c) {
+    const circle = circumcircle(a, b, c);
+    return circle ? addCircle(sketch, circle.c, circle.r) : null;
+  }
+
   function connect(sketch, first, second) {
     return first === second ? sketch : withConstraint(sketch, { kind: "coincident", a: first, b: second });
   }
@@ -517,6 +714,29 @@
     }
   }
 
+  /// The constraints the button `kind` adds for the selection. Concentric and
+  /// collinear are shorthands for constraints the solver already has: centres
+  /// coincident, and both ends of one line on the other.
+  function constraintsFor(sketch, kind, selection) {
+    const [first, second] = selection;
+    if (kind === "concentric") {
+      if (selection.length === 2 && selection.every((reference) => isCurve(sketch, reference))) {
+        return [{ kind: "coincident", a: first + ".c", b: second + ".c" }];
+      }
+      return fail("Select two circles or arcs to give them one centre");
+    }
+    if (kind === "collinear") {
+      if (selection.length === 2 && selection.every((reference) => isLine(sketch, reference))) {
+        return [
+          { kind: "point_on", a: second + ".p0", b: first },
+          { kind: "point_on", a: second + ".p1", b: first },
+        ];
+      }
+      return fail("Select two lines to put them on one line");
+    }
+    return [constraintFor(sketch, kind, selection)];
+  }
+
   /// The dimension a selection can carry, with its current value so that
   /// accepting it unchanged moves nothing, and where to put its label. Null
   /// when the selection has none. Two points can be measured "aligned" (the
@@ -629,6 +849,16 @@
     addCircle,
     addArc,
     addRectangle,
+    addCenterRectangle,
+    centreOn,
+    addPolygon,
+    addSlot,
+    slotRadius,
+    exitDirection,
+    tangentArcThrough,
+    addTangentArc,
+    addCircleThrough,
+    pointOnSketch,
     arcThrough,
     circumcircle,
     connect,
@@ -652,6 +882,7 @@
     hit,
     alignment,
     constraintFor,
+    constraintsFor,
     suggestDimension,
     dimensionAnchor,
     toFeature,

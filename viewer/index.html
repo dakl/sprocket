@@ -559,7 +559,7 @@
     #sketch-draw-panel { flex-wrap: wrap; justify-content: center; width: max-content; max-width: 92vw; white-space: normal; }
     #sketch-plane-panel > *, #sketch-draw-panel > * { flex-shrink: 0; }
 
-    #sketch-plane-offset { width: 5em; padding: 3px 5px; font: 13px -apple-system, sans-serif; color: #eee; background: #262626; border: 1px solid #555; border-radius: 4px; }
+    #sketch-plane-offset, #sketch-polygon-sides { width: 5em; padding: 3px 5px; font: 13px -apple-system, sans-serif; color: #eee; background: #262626; border: 1px solid #555; border-radius: 4px; }
     #sketch-plane-panel button, #sketch-draw-panel button {
       font: 13px -apple-system, sans-serif;
       padding: 4px 12px;
@@ -852,6 +852,12 @@
       <button data-tool="rectangle" title="Rectangle (R)">Rectangle</button>
       <button data-tool="circle" title="Circle (C)">Circle</button>
       <button data-tool="arc" title="Three-point arc (A)">Arc</button>
+      <button data-tool="center-rectangle" title="Center rectangle: click the centre, then a corner">Center rect</button>
+      <button data-tool="circle-3" title="Three-point circle: click three points it passes through">3-pt circle</button>
+      <button data-tool="tangent-arc" title="Tangent arc: click the end of a line or arc, then where the arc ends. It carries on smoothly">Tangent arc</button>
+      <button data-tool="slot" title="Slot: click the two end centres, then the width">Slot</button>
+      <button data-tool="polygon" title="Polygon: click the centre, then a corner. A regular polygon inside a construction circle">Polygon</button>
+      <label class="sketch-hint-inline" title="Sides of the next polygon">sides <input id="sketch-polygon-sides" type="number" min="3" max="64" step="1" value="6" /></label>
       <button data-tool="dimension" title="Dimension (D). Between two points, press H, V or A in the box to measure across, up or straight">Dimension</button>
       <button data-tool="fillet" title="Fillet (F): round a corner where two lines meet with an arc of the radius you type">Fillet</button>
       <button data-tool="project" title="Project (P): click an edge of another sketch or of the part to bring it into this sketch as a locked reference">Project</button>
@@ -869,6 +875,8 @@
       <button data-constraint="tangent" title="A curve touches a line or curve">Tangent</button>
       <button data-constraint="equal" title="Equal length or radius">Equal</button>
       <button data-constraint="fix" title="Lock a point or shape in place">Fix</button>
+      <button data-constraint="concentric" title="Two circles or arcs share one centre">Concentric</button>
+      <button data-constraint="collinear" title="Two lines lie on one line">Collinear</button>
       <button data-constraint="symmetric" title="Two points are mirror images across a line: select the two points and the line">Symmetric</button>
     </div>
     <div class="sketch-panel-group">
@@ -5381,6 +5389,7 @@
         cancel: document.getElementById("sketch-cancel"),
         labels: document.getElementById("sketch-labels"),
         dimension: document.getElementById("sketch-dimension"),
+        sides: document.getElementById("sketch-polygon-sides"),
       },
     });
     renderer.domElement.addEventListener("dblclick", () => {
