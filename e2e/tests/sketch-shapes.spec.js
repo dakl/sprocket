@@ -12,7 +12,9 @@ test.beforeEach(async ({ page, request }) => {
   await settled(page);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line");
+  await page.waitForFunction(
+    () => globalThis.__tcad.sketch.active && globalThis.__tcad.sketch.tool === "line",
+  );
   await cameraStill(page);
 });
 
@@ -30,12 +32,17 @@ async function click(page, uv) {
 /// Finishes the sketch and returns the engine's regions for it.
 async function finish(page, request) {
   await page.locator("#sketch-finish").click();
-  await page.waitForFunction(() => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length === 1);
+  await page.waitForFunction(
+    () => !globalThis.__tcad.sketch.active && globalThis.__tcad.timeline.length === 1,
+  );
   const saved = (await rpc(request, "get_document")).features[0];
   return (await rpc(request, "get_profiles", { feature: saved.id })).profiles;
 }
 
-test("Center rect on the origin is centred there by its diagonals, and keeps two freedoms", async ({ page, request }, info) => {
+test("Center rect on the origin is centred there by its diagonals, and keeps two freedoms", async ({
+  page,
+  request,
+}, info) => {
   await useTool(page, "center-rectangle");
   await click(page, [0, 0]);
   await click(page, [20, 10]);
@@ -43,7 +50,12 @@ test("Center rect on the origin is centred there by its diagonals, and keeps two
   const state = await sketchState(page);
   const construction = state.entities.filter((entity) => entity.construction);
   expect(construction).toHaveLength(2);
-  expect(state.constraints.filter((item) => item.kind === "point_on" && item.a === "origin").map((item) => item.b).sort()).toEqual(construction.map((entity) => entity.id).sort());
+  expect(
+    state.constraints
+      .filter((item) => item.kind === "point_on" && item.a === "origin")
+      .map((item) => item.b)
+      .sort(),
+  ).toEqual(construction.map((entity) => entity.id).sort());
   // Width and height are all that is left.
   await expect.poll(async () => (await sketchState(page)).dof).toBe(2);
   await page.screenshot({ path: info.outputPath("center-rectangle.png") });
@@ -52,7 +64,10 @@ test("Center rect on the origin is centred there by its diagonals, and keeps two
   expect(profiles[0].area).toBeCloseTo(40 * 20, 3);
 });
 
-test("Polygon takes its side count from the box and draws a regular shape", async ({ page, request }, info) => {
+test("Polygon takes its side count from the box and draws a regular shape", async ({
+  page,
+  request,
+}, info) => {
   await page.locator("#sketch-polygon-sides").fill("5");
   await useTool(page, "polygon");
   await click(page, [0, 0]);
@@ -67,7 +82,10 @@ test("Polygon takes its side count from the box and draws a regular shape", asyn
   expect(profiles[0].area).toBeCloseTo((5 / 2) * 100 * Math.sin((2 * Math.PI) / 5), 3);
 });
 
-test("Slot is two centres and a width, and the engine finds its stadium region", async ({ page, request }, info) => {
+test("Slot is two centres and a width, and the engine finds its stadium region", async ({
+  page,
+  request,
+}, info) => {
   await useTool(page, "slot");
   await click(page, [-10, 0]);
   await click(page, [10, 0]);
@@ -96,7 +114,9 @@ test("3-pt circle passes through three clicks", async ({ page }) => {
   expect(circle.c[1]).toBeCloseTo(0, 4);
 });
 
-test("Tangent arc carries on from a line's end and refuses to start in mid-air", async ({ page }, info) => {
+test("Tangent arc carries on from a line's end and refuses to start in mid-air", async ({
+  page,
+}, info) => {
   await useTool(page, "line");
   await click(page, [0, 0]);
   await click(page, [20, 0]);
@@ -124,7 +144,9 @@ async function shiftClick(page, uv) {
   await page.keyboard.up("Shift");
 }
 
-test("Concentric gives two circles one centre; Collinear puts two lines on one line", async ({ page }) => {
+test("Concentric gives two circles one centre; Collinear puts two lines on one line", async ({
+  page,
+}) => {
   await useTool(page, "circle");
   await click(page, [0, 0]);
   await click(page, [10, 0]);
@@ -138,10 +160,12 @@ test("Concentric gives two circles one centre; Collinear puts two lines on one l
   await expect(page.locator('[data-constraint="concentric"]')).toBeEnabled();
   await expect(page.locator('[data-constraint="collinear"]')).toBeDisabled();
   await page.locator('[data-constraint="concentric"]').click();
-  await expect.poll(async () => {
-    const [first, second] = await entities(page);
-    return Math.hypot(second.c[0] - first.c[0], second.c[1] - first.c[1]);
-  }).toBeLessThan(1e-6);
+  await expect
+    .poll(async () => {
+      const [first, second] = await entities(page);
+      return Math.hypot(second.c[0] - first.c[0], second.c[1] - first.c[1]);
+    })
+    .toBeLessThan(1e-6);
 
   await useTool(page, "line");
   await click(page, [-30, 20]);
@@ -155,19 +179,33 @@ test("Concentric gives two circles one centre; Collinear puts two lines on one l
   await click(page, [-25, 20]);
   await shiftClick(page, [-10, 23]);
   await page.locator('[data-constraint="collinear"]').click();
-  await expect.poll(async () => {
-    const lines = (await entities(page)).filter((entity) => entity.kind === "line");
-    return Math.abs(lines[1].p0[1] - lines[0].p0[1]) + Math.abs(lines[1].p1[1] - lines[0].p0[1]);
-  }).toBeLessThan(1e-6);
+  await expect
+    .poll(async () => {
+      const lines = (await entities(page)).filter((entity) => entity.kind === "line");
+      return Math.abs(lines[1].p0[1] - lines[0].p0[1]) + Math.abs(lines[1].p1[1] - lines[0].p0[1]);
+    })
+    .toBeLessThan(1e-6);
 });
 
-test("an agent draws a slot through agent_pointer, clicking the button and the canvas as a person would", async ({ page, request }) => {
-  const answer = await rpc(request, "agent_pointer", { action: "click", target: '#sketch-draw-panel [data-tool="slot"]' });
+test("an agent draws a slot through agent_pointer, clicking the button and the canvas as a person would", async ({
+  page,
+  request,
+}) => {
+  const answer = await rpc(request, "agent_pointer", {
+    action: "click",
+    target: '#sketch-draw-panel [data-tool="slot"]',
+  });
   expect(answer.element).toMatch(/^button.*"Slot:/);
   await expect.poll(async () => (await sketchState(page)).tool).toBe("slot");
-  for (const uv of [[-10, 0], [10, 0], [0, 4]]) {
+  for (const uv of [
+    [-10, 0],
+    [10, 0],
+    [0, 4],
+  ]) {
     const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
-    expect((await rpc(request, "agent_pointer", { action: "click", x: point.x, y: point.y })).element).toBe("canvas");
+    expect(
+      (await rpc(request, "agent_pointer", { action: "click", x: point.x, y: point.y })).element,
+    ).toBe("canvas");
   }
   await expect.poll(() => entityCount(page)).toBe(6);
   await expect(page.locator("#agent-pointer")).toHaveClass(/shown/);

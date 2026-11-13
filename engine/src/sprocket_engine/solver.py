@@ -42,14 +42,19 @@ def point_of(sketch: dict, reference: str) -> list[float]:
     entity = _entity(sketch, entity_id)
     if entity["kind"] == "arc" and name != "c":
         angle = entity["a0"] if name == "p0" else entity["a1"]
-        return [entity["c"][0] + entity["r"] * math.cos(angle), entity["c"][1] + entity["r"] * math.sin(angle)]
+        return [
+            entity["c"][0] + entity["r"] * math.cos(angle),
+            entity["c"][1] + entity["r"] * math.sin(angle),
+        ]
     return list(entity[name])
 
 
 def _require(sketch: dict, entity_id: str, *kinds: str) -> dict:
     entity = _entity(sketch, entity_id)
     if entity["kind"] not in kinds:
-        raise ValueError(f"expected {' or '.join(kinds)} but {entity_id} is a {entity['kind']}")
+        raise ValueError(
+            f"expected {' or '.join(kinds)} but {entity_id} is a {entity['kind']}"
+        )
     return entity
 
 
@@ -79,7 +84,9 @@ def _dragged(sketch: dict, drag: dict) -> tuple[dict, list[str]]:
         return moved, [drag["ref"]]
     # Dragging an arc end swings it round the centre.
     x, y = shift(point_of(sketch, drag["ref"]))
-    entity["a0" if name == "p0" else "a1"] = math.atan2(y - entity["c"][1], x - entity["c"][0])
+    entity["a0" if name == "p0" else "a1"] = math.atan2(
+        y - entity["c"][1], x - entity["c"][0]
+    )
     return moved, [drag["ref"]]
 
 
@@ -101,7 +108,9 @@ class _Build:
 
     def _add_geometry(self, pinned: list[str]) -> None:
         system = self.system
-        axis_ends = {name: system.add_fixed_point(*along) for name, along in AXES.items()}
+        axis_ends = {
+            name: system.add_fixed_point(*along) for name, along in AXES.items()
+        }
         for entity in self.sketch["entities"]:
             for name in POINTS[entity["kind"]]:
                 reference = f"{entity['id']}.{name}"
@@ -117,6 +126,7 @@ class _Build:
             self.shapes[name] = system.add_line(self.points[ORIGIN], end)
         for entity in self.sketch["entities"]:
             entity_id = entity["id"]
+
             def at(name, entity_id=entity_id):
                 return self.points[f"{entity_id}.{name}"]
 
@@ -125,7 +135,9 @@ class _Build:
                 continue
             self.radii[entity_id] = system.add_param(entity["r"])
             if entity["kind"] == "circle":
-                self.shapes[entity_id] = system.add_circle(at("c"), self.radii[entity_id])
+                self.shapes[entity_id] = system.add_circle(
+                    at("c"), self.radii[entity_id]
+                )
                 if entity.get("reference"):
                     system.set_circle_radius(self.shapes[entity_id], entity["r"])
                 continue
@@ -137,8 +149,12 @@ class _Build:
             # add_arc adds the arc rules itself. A second arc_rules call makes
             # every arc redundant, and the diagnosis then runs a slow search.
             self.shapes[entity_id] = system.add_arc(
-                at("c"), at("p0"), at("p1"), self.radii[entity_id],
-                system.add_param(entity["a0"]), system.add_param(end),
+                at("c"),
+                at("p0"),
+                at("p1"),
+                self.radii[entity_id],
+                system.add_param(entity["a0"]),
+                system.add_param(end),
             )
 
     def _curve_pair(self, constraint: dict, table: dict):
@@ -149,7 +165,9 @@ class _Build:
             return table[key](self.shapes[a["id"]], self.shapes[b["id"]])
         if flipped in table:
             return table[flipped](self.shapes[b["id"]], self.shapes[a["id"]])
-        raise ValueError(f"{constraint['kind']} cannot join a {a['kind']} and a {b['kind']}")
+        raise ValueError(
+            f"{constraint['kind']} cannot join a {a['kind']} and a {b['kind']}"
+        )
 
     def _constraint_tags(self, constraint: dict) -> list[int]:
         s, kind = self.system, constraint["kind"]
@@ -158,44 +176,79 @@ class _Build:
             return [s.coincident(points[constraint["a"]], points[constraint["b"]])]
         if kind == "point_on":
             if constraint["b"] in AXES:
-                return [s.point_on_line(points[constraint["a"]], shapes[constraint["b"]])]
+                return [
+                    s.point_on_line(points[constraint["a"]], shapes[constraint["b"]])
+                ]
             curve = _require(sketch, constraint["b"], "line", "circle", "arc")
-            on = {"line": s.point_on_line, "circle": s.point_on_circle, "arc": s.point_on_arc}[curve["kind"]]
+            on = {
+                "line": s.point_on_line,
+                "circle": s.point_on_circle,
+                "arc": s.point_on_arc,
+            }[curve["kind"]]
             return [on(points[constraint["a"]], shapes[curve["id"]])]
         if kind in ("horizontal", "vertical"):
             if "e" in constraint:
                 _require(sketch, constraint["e"], "line")
                 return [getattr(s, kind)(shapes[constraint["e"]])]
-            return [getattr(s, kind + "_points")(points[constraint["a"]], points[constraint["b"]])]
+            return [
+                getattr(s, kind + "_points")(
+                    points[constraint["a"]], points[constraint["b"]]
+                )
+            ]
         if kind in ("parallel", "perpendicular"):
             _require(sketch, constraint["a"], "line")
             _require(sketch, constraint["b"], "line")
             return [getattr(s, kind)(shapes[constraint["a"]], shapes[constraint["b"]])]
         if kind == "tangent":
-            return [self._curve_pair(constraint, {
-                ("line", "circle"): s.tangent_line_circle,
-                ("line", "arc"): s.tangent_line_arc,
-                ("circle", "circle"): s.tangent_circle_circle,
-                ("circle", "arc"): s.tangent_circle_arc,
-                ("arc", "arc"): s.tangent_arc_arc,
-            })]
+            return [
+                self._curve_pair(
+                    constraint,
+                    {
+                        ("line", "circle"): s.tangent_line_circle,
+                        ("line", "arc"): s.tangent_line_arc,
+                        ("circle", "circle"): s.tangent_circle_circle,
+                        ("circle", "arc"): s.tangent_circle_arc,
+                        ("arc", "arc"): s.tangent_arc_arc,
+                    },
+                )
+            ]
         if kind == "equal":
-            return [self._curve_pair(constraint, {
-                ("line", "line"): s.equal_length,
-                ("circle", "circle"): s.equal_radius_cc,
-                ("circle", "arc"): s.equal_radius_ca,
-                ("arc", "arc"): s.equal_radius_aa,
-            })]
+            return [
+                self._curve_pair(
+                    constraint,
+                    {
+                        ("line", "line"): s.equal_length,
+                        ("circle", "circle"): s.equal_radius_cc,
+                        ("circle", "arc"): s.equal_radius_ca,
+                        ("arc", "arc"): s.equal_radius_aa,
+                    },
+                )
+            ]
         if kind == "fix":
             return self._fix(constraint)
         if kind == "symmetric":
             _require(sketch, constraint["e"], "line")
-            return [s.symmetric_line(points[constraint["a"]], points[constraint["b"]], shapes[constraint["e"]])]
+            return [
+                s.symmetric_line(
+                    points[constraint["a"]],
+                    points[constraint["b"]],
+                    shapes[constraint["e"]],
+                )
+            ]
         if kind == "distance":
-            return [s.set_p2p_distance(points[constraint["a"]], points[constraint["b"]], constraint["value"])]
+            return [
+                s.set_p2p_distance(
+                    points[constraint["a"]],
+                    points[constraint["b"]],
+                    constraint["value"],
+                )
+            ]
         if kind in ("distance_x", "distance_y"):
             axis = 0 if kind == "distance_x" else 1
-            first, second = (s.get_point_param_ids(points[constraint[name]])[axis] for name in ("a", "b"))
+            first, second = (
+                s.get_point_param_ids(points[constraint[name]])[axis]
+                for name in ("a", "b")
+            )
             return [s.difference(first, second, s.add_fixed_param(constraint["value"]))]
         if kind in ("radius", "diameter"):
             entity = _require(sketch, constraint["e"], "circle", "arc")
@@ -204,7 +257,13 @@ class _Build:
         if kind == "angle":
             _require(sketch, constraint["a"], "line")
             _require(sketch, constraint["b"], "line")
-            return [s.set_l2l_angle(shapes[constraint["a"]], shapes[constraint["b"]], math.radians(constraint["value"]))]
+            return [
+                s.set_l2l_angle(
+                    shapes[constraint["a"]],
+                    shapes[constraint["b"]],
+                    math.radians(constraint["value"]),
+                )
+            ]
         raise ValueError(f"unknown constraint kind '{kind}'")
 
     def _fix(self, constraint: dict) -> list[int]:
@@ -221,7 +280,9 @@ class _Build:
             x, y = point_of(self.sketch, reference)
             tags.extend(self.system.fix_point(self.points[reference], x, y))
         if whole and whole["kind"] == "circle":
-            tags.append(self.system.set_circle_radius(self.shapes[entity_id], whole["r"]))
+            tags.append(
+                self.system.set_circle_radius(self.shapes[entity_id], whole["r"])
+            )
         return tags
 
     def indices(self, tags) -> list[int]:
@@ -257,14 +318,26 @@ def solve(sketch: dict, drag: dict | None = None) -> dict:
     dragged somewhere a dimension forbids, so the solve is retried with it free.
     """
     start, held = _dragged(sketch, drag) if drag else (sketch, None)
-    for pinned in ([held, None] if held else [None]):
+    for pinned in [held, None] if held else [None]:
         build = _Build(start, pinned)
         status = build.system.solve()
         diagnosis = build.system.diagnose()
         conflicting = build.indices(diagnosis.conflicting)
         redundant = build.indices(diagnosis.redundant)
         if status in SOLVED and not conflicting:
-            return {"ok": True, "sketch": build.moved(), "dof": diagnosis.dof, "conflicting": conflicting, "redundant": redundant}
+            return {
+                "ok": True,
+                "sketch": build.moved(),
+                "dof": diagnosis.dof,
+                "conflicting": conflicting,
+                "redundant": redundant,
+            }
         if not pinned:
-            return {"ok": False, "sketch": sketch, "dof": None, "conflicting": conflicting, "redundant": redundant}
+            return {
+                "ok": False,
+                "sketch": sketch,
+                "dof": None,
+                "conflicting": conflicting,
+                "redundant": redundant,
+            }
     raise AssertionError("unreachable")

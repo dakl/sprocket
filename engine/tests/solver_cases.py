@@ -41,27 +41,65 @@ def sprocket_plate(teeth=13, pitch=6.35, roller=3.3, tip=15.0, cap_radius=0.55):
     for k in range(teeth):
         angle = k * step
         middle = angle + step / 2
-        arcs.append({"id": f"seat{k}", "kind": "arc", "c": [pitch_radius * math.cos(angle), pitch_radius * math.sin(angle)],
-                     "r": seat_radius, "a0": angle + math.pi / 2 + 0.0873, "a1": angle + 1.5 * math.pi - 0.0873})
-        arcs.append({"id": f"cap{k}", "kind": "arc", "c": [(tip - cap_radius) * math.cos(middle), (tip - cap_radius) * math.sin(middle)],
-                     "r": cap_radius, "a0": middle - math.pi / 2, "a1": middle + math.pi / 2})
+        arcs.append(
+            {
+                "id": f"seat{k}",
+                "kind": "arc",
+                "c": [pitch_radius * math.cos(angle), pitch_radius * math.sin(angle)],
+                "r": seat_radius,
+                "a0": angle + math.pi / 2 + 0.0873,
+                "a1": angle + 1.5 * math.pi - 0.0873,
+            }
+        )
+        arcs.append(
+            {
+                "id": f"cap{k}",
+                "kind": "arc",
+                "c": [
+                    (tip - cap_radius) * math.cos(middle),
+                    (tip - cap_radius) * math.sin(middle),
+                ],
+                "r": cap_radius,
+                "a0": middle - math.pi / 2,
+                "a1": middle + math.pi / 2,
+            }
+        )
 
     def end(arc, which):
         angle = arc["a0"] if which == "p0" else arc["a1"]
-        return [arc["c"][0] + arc["r"] * math.cos(angle), arc["c"][1] + arc["r"] * math.sin(angle)]
+        return [
+            arc["c"][0] + arc["r"] * math.cos(angle),
+            arc["c"][1] + arc["r"] * math.sin(angle),
+        ]
 
     lines, constraints = [], []
     for k in range(teeth):
         seat, cap, following = arcs[2 * k], arcs[2 * k + 1], arcs[2 * ((k + 1) % teeth)]
-        lines.append({"id": f"up{k}", "kind": "line", "p0": end(seat, "p0"), "p1": end(cap, "p0")})
-        lines.append({"id": f"dn{k}", "kind": "line", "p0": end(cap, "p1"), "p1": end(following, "p1")})
+        lines.append(
+            {
+                "id": f"up{k}",
+                "kind": "line",
+                "p0": end(seat, "p0"),
+                "p1": end(cap, "p0"),
+            }
+        )
+        lines.append(
+            {
+                "id": f"dn{k}",
+                "kind": "line",
+                "p0": end(cap, "p1"),
+                "p1": end(following, "p1"),
+            }
+        )
         constraints += [
             {"kind": "coincident", "a": f"seat{k}.p0", "b": f"up{k}.p0"},
             {"kind": "coincident", "a": f"up{k}.p1", "b": f"cap{k}.p0"},
             {"kind": "coincident", "a": f"cap{k}.p1", "b": f"dn{k}.p0"},
             {"kind": "coincident", "a": f"dn{k}.p1", "b": f"seat{(k + 1) % teeth}.p1"},
         ]
-    constraints += [{"kind": "radius", "e": arc["id"], "value": arc["r"]} for arc in arcs]
+    constraints += [
+        {"kind": "radius", "e": arc["id"], "value": arc["r"]} for arc in arcs
+    ]
     return {"entities": arcs + lines, "constraints": constraints}
 
 
@@ -71,8 +109,22 @@ SLOT = {
     "entities": [
         {"id": "l1", "kind": "line", "p0": [0, 0], "p1": [30, 0.5]},
         {"id": "l2", "kind": "line", "p0": [0, 10], "p1": [30, 9.5]},
-        {"id": "a1", "kind": "arc", "c": [0, 5], "r": 5, "a0": math.pi / 2, "a1": 1.5 * math.pi},
-        {"id": "a2", "kind": "arc", "c": [30, 5], "r": 5, "a0": -math.pi / 2, "a1": math.pi / 2},
+        {
+            "id": "a1",
+            "kind": "arc",
+            "c": [0, 5],
+            "r": 5,
+            "a0": math.pi / 2,
+            "a1": 1.5 * math.pi,
+        },
+        {
+            "id": "a2",
+            "kind": "arc",
+            "c": [30, 5],
+            "r": 5,
+            "a0": -math.pi / 2,
+            "a1": math.pi / 2,
+        },
     ],
     "constraints": [
         {"kind": "coincident", "a": "a1.p1", "b": "l1.p0"},
@@ -126,8 +178,22 @@ PROJECTED_EDGE = {
         {"id": "e2", "kind": "line", "p0": [21, 10], "p1": [20, 41]},
         {"id": "e3", "kind": "line", "p0": [20, 41], "p1": [-30, 40]},
         {"id": "e4", "kind": "line", "p0": [-30, 40], "p1": [-31, 9]},
-        {"id": "e5", "kind": "line", "p0": [-40, 60], "p1": [-40, -5], "construction": True, "reference": {"sketch": "f1", "entity": "e4"}},
-        {"id": "e6", "kind": "circle", "c": [0, 70], "r": 4, "construction": True, "reference": {"sketch": "f1", "entity": "e9"}},
+        {
+            "id": "e5",
+            "kind": "line",
+            "p0": [-40, 60],
+            "p1": [-40, -5],
+            "construction": True,
+            "reference": {"sketch": "f1", "entity": "e4"},
+        },
+        {
+            "id": "e6",
+            "kind": "circle",
+            "c": [0, 70],
+            "r": 4,
+            "construction": True,
+            "reference": {"sketch": "f1", "entity": "e9"},
+        },
     ],
     "constraints": [
         {"kind": "coincident", "a": "e1.p1", "b": "e2.p0"},
@@ -167,30 +233,50 @@ MIRRORED = {
 
 CASES = {
     "rectangle_dimensioned": {
-        "sketch": rough_rectangle([
-            {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
-            {"kind": "distance", "a": "e2.p0", "b": "e2.p1", "value": 20},
-            {"kind": "coincident", "a": "e1.p0", "b": "origin"},
-        ]),
+        "sketch": rough_rectangle(
+            [
+                {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
+                {"kind": "distance", "a": "e2.p0", "b": "e2.p1", "value": 20},
+                {"kind": "coincident", "a": "e1.p0", "b": "origin"},
+            ]
+        ),
         "drag": {"ref": "e3.p0", "delta": [4, 3]},
     },
     "rectangle_over_constrained": {
-        "sketch": rough_rectangle([
-            {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
-            {"kind": "distance", "a": "e3.p0", "b": "e3.p1", "value": 30},
-        ]),
+        "sketch": rough_rectangle(
+            [
+                {"kind": "distance", "a": "e1.p0", "b": "e1.p1", "value": 40},
+                {"kind": "distance", "a": "e3.p0", "b": "e3.p1", "value": 30},
+            ]
+        ),
         "drag": None,
     },
     "line_tangent_to_circle": {
         "sketch": {
-            "entities": [{"id": "e1", "kind": "line", "p0": [-10, 6], "p1": [10, 5]}, {"id": "e2", "kind": "circle", "c": [0, 0], "r": 5}],
-            "constraints": [{"kind": "tangent", "a": "e1", "b": "e2"}, {"kind": "radius", "e": "e2", "value": 5}, {"kind": "horizontal", "e": "e1"}],
+            "entities": [
+                {"id": "e1", "kind": "line", "p0": [-10, 6], "p1": [10, 5]},
+                {"id": "e2", "kind": "circle", "c": [0, 0], "r": 5},
+            ],
+            "constraints": [
+                {"kind": "tangent", "a": "e1", "b": "e2"},
+                {"kind": "radius", "e": "e2", "value": 5},
+                {"kind": "horizontal", "e": "e1"},
+            ],
         },
         "drag": {"ref": "e2.c", "delta": [2, -1]},
     },
     "slot": {"sketch": SLOT, "drag": {"ref": "l2.p1", "delta": [0, -0.5]}},
-    "angles_and_circles": {"sketch": ANGLES_AND_CIRCLES, "drag": {"ref": "c2.c", "delta": [1, 0]}},
-    "projected_edge_and_axis_distances": {"sketch": PROJECTED_EDGE, "drag": {"ref": "e3.p0", "delta": [2, 1]}},
+    "angles_and_circles": {
+        "sketch": ANGLES_AND_CIRCLES,
+        "drag": {"ref": "c2.c", "delta": [1, 0]},
+    },
+    "projected_edge_and_axis_distances": {
+        "sketch": PROJECTED_EDGE,
+        "drag": {"ref": "e3.p0", "delta": [2, 1]},
+    },
     "mirrored_pair": {"sketch": MIRRORED, "drag": None},
-    "sprocket_plate_52_entities": {"sketch": sprocket_plate(), "drag": {"ref": "up3.p1", "delta": [0.4, 0.2]}},
+    "sprocket_plate_52_entities": {
+        "sketch": sprocket_plate(),
+        "drag": {"ref": "up3.p1", "delta": [0.4, 0.2]},
+    },
 }

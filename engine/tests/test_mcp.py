@@ -30,6 +30,7 @@ def drive(daemon, work):
     The suite is otherwise synchronous, and an async pytest plugin is a
     dependency for four tests. One `asyncio.run` per test costs nothing.
     """
+
     async def main():
         client = Client(daemon.socket_path)
         server = build_server(client)
@@ -62,7 +63,9 @@ def drive(daemon, work):
 
 
 def text_of(result) -> str:
-    return "".join(part.text for part in result.content if isinstance(part, types.TextContent))
+    return "".join(
+        part.text for part in result.content if isinstance(part, types.TextContent)
+    )
 
 
 def test_every_registered_op_is_callable_as_a_tool(daemon):
@@ -91,13 +94,17 @@ def test_every_op_tool_describes_what_the_op_does(daemon):
     tools = drive(daemon, lambda session: session.list_tools())
     for tool in tools.tools:
         if tool.name.startswith("add_"):
-            assert tool.description == REGISTRY[tool.name[len("add_"):]].schema["description"]
+            assert (
+                tool.description
+                == REGISTRY[tool.name[len("add_") :]].schema["description"]
+            )
 
 
 def test_adding_a_feature_names_it_and_reports_the_build(daemon):
     async def work(session):
         return await session.call_tool(
-            "add_fillet", {"base": "e1", "radius": 3, "edges": {"select": [{"op": "edges"}]}}
+            "add_fillet",
+            {"base": "e1", "radius": 3, "edges": {"select": [{"op": "edges"}]}},
         )
 
     result = drive(daemon, work)
@@ -111,11 +118,16 @@ def test_adding_a_feature_names_it_and_reports_the_build(daemon):
 def test_render_view_returns_the_image_itself(daemon):
     """A path would be a file the agent may have no tool to read, and an agent
     that cannot see its work reports a part it has never looked at."""
+
     async def work(session):
-        return await session.call_tool("render_view", {"camera": "iso", "width": 200, "height": 160})
+        return await session.call_tool(
+            "render_view", {"camera": "iso", "width": 200, "height": 160}
+        )
 
     result = drive(daemon, work)
-    image = next(part for part in result.content if isinstance(part, types.ImageContent))
+    image = next(
+        part for part in result.content if isinstance(part, types.ImageContent)
+    )
     assert image.mime_type == "image/png"
     assert base64.b64decode(image.data)[:8] == b"\x89PNG\r\n\x1a\n"
     assert json.loads(text_of(result))["width"] == 200
@@ -124,6 +136,7 @@ def test_render_view_returns_the_image_itself(daemon):
 def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
     """A stale revision is the agent's to fix. Raising it out of the tool call
     loses the daemon's payload, which is the only thing that lets it rebase."""
+
     async def work(session):
         await session.call_tool("set_parameter", {"name": "width", "value": 40})
         return await session.call_tool(
@@ -141,7 +154,9 @@ def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
 
 def test_a_feature_the_engine_rejects_is_reported_not_raised(daemon):
     async def work(session):
-        return await session.call_tool("add_extrude", {"profile": "nope", "distance": 10})
+        return await session.call_tool(
+            "add_extrude", {"profile": "nope", "distance": 10}
+        )
 
     result = drive(daemon, work)
     assert result.is_error is True
@@ -152,13 +167,23 @@ def test_the_document_is_untouched_by_a_preview(daemon, client):
     async def work(session):
         return await session.call_tool(
             "preview_feature",
-            {"feature": {"id": "try", "type": "fillet", "base": "e1", "radius": 999,
-                         "edges": {"select": [{"op": "edges"}]}}},
+            {
+                "feature": {
+                    "id": "try",
+                    "type": "fillet",
+                    "base": "e1",
+                    "radius": 999,
+                    "edges": {"select": [{"op": "edges"}]},
+                }
+            },
         )
 
     result = drive(daemon, work)
     assert json.loads(text_of(result))["would_build"] is False
-    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1", "e1"]
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == [
+        "s1",
+        "e1",
+    ]
 
 
 def test_an_agent_can_read_the_selection_and_highlight_it(daemon):

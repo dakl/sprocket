@@ -1,6 +1,17 @@
 import math
 
-from build123d import Circle, Compound, GeomType, Plane, Polygon, Pos, Rectangle, Sketch, Vector, Wire
+from build123d import (
+    Circle,
+    Compound,
+    GeomType,
+    Plane,
+    Polygon,
+    Pos,
+    Rectangle,
+    Sketch,
+    Vector,
+    Wire,
+)
 from OCP.BRep import BRep_Builder, BRep_Tool
 from OCP.GeomLib import GeomLib_IsPlanarSurface
 from OCP.TopoDS import TopoDS_Compound
@@ -32,14 +43,17 @@ PLANE_SCHEMA = {
         {
             "type": "object",
             "required": ["name"],
-            "description": "An origin plane moved along its normal, as {\"name\": \"XY\", \"offset\": 5}.",
+            "description": 'An origin plane moved along its normal, as {"name": "XY", "offset": 5}.',
             "properties": {"name": {"enum": ["XY", "XZ", "YZ"]}, "offset": OFFSET},
         },
         {
             "type": "object",
             "required": ["construct"],
-            "description": "A construct plane feature (type `plane`), optionally moved along its normal: {\"construct\": \"f3\", \"offset\": 2}.",
-            "properties": {"construct": {"type": "string", "description": "id of a plane feature"}, "offset": OFFSET},
+            "description": 'A construct plane feature (type `plane`), optionally moved along its normal: {"construct": "f3", "offset": 2}.',
+            "properties": {
+                "construct": {"type": "string", "description": "id of a plane feature"},
+                "offset": OFFSET,
+            },
         },
         {
             "type": "object",
@@ -51,7 +65,10 @@ PLANE_SCHEMA = {
                 "v is world +Z (up)."
             ),
             "properties": {
-                "feature": {"type": "string", "description": "the feature whose result holds the face"},
+                "feature": {
+                    "type": "string",
+                    "description": "the feature whose result holds the face",
+                },
                 "face": {"type": "object", "description": SELECTOR_DESCRIPTION},
                 "offset": OFFSET,
             },
@@ -67,22 +84,38 @@ ENTITY_SCHEMA = {
     "type": "object",
     "required": ["id", "kind"],
     "properties": {
-        "id": {"type": "string", "description": "Stable for the life of the sketch. Profiles and constraints refer to it."},
+        "id": {
+            "type": "string",
+            "description": "Stable for the life of the sketch. Profiles and constraints refer to it.",
+        },
         "kind": {"enum": ["line", "arc", "circle"]},
         "p0": {**POINT2, "description": "line start"},
         "p1": {**POINT2, "description": "line end"},
         "c": {**POINT2, "description": "arc or circle centre"},
-        "r": {"type": "number", "exclusiveMinimum": 0, "description": "arc or circle radius"},
-        "a0": {"type": "number", "description": "arc start angle in radians, counter-clockwise from the plane's x axis"},
-        "a1": {"type": "number", "description": "arc end angle in radians. The arc runs counter-clockwise from a0 to a1."},
-        "construction": {"type": "boolean", "description": "Reference geometry. It bounds no region."},
+        "r": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "arc or circle radius",
+        },
+        "a0": {
+            "type": "number",
+            "description": "arc start angle in radians, counter-clockwise from the plane's x axis",
+        },
+        "a1": {
+            "type": "number",
+            "description": "arc end angle in radians. The arc runs counter-clockwise from a0 to a1.",
+        },
+        "construction": {
+            "type": "boolean",
+            "description": "Reference geometry. It bounds no region.",
+        },
         "reference": {
             "type": "object",
             "description": (
                 "Marks a projected reference: this entity is an edge of an earlier sketch or body, projected onto this "
                 "sketch's plane and locked. Its numbers are refreshed from the source on every rebuild, so do not edit them. "
-                "{\"sketch\": \"f1\", \"entity\": \"e3\"} names an entity of an earlier sketch. "
-                "{\"feature\": \"f2\", \"edge\": <selector>} names one straight or circular edge of that feature's body."
+                '{"sketch": "f1", "entity": "e3"} names an entity of an earlier sketch. '
+                '{"feature": "f2", "edge": <selector>} names one straight or circular edge of that feature\'s body.'
             ),
         },
     },
@@ -122,12 +155,27 @@ CONSTRAINT_SCHEMA = {
     "type": "object",
     "required": ["kind"],
     "properties": {
-        "id": {"type": "string", "description": "c<n>. Stable for the life of the sketch. Filled in when missing."},
+        "id": {
+            "type": "string",
+            "description": "c<n>. Stable for the life of the sketch. Filled in when missing.",
+        },
         "kind": {"enum": sorted(CONSTRAINT_FIELDS)},
-        "e": {"type": "string", "description": "the one entity or point a constraint acts on. For symmetric, the line the points mirror across"},
-        "a": {"type": "string", "description": "first entity or point. For point_on, the point. For symmetric, a point"},
-        "b": {"type": "string", "description": "second entity or point. For point_on, the line, circle or arc it lies on"},
-        "value": {"type": "number", "description": "mm for distance, distance_x, distance_y, radius and diameter; degrees for angle"},
+        "e": {
+            "type": "string",
+            "description": "the one entity or point a constraint acts on. For symmetric, the line the points mirror across",
+        },
+        "a": {
+            "type": "string",
+            "description": "first entity or point. For point_on, the point. For symmetric, a point",
+        },
+        "b": {
+            "type": "string",
+            "description": "second entity or point. For point_on, the line, circle or arc it lies on",
+        },
+        "value": {
+            "type": "number",
+            "description": "mm for distance, distance_x, distance_y, radius and diameter; degrees for angle",
+        },
     },
 }
 
@@ -135,7 +183,11 @@ SKETCH_LINEAR = {
     "type": "object",
     "required": ["count", "step"],
     "properties": {
-        "count": {"type": "integer", "minimum": 1, "description": "copies, the original included"},
+        "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "copies, the original included",
+        },
         "step": {**POINT2, "description": "[du, dv] between neighbouring copies"},
     },
 }
@@ -147,16 +199,31 @@ SKETCH_PATTERN_SCHEMA = {
     "required": ["entities"],
     "oneOf": [{"required": ["linear"]}, {"required": ["circular"]}],
     "properties": {
-        "entities": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "ids of the entities to copy"},
+        "entities": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "ids of the entities to copy",
+        },
         "linear": SKETCH_LINEAR,
-        "linear2": {**SKETCH_LINEAR, "description": "a second direction, which makes a grid"},
+        "linear2": {
+            **SKETCH_LINEAR,
+            "description": "a second direction, which makes a grid",
+        },
         "circular": {
             "type": "object",
             "required": ["center", "count"],
             "properties": {
                 "center": POINT2,
-                "count": {"type": "integer", "minimum": 1, "description": "copies, the original included"},
-                "angle": {"type": "number", "description": "degrees spanned, default 360 (copies spread evenly)"},
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "copies, the original included",
+                },
+                "angle": {
+                    "type": "number",
+                    "description": "degrees spanned, default 360 (copies spread evenly)",
+                },
             },
         },
     },
@@ -170,7 +237,12 @@ SCHEMA = {
         "becomes a profile an extrude can pick. Give `rect`, `polygon` or `circle` for a single shape."
     ),
     "required": ["id", "type", "plane"],
-    "oneOf": [{"required": ["rect"]}, {"required": ["polygon"]}, {"required": ["circle"]}, {"required": ["entities"]}],
+    "oneOf": [
+        {"required": ["rect"]},
+        {"required": ["polygon"]},
+        {"required": ["circle"]},
+        {"required": ["entities"]},
+    ],
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "sketch"},
@@ -234,7 +306,11 @@ def resolve_plane(plane_ref, ctx=None):
     elif "feature" in plane_ref:
         plane = _face_plane(plane_ref, ctx)
     else:
-        return Plane(origin=tuple(plane_ref["origin"]), z_dir=tuple(plane_ref["normal"]), x_dir=tuple(plane_ref["x_dir"]))
+        return Plane(
+            origin=tuple(plane_ref["origin"]),
+            z_dir=tuple(plane_ref["normal"]),
+            x_dir=tuple(plane_ref["x_dir"]),
+        )
     return plane.offset(plane_ref.get("offset", 0))
 
 
@@ -242,14 +318,25 @@ def _face_plane(plane_ref, ctx) -> Plane:
     feature_id = plane_ref["feature"]
     shape = ctx.results.get(feature_id) if ctx is not None else None
     if shape is None:
-        raise ValueError(f"sketch plane names {feature_id!r}, which is not built before this sketch")
+        raise ValueError(
+            f"sketch plane names {feature_id!r}, which is not built before this sketch"
+        )
     faces = resolve_selector(shape, plane_ref["face"], ctx)
     if len(faces) != 1:
-        raise SelectorError(f"sketch plane face selector matched {len(faces)} faces, expected exactly 1")
+        raise SelectorError(
+            f"sketch plane face selector matched {len(faces)} faces, expected exactly 1"
+        )
     face = faces[0]
     # A ruled loft's flat sides are B-spline surfaces, so ask whether it is flat, not what type it is.
-    if face.geom_type != GeomType.PLANE and not GeomLib_IsPlanarSurface(BRep_Tool.Surface_s(face.wrapped), 1e-7).IsPlanar():
-        raise ValueError(f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face")
+    if (
+        face.geom_type != GeomType.PLANE
+        and not GeomLib_IsPlanarSurface(
+            BRep_Tool.Surface_s(face.wrapped), 1e-7
+        ).IsPlanar()
+    ):
+        raise ValueError(
+            f"a sketch needs a planar face, and the selector found a {face.geom_type.name.lower()} face"
+        )
     normal = face.normal_at(face.center()).normalized()
     origin = normal * normal.dot(face.center())
     if abs(normal.Z) > 0.999:
@@ -270,7 +357,15 @@ def plane_json(plane: Plane) -> dict:
 
 
 def _polygon_area(points) -> float:
-    return abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1]))) / 2
+    return (
+        abs(
+            sum(
+                x1 * y2 - x2 * y1
+                for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])
+            )
+        )
+        / 2
+    )
 
 
 def _counter_clockwise(points):
@@ -282,7 +377,9 @@ def _counter_clockwise(points):
     sketcher UI emits whichever winding the user happened to draw, so normalise
     it here and the sign of `distance` means the same thing for every sketch.
     """
-    signed_area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1]))
+    signed_area = sum(
+        x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])
+    )
     return points if signed_area >= 0 else points[::-1]
 
 
@@ -309,13 +406,25 @@ def sketch_entities(feature: dict) -> list[dict]:
     entities = list(feature.get("entities", []))
     by_id = {entity["id"]: entity for entity in entities}
     for pattern in feature.get("patterns", []):
-        missing = [entity_id for entity_id in pattern["entities"] if entity_id not in by_id]
+        missing = [
+            entity_id for entity_id in pattern["entities"] if entity_id not in by_id
+        ]
         if missing:
-            raise ValueError(f"sketch pattern names {', '.join(missing)}, which are not entities of this sketch")
+            raise ValueError(
+                f"sketch pattern names {', '.join(missing)}, which are not entities of this sketch"
+            )
         if "linear" in pattern:
-            first, second = pattern["linear"], pattern.get("linear2", {"count": 1, "step": [0, 0]})
+            first, second = (
+                pattern["linear"],
+                pattern.get("linear2", {"count": 1, "step": [0, 0]}),
+            )
             moves = [
-                (i * first["step"][0] + j * second["step"][0], i * first["step"][1] + j * second["step"][1], 0.0, (0, 0))
+                (
+                    i * first["step"][0] + j * second["step"][0],
+                    i * first["step"][1] + j * second["step"][1],
+                    0.0,
+                    (0, 0),
+                )
                 for i in range(first["count"])
                 for j in range(second["count"])
             ]
@@ -323,9 +432,15 @@ def sketch_entities(feature: dict) -> list[dict]:
             circular = pattern["circular"]
             angle, count = circular.get("angle", 360), circular["count"]
             step = angle / count if angle % 360 == 0 else angle / max(count - 1, 1)
-            moves = [(0.0, 0.0, math.radians(step * k), circular["center"]) for k in range(count)]
+            moves = [
+                (0.0, 0.0, math.radians(step * k), circular["center"])
+                for k in range(count)
+            ]
         for index, (du, dv, turn, centre) in enumerate(moves[1:], start=1):
-            entities.extend(_moved(by_id[entity_id], index, du, dv, turn, centre) for entity_id in pattern["entities"])
+            entities.extend(
+                _moved(by_id[entity_id], index, du, dv, turn, centre)
+                for entity_id in pattern["entities"]
+            )
     return entities
 
 
@@ -334,7 +449,10 @@ PATH_SCHEMA = {
     "description": "Entities of a sketch that join end to end into one path.",
     "required": ["sketch"],
     "properties": {
-        "sketch": {"type": "string", "description": "id of a sketch feature with entities"},
+        "sketch": {
+            "type": "string",
+            "description": "id of a sketch feature with entities",
+        },
         "entities": {
             "type": "array",
             "items": {"type": "string"},
@@ -349,26 +467,38 @@ def sketch_path(path_ref: dict, ctx) -> Wire:
     """The wire a `PATH_SCHEMA` reference names, placed on its sketch's plane."""
     sketch = ctx.features.get(path_ref["sketch"])
     if sketch is None or sketch["type"] != "sketch" or "entities" not in sketch:
-        raise ProfileError(f"path refers to {path_ref['sketch']!r}, which is not a sketch with entities earlier in the document")
+        raise ProfileError(
+            f"path refers to {path_ref['sketch']!r}, which is not a sketch with entities earlier in the document"
+        )
     entities = sketch_entities(sketch)
     wanted = path_ref.get("entities")
     if wanted:
         known = {entity["id"] for entity in entities}
         missing = [entity_id for entity_id in wanted if entity_id not in known]
         if missing:
-            raise ProfileError(f"path names {', '.join(missing)}, which are not entities of sketch {path_ref['sketch']!r}")
+            raise ProfileError(
+                f"path names {', '.join(missing)}, which are not entities of sketch {path_ref['sketch']!r}"
+            )
         entities = [entity for entity in entities if entity["id"] in wanted]
     else:
         entities = [entity for entity in entities if not entity.get("construction")]
     plane = resolve_plane(sketch["plane"], ctx)
-    wires = Wire.combine([plane * entity_edge(entity) for entity in entities], tol=FUZZY)
+    wires = Wire.combine(
+        [plane * entity_edge(entity) for entity in entities], tol=FUZZY
+    )
     if len(wires) != 1:
-        raise ProfileError(f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate pieces, not one chain")
+        raise ProfileError(
+            f"the path in sketch {path_ref['sketch']!r} is {len(wires)} separate pieces, not one chain"
+        )
     return wires[0]
 
 
 _POINTS = {"line": {"p0", "p1"}, "arc": {"p0", "p1", "c"}, "circle": {"c"}}
-_ENTITY_FIELDS = {"line": ("p0", "p1"), "arc": ("c", "r", "a0", "a1"), "circle": ("c", "r")}
+_ENTITY_FIELDS = {
+    "line": ("p0", "p1"),
+    "arc": ("c", "r", "a0", "a1"),
+    "circle": ("c", "r"),
+}
 
 
 def check_entities(feature: dict) -> None:
@@ -380,10 +510,16 @@ def check_entities(feature: dict) -> None:
     for entity in feature["entities"]:
         entity_id = entity["id"]
         if entity_id in kinds:
-            raise ValueError(f"sketch {feature['id']!r} has two entities with id {entity_id!r}")
-        missing = [name for name in _ENTITY_FIELDS[entity["kind"]] if name not in entity]
+            raise ValueError(
+                f"sketch {feature['id']!r} has two entities with id {entity_id!r}"
+            )
+        missing = [
+            name for name in _ENTITY_FIELDS[entity["kind"]] if name not in entity
+        ]
         if missing:
-            raise ValueError(f"{entity['kind']} {entity_id!r} needs {', '.join(missing)}")
+            raise ValueError(
+                f"{entity['kind']} {entity_id!r} needs {', '.join(missing)}"
+            )
         kinds[entity_id] = entity["kind"]
 
     def check_reference(constraint, name):
@@ -392,24 +528,36 @@ def check_entities(feature: dict) -> None:
             return
         entity_id, _, point = reference.partition(".")
         if entity_id not in kinds:
-            raise ValueError(f"constraint {constraint['kind']!r} refers to {reference!r}, and there is no entity {entity_id!r}")
+            raise ValueError(
+                f"constraint {constraint['kind']!r} refers to {reference!r}, and there is no entity {entity_id!r}"
+            )
         if point and point not in _POINTS[kinds[entity_id]]:
-            raise ValueError(f"constraint {constraint['kind']!r} refers to {reference!r}, but a {kinds[entity_id]} has no point {point!r}")
+            raise ValueError(
+                f"constraint {constraint['kind']!r} refers to {reference!r}, but a {kinds[entity_id]} has no point {point!r}"
+            )
 
     constraint_ids = set()
     for constraint in feature.get("constraints", []):
         constraint_id = constraint.get("id")
         if constraint_id is not None:
             if constraint_id in constraint_ids:
-                raise ValueError(f"sketch {feature['id']!r} has two constraints with id {constraint_id!r}")
+                raise ValueError(
+                    f"sketch {feature['id']!r} has two constraints with id {constraint_id!r}"
+                )
             constraint_ids.add(constraint_id)
         wanted = CONSTRAINT_FIELDS[constraint["kind"]]
         missing = [name for name in wanted if name not in constraint]
         if missing:
-            raise ValueError(f"constraint {constraint['kind']!r} needs {', '.join(missing)}")
+            raise ValueError(
+                f"constraint {constraint['kind']!r} needs {', '.join(missing)}"
+            )
         # horizontal and vertical act on one line, or on two points.
-        if constraint["kind"] in ("horizontal", "vertical") and not ("e" in constraint or ("a" in constraint and "b" in constraint)):
-            raise ValueError(f"constraint {constraint['kind']!r} needs 'e', or 'a' and 'b'")
+        if constraint["kind"] in ("horizontal", "vertical") and not (
+            "e" in constraint or ("a" in constraint and "b" in constraint)
+        ):
+            raise ValueError(
+                f"constraint {constraint['kind']!r} needs 'e', or 'a' and 'b'"
+            )
         for name in ("a", "b", "e"):
             if name in constraint:
                 check_reference(constraint, name)
@@ -442,18 +590,44 @@ def sketch_profiles(feature: dict) -> list[dict]:
         outline = _counter_clockwise([tuple(point) for point in feature["polygon"]])
         area = _polygon_area(outline)
     elif "circle" in feature:
-        (cx, cy), radius = feature["circle"].get("center", [0, 0]), feature["circle"]["radius"]
-        outline = [(cx + radius * math.cos(step * math.tau / 48), cy + radius * math.sin(step * math.tau / 48)) for step in range(48)]
+        (cx, cy), radius = (
+            feature["circle"].get("center", [0, 0]),
+            feature["circle"]["radius"],
+        )
+        outline = [
+            (
+                cx + radius * math.cos(step * math.tau / 48),
+                cy + radius * math.sin(step * math.tau / 48),
+            )
+            for step in range(48)
+        ]
         area = math.pi * radius**2
     else:
         rect = feature["rect"]
-        (cx, cy), half_w, half_h = rect.get("center", [0, 0]), rect["width"] / 2, rect["height"] / 2
-        outline = [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h), (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
+        (cx, cy), half_w, half_h = (
+            rect.get("center", [0, 0]),
+            rect["width"] / 2,
+            rect["height"] / 2,
+        )
+        outline = [
+            (cx - half_w, cy - half_h),
+            (cx + half_w, cy - half_h),
+            (cx + half_w, cy + half_h),
+            (cx - half_w, cy + half_h),
+        ]
         area = rect["width"] * rect["height"]
     # The mean of the outline is inside every shape a legacy sketch can be
     # except a concave polygon, which is why `extrude` ignores `inside` here.
     inside = [sum(point[axis] for point in outline) / len(outline) for axis in (0, 1)]
-    return [{"bounded_by": [], "inside": _round([inside])[0], "outline": _round(outline), "holes": [], "area": round(area, 6)}]
+    return [
+        {
+            "bounded_by": [],
+            "inside": _round([inside])[0],
+            "outline": _round(outline),
+            "holes": [],
+            "area": round(area, 6),
+        }
+    ]
 
 
 def _empty_sketch() -> Sketch:
@@ -473,7 +647,11 @@ def apply(feature: dict, ctx):
         regions = find_regions(sketch_entities(feature))
         # Every closed region, side by side: an extrude of the whole sketch
         # then gives the union of what was drawn, and a profile pick gives one.
-        return Sketch(plane * Compound([region.face for region in regions])) if regions else _empty_sketch()
+        return (
+            Sketch(plane * Compound([region.face for region in regions]))
+            if regions
+            else _empty_sketch()
+        )
     if "polygon" in feature:
         points = _counter_clockwise([tuple(point) for point in feature["polygon"]])
         return plane * Polygon(*points)

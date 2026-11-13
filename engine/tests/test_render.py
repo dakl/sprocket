@@ -22,7 +22,12 @@ from sprocket_engine.replay import replay
 
 BOX = {
     "features": [
-        {"id": "s1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 30}},
+        {
+            "id": "s1",
+            "type": "sketch",
+            "plane": "XY",
+            "rect": {"width": 40, "height": 30},
+        },
         {"id": "e1", "type": "extrude", "profile": "s1", "distance": 10},
     ],
     "rollback_index": 2,
@@ -36,10 +41,10 @@ def read_png(path: Path) -> np.ndarray:
     chunks = {}
     offset = 8
     while offset < len(data):
-        (length,) = struct.unpack(">I", data[offset:offset + 4])
-        kind = data[offset + 4:offset + 8]
+        (length,) = struct.unpack(">I", data[offset : offset + 4])
+        kind = data[offset + 4 : offset + 8]
         chunks.setdefault(kind, b"")
-        chunks[kind] += data[offset + 8:offset + 8 + length]
+        chunks[kind] += data[offset + 8 : offset + 8 + length]
         offset += length + 12
 
     width, height, depth, colour_type = struct.unpack(">IIBB", chunks[b"IHDR"][:10])
@@ -48,7 +53,7 @@ def read_png(path: Path) -> np.ndarray:
     stride = width * 3 + 1
     rows = []
     for index in range(height):
-        row = raw[index * stride:(index + 1) * stride]
+        row = raw[index * stride : (index + 1) * stride]
         assert row[0] == 0, "this decoder only handles filter type 0"
         rows.append(np.frombuffer(row[1:], dtype=np.uint8))
     return np.stack(rows).reshape(height, width, 3)
@@ -113,7 +118,9 @@ def test_highlight_paints_the_face_geometry_names(box, tmp_path: Path):
     from sprocket_engine.geometry import describe_faces
 
     front = next(face for face in describe_faces(box) if "front" in face["description"])
-    image = read_png_of(box, tmp_path / "front.png", camera="front", highlight=[front["handle"]])
+    image = read_png_of(
+        box, tmp_path / "front.png", camera="front", highlight=[front["handle"]]
+    )
     lit = np.any(image != np.array(BACKGROUND, dtype=np.uint8), axis=2)
     # The part colour is a blue-grey, the highlight an orange, so the sign of
     # red minus blue separates them whatever the shading does to the brightness.

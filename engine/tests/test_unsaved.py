@@ -8,7 +8,10 @@ import pytest
 from sprocket_engine.document import Document
 from sprocket_engine.rpc import Client, RpcError
 
-TALLER = {"op": "update", "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12}}
+TALLER = {
+    "op": "update",
+    "feature": {"id": "e1", "type": "extrude", "profile": "s1", "distance": 12},
+}
 
 
 @pytest.fixture
@@ -22,7 +25,10 @@ def manual(daemon, tmp_path):
 @pytest.fixture
 def listener(daemon):
     seen = []
-    with Client(daemon.socket_path, on_notification=lambda method, params: seen.append((method, params))) as connected:
+    with Client(
+        daemon.socket_path,
+        on_notification=lambda method, params: seen.append((method, params)),
+    ) as connected:
         connected.call("ping")
         connected.seen = seen
         yield connected
@@ -67,7 +73,9 @@ def test_save_refuses_to_overwrite_a_file_changed_on_disk(manual, client):
     assert client.call("get_file_status")["conflict"] is not None
 
 
-def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(manual, client):
+def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(
+    manual, client
+):
     client.call("apply_edit", edits=[TALLER])
     recovered = json.loads(manual.recovery_path.read_text())
     assert recovered["path"] == str(manual.session.document.path)
@@ -76,7 +84,9 @@ def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(ma
     assert not manual.recovery_path.exists()
 
 
-def test_restore_recovery_puts_the_edits_back_unsaved_and_undoable(manual, client, listener, tmp_path):
+def test_restore_recovery_puts_the_edits_back_unsaved_and_undoable(
+    manual, client, listener, tmp_path
+):
     client.call("apply_edit", edits=[TALLER])
     kept = tmp_path / "kept.json"
     kept.write_text(manual.recovery_path.read_text())
@@ -134,7 +144,9 @@ def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(manual, client, listen
 
 
 @pytest.mark.parametrize("content", [None, "not json", '{"path": null}'])
-def test_restore_recovery_refuses_a_missing_or_broken_file(manual, client, tmp_path, content):
+def test_restore_recovery_refuses_a_missing_or_broken_file(
+    manual, client, tmp_path, content
+):
     file = tmp_path / "recovery.bad.json"
     if content is not None:
         file.write_text(content)

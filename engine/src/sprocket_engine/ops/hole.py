@@ -21,20 +21,53 @@ SCHEMA = {
         "id": {"type": "string"},
         "type": {"const": "hole"},
         "base": {"type": "string", "description": "id of the feature being drilled"},
-        "sketch": {"type": "string", "description": "id of a sketch feature whose circle centres place the holes"},
+        "sketch": {
+            "type": "string",
+            "description": "id of a sketch feature whose circle centres place the holes",
+        },
         "entities": {
             "type": "array",
             "items": {"type": "string"},
             "description": "Only the circles with these ids. Default: every circle in the sketch that is not construction.",
         },
-        "points": {"type": "array", "items": VECTOR3, "minItems": 1, "description": "hole centres on the surface, world mm"},
-        "direction": {**VECTOR3, "description": "drilling direction for `points`, default [0, 0, -1] (down)"},
-        "kind": {"enum": ["simple", "counterbore", "countersink"], "description": "default simple"},
-        "diameter": {"type": "number", "exclusiveMinimum": 0, "description": "mm, the drilled bore"},
-        "depth": {"type": "number", "exclusiveMinimum": 0, "description": "mm, from the surface to the bottom of the bore"},
-        "through": {"type": "boolean", "description": "cut through the whole part, ignoring depth"},
-        "head_diameter": {"type": "number", "exclusiveMinimum": 0, "description": "mm, counterbore or countersink diameter"},
-        "head_depth": {"type": "number", "exclusiveMinimum": 0, "description": "mm, counterbore depth"},
+        "points": {
+            "type": "array",
+            "items": VECTOR3,
+            "minItems": 1,
+            "description": "hole centres on the surface, world mm",
+        },
+        "direction": {
+            **VECTOR3,
+            "description": "drilling direction for `points`, default [0, 0, -1] (down)",
+        },
+        "kind": {
+            "enum": ["simple", "counterbore", "countersink"],
+            "description": "default simple",
+        },
+        "diameter": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "mm, the drilled bore",
+        },
+        "depth": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "mm, from the surface to the bottom of the bore",
+        },
+        "through": {
+            "type": "boolean",
+            "description": "cut through the whole part, ignoring depth",
+        },
+        "head_diameter": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "mm, counterbore or countersink diameter",
+        },
+        "head_depth": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "mm, counterbore depth",
+        },
         "head_angle": {
             "type": "number",
             "exclusiveMinimum": 0,
@@ -52,7 +85,9 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
         return [(Vector(*point), direction) for point in feature["points"]]
     sketch = ctx.features.get(feature["sketch"])
     if sketch is None or sketch.get("type") != "sketch":
-        raise ValueError(f"hole sketch {feature['sketch']!r} is not a sketch earlier in the document")
+        raise ValueError(
+            f"hole sketch {feature['sketch']!r} is not a sketch earlier in the document"
+        )
     plane = resolve_plane(sketch["plane"], ctx)
     if "entities" in sketch:
         wanted = feature.get("entities")
@@ -60,14 +95,20 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
             entity["c"]
             for entity in sketch_entities(sketch)
             if entity["kind"] == "circle"
-            and (entity["id"] in wanted if wanted is not None else not entity.get("construction"))
+            and (
+                entity["id"] in wanted
+                if wanted is not None
+                else not entity.get("construction")
+            )
         ]
     elif "circle" in sketch:
         uvs = [sketch["circle"].get("center", [0, 0])]
     else:
         uvs = []
     if not uvs:
-        raise ValueError(f"sketch {feature['sketch']!r} has no circles to place holes at")
+        raise ValueError(
+            f"sketch {feature['sketch']!r} has no circles to place holes at"
+        )
     direction = -plane.z_dir
     return [(plane.from_local_coords((u, v)), direction) for u, v in uvs]
 
@@ -103,6 +144,9 @@ def apply(feature: dict, ctx):
     else:
         raise ValueError("a hole needs depth, or through: true")
     shape = _tool(feature, depth)
-    tools = [Plane(origin=centre, z_dir=-direction) * shape for centre, direction in _centres(feature, ctx)]
+    tools = [
+        Plane(origin=centre, z_dir=-direction) * shape
+        for centre, direction in _centres(feature, ctx)
+    ]
     result = base.cut(*tools)
     return Part(result.solids())

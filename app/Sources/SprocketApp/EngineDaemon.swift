@@ -62,7 +62,9 @@ final class EngineDaemon {
         Self.started += 1
         let number = Self.started
         Self.startedLock.unlock()
-        let path = NSTemporaryDirectory() + "sprocket-\(ProcessInfo.processInfo.processIdentifier)-\(number).sock"
+        let path =
+            NSTemporaryDirectory()
+            + "sprocket-\(ProcessInfo.processInfo.processIdentifier)-\(number).sock"
         // The kernel caps a Unix socket path at about 100 bytes.
         guard path.utf8.count < 100 else {
             throw EngineError(message: "socket path is too long: \(path)")
@@ -78,13 +80,14 @@ final class EngineDaemon {
             environment["PYTHONPYCACHEPREFIX"] = AppPaths.pycacheDir.path
             process.environment = environment
         }
-        process.arguments = launch.arguments + [
-            "daemon", document.path,
-            "--socket", path, "--viewer-dir", viewerDir.path,
-            // The window's Save writes the file, not every edit. Unsaved edits
-            // are copied to `recovery` so a crash loses nothing.
-            "--no-autosave", "--recovery", recovery.path,
-        ]
+        process.arguments =
+            launch.arguments + [
+                "daemon", document.path,
+                "--socket", path, "--viewer-dir", viewerDir.path,
+                // The window's Save writes the file, not every edit. Unsaved edits
+                // are copied to `recovery` so a crash loses nothing.
+                "--no-autosave", "--recovery", recovery.path,
+            ]
         // Both streams go to our own log, and both must be drained: a full
         // pipe would block the engine mid-print.
         let output = Pipe()
@@ -102,7 +105,10 @@ final class EngineDaemon {
         var attempts = 0
         while attempts < 600 {
             if !process.isRunning {
-                throw EngineError(message: "the engine exited before it opened its socket (see the [engine] log lines)")
+                throw EngineError(
+                    message:
+                        "the engine exited before it opened its socket (see the [engine] log lines)"
+                )
             }
             if let connected = Self.connect(to: path) {
                 descriptor = connected
@@ -119,14 +125,19 @@ final class EngineDaemon {
 
     /// One JSON-RPC call. The completion runs on a background thread with the
     /// reply's `result`, or an error carrying the engine's own message.
-    func call(method: String, params: [String: Any], completion: @escaping (Result<[String: Any], EngineError>) -> Void) {
+    func call(
+        method: String, params: [String: Any],
+        completion: @escaping (Result<[String: Any], EngineError>) -> Void
+    ) {
         lock.lock()
         let id = nextID
         nextID += 1
         pending[id] = completion
         lock.unlock()
 
-        let request: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
+        let request: [String: Any] = [
+            "jsonrpc": "2.0", "id": id, "method": method, "params": params,
+        ]
         guard var line = try? JSONSerialization.data(withJSONObject: request) else {
             finish(id, .failure(EngineError(message: "could not encode the request")))
             return
@@ -165,8 +176,11 @@ final class EngineDaemon {
     /// app's `sprocket-<pid>.sock`. Nil for any other name.
     static func pid(fromSocketName name: String) -> Int32? {
         guard name.hasPrefix("sprocket-"), name.hasSuffix(".sock") else { return nil }
-        let parts = name.dropFirst("sprocket-".count).dropLast(".sock".count).split(separator: "-", omittingEmptySubsequences: false)
-        guard (1...2).contains(parts.count), parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }) else { return nil }
+        let parts = name.dropFirst("sprocket-".count).dropLast(".sock".count).split(
+            separator: "-", omittingEmptySubsequences: false)
+        guard (1...2).contains(parts.count),
+            parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) })
+        else { return nil }
         return Int32(parts[0])
     }
 
@@ -217,39 +231,56 @@ final class EngineDaemon {
     }
 
     private func handle(line: Data) {
-        guard let message = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return }
+        guard let message = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
+            return
+        }
         if let id = message["id"] as? Int {
             if let error = message["error"] as? [String: Any] {
-                finish(id, .failure(EngineError(message: error["message"] as? String ?? "the engine refused the request")))
+                finish(
+                    id,
+                    .failure(
+                        EngineError(
+                            message: error["message"] as? String ?? "the engine refused the request"
+                        )))
             } else {
                 finish(id, .success(message["result"] as? [String: Any] ?? [:]))
             }
             return
         }
         if message["method"] as? String == "document_changed",
-           let params = message["params"] as? [String: Any],
-           let revision = params["revision"] as? Int {
+            let params = message["params"] as? [String: Any],
+            let revision = params["revision"] as? Int
+        {
             let opened = params["opened"] as? Bool ?? false
             let viewerError = params["viewer_error"] as? String
             let unsaved = params["unsaved"] as? Bool ?? false
             let author = params["author"] as? String
-            let json = (try? JSONSerialization.data(withJSONObject: params)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            let json =
+                (try? JSONSerialization.data(withJSONObject: params)).flatMap {
+                    String(data: $0, encoding: .utf8)
+                } ?? "{}"
             DispatchQueue.main.async {
                 self.onSaveStateChanged?(unsaved, author)
                 self.onDocumentChanged?(revision, opened, viewerError, json)
             }
         }
-        if let method = message["method"] as? String, method == "document_conflict" || method == "agent_pointer",
-           let params = message["params"] as? [String: Any],
-           let data = try? JSONSerialization.data(withJSONObject: params),
-           let json = String(data: data, encoding: .utf8) {
+        if let method = message["method"] as? String,
+            method == "document_conflict" || method == "agent_pointer",
+            let params = message["params"] as? [String: Any],
+            let data = try? JSONSerialization.data(withJSONObject: params),
+            let json = String(data: data, encoding: .utf8)
+        {
             DispatchQueue.main.async { self.onNotification?(method, json) }
         }
-        if message["method"] as? String == "capture_app", let params = message["params"] as? [String: Any],
-           let request = params["request"] as? String, let path = params["path"] as? String {
+        if message["method"] as? String == "capture_app",
+            let params = message["params"] as? [String: Any],
+            let request = params["request"] as? String, let path = params["path"] as? String
+        {
             DispatchQueue.main.async { self.onCapture?(request, path) }
         }
-        if message["method"] as? String == "highlight", let params = message["params"] as? [String: Any] {
+        if message["method"] as? String == "highlight",
+            let params = message["params"] as? [String: Any]
+        {
             let handles = params["handles"] as? [String] ?? []
             let sketches = params["sketches"] as? [String] ?? []
             DispatchQueue.main.async { self.onHighlight?(handles, sketches) }

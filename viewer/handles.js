@@ -6,7 +6,11 @@
 (function (root) {
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const cross = (a, b) => [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
 
   /// Where along the axis line origin + t * direction the pointer ray passes
   /// closest, as t. Both directions are unit vectors. Null when the ray runs
@@ -24,7 +28,8 @@
   /// vector square to `axis`.
   function angleAbout(point, centre, axis, reference) {
     const offset = sub(point, centre);
-    const degrees = (Math.atan2(dot(offset, cross(axis, reference)), dot(offset, reference)) * 180) / Math.PI;
+    const degrees =
+      (Math.atan2(dot(offset, cross(axis, reference)), dot(offset, reference)) * 180) / Math.PI;
     return degrees < 0 ? degrees + 360 : degrees;
   }
 
@@ -75,7 +80,11 @@
   const HOVER_COLOUR = 0x9fd0ff;
 
   function handleMaterial(THREE) {
-    return new THREE.MeshBasicMaterial({ color: HANDLE_COLOUR, depthTest: false, transparent: true });
+    return new THREE.MeshBasicMaterial({
+      color: HANDLE_COLOUR,
+      depthTest: false,
+      transparent: true,
+    });
   }
 
   /// An arrow one unit long along +Y from the origin: a shaft, a cone, and a
@@ -88,7 +97,10 @@
     shaft.position.y = 0.3;
     const head = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 24), material);
     head.position.y = 0.8;
-    const grab = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 1, 8), new THREE.MeshBasicMaterial({ visible: false }));
+    const grab = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.24, 1, 8),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
     grab.position.y = 0.5;
     for (const part of [shaft, head]) part.renderOrder = 1001;
     group.add(shaft, head, grab);
@@ -102,10 +114,24 @@
   function createRing(THREE) {
     const group = new THREE.Group();
     const material = handleMaterial(THREE);
-    const arc = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: HANDLE_COLOUR, depthTest: false, transparent: true }));
-    const spoke = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: HANDLE_COLOUR, depthTest: false, transparent: true, opacity: 0.5 }));
+    const arc = new THREE.Line(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: HANDLE_COLOUR, depthTest: false, transparent: true }),
+    );
+    const spoke = new THREE.Line(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({
+        color: HANDLE_COLOUR,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.5,
+      }),
+    );
     const knob = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), material);
-    const grab = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
+    const grab = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 8, 6),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
     for (const part of [arc, spoke, knob]) part.renderOrder = 1001;
     group.add(arc, spoke, knob, grab);
     group.userData = { material, arc, spoke, knob, ball: grab, grab: [grab, knob] };
@@ -117,13 +143,27 @@
     const count = Math.max(2, Math.ceil(Math.abs(degrees) / 5) + 1);
     const points = [];
     for (let i = 0; i < count; i++) {
-      const angle = ((degrees * i) / (count - 1) * Math.PI) / 180;
+      const angle = (((degrees * i) / (count - 1)) * Math.PI) / 180;
       points.push([Math.cos(angle), Math.sin(angle), 0]);
     }
     return points;
   }
 
-  const api = { axisParameter, angleAbout, unwrapAngle, snapStep, snap, clamp, format, anyPerpendicular, arcPoints, createArrow, createRing, HANDLE_COLOUR, HOVER_COLOUR };
+  const api = {
+    axisParameter,
+    angleAbout,
+    unwrapAngle,
+    snapStep,
+    snap,
+    clamp,
+    format,
+    anyPerpendicular,
+    arcPoints,
+    createArrow,
+    createRing,
+    HANDLE_COLOUR,
+    HOVER_COLOUR,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ViewerHandles = api;
 })(typeof window !== "undefined" ? window : globalThis);

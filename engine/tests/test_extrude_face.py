@@ -20,7 +20,10 @@ def _with_push(distance, point=(0, 0, 10), normal=(0, 0, 1)):
             "base": "f2",
             "face": {
                 "from": "part",
-                "select": [{"op": "faces"}, {"op": "nearest_to", "point": list(point), "normal": list(normal)}],
+                "select": [
+                    {"op": "faces"},
+                    {"op": "nearest_to", "point": list(point), "normal": list(normal)},
+                ],
             },
             "distance": distance,
         }
@@ -52,14 +55,22 @@ def test_push_pull_off_a_bare_sketch_extrudes_instead_of_fusing(tmp_path: Path):
         "schema_version": 1,
         "units": {"length": "mm"},
         "features": [
-            {"id": "f1", "type": "sketch", "plane": "XY", "rect": {"width": 40, "height": 20, "center": [0, 0]}},
+            {
+                "id": "f1",
+                "type": "sketch",
+                "plane": "XY",
+                "rect": {"width": 40, "height": 20, "center": [0, 0]},
+            },
             {
                 "id": "f2",
                 "type": "extrude_face",
                 "base": "f1",
                 "face": {
                     "from": "part",
-                    "select": [{"op": "faces"}, {"op": "nearest_to", "point": [0, 0, 0], "normal": [0, 0, 1]}],
+                    "select": [
+                        {"op": "faces"},
+                        {"op": "nearest_to", "point": [0, 0, 0], "normal": [0, 0, 1]},
+                    ],
                 },
                 "distance": 10,
             },
@@ -76,7 +87,10 @@ def test_push_pull_rejects_a_selector_matching_more_than_one_face(tmp_path: Path
             "id": "f3",
             "type": "extrude_face",
             "base": "f2",
-            "face": {"from": "part", "select": [{"op": "faces"}]},  # all 6 faces, no narrowing
+            "face": {
+                "from": "part",
+                "select": [{"op": "faces"}],
+            },  # all 6 faces, no narrowing
             "distance": 5,
         }
     )

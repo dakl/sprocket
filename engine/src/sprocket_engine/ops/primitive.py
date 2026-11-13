@@ -35,11 +35,24 @@ SCHEMA = {
         "depth": LENGTH,
         "height": LENGTH,
         "radius": LENGTH,
-        "top_radius": {"type": "number", "minimum": 0, "description": "mm, a cone's top. Default 0, a point"},
-        "major_radius": {**LENGTH, "description": "mm, a torus's ring, centre to tube centre"},
+        "top_radius": {
+            "type": "number",
+            "minimum": 0,
+            "description": "mm, a cone's top. Default 0, a point",
+        },
+        "major_radius": {
+            **LENGTH,
+            "description": "mm, a torus's ring, centre to tube centre",
+        },
         "minor_radius": {**LENGTH, "description": "mm, a torus's tube"},
-        "base": {"type": "string", "description": "id of a solid feature to combine with, if any"},
-        "mode": {"enum": ["join", "cut", "intersect"], "description": "How it combines with `base`. Default join."},
+        "base": {
+            "type": "string",
+            "description": "id of a solid feature to combine with, if any",
+        },
+        "mode": {
+            "enum": ["join", "cut", "intersect"],
+            "description": "How it combines with `base`. Default join.",
+        },
     },
 }
 
@@ -51,11 +64,18 @@ def solid_of(feature: dict):
     if missing:
         raise ValueError(f"a {shape} needs {', '.join(missing)}")
     if shape == "box":
-        return Box(feature["width"], feature["depth"], feature["height"], align=ON_PLANE)
+        return Box(
+            feature["width"], feature["depth"], feature["height"], align=ON_PLANE
+        )
     if shape == "cylinder":
         return Cylinder(feature["radius"], feature["height"], align=ON_PLANE)
     if shape == "cone":
-        return Cone(feature["radius"], feature.get("top_radius", 0), feature["height"], align=ON_PLANE)
+        return Cone(
+            feature["radius"],
+            feature.get("top_radius", 0),
+            feature["height"],
+            align=ON_PLANE,
+        )
     if shape == "sphere":
         return Sphere(feature["radius"])
     if feature["minor_radius"] >= feature["major_radius"]:

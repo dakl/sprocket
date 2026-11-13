@@ -15,7 +15,11 @@ SCHEMA = {
         # `length` rather than `distance`, matching build123d and the usual
         # drawing callout. An asymmetric chamfer needs a second length and an
         # angle, which SPEC.md does not ask for yet.
-        "length": {"type": "number", "exclusiveMinimum": 0, "description": "mm, measured along each face"},
+        "length": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "mm, measured along each face",
+        },
     },
 }
 
@@ -23,4 +27,6 @@ SCHEMA = {
 @register("chamfer", SCHEMA)
 def apply(feature: dict, ctx):
     base = ctx.results[feature["base"]]
-    return b3d_chamfer(resolve_edges(base, feature["edges"], ctx), length=feature["length"])
+    return b3d_chamfer(
+        resolve_edges(base, feature["edges"], ctx), length=feature["length"]
+    )

@@ -63,7 +63,9 @@
     if (field.kind === "number") {
       if (trimmed.startsWith("=")) return { value: trimmed };
       const number = Number(trimmed);
-      return Number.isFinite(number) ? { value: number } : { error: field.name + " must be a number" };
+      return Number.isFinite(number)
+        ? { value: number }
+        : { error: field.name + " must be a number" };
     }
     if (field.kind === "checkbox") return { value: text === "true" };
     if (field.kind === "json") {

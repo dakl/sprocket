@@ -10,7 +10,10 @@ SCHEMA = {
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "revolve"},
-        "profile": {"type": "string", "description": "id of the sketch feature to sweep"},
+        "profile": {
+            "type": "string",
+            "description": "id of the sketch feature to sweep",
+        },
         "axis": AXIS_SCHEMA,
         "angle": {
             "type": "number",

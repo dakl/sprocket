@@ -10,7 +10,11 @@ enum AppSettings {
     static let defaultZoomSensitivity = 1.0
 
     static var zoomSensitivity: Double {
-        get { clamp(UserDefaults.standard.object(forKey: zoomSensitivityKey) as? Double ?? defaultZoomSensitivity) }
+        get {
+            clamp(
+                UserDefaults.standard.object(forKey: zoomSensitivityKey) as? Double
+                    ?? defaultZoomSensitivity)
+        }
         set { UserDefaults.standard.set(clamp(newValue), forKey: zoomSensitivityKey) }
     }
 
@@ -21,7 +25,8 @@ enum AppSettings {
 
     /// What the viewer reads as window.__sprocketSettings, as JSON.
     static func viewerJSON() -> String {
-        let data = try? JSONSerialization.data(withJSONObject: [zoomSensitivityKey: zoomSensitivity])
+        let data = try? JSONSerialization.data(withJSONObject: [zoomSensitivityKey: zoomSensitivity]
+        )
         return data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
     }
 }

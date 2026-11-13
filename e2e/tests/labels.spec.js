@@ -14,9 +14,12 @@ test.beforeEach(async ({ page, request }) => {
   await settled(page);
 });
 
-const labels = (page) => page.evaluate(() => window.__tcad.labels.map((label) => [label.kind, label.id]).sort());
+const labels = (page) =>
+  page.evaluate(() => window.__tcad.labels.map((label) => [label.kind, label.id]).sort());
 
-test("L shows a label for the body and the sketch, each with a leader line, and L again hides them", async ({ page }) => {
+test("L shows a label for the body and the sketch, each with a leader line, and L again hides them", async ({
+  page,
+}) => {
   expect(await labels(page)).toEqual([]);
   await page.keyboard.press("l");
   await page.waitForFunction(() => window.__tcad.labels.length === 2);
@@ -30,7 +33,12 @@ test("L shows a label for the body and the sketch, each with a leader line, and 
 
   // Each label sits apart from its anchor, inside the window.
   for (const label of await page.evaluate(() => window.__tcad.labels)) {
-    expect(Math.hypot(label.x + label.width / 2 - label.anchorX, label.y + label.height / 2 - label.anchorY)).toBeGreaterThan(20);
+    expect(
+      Math.hypot(
+        label.x + label.width / 2 - label.anchorX,
+        label.y + label.height / 2 - label.anchorY,
+      ),
+    ).toBeGreaterThan(20);
     expect(label.x).toBeGreaterThanOrEqual(0);
     expect(label.x + label.width).toBeLessThanOrEqual(1280);
   }

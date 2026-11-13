@@ -43,7 +43,16 @@
     return Math.exp(clamped * ZOOM_PER_PIXEL * clampSensitivity(sensitivity));
   }
 
-  const api = { ZOOM_PER_PIXEL, MIN_SENSITIVITY, MAX_SENSITIVITY, DEFAULT_SENSITIVITY, MAX_PIXELS_PER_EVENT, clampSensitivity, pixelDelta, distanceScale };
+  const api = {
+    ZOOM_PER_PIXEL,
+    MIN_SENSITIVITY,
+    MAX_SENSITIVITY,
+    DEFAULT_SENSITIVITY,
+    MAX_PIXELS_PER_EVENT,
+    clampSensitivity,
+    pixelDelta,
+    distanceScale,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.WheelZoom = api;
 })(typeof window !== "undefined" ? window : globalThis);

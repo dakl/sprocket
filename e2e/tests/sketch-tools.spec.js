@@ -10,12 +10,15 @@ test.beforeEach(async ({ page, request }) => {
   await settled(page);
   await page.locator("#tool-sketch").click();
   await page.locator('#sketch-plane-panel button[data-plane="XY"]').click();
-  await page.waitForFunction(() => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line");
+  await page.waitForFunction(
+    () => window.__tcad.sketch.active && window.__tcad.sketch.tool === "line",
+  );
   await cameraStill(page);
 });
 
 const sketchState = (page) => page.evaluate(() => window.__tcad.sketch);
-const entity = async (page, id) => (await sketchState(page)).entities.find((item) => item.id === id);
+const entity = async (page, id) =>
+  (await sketchState(page)).entities.find((item) => item.id === id);
 
 async function at(page, uv) {
   const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
@@ -36,7 +39,9 @@ async function drawLine(page, from, to) {
 const useTool = (page, name) => page.locator(`#sketch-draw-panel [data-tool="${name}"]`).click();
 const entityCount = async (page) => (await sketchState(page)).entities.length;
 
-test("Trim removes the piece of a line between two crossings, and Extend runs a line on to a wall", async ({ page }, info) => {
+test("Trim removes the piece of a line between two crossings, and Extend runs a line on to a wall", async ({
+  page,
+}, info) => {
   await drawLine(page, [-30, 0], [30, 0]);
   await drawLine(page, [-10, -20], [-10, 20]);
   await drawLine(page, [10, -20], [10, 20]);
@@ -53,7 +58,15 @@ test("Trim removes the piece of a line between two crossings, and Extend runs a 
   expect(right.p1[0]).toBeCloseTo(30, 4);
   // Each cut end stays on the line that cut it.
   const constraints = (await sketchState(page)).constraints;
-  expect(constraints.filter((item) => item.kind === "point_on").map((item) => [item.a, item.b]).sort()).toEqual([["e1.p1", "e2"], ["e4.p0", "e3"]]);
+  expect(
+    constraints
+      .filter((item) => item.kind === "point_on")
+      .map((item) => [item.a, item.b])
+      .sort(),
+  ).toEqual([
+    ["e1.p1", "e2"],
+    ["e4.p0", "e3"],
+  ]);
 
   // The upright line at x = -10 is crossed once, at y = 0: trimming its top leaves the lower half.
   await click(page, [-10, 15]);
@@ -71,7 +84,10 @@ test("Trim removes the piece of a line between two crossings, and Extend runs a 
   expect((await entity(page, "e1")).p0[0]).toBeCloseTo(-30, 4);
 });
 
-test("Offset moves a rectangle out by a typed distance, and the copy is saved with the sketch", async ({ page, request }, info) => {
+test("Offset moves a rectangle out by a typed distance, and the copy is saved with the sketch", async ({
+  page,
+  request,
+}, info) => {
   await useTool(page, "rectangle");
   await click(page, [0, 0]);
   await click(page, [40, 20]);
@@ -94,18 +110,28 @@ test("Offset moves a rectangle out by a typed distance, and the copy is saved wi
   const lines = (await sketchState(page)).entities.slice(4);
   const xs = lines.flatMap((item) => [item.p0[0], item.p1[0]]);
   const ys = lines.flatMap((item) => [item.p0[1], item.p1[1]]);
-  expect([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)].map((value) => Math.round(value * 1e4) / 1e4)).toEqual([-4, 44, -4, 24]);
+  expect(
+    [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)].map(
+      (value) => Math.round(value * 1e4) / 1e4,
+    ),
+  ).toEqual([-4, 44, -4, 24]);
   await page.screenshot({ path: info.outputPath("offset.png") });
 
   await page.locator("#sketch-finish").click();
-  await page.waitForFunction(() => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1);
+  await page.waitForFunction(
+    () => !window.__tcad.sketch.active && window.__tcad.timeline.length === 1,
+  );
   const saved = (await rpc(request, "get_document")).features[0];
   expect(saved.entities).toHaveLength(8);
   // The offset ring is a region of its own: the engine finds two nested outlines.
-  expect((await rpc(request, "get_profiles", { feature: saved.id })).profiles.length).toBeGreaterThanOrEqual(2);
+  expect(
+    (await rpc(request, "get_profiles", { feature: saved.id })).profiles.length,
+  ).toBeGreaterThanOrEqual(2);
 });
 
-test("Offset of a circle goes inside when the pointer does, and an offset that cannot fit says so", async ({ page }) => {
+test("Offset of a circle goes inside when the pointer does, and an offset that cannot fit says so", async ({
+  page,
+}) => {
   await useTool(page, "circle");
   await click(page, [0, 0]);
   await click(page, [10, 0]);

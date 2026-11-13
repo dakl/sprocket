@@ -37,10 +37,18 @@ def source_edge(source: dict, ctx):
     if "sketch" in source:
         sketch = ctx.features.get(source["sketch"])
         if sketch is None or sketch.get("type") != "sketch" or "entities" not in sketch:
-            raise ValueError(f"{source['sketch']!r} is not a sketch of entities built before this one")
-        found = [entity for entity in sketch_entities(sketch) if entity["id"] == source.get("entity")]
+            raise ValueError(
+                f"{source['sketch']!r} is not a sketch of entities built before this one"
+            )
+        found = [
+            entity
+            for entity in sketch_entities(sketch)
+            if entity["id"] == source.get("entity")
+        ]
         if not found:
-            raise ValueError(f"sketch {source['sketch']!r} has no entity {source.get('entity')!r}")
+            raise ValueError(
+                f"sketch {source['sketch']!r} has no entity {source.get('entity')!r}"
+            )
         return resolve_plane(sketch["plane"], ctx) * entity_edge(found[0])
     if "feature" in source and "edge" in source:
         shape = ctx.results.get(source["feature"])
@@ -48,7 +56,9 @@ def source_edge(source: dict, ctx):
             raise ValueError(f"{source['feature']!r} is not built before this sketch")
         edges = resolve_selector(shape, source["edge"], ctx)
         if len(edges) != 1:
-            raise ValueError(f"the edge selector matched {len(edges)} edges of {source['feature']!r}, expected exactly 1")
+            raise ValueError(
+                f"the edge selector matched {len(edges)} edges of {source['feature']!r}, expected exactly 1"
+            )
         return edges[0]
     raise ValueError("a reference names {'sketch', 'entity'} or {'feature', 'edge'}")
 
@@ -72,12 +82,18 @@ def project_edge(edge, plane) -> dict:
     if edge.geom_type == GeomType.LINE:
         p0, p1 = local(edge.start_point()), local(edge.end_point())
         if math.dist(p0, p1) < 1e-9:
-            raise ValueError("that edge runs straight at the sketch plane, so it projects to a point")
+            raise ValueError(
+                "that edge runs straight at the sketch plane, so it projects to a point"
+            )
         return {"kind": "line", "p0": p0, "p1": p1}
     if edge.geom_type != GeomType.CIRCLE:
-        raise ValueError(f"only straight and circular edges can be projected, not a {edge.geom_type.name.lower()} one")
+        raise ValueError(
+            f"only straight and circular edges can be projected, not a {edge.geom_type.name.lower()} one"
+        )
     if abs(edge.normal().dot(plane.z_dir)) < FLAT:
-        raise ValueError("a circle projects as a circle only onto a plane parallel to it")
+        raise ValueError(
+            "a circle projects as a circle only onto a plane parallel to it"
+        )
     centre = local(edge.arc_center)
     radius = round(edge.radius, 9)
     if edge.is_closed:
@@ -112,9 +128,13 @@ def with_references_updated(feature: dict, project) -> dict:
         try:
             fields = project(source)
         except Exception as exc:
-            raise ValueError(f"reference {entity['id']!r} of sketch {feature['id']!r}: {exc}") from None
+            raise ValueError(
+                f"reference {entity['id']!r} of sketch {feature['id']!r}: {exc}"
+            ) from None
         if fields["kind"] != entity["kind"]:
-            raise ValueError(f"reference {entity['id']!r} of sketch {feature['id']!r} was a {entity['kind']} and its source is now a {fields['kind']}")
+            raise ValueError(
+                f"reference {entity['id']!r} of sketch {feature['id']!r} was a {entity['kind']} and its source is now a {fields['kind']}"
+            )
         entity.update(fields)
     return updated
 
@@ -132,9 +152,17 @@ def refresh_references(feature: dict, ctx) -> dict:
         from . import solver
     except ImportError:
         return updated
-    result = solver.solve({"entities": updated["entities"], "constraints": updated.get("constraints", [])})
+    result = solver.solve(
+        {"entities": updated["entities"], "constraints": updated.get("constraints", [])}
+    )
     if not result["ok"]:
         constraints = updated.get("constraints", [])
-        names = ", ".join(f"{constraints[index].get('id', index)} ({constraints[index]['kind']})" for index in result["conflicting"])
-        raise ValueError(f"sketch {feature['id']!r} has no solution now that its references moved" + (f": {names} conflict" if names else ""))
+        names = ", ".join(
+            f"{constraints[index].get('id', index)} ({constraints[index]['kind']})"
+            for index in result["conflicting"]
+        )
+        raise ValueError(
+            f"sketch {feature['id']!r} has no solution now that its references moved"
+            + (f": {names} conflict" if names else "")
+        )
     return {**updated, "entities": result["sketch"]["entities"]}

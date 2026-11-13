@@ -30,7 +30,13 @@ def test_a_fillet_that_does_not_build_is_reported_as_a_failure(client):
     But a bare success is what sent an agent off measuring the part without
     the fillet, so the reply has to name the feature that failed.
     """
-    bad = {"id": "f1", "type": "fillet", "base": "e1", "radius": 999, "edges": ALL_EDGES}
+    bad = {
+        "id": "f1",
+        "type": "fillet",
+        "base": "e1",
+        "radius": 999,
+        "edges": ALL_EDGES,
+    }
     result = client.call("apply_edit", **insert(bad))
     assert result["built"] == {"ok": False, "failed_feature": "f1", "volume": 12000.0}
 
@@ -45,7 +51,13 @@ def test_a_fillet_that_builds_reports_the_new_volume(client):
 def test_preview_returns_no_measurements_when_the_feature_fails(client):
     """A number beside `would_build: false` is a number somebody reads as the
     answer, so a failed preview carries the reason and nothing else."""
-    bad = {"id": "try", "type": "fillet", "base": "e1", "radius": 999, "edges": ALL_EDGES}
+    bad = {
+        "id": "try",
+        "type": "fillet",
+        "base": "e1",
+        "radius": 999,
+        "edges": ALL_EDGES,
+    }
     result = client.call("preview_feature", feature=bad)
     assert result["would_build"] is False
     assert "volume" not in result
@@ -55,9 +67,18 @@ def test_preview_returns_no_measurements_when_the_feature_fails(client):
 
 
 def test_preview_does_not_change_the_document(client):
-    good = {"id": "try", "type": "fillet", "base": "e1", "radius": 3, "edges": ALL_EDGES}
+    good = {
+        "id": "try",
+        "type": "fillet",
+        "base": "e1",
+        "radius": 3,
+        "edges": ALL_EDGES,
+    }
     assert client.call("preview_feature", feature=good)["would_build"] is True
-    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1", "e1"]
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == [
+        "s1",
+        "e1",
+    ]
 
 
 def test_a_stale_edit_comes_back_with_the_current_document(client):
@@ -96,7 +117,10 @@ def test_every_client_hears_about_an_edit(daemon):
     def note(method, params):
         heard.append({"method": method, "params": params})
 
-    with Client(daemon.socket_path, on_notification=note) as listener, Client(daemon.socket_path) as editor:
+    with (
+        Client(daemon.socket_path, on_notification=note) as listener,
+        Client(daemon.socket_path) as editor,
+    ):
         listener.call("ping")
         editor.call("set_parameter", name="width", value=40)
         # The listener only reads while it is in a call, so give it one.
@@ -160,17 +184,26 @@ def test_a_socket_path_the_kernel_cannot_bind_says_which_limit_it_broke(tmp_path
     path = tmp_path / "part.sprocket"
     path.write_text(json.dumps({"features": [], "rollback_index": 0}))
     long_socket = tmp_path / ("d" * 120 + ".sock")
-    daemon = Daemon(Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket)
+    daemon = Daemon(
+        Session(Document.load(path), cache_dir=tmp_path / "cache"), long_socket
+    )
     with pytest.raises(DocumentError, match="shorter --socket"):
         daemon.start_in_background()
 
 
 def distance_of_e1(client) -> float:
-    return next(f for f in client.call("get_document")["features"] if f["id"] == "e1")["distance"]
+    return next(f for f in client.call("get_document")["features"] if f["id"] == "e1")[
+        "distance"
+    ]
 
 
 def set_distance(client, distance: float) -> None:
-    client.call("apply_edit", edits=[{"op": "update", "id": "e1", "feature": {**EXTRUDE, "distance": distance}}])
+    client.call(
+        "apply_edit",
+        edits=[
+            {"op": "update", "id": "e1", "feature": {**EXTRUDE, "distance": distance}}
+        ],
+    )
 
 
 def test_undo_and_redo_step_through_edits(client):
@@ -212,26 +245,36 @@ def test_a_daemon_with_a_viewer_dir_writes_the_files_the_app_reads(tmp_path: Pat
     path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(
-        Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock", viewer_dir=viewer_dir
+        Session(Document.load(path), cache_dir=tmp_path / "cache"),
+        socket_dir / "d.sock",
+        viewer_dir=viewer_dir,
     )
     daemon.publish_viewer_files()
     daemon.start_in_background()
     try:
         assert (viewer_dir / "part.mesh").exists()
-        assert "extrude" in json.loads((viewer_dir / "features.json").read_text())[1]["type"]
+        assert (
+            "extrude"
+            in json.loads((viewer_dir / "features.json").read_text())[1]["type"]
+        )
         assert "sketch" in json.loads((viewer_dir / "schemas.json").read_text())
 
         with Client(daemon.socket_path) as client:
             client.call("set_rollback", index=0)
         # An empty document deletes the mesh, which the viewer reads as nothing to show.
         assert not (viewer_dir / "part.mesh").exists()
-        assert [entry["active"] for entry in json.loads((viewer_dir / "features.json").read_text())] == [False, False]
+        assert [
+            entry["active"]
+            for entry in json.loads((viewer_dir / "features.json").read_text())
+        ] == [False, False]
     finally:
         daemon.shutdown()
         shutil.rmtree(socket_dir, ignore_errors=True)
 
 
-def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path, monkeypatch):
+def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
+    tmp_path: Path, monkeypatch
+):
     """The part builds, but the export refuses it. The daemon used to log that
     to stderr and leave the previous document's mesh on screen, so opening the
     file looked like nothing happened. Now the mesh is deleted and the
@@ -248,18 +291,32 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(tmp_path: Path
     path.write_text(json.dumps({"features": [SKETCH, EXTRUDE], "rollback_index": 2}))
     socket_dir = Path(tempfile.mkdtemp())
     daemon = Daemon(
-        Session(Document.load(path), cache_dir=tmp_path / "cache"), socket_dir / "d.sock", viewer_dir=viewer_dir
+        Session(Document.load(path), cache_dir=tmp_path / "cache"),
+        socket_dir / "d.sock",
+        viewer_dir=viewer_dir,
     )
     monkeypatch.setattr(viewer_files, "mesh_bytes", refuse)
     daemon.start_in_background()
     heard = []
     try:
-        with Client(daemon.socket_path, on_notification=lambda method, params: heard.append(params)) as client:
+        with Client(
+            daemon.socket_path,
+            on_notification=lambda method, params: heard.append(params),
+        ) as client:
             client.call("set_rollback", index=1)
-            client.call("ping")  # reading a reply is what delivers the queued notification
-        assert heard[-1]["viewer_error"] == "ValueError: tessellation disagrees with the B-rep"
-        assert not (viewer_dir / "part.mesh").exists(), "the old mesh would show the wrong part"
-        assert len(json.loads((viewer_dir / "features.json").read_text())) == 2, "the timeline is still written"
+            client.call(
+                "ping"
+            )  # reading a reply is what delivers the queued notification
+        assert (
+            heard[-1]["viewer_error"]
+            == "ValueError: tessellation disagrees with the B-rep"
+        )
+        assert not (viewer_dir / "part.mesh").exists(), (
+            "the old mesh would show the wrong part"
+        )
+        assert len(json.loads((viewer_dir / "features.json").read_text())) == 2, (
+            "the timeline is still written"
+        )
     finally:
         daemon.shutdown()
         shutil.rmtree(socket_dir, ignore_errors=True)
@@ -273,18 +330,26 @@ def write_document(path: Path, features: list[dict]) -> Path:
     return path
 
 
-def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(client, tmp_path):
+def test_opening_a_document_replaces_the_open_one_and_keeps_its_file_untouched(
+    client, tmp_path
+):
     other = write_document(tmp_path / "other.sprocket", [SKETCH])
     before = other.read_text()
-    client.call("set_parameter", name="width", value=40)  # an undoable edit on the first document
+    client.call(
+        "set_parameter", name="width", value=40
+    )  # an undoable edit on the first document
 
     opened = client.call("open_document", path=str(other))
 
     assert opened["path"] == str(other)
-    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1"]
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == [
+        "s1"
+    ]
     assert client.call("get_document")["path"] == str(other)
     assert other.read_text() == before, "opening a file must not rewrite it"
-    assert client.call("undo")["changed"] is False, "the undo history belonged to the first document"
+    assert client.call("undo")["changed"] is False, (
+        "the undo history belonged to the first document"
+    )
 
 
 def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_path):
@@ -292,7 +357,10 @@ def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_pa
     broken.write_text("{ not json")
     with pytest.raises(RpcError, match="not valid JSON"):
         client.call("open_document", path=str(broken))
-    assert [feature["id"] for feature in client.call("get_document")["features"]] == ["s1", "e1"]
+    assert [feature["id"] for feature in client.call("get_document")["features"]] == [
+        "s1",
+        "e1",
+    ]
 
 
 @pytest.mark.parametrize("path", ["part.sprocket", "/tmp/part.txt", ""])
@@ -306,7 +374,9 @@ def test_file_methods_want_an_absolute_sprocket_path(client, path):
 def test_opening_announces_a_replacement_not_an_edit(daemon, tmp_path):
     other = write_document(tmp_path / "other.sprocket", [SKETCH])
     heard = []
-    with Client(daemon.socket_path, on_notification=lambda method, params: heard.append(params)) as watcher:
+    with Client(
+        daemon.socket_path, on_notification=lambda method, params: heard.append(params)
+    ) as watcher:
         watcher.call("ping")
         with Client(daemon.socket_path) as other_client:
             other_client.call("open_document", path=str(other))
@@ -334,7 +404,9 @@ def test_save_as_moves_autosave_to_the_new_file(client, tmp_path):
 
     client.call("set_parameter", name="width", value=55)
     assert Document.load(copy).parameters == {"width": 55}
-    assert Document.load(original).parameters == {}, "the first file is where it was left"
+    assert Document.load(original).parameters == {}, (
+        "the first file is where it was left"
+    )
 
 
 def test_an_agent_cannot_swap_the_users_document():
@@ -353,8 +425,13 @@ def test_a_daemon_export_to_a_missing_directory_says_why(client, tmp_path):
 
 
 def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
-    top = {"select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}], "expected_count": 1}
-    plane = client.call("resolve_plane", plane={"feature": "e1", "face": top, "offset": 1})["plane"]
+    top = {
+        "select": [{"op": "faces"}, {"op": "at_end", "axis": "Z", "end": "max"}],
+        "expected_count": 1,
+    }
+    plane = client.call(
+        "resolve_plane", plane={"feature": "e1", "face": top, "offset": 1}
+    )["plane"]
     assert plane["normal"] == [0, 0, 1]
     assert plane["origin"] == [0, 0, 11]
     with pytest.raises(RpcError, match="does not resolve"):
@@ -362,18 +439,32 @@ def test_resolve_plane_turns_a_face_reference_into_an_explicit_plane(client):
 
 
 def test_preview_can_return_a_mesh_for_the_viewer(client):
-    good = {"id": "try", "type": "fillet", "base": "e1", "radius": 3, "edges": ALL_EDGES}
+    good = {
+        "id": "try",
+        "type": "fillet",
+        "base": "e1",
+        "radius": 3,
+        "edges": ALL_EDGES,
+    }
     plain = client.call("preview_feature", feature=good)
     assert "mesh" not in plain
     mesh = client.call("preview_feature", feature=good, mesh=True)["mesh"]
-    assert len(mesh["vertices"]) % 3 == 0 and len(mesh["triangles"]) % 3 == 0 and mesh["edges"]
+    assert (
+        len(mesh["vertices"]) % 3 == 0
+        and len(mesh["triangles"]) % 3 == 0
+        and mesh["edges"]
+    )
     assert max(mesh["triangles"]) < len(mesh["vertices"]) // 3
 
 
 def test_face_edges_lists_the_edges_that_bound_a_face(client):
     """Every face of the 40 x 30 x 10 box has four edges, and the top face's sit at z = 10."""
     geometry = client.call("describe_geometry")
-    top = next(face["handle"] for face in geometry["faces"] if face.get("normal", [0, 0, 0])[2] == 1)
+    top = next(
+        face["handle"]
+        for face in geometry["faces"]
+        if face.get("normal", [0, 0, 0])[2] == 1
+    )
     edges = client.call("face_edges", handle=top)["edges"]
     assert len(edges) == 4
     by_handle = {edge["handle"]: edge for edge in geometry["edges"]}

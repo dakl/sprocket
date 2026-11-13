@@ -10,7 +10,8 @@ struct RecoveryTests {
     let untitled: URL
 
     init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("recovery-tests-\(UUID().uuidString)")
+        root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "recovery-tests-\(UUID().uuidString)")
         recovery = root.appendingPathComponent("Recovery")
         untitled = root.appendingPathComponent("Untitled")
         try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: true)
@@ -40,7 +41,9 @@ struct RecoveryTests {
     }
 
     @Test func aMissingRecoveryFolderHasNoOrphans() {
-        #expect(Recovery.orphans(in: root.appendingPathComponent("nope"), isAlive: { _ in false }).isEmpty)
+        #expect(
+            Recovery.orphans(in: root.appendingPathComponent("nope"), isAlive: { _ in false })
+                .isEmpty)
     }
 
     @Test func editsOfANamedFileReopenThatFile() throws {
@@ -59,7 +62,8 @@ struct RecoveryTests {
     }
 
     @Test func editsOfAFileThatIsGoneOpenANewDocument() throws {
-        let file = try write("100-a.json", path: root.appendingPathComponent("deleted.sprocket").path)
+        let file = try write(
+            "100-a.json", path: root.appendingPathComponent("deleted.sprocket").path)
         #expect(Recovery.restoreTarget(for: file, untitledDir: untitled) == nil)
     }
 

@@ -73,7 +73,11 @@
           // sideways push would leave the view: then up and down. A tie (two
           // labels at one point) goes by index, so it is the same every frame.
           const signX = a.cx < b.cx ? -1 : 1;
-          const fitsX = a.cx + (signX * overlapX) / 2 >= a.minX && a.cx + (signX * overlapX) / 2 <= a.maxX && b.cx - (signX * overlapX) / 2 >= b.minX && b.cx - (signX * overlapX) / 2 <= b.maxX;
+          const fitsX =
+            a.cx + (signX * overlapX) / 2 >= a.minX &&
+            a.cx + (signX * overlapX) / 2 <= a.maxX &&
+            b.cx - (signX * overlapX) / 2 >= b.minX &&
+            b.cx - (signX * overlapX) / 2 <= b.maxX;
           if (overlapY <= overlapX || !fitsX) {
             const sign = a.cy < b.cy || (a.cy === b.cy && i < j) ? -1 : 1;
             a.cy += (sign * overlapY) / 2;

@@ -38,7 +38,9 @@ def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
     # disc inside, and the rectangle with a bite out of it.
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
     half_disc = math.pi * 36 / 2
-    assert areas(regions) == pytest.approx(sorted([half_disc, half_disc, 800 - half_disc]), abs=1e-3)
+    assert areas(regions) == pytest.approx(
+        sorted([half_disc, half_disc, 800 - half_disc]), abs=1e-3
+    )
 
 
 def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
@@ -55,11 +57,16 @@ def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
     regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 10, 10, 10)])
     disc = math.pi * 100
     sliver = 100 - math.pi * 25  # a 10 x 10 corner square minus a quarter disc
-    assert areas(regions) == pytest.approx(sorted([disc, sliver, sliver, 800 - disc - 2 * sliver]), abs=1e-3)
+    assert areas(regions) == pytest.approx(
+        sorted([disc, sliver, sliver, 800 - disc - 2 * sliver]), abs=1e-3
+    )
 
 
 def test_a_line_that_ends_inside_a_region_bounds_nothing():
-    regions = find_regions(rectangle(0, 0, 40, 20) + [{"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]}])
+    regions = find_regions(
+        rectangle(0, 0, 40, 20)
+        + [{"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]}]
+    )
     (region,) = regions
     assert region.bounded_by == ["r1", "r2", "r3", "r4"]
     assert region.holes == []
@@ -78,21 +85,62 @@ def toothed_wheel(teeth, tip=15.0):
     step = math.tau / teeth
 
     def at(centre, angle, radius):
-        return [round(centre[0] + radius * math.cos(angle), 6), round(centre[1] + radius * math.sin(angle), 6)]
+        return [
+            round(centre[0] + radius * math.cos(angle), 6),
+            round(centre[1] + radius * math.sin(angle), 6),
+        ]
 
     arcs = []
     for k in range(teeth):
         angle = k * step
-        seat = [round(pitch_radius * math.cos(angle), 6), round(pitch_radius * math.sin(angle), 6)]
+        seat = [
+            round(pitch_radius * math.cos(angle), 6),
+            round(pitch_radius * math.sin(angle), 6),
+        ]
         middle = angle + step / 2
-        cap = [round((tip - 0.55) * math.cos(middle), 6), round((tip - 0.55) * math.sin(middle), 6)]
-        arcs.append({"id": f"seat{k}", "kind": "arc", "c": seat, "r": 1.7, "a0": angle + math.pi / 2 + 0.0873, "a1": angle + 1.5 * math.pi - 0.0873})
-        arcs.append({"id": f"cap{k}", "kind": "arc", "c": cap, "r": 0.55, "a0": middle - math.pi / 2, "a1": middle + math.pi / 2})
+        cap = [
+            round((tip - 0.55) * math.cos(middle), 6),
+            round((tip - 0.55) * math.sin(middle), 6),
+        ]
+        arcs.append(
+            {
+                "id": f"seat{k}",
+                "kind": "arc",
+                "c": seat,
+                "r": 1.7,
+                "a0": angle + math.pi / 2 + 0.0873,
+                "a1": angle + 1.5 * math.pi - 0.0873,
+            }
+        )
+        arcs.append(
+            {
+                "id": f"cap{k}",
+                "kind": "arc",
+                "c": cap,
+                "r": 0.55,
+                "a0": middle - math.pi / 2,
+                "a1": middle + math.pi / 2,
+            }
+        )
     lines = []
     for k in range(teeth):
         seat, cap, next_seat = arcs[2 * k], arcs[2 * k + 1], arcs[2 * ((k + 1) % teeth)]
-        lines.append({"id": f"up{k}", "kind": "line", "p0": at(seat["c"], seat["a0"], 1.7), "p1": at(cap["c"], cap["a0"], 0.55)})
-        lines.append({"id": f"dn{k}", "kind": "line", "p0": at(cap["c"], cap["a1"], 0.55), "p1": at(next_seat["c"], next_seat["a1"], 1.7)})
+        lines.append(
+            {
+                "id": f"up{k}",
+                "kind": "line",
+                "p0": at(seat["c"], seat["a0"], 1.7),
+                "p1": at(cap["c"], cap["a0"], 0.55),
+            }
+        )
+        lines.append(
+            {
+                "id": f"dn{k}",
+                "kind": "line",
+                "p0": at(cap["c"], cap["a1"], 0.55),
+                "p1": at(next_seat["c"], next_seat["a1"], 1.7),
+            }
+        )
     return arcs + lines
 
 
@@ -104,12 +152,22 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
     polygon has the face's own area, give or take the chords that stand in for
     the arcs."""
     (region,) = find_regions(toothed_wheel(8))
-    shoelace = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(region.outline, region.outline[1:] + region.outline[:1])) / 2
+    shoelace = (
+        sum(
+            x1 * y2 - x2 * y1
+            for (x1, y1), (x2, y2) in zip(
+                region.outline, region.outline[1:] + region.outline[:1]
+            )
+        )
+        / 2
+    )
     assert shoelace == pytest.approx(region.area, rel=1e-3)
 
 
 def test_construction_geometry_bounds_no_region():
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4, construction=True)])
+    regions = find_regions(
+        rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4, construction=True)]
+    )
     assert len(regions) == 1
 
 
@@ -142,7 +200,9 @@ def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart():
     with pytest.raises(ProfileError, match="gives no 'inside' point"):
         pick_region(regions, {"bounded_by": ["c", "r3"]})
     for twin in twins:
-        picked = pick_region(regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)})
+        picked = pick_region(
+            regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)}
+        )
         assert picked.inside == twin.inside
 
 
@@ -154,20 +214,35 @@ def test_a_reference_that_matches_nothing_is_an_error_not_a_guess():
 
 def test_the_bounded_by_order_in_a_reference_does_not_matter():
     regions = find_regions(rectangle(0, 0, 40, 20))
-    assert pick_region(regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}).area == pytest.approx(800)
+    assert pick_region(
+        regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}
+    ).area == pytest.approx(800)
 
 
 coordinate = st.integers(min_value=-20, max_value=20)
 
 
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(coordinate, coordinate, st.integers(1, 30), st.integers(1, 30), coordinate, coordinate, st.integers(1, 30), st.integers(1, 30))
-def test_the_regions_of_two_rectangles_add_up_to_their_union(ax, ay, aw, ah, bx, by, bw, bh):
+@given(
+    coordinate,
+    coordinate,
+    st.integers(1, 30),
+    st.integers(1, 30),
+    coordinate,
+    coordinate,
+    st.integers(1, 30),
+    st.integers(1, 30),
+)
+def test_the_regions_of_two_rectangles_add_up_to_their_union(
+    ax, ay, aw, ah, bx, by, bw, bh
+):
     """Whatever the overlap, and including rectangles that share an edge or a
     corner, the regions tile the union exactly once."""
     overlap_w = max(0, min(ax + aw, bx + bw) - max(ax, bx))
     overlap_h = max(0, min(ay + ah, by + bh) - max(ay, by))
     union = aw * ah + bw * bh - overlap_w * overlap_h
-    entities = rectangle(ax, ay, ax + aw, ay + ah, "a") + rectangle(bx, by, bx + bw, by + bh, "b")
+    entities = rectangle(ax, ay, ax + aw, ay + ah, "a") + rectangle(
+        bx, by, bx + bw, by + bh, "b"
+    )
     regions = find_regions(entities)
     assert sum(region.area for region in regions) == pytest.approx(union, rel=1e-6)

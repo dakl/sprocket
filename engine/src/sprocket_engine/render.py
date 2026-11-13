@@ -116,12 +116,16 @@ def _resolve_highlight(handles, face_count: int) -> set[int]:
     for handle in handles or []:
         if isinstance(handle, int) and not isinstance(handle, bool):
             index = handle
-        elif isinstance(handle, str) and handle.startswith("f") and handle[1:].isdigit():
+        elif (
+            isinstance(handle, str) and handle.startswith("f") and handle[1:].isdigit()
+        ):
             index = int(handle[1:])
         else:
             raise RenderError(f"highlight {handle!r} must be a face handle like 'f2'")
         if not 0 <= index < face_count:
-            raise RenderError(f"highlight 'f{index}' is out of range, this shape has {face_count} faces")
+            raise RenderError(
+                f"highlight 'f{index}' is out of range, this shape has {face_count} faces"
+            )
         indices.add(index)
     return indices
 
@@ -254,7 +258,7 @@ def _raster_triangle(colour, z_buffer, xs, ys, zs, shade: float, base) -> None:
     if abs(area) < 1e-12:  # edge-on, contributes nothing this camera can see
         return
 
-    grid_y, grid_x = np.mgrid[min_y:max_y + 1, min_x:max_x + 1]
+    grid_y, grid_x = np.mgrid[min_y : max_y + 1, min_x : max_x + 1]
     px = grid_x + 0.5
     py = grid_y + 0.5
     w0 = ((xs[1] - px) * (ys[2] - py) - (xs[2] - px) * (ys[1] - py)) / area
@@ -266,13 +270,13 @@ def _raster_triangle(colour, z_buffer, xs, ys, zs, shade: float, base) -> None:
         return
 
     pixel_depth = w0 * zs[0] + w1 * zs[1] + w2 * zs[2]
-    window = z_buffer[min_y:max_y + 1, min_x:max_x + 1]
+    window = z_buffer[min_y : max_y + 1, min_x : max_x + 1]
     visible = inside & (pixel_depth > window)
     if not visible.any():
         return
 
     window[visible] = pixel_depth[visible]
-    colour[min_y:max_y + 1, min_x:max_x + 1][visible] = np.asarray(base) * shade
+    colour[min_y : max_y + 1, min_x : max_x + 1][visible] = np.asarray(base) * shade
 
 
 def _raster_segment(colour, z_buffer, segment: np.ndarray, bias: float) -> None:

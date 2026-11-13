@@ -45,10 +45,12 @@ final class UpdateSettings: ObservableObject {
     init() {
         let updater = Updater.shared.updater
         observations = [
-            updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] updater, _ in
+            updater.observe(\.canCheckForUpdates, options: [.initial, .new]) {
+                [weak self] updater, _ in
                 DispatchQueue.main.async { self?.canCheck = updater.canCheckForUpdates }
             },
-            updater.observe(\.lastUpdateCheckDate, options: [.initial, .new]) { [weak self] updater, _ in
+            updater.observe(\.lastUpdateCheckDate, options: [.initial, .new]) {
+                [weak self] updater, _ in
                 DispatchQueue.main.async { self?.lastCheck = updater.lastUpdateCheckDate }
             },
         ]

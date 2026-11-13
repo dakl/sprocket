@@ -14,8 +14,15 @@ SCHEMA = {
         "id": {"type": "string"},
         "type": {"const": "shell"},
         "base": {"type": "string", "description": "id of the feature being hollowed"},
-        "thickness": {"type": "number", "exclusiveMinimum": 0, "description": "mm, wall thickness"},
-        "open": {"type": "object", "description": "The faces to remove. " + SELECTOR_DESCRIPTION},
+        "thickness": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "mm, wall thickness",
+        },
+        "open": {
+            "type": "object",
+            "description": "The faces to remove. " + SELECTOR_DESCRIPTION,
+        },
         "outward": {
             "type": "boolean",
             "description": "Grow the walls outside the original surface instead of inside, so the inside keeps its size.",
@@ -44,5 +51,7 @@ def apply(feature: dict, ctx):
         result = result.cut(base) if feature.get("outward") else base.cut(result)
     part = Part(result.solids())
     if not part.solids() or part.volume <= 0:
-        raise ValueError(f"shell of {feature['base']} by {feature['thickness']} mm left no solid: the walls may be thicker than the part")
+        raise ValueError(
+            f"shell of {feature['base']} by {feature['thickness']} mm left no solid: the walls may be thicker than the part"
+        )
     return part

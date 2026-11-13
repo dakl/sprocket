@@ -36,7 +36,10 @@ async function dragHandle(page, fraction = 1) {
 
 async function faceWithNormal(page, request, normal) {
   const { faces } = await rpc(request, "describe_geometry");
-  const face = faces.findIndex((item) => item.normal && item.normal.every((value, axis) => Math.abs(value - normal[axis]) < 1e-6));
+  const face = faces.findIndex(
+    (item) =>
+      item.normal && item.normal.every((value, axis) => Math.abs(value - normal[axis]) < 1e-6),
+  );
   const point = await page.evaluate((index) => window.__tcad.screenPointOf({ face: index }), face);
   expect(point.visible).toBe(true);
   return { face, ...point };
@@ -44,18 +47,24 @@ async function faceWithNormal(page, request, normal) {
 
 async function topEdge(page, request) {
   const { edges } = await rpc(request, "describe_geometry");
-  const found = await page.evaluate((candidates) => {
-    for (const edge of candidates) {
-      const point = window.__tcad.screenPointOf({ edge });
-      if (point && point.visible) return { edge, x: point.x, y: point.y };
-    }
-    return null;
-  }, edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])));
+  const found = await page.evaluate(
+    (candidates) => {
+      for (const edge of candidates) {
+        const point = window.__tcad.screenPointOf({ edge });
+        if (point && point.visible) return { edge, x: point.x, y: point.y };
+      }
+      return null;
+    },
+    edges.flatMap((edge, index) => (edge.centre[2] === 10 ? [index] : [])),
+  );
   expect(found).not.toBeNull();
   return found;
 }
 
-test("E with nothing selected asks for a face, lights it up on hover, and a click shows the arrow at 0", async ({ page, request }) => {
+test("E with nothing selected asks for a face, lights it up on hover, and a click shows the arrow at 0", async ({
+  page,
+  request,
+}) => {
   const top = await faceWithNormal(page, request, [0, 0, 1]);
   await expect(page.locator("#tool-extrude")).toBeEnabled();
   await page.keyboard.press("e");
@@ -63,7 +72,9 @@ test("E with nothing selected asks for a face, lights it up on hover, and a clic
   await expect(page.locator("#hint")).toContainText("pick a face or a sketch region");
 
   await page.mouse.move(top.x, top.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.hovered)).toEqual({ kind: "face", face: top.face });
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.hovered))
+    .toEqual({ kind: "face", face: top.face });
 
   await page.mouse.click(top.x, top.y);
   await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBeNull();
@@ -73,7 +84,10 @@ test("E with nothing selected asks for a face, lights it up on hover, and a clic
   await expect(page.locator("#handle-value")).toBeFocused();
 });
 
-test("dragging the extrude arrow sets the distance, and Enter applies what the drag set", async ({ page, request }) => {
+test("dragging the extrude arrow sets the distance, and Enter applies what the drag set", async ({
+  page,
+  request,
+}) => {
   const top = await faceWithNormal(page, request, [0, 0, 1]);
   await page.mouse.click(top.x, top.y);
   await page.keyboard.press("e");
@@ -86,7 +100,9 @@ test("dragging the extrude arrow sets the distance, and Enter applies what the d
   expect((await handle(page)).box).toBe(dragged + " mm");
   // The drag moved the arrow, not the camera.
   const cameraAfter = await page.evaluate(() => window.__tcad.camera);
-  cameraAfter.position.forEach((value, axis) => expect(value).toBeCloseTo(cameraBefore.position[axis], 6));
+  cameraAfter.position.forEach((value, axis) =>
+    expect(value).toBeCloseTo(cameraBefore.position[axis], 6),
+  );
 
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => window.__tcad.timeline.length === 3, null, SLOW);
@@ -98,13 +114,18 @@ test("dragging the extrude arrow sets the distance, and Enter applies what the d
   expect(await handle(page)).toBeNull();
 });
 
-test("a typed distance moves the arrow, and Enter at 0 says what is missing instead of applying", async ({ page, request }) => {
+test("a typed distance moves the arrow, and Enter at 0 says what is missing instead of applying", async ({
+  page,
+  request,
+}) => {
   const top = await faceWithNormal(page, request, [0, 0, 1]);
   await page.mouse.click(top.x, top.y);
   await page.keyboard.press("e");
   await expect.poll(() => handle(page)).not.toBeNull();
   await page.keyboard.press("Enter");
-  await expect.poll(() => page.evaluate(() => window.__tcad.status)).toContain("Drag the arrow or type a distance");
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.status))
+    .toContain("Drag the arrow or type a distance");
   expect(await extruding(page)).not.toBeNull();
 
   await page.keyboard.type("-3");
@@ -115,7 +136,10 @@ test("a typed distance moves the arrow, and Enter at 0 says what is missing inst
   expect(await handle(page)).toBeNull();
 });
 
-test("the camera orbits while extrude is open, and a click on another face moves the extrude there", async ({ page, request }) => {
+test("the camera orbits while extrude is open, and a click on another face moves the extrude there", async ({
+  page,
+  request,
+}) => {
   const top = await faceWithNormal(page, request, [0, 0, 1]);
   await page.mouse.click(top.x, top.y);
   await page.keyboard.press("e");
@@ -129,7 +153,9 @@ test("the camera orbits while extrude is open, and a click on another face moves
   await page.mouse.down();
   await page.mouse.move(viewport.width - 160, viewport.height / 2 + 40, { steps: 6 });
   await page.mouse.up();
-  await expect.poll(() => page.evaluate(() => window.__tcad.camera.position)).not.toEqual(cameraBefore.position);
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.camera.position))
+    .not.toEqual(cameraBefore.position);
   expect((await extruding(page)).distance).toBe(4);
 
   // A click picks the side wall: the extrude follows it and keeps its distance.
@@ -146,13 +172,18 @@ test("the camera orbits while extrude is open, and a click on another face moves
   expect((await handle(page)).value).toBe(4);
 });
 
-test("F with nothing selected picks an edge; its arrow drives the radius field, and Shift-click adds an edge", async ({ page, request }) => {
+test("F with nothing selected picks an edge; its arrow drives the radius field, and Shift-click adds an edge", async ({
+  page,
+  request,
+}) => {
   const edge = await topEdge(page, request);
   await expect(page.locator("#tool-fillet")).toBeEnabled();
   await page.keyboard.press("f");
   await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("fillet");
   await page.mouse.move(edge.x, edge.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.hovered)).toEqual({ kind: "edge", edge: edge.edge });
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.hovered))
+    .toEqual({ kind: "edge", edge: edge.edge });
   await page.mouse.click(edge.x, edge.y);
   await expect(page.locator("#modify-panel")).toBeVisible();
   await expect.poll(() => handle(page)).not.toBeNull();
@@ -163,29 +194,53 @@ test("F with nothing selected picks an edge; its arrow drives the radius field, 
   const radius = (await handle(page)).value;
   expect(radius).toBeGreaterThan(start);
   await expect(page.locator("#modify-radius")).toHaveValue(String(radius));
-  await page.waitForFunction((wanted) => window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === wanted, radius, SLOW);
+  await page.waitForFunction(
+    (wanted) =>
+      window.__tcad.modifying.feature && window.__tcad.modifying.feature.radius === wanted,
+    radius,
+    SLOW,
+  );
 
   // A second top edge with Shift joins the first, and the radius stays.
   const { edges } = await rpc(request, "describe_geometry");
-  const second = await page.evaluate(([candidates, first]) => {
-    for (const index of candidates) {
-      if (index === first) continue;
-      const point = window.__tcad.screenPointOf({ edge: index });
-      if (point && point.visible) return { edge: index, x: point.x, y: point.y };
-    }
-    return null;
-  }, [edges.flatMap((item, index) => (item.centre[2] === 10 ? [index] : [])), edge.edge]);
+  const second = await page.evaluate(
+    ([candidates, first]) => {
+      for (const index of candidates) {
+        if (index === first) continue;
+        const point = window.__tcad.screenPointOf({ edge: index });
+        if (point && point.visible) return { edge: index, x: point.x, y: point.y };
+      }
+      return null;
+    },
+    [edges.flatMap((item, index) => (item.centre[2] === 10 ? [index] : [])), edge.edge],
+  );
   await page.keyboard.down("Shift");
   await page.mouse.click(second.x, second.y);
   await page.keyboard.up("Shift");
-  await expect.poll(() => page.evaluate(() => window.__tcad.selectedEdges)).toEqual([edge.edge, second.edge]);
-  await expect.poll(() => page.evaluate(() => window.__tcad.modifying && window.__tcad.modifying.feature && window.__tcad.modifying.feature.edges.expected_count), SLOW).toBe(2);
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.selectedEdges))
+    .toEqual([edge.edge, second.edge]);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            window.__tcad.modifying &&
+            window.__tcad.modifying.feature &&
+            window.__tcad.modifying.feature.edges.expected_count,
+        ),
+      SLOW,
+    )
+    .toBe(2);
   await expect(page.locator("#modify-radius")).toHaveValue(String(radius));
   await page.keyboard.press("Escape");
   expect(await handle(page)).toBeNull();
 });
 
-test("H picks the face to drill, and the hole's arrow sets its depth", async ({ page, request }) => {
+test("H picks the face to drill, and the hole's arrow sets its depth", async ({
+  page,
+  request,
+}) => {
   const top = await faceWithNormal(page, request, [0, 0, 1]);
   await page.keyboard.press("h");
   await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("hole");
@@ -203,7 +258,9 @@ test("H picks the face to drill, and the hole's arrow sets its depth", async ({ 
   await page.keyboard.press("Escape");
 });
 
-test("the circular pattern's ring sets the angle, and a typed panel value turns the ring", async ({ page }) => {
+test("the circular pattern's ring sets the angle, and a typed panel value turns the ring", async ({
+  page,
+}) => {
   await page.locator("#tool-circular").click();
   await expect.poll(() => handle(page)).not.toBeNull();
   expect(await handle(page)).toMatchObject({ kind: "angular", value: 360, box: "360°" });
@@ -218,8 +275,14 @@ test("the circular pattern's ring sets the angle, and a typed panel value turns 
   await page.keyboard.press("Escape");
 });
 
-test("offset plane, linear pattern and shell open with an arrow on the value they size", async ({ page }) => {
-  for (const [button, field] of [["#tool-offset-plane", "#modify-offset"], ["#tool-linear", "#modify-spacing"], ["#tool-shell", "#modify-thickness"]]) {
+test("offset plane, linear pattern and shell open with an arrow on the value they size", async ({
+  page,
+}) => {
+  for (const [button, field] of [
+    ["#tool-offset-plane", "#modify-offset"],
+    ["#tool-linear", "#modify-spacing"],
+    ["#tool-shell", "#modify-thickness"],
+  ]) {
     await page.locator(button).click();
     await expect.poll(() => handle(page)).not.toBeNull();
     const shown = await handle(page);
@@ -234,21 +297,40 @@ test("offset plane, linear pattern and shell open with an arrow on the value the
   }
 });
 
-test("E with nothing selected picks a sketch region under the pointer, ahead of the face it lies on", async ({ page, request }) => {
+test("E with nothing selected picks a sketch region under the pointer, ahead of the face it lies on", async ({
+  page,
+  request,
+}) => {
   // A circle drawn on the box's top face.
   await resetDocument(request, {
-    features: [...fixture.features, { id: "f3", type: "sketch", plane: { name: "XY", offset: 10 }, entities: [{ id: "e1", kind: "circle", c: [5, 0], r: 5 }], constraints: [] }],
+    features: [
+      ...fixture.features,
+      {
+        id: "f3",
+        type: "sketch",
+        plane: { name: "XY", offset: 10 },
+        entities: [{ id: "e1", kind: "circle", c: [5, 0], r: 5 }],
+        constraints: [],
+      },
+    ],
     rollback_index: 3,
   });
   await page.goto("/index.html");
-  await page.waitForFunction(() => window.__tcad && window.__tcad.mesh !== null && window.__tcad.regions.some((entry) => entry.sketch === "f3"));
+  await page.waitForFunction(
+    () =>
+      window.__tcad &&
+      window.__tcad.mesh !== null &&
+      window.__tcad.regions.some((entry) => entry.sketch === "f3"),
+  );
   await settled(page);
   const point = await page.evaluate(() => window.__tcad.regionPoint("f3", 0));
 
   await page.keyboard.press("e");
   await expect.poll(() => page.evaluate(() => window.__tcad.picking)).toBe("extrude");
   await page.mouse.move(point.x, point.y);
-  await expect.poll(() => page.evaluate(() => window.__tcad.hovered)).toEqual({ kind: "region", sketch: "f3", region: 0 });
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.hovered))
+    .toEqual({ kind: "region", sketch: "f3", region: 0 });
   await page.mouse.click(point.x, point.y);
   await expect.poll(() => extruding(page)).toEqual({ distance: 0, regions: 1 });
   await page.keyboard.type("4");
@@ -258,10 +340,25 @@ test("E with nothing selected picks a sketch region under the pointer, ahead of 
   expect((await rpc(request, "measure")).volume).toBeCloseTo(40 * 30 * 10 + Math.PI * 25 * 4, 1);
 });
 
-test("R's ring sets the revolve angle, from the box beside it or typed", async ({ page, request }) => {
+test("R's ring sets the revolve angle, from the box beside it or typed", async ({
+  page,
+  request,
+}) => {
   // A rectangle off the Y axis, with no extrude, as the revolve test in viewer.spec.js has it.
   await resetDocument(request, {
-    features: [{ id: "f1", type: "sketch", plane: "XY", polygon: [[10, 0], [20, 0], [20, 10], [10, 10]] }],
+    features: [
+      {
+        id: "f1",
+        type: "sketch",
+        plane: "XY",
+        polygon: [
+          [10, 0],
+          [20, 0],
+          [20, 10],
+          [10, 10],
+        ],
+      },
+    ],
     rollback_index: 1,
   });
   await page.goto("/index.html");
@@ -275,7 +372,11 @@ test("R's ring sets the revolve angle, from the box beside it or typed", async (
   await page.keyboard.type("90");
   await expect(page.locator("#modify-angle")).toHaveValue("90");
   expect((await handle(page)).value).toBe(90);
-  await page.waitForFunction(() => window.__tcad.modifying.ok && window.__tcad.modifying.feature.angle === 90, null, SLOW);
+  await page.waitForFunction(
+    () => window.__tcad.modifying.ok && window.__tcad.modifying.feature.angle === 90,
+    null,
+    SLOW,
+  );
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => window.__tcad.timeline.length === 2, null, SLOW);
   await settled(page);
