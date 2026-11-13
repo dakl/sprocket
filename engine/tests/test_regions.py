@@ -8,8 +8,10 @@ from sprocket_engine.regions import ProfileError, find_regions, pick_region
 
 
 def rectangle(x0, y0, x1, y1, tag="r", gap=0.0):
-    """Four lines. `gap` leaves the corner at (x1, y0) open by that much, as a
-    solver that stopped at its tolerance would.
+    """Four lines.
+
+    `gap` leaves the corner at (x1, y0) open by that much, as a solver that stopped
+    at its tolerance would.
     """
     return [
         {"id": f"{tag}1", "kind": "line", "p0": [x0, y0], "p1": [x1, y0]},
@@ -37,7 +39,7 @@ def test_a_rectangle_is_one_region_bounded_by_its_four_sides():
 def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
     # Centred on the top side: the circle leaves a half disc outside, a half
     # disc inside, and the rectangle with a bite out of it.
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 20, 6)])
     half_disc = math.pi * 36 / 2
     assert areas(regions) == pytest.approx(
         sorted([half_disc, half_disc, 800 - half_disc]), abs=1e-3
@@ -45,7 +47,7 @@ def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
 
 
 def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 10, 4)])
     by_area = sorted(regions, key=lambda region: region.area)
     assert [len(region.holes) for region in by_area] == [0, 1]
     assert by_area[0].area == pytest.approx(math.pi * 16)
@@ -55,7 +57,7 @@ def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
 def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
     # Radius 10 at (10, 10) touches x=0 and y=0. Tangency is where a splitter
     # is most likely to drop a cell or invent one.
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 10, 10, 10)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 10, 10, 10)])
     disc = math.pi * 100
     sliver = 100 - math.pi * 25  # a 10 x 10 corner square minus a quarter disc
     assert areas(regions) == pytest.approx(
@@ -65,8 +67,10 @@ def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
 
 def test_a_line_that_ends_inside_a_region_bounds_nothing():
     regions = find_regions(
-        rectangle(0, 0, 40, 20)
-        + [{"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]}]
+        [
+            *rectangle(0, 0, 40, 20),
+            {"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]},
+        ]
     )
     (region,) = regions
     assert region.bounded_by == ["r1", "r2", "r3", "r4"]
@@ -79,9 +83,10 @@ def test_corners_that_miss_by_a_solver_tolerance_still_close():
 
 
 def toothed_wheel(teeth, tip=15.0):
-    """Arcs and lines the way examples/sprocket-icon/gen.py writes them: arc
-    centres and line ends rounded to 6 decimals, arc ends left as angles, so
-    each corner misses by about 1e-7.
+    """A toothed wheel written the way the icon script writes it.
+
+    Arcs and lines the way examples/sprocket-icon/gen.py writes them: arc centres and line ends
+    rounded to 6 decimals, arc ends left as angles, so each corner misses by about 1e-7.
     """
     pitch_radius = 6.35 / (2 * math.sin(math.pi / teeth))
     step = math.tau / teeth
@@ -147,19 +152,20 @@ def toothed_wheel(teeth, tip=15.0):
 
 
 def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
-    """The viewer fills a region from its outline. The outline used to reverse
-    an edge whenever its end missed the last point by more than 1e-9, so a
-    sketch with rounded coordinates came out as a self-crossing polygon: the
-    face was right and the fill on screen was a tangle of triangles. A simple
-    polygon has the face's own area, give or take the chords that stand in for
-    the arcs.
+    """The viewer fills a region from its outline.
+
+    The outline used to reverse an edge whenever its end missed the last point by
+    more than 1e-9, so a sketch with rounded coordinates came out as a self-crossing
+    polygon: the face was right and the fill on screen was a tangle of triangles. A
+    simple polygon has the face's own area, give or take the chords that stand in
+    for the arcs.
     """
     (region,) = find_regions(toothed_wheel(8))
     shoelace = (
         sum(
             x1 * y2 - x2 * y1
             for (x1, y1), (x2, y2) in zip(
-                region.outline, region.outline[1:] + region.outline[:1]
+                region.outline, region.outline[1:] + region.outline[:1], strict=True
             )
         )
         / 2
@@ -168,14 +174,12 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
 
 
 def test_construction_geometry_bounds_no_region():
-    regions = find_regions(
-        rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4, construction=True)]
-    )
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 10, 4, construction=True)])
     assert len(regions) == 1
 
 
 @pytest.mark.parametrize(
-    "start, end, chord",
+    ("start", "end", "chord"),
     [
         (0, math.pi, [[-5, 0], [5, 0]]),
         (3 * math.pi / 2, math.pi / 2, [[0, 5], [0, -5]]),
@@ -197,15 +201,13 @@ def test_open_drawings_and_empty_ones_have_no_regions():
 
 
 def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart():
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 20, 6)])
     twins = [region for region in regions if region.bounded_by == ["c", "r3"]]
     assert len(twins) == 2
     with pytest.raises(ProfileError, match="gives no 'inside' point"):
         pick_region(regions, {"bounded_by": ["c", "r3"]})
     for twin in twins:
-        picked = pick_region(
-            regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)}
-        )
+        picked = pick_region(regions, {"bounded_by": ["c", "r3"], "inside": list(twin.inside)})
         assert picked.inside == twin.inside
 
 
@@ -217,9 +219,7 @@ def test_a_reference_that_matches_nothing_is_an_error_not_a_guess():
 
 def test_the_bounded_by_order_in_a_reference_does_not_matter():
     regions = find_regions(rectangle(0, 0, 40, 20))
-    assert pick_region(
-        regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}
-    ).area == pytest.approx(800)
+    assert pick_region(regions, {"bounded_by": ["r4", "r3", "r2", "r1"]}).area == pytest.approx(800)
 
 
 coordinate = st.integers(min_value=-20, max_value=20)
@@ -236,17 +236,15 @@ coordinate = st.integers(min_value=-20, max_value=20)
     st.integers(1, 30),
     st.integers(1, 30),
 )
-def test_the_regions_of_two_rectangles_add_up_to_their_union(
-    ax, ay, aw, ah, bx, by, bw, bh
-):
-    """Whatever the overlap, and including rectangles that share an edge or a
-    corner, the regions tile the union exactly once.
+def test_the_regions_of_two_rectangles_add_up_to_their_union(ax, ay, aw, ah, bx, by, bw, bh):
+    """Overlapping rectangles' regions tile the union exactly once.
+
+    Whatever the overlap, and including rectangles that share an edge or a corner, the regions
+    tile the union exactly once.
     """
     overlap_w = max(0, min(ax + aw, bx + bw) - max(ax, bx))
     overlap_h = max(0, min(ay + ah, by + bh) - max(ay, by))
     union = aw * ah + bw * bh - overlap_w * overlap_h
-    entities = rectangle(ax, ay, ax + aw, ay + ah, "a") + rectangle(
-        bx, by, bx + bw, by + bh, "b"
-    )
+    entities = rectangle(ax, ay, ax + aw, ay + ah, "a") + rectangle(bx, by, bx + bw, by + bh, "b")
     regions = find_regions(entities)
     assert sum(region.area for region in regions) == pytest.approx(union, rel=1e-6)

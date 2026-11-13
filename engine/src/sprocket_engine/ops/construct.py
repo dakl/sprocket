@@ -8,7 +8,8 @@ and the geometry is read from the feature itself (`construct_plane`,
 
 from build123d import Axis, Compound, Edge, GeomType, Plane
 
-from ..selectors import AXES, SelectorError, resolve_selector
+from sprocket_engine.selectors import AXES, SelectorError, resolve_selector
+
 from .registry import register
 from .sketch import OFFSET, PLANE_SCHEMA, VECTOR3, resolve_plane
 
@@ -28,16 +29,16 @@ AXIS_SCHEMA = {
             "type": "object",
             "required": ["construct"],
             "description": 'An axis feature (type `axis`): {"construct": "f4"}.',
-            "properties": {
-                "construct": {"type": "string", "description": "id of an axis feature"}
-            },
+            "properties": {"construct": {"type": "string", "description": "id of an axis feature"}},
         },
         {
             "type": "object",
             "required": ["base", "edge"],
             "description": (
-                "Found on every rebuild from one edge of the feature `base`: a straight edge gives its own line, "
-                "and a circle or arc gives the line through its centre, square to its plane."
+                "Found on every rebuild from one edge of the feature `base`: a "
+                "straight edge gives its own line, "
+                "and a circle or arc gives the line through its centre, square to its "
+                "plane."
             ),
             "properties": {
                 "base": {"type": "string"},
@@ -50,7 +51,10 @@ AXIS_SCHEMA = {
         {
             "type": "object",
             "required": ["base", "face"],
-            "description": "The axis of a cylindrical, conical or revolved face of the feature `base`, from a selector that matches one face.",
+            "description": (
+                "The axis of a cylindrical, conical or revolved face of the feature "
+                "`base`, from a selector that matches one face."
+            ),
             "properties": {
                 "base": {"type": "string"},
                 "face": {
@@ -65,7 +69,8 @@ AXIS_SCHEMA = {
 PLANE_SCHEMA_OF_FEATURE = {
     "type": "object",
     "description": (
-        "A named plane that later features can use: a sketch plane, a mirror plane. `plane` is where it starts, "
+        "A named plane that later features can use: a sketch plane, a mirror plane. "
+        "`plane` is where it starts, "
         "any sketch plane form, and `offset` moves it along its normal."
     ),
     "required": ["id", "type", "plane"],
@@ -79,7 +84,10 @@ PLANE_SCHEMA_OF_FEATURE = {
 
 AXIS_SCHEMA_OF_FEATURE = {
     "type": "object",
-    "description": "A named axis that a circular pattern, a linear pattern or a revolve can use. `axis` says where it is.",
+    "description": (
+        "A named axis that a circular pattern, a linear pattern or a revolve can use. "
+        "`axis` says where it is."
+    ),
     "required": ["id", "type", "axis"],
     "properties": {
         "id": {"type": "string"},
@@ -103,9 +111,7 @@ POINT_SCHEMA_OF_FEATURE = {
 def _feature(construct_id, kind, ctx):
     feature = ctx.features.get(construct_id) if ctx is not None else None
     if feature is None or feature.get("type") != kind:
-        raise ValueError(
-            f"{construct_id!r} is not a {kind} feature built before this one"
-        )
+        raise ValueError(f"{construct_id!r} is not a {kind} feature built before this one")
     return feature
 
 
@@ -121,9 +127,7 @@ def construct_plane(construct_id, ctx) -> Plane:
 def _one(shape, selector, kind, ctx):
     found = resolve_selector(shape, selector, ctx)
     if len(found) != 1:
-        raise SelectorError(
-            f"the axis selector matched {len(found)} {kind}s, expected exactly 1"
-        )
+        raise SelectorError(f"the axis selector matched {len(found)} {kind}s, expected exactly 1")
     return found[0]
 
 
@@ -133,12 +137,16 @@ def _axis_of_edge(edge) -> Axis:
     if edge.geom_type == GeomType.CIRCLE:
         return Axis(edge.arc_center, edge.normal())
     raise ValueError(
-        f"an axis needs a straight or circular edge, and this one is a {edge.geom_type.name.lower()}"
+        "an axis needs a straight or circular edge, and this one is a "
+        f"{edge.geom_type.name.lower()}"
     )
 
 
 def resolve_axis(axis_ref, ctx=None) -> Axis:
-    """The build123d Axis for any axis form. `ctx` is needed for the forms that name a feature."""
+    """The build123d Axis for any axis form.
+
+    `ctx` is needed for the forms that name a feature.
+    """
     if isinstance(axis_ref, str):
         return AXES[axis_ref]
     if "construct" in axis_ref:
@@ -155,7 +163,8 @@ def resolve_axis(axis_ref, ctx=None) -> Axis:
         axis = face.axis_of_rotation
         if axis is None:
             raise ValueError(
-                f"an axis needs a cylindrical, conical or revolved face, and this one is {face.geom_type.name.lower()}"
+                "an axis needs a cylindrical, conical or revolved face, and this one "
+                f"is {face.geom_type.name.lower()}"
             )
         return axis
     return Axis(tuple(axis_ref["origin"]), tuple(axis_ref["direction"]))
@@ -199,5 +208,5 @@ def apply_axis(feature: dict, ctx):
 
 
 @register("point", POINT_SCHEMA_OF_FEATURE)
-def apply_point(feature: dict, ctx):
+def apply_point(_feature: dict, _ctx):
     return _marker()

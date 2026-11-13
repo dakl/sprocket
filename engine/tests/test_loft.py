@@ -1,5 +1,7 @@
-"""The loft op. The geometry is the golden case loft_square_frustum; these
-cover a smooth skin, combining, a sketch on a lofted side, and the errors.
+"""The loft op.
+
+The geometry is the golden case loft_square_frustum; these cover a smooth skin,
+combining, a sketch on a lofted side, and the errors.
 """
 
 import math
@@ -46,12 +48,12 @@ def test_two_circles_loft_to_a_cone_frustum():
 
 def test_a_smooth_loft_bulges_past_a_ruled_one_through_a_wide_middle():
     sections = [circle("a", 0, 5), circle("b", 10, 10), circle("c", 20, 5)]
-    smooth, _ = build(
-        sections + [{"id": "l", "type": "loft", "sections": ["a", "b", "c"]}]
-    )
+    smooth, _ = build([*sections, {"id": "l", "type": "loft", "sections": ["a", "b", "c"]}])
     ruled, _ = build(
-        sections
-        + [{"id": "l", "type": "loft", "sections": ["a", "b", "c"], "ruled": True}]
+        [
+            *sections,
+            {"id": "l", "type": "loft", "sections": ["a", "b", "c"], "ruled": True},
+        ]
     )
     two_frustums = 2 * math.pi * 10 / 3 * (25 + 50 + 100)
     assert ruled.volume == pytest.approx(two_frustums, rel=1e-4)
@@ -71,7 +73,7 @@ def test_cut_mode_removes_the_loft_from_the_base():
         "base": "block",
         "mode": "cut",
     }
-    part, ctx = build(block + [square("a", 0, 20), square("b", 10, 10), loft])
+    part, ctx = build([*block, square("a", 0, 20), square("b", 10, 10), loft])
     assert part.volume == pytest.approx(30 * 30 * 10 - 7000 / 3, rel=1e-6)
     assert [body["id"] for body in ctx.bodies] == ["block"]
 

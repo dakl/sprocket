@@ -1,4 +1,4 @@
-"""Pick -> selector (M4): the selector a pick turns into has to outlive the edit that renumbers the part."""
+"""Pick -> selector (M4): a pick's selector outlives the edit that renumbers the part."""
 
 import math
 
@@ -35,9 +35,7 @@ def widen(client, half_width):
         [-half_width, 15],
     ]
     sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": polygon}
-    return client.call(
-        "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
-    )
+    return client.call("apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}])
 
 
 def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
@@ -55,9 +53,11 @@ def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
 
 
 def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
-    """M4's done-when. A fillet that named its edges by index would round the
-    wrong ones once the sketch changed, and one that named them by position
-    would follow them only by luck.
+    """M4's done-when.
+
+    A fillet that named its edges by index would round the wrong ones once the
+    sketch changed, and one that named them by position would follow them only by
+    luck.
     """
     answer = client.call("resolve_selection", handles=top_edges(client))
     built = client.call(
@@ -76,8 +76,10 @@ def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
 
 
 def test_a_selector_that_finds_a_different_number_fails_loudly(client):
-    """A pentagon has five top edges. Rounding five when four were picked is the
-    silent wrong answer expected_count exists to stop.
+    """A pentagon has five top edges.
+
+    Rounding five when four were picked is the silent wrong answer expected_count
+    exists to stop.
     """
     answer = client.call("resolve_selection", handles=top_edges(client))
     client.call(
@@ -86,9 +88,9 @@ def test_a_selector_that_finds_a_different_number_fails_loudly(client):
     )
     pentagon = [[-20, -15], [20, -15], [25, 0], [20, 15], [-20, 15]]
     sketch = {"id": "s1", "type": "sketch", "plane": "XY", "polygon": pentagon}
-    built = client.call(
-        "apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}]
-    )["built"]
+    built = client.call("apply_edit", edits=[{"op": "update", "id": "s1", "feature": sketch}])[
+        "built"
+    ]
     assert built["ok"] is False
     assert built["failed_feature"] == "r1"
 

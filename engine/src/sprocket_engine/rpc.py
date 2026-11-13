@@ -23,6 +23,7 @@ freeze the user's app.
 """
 
 import base64
+import contextlib
 import json
 import os
 import re
@@ -88,8 +89,9 @@ class Session:
         self.reference_rebuilds = 0
 
     def use(self, document: Document) -> None:
-        """Switches to another document. The cache is content-addressed, so
-        it stays where it is.
+        """Switches to another document.
+
+        The cache is content-addressed, so it stays where it is.
         """
         self.document = document
         self.generation += 1
@@ -99,8 +101,10 @@ class Session:
         self._built_revision = None
 
     def shape(self):
-        """Returns (shape, failed_feature_id). The shape is None for an empty
-        document, which is a valid state and not an error.
+        """Returns (shape, failed_feature_id).
+
+        The shape is None for an empty document, which is a valid state and not
+        an error.
         """
         if self._built_revision != self.document.revision:
             replayable = self.document.for_replay()
@@ -135,9 +139,7 @@ class Session:
                 f"feature {failed!r} does not build, and nothing before it builds a solid"
             )
         if shape is None:
-            raise DocumentError(
-                "this document builds to nothing, so there is no geometry yet"
-            )
+            raise DocumentError("this document builds to nothing, so there is no geometry yet")
         return shape
 
 
@@ -224,19 +226,21 @@ class Daemon:
                 self.remove_client(client)
 
     def publish_viewer_files(self) -> str | None:
-        """Rewrites the viewer's files. Returns why the part could not be drawn,
-        or None, so a change notification can carry it to the viewer.
+        """Rewrites the viewer's files.
+
+        Returns why the part could not be drawn, or None, so a change
+        notification can carry it to the viewer.
         """
         if self.viewer_dir is None:
             return None
         try:
             error = write_viewer_files(self.session, self.viewer_dir)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             # A document that will not build must not stop the edit that
             # caused it. The viewer keeps the files from the last good build.
             error = f"{type(exc).__name__}: {exc}"
         if error:
-            print(f"viewer files not written: {error}", flush=True)
+            print(f"viewer files not written: {error}", flush=True)  # noqa: T201
         return error
 
     def announce_change(
@@ -245,8 +249,9 @@ class Daemon:
         author: str | None = None,
         changes: list | None = None,
     ) -> None:
-        """`opened` says the document was replaced by another, not edited. A
-        viewer then drops its selection and refits the camera, and cannot
+        """`opened` says the document was replaced by another, not edited.
+
+        A viewer then drops its selection and refits the camera, and cannot
         trust that an unchanged revision number means an unchanged part.
 
         `author` and `changes` come off the log entries of this revision, so a
@@ -339,12 +344,16 @@ class Daemon:
         self.conflict = {
             "path": path,
             "file_sha256": on_disk,
-            "message": f"{Path(path).name} changed on disk, and this window has edits the file does not contain.",
+            "message": (
+                f"{Path(path).name} changed on disk, and this window has edits the "
+                "file does not contain."
+            ),
         }
         self.broadcast("document_conflict", self.conflict)
 
     def check_file(self) -> str | None:
         """Compares the file with the engine's last write and acts on it.
+
         Returns what it did: None, "reloaded", "conflict" or "unreadable".
         """
         with self.lock:
@@ -360,23 +369,20 @@ class Daemon:
             except DocumentError as exc:
                 # Half written by an editor that does not write atomically, or
                 # simply broken. The next change to the file is looked at again.
-                print(f"not reloading {document.path}: {exc}", flush=True)
+                print(f"not reloading {document.path}: {exc}", flush=True)  # noqa: T201
                 return "unreadable"
             return "reloaded"
 
     def _note_references(self) -> None:
         document = self.session.document
         self.reference_digests = {
-            feature_id: reference_digest(path)
-            for feature_id, path in document.reference_sources()
+            feature_id: reference_digest(path) for feature_id, path in document.reference_sources()
         }
         self.watched_references = document.referenced_files()
 
     def watched_files(self) -> list[Path]:
         document = self.session.document
-        return ([document.path] if document.path else []) + list(
-            self.watched_references
-        )
+        return ([document.path] if document.path else []) + list(self.watched_references)
 
     def on_file_change(self, path: Path) -> str | None:
         if path == self.session.document.path:
@@ -384,9 +390,11 @@ class Daemon:
         return self.check_references()
 
     def check_references(self) -> str | None:
-        """Rebuilds when a file a reference reads has changed: the board under
-        an open case, regenerated by its script. Returns "rebuilt" or None.
-        The document itself does not change, so nothing is saved or logged.
+        """Rebuilds when a file that a reference reads has changed.
+
+        Rebuilds when a file a reference reads has changed: the board under an open case,
+        regenerated by its script. Returns "rebuilt" or None. The document itself does not
+        change, so nothing is saved or logged.
         """
         with self.lock:
             document = self.session.document
@@ -413,8 +421,10 @@ class Daemon:
             return "rebuilt"
 
     def reload_from_disk(self) -> dict:
-        """Takes the file's content as a new revision. The engine's previous
-        state goes on the undo stack, so one undo brings it back.
+        """Takes the file's content as a new revision.
+
+        The engine's previous state goes on the undo stack, so one undo brings
+        it back.
         """
         document = self.session.document
         fresh = Document.load(document.path)
@@ -431,9 +441,7 @@ class Daemon:
     def start_watching(self, interval: float = 0.25) -> None:
         if self._watcher is None:
             self._note_references()
-            self._watcher = FileWatcher(
-                self.watched_files, self.on_file_change, interval
-            )
+            self._watcher = FileWatcher(self.watched_files, self.on_file_change, interval)
             self._watcher.start()
 
     # ---- running -----------------------------------------------------------
@@ -465,10 +473,8 @@ class Daemon:
             self._server = None
         # A Unix socket is a file. Leaving it behind makes the next start fail
         # with "address already in use" against a socket nothing is listening on.
-        try:
+        with contextlib.suppress(FileNotFoundError):
             self.socket_path.unlink()
-        except FileNotFoundError:
-            pass
 
 
 class _Server(socketserver.ThreadingUnixStreamServer):
@@ -562,9 +568,7 @@ def _handle_line(daemon: Daemon, line: bytes):
 
     handler = METHODS.get(method)
     if handler is None:
-        return _error(
-            request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)"
-        )
+        return _error(request_id, METHOD_NOT_FOUND, f"no method {method!r} (try list_methods)")
 
     try:
         if method in UNLOCKED:
@@ -587,7 +591,7 @@ def _handle_line(daemon: Daemon, line: bytes):
         return _error(request_id, DOCUMENT_ERROR, str(exc))
     except (TypeError, ValueError, KeyError) as exc:
         return _error(request_id, INVALID_PARAMS, f"{type(exc).__name__}: {exc}")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # A geometry kernel failure must not take the daemon down with it: the
         # user still has a document open, and the next edit may well build.
         return _error(
@@ -634,9 +638,7 @@ def _document_state(daemon: Daemon) -> dict:
     }
 
 
-def _commit(
-    daemon: Daemon, revision: int, save: bool = True, opened: bool = False
-) -> dict:
+def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = False) -> dict:
     """What every mutating method returns, and the side effects that go with it.
 
     It rebuilds before replying, and says which feature failed if one did. An
@@ -655,14 +657,15 @@ def _commit(
         if daemon.autosave and daemon.conflict is None:
             daemon.save_document()
         else:
-            # Exact, not sticky: an undo back to what the file holds is not an unsaved edit.
+            # Exact, not sticky: an undo back to what the file holds is
+            # not an unsaved edit.
             daemon.unsaved = session.document.has_unsaved_changes()
     _carry_selection(daemon)
     daemon.announce_change(opened=opened)
 
     try:
         shape, failed = session.shape()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {
             "revision": revision,
             "timeline": session.document.timeline(),
@@ -679,14 +682,16 @@ def _commit(
     }
 
 
-def _get_document(daemon: Daemon, params: dict) -> dict:
+def _get_document(daemon: Daemon, _params: dict) -> dict:
     return _document_state(daemon)
 
 
 def _file_path(params: dict) -> Path:
-    """The document path a file method was given. Absolute, because the daemon's
-    working directory is not something a caller can see, and `.sprocket`, because
-    these methods write files and should not be a way to write any other kind.
+    """The document path a file method was given.
+
+    Absolute, because the daemon's working directory is not something a caller can
+    see, and `.sprocket`, because these methods write files and should not be a way
+    to write any other kind.
     """
     raw = params.get("path")
     if not isinstance(raw, str) or not raw:
@@ -700,8 +705,10 @@ def _file_path(params: dict) -> Path:
 
 
 def _switch_to(daemon: Daemon, document: Document) -> dict:
-    """Makes `document` the open one. The undo history belonged to the old one,
-    so it goes, and nothing is written: opening a file must not touch it.
+    """Makes `document` the open one.
+
+    The undo history belonged to the old one, so it goes, and nothing is written:
+    opening a file must not touch it.
     """
     daemon.session.use(document)
     daemon.undo_stack.clear()
@@ -720,15 +727,18 @@ def _switch_to(daemon: Daemon, document: Document) -> dict:
 
 
 def _open_document(daemon: Daemon, params: dict) -> dict:
-    """Replaces the open document with the one at `path`. A file that will not
-    load is refused and the open document is left as it was.
+    """Replaces the open document with the one at `path`.
+
+    A file that will not load is refused and the open document is left as it was.
     """
     return _switch_to(daemon, Document.load(_file_path(params)))
 
 
 def _new_document(daemon: Daemon, params: dict) -> dict:
-    """An empty document saved at `path`. An existing file is refused rather
-    than overwritten, because the caller picked a name, not a replacement.
+    """An empty document saved at `path`.
+
+    An existing file is refused rather than overwritten, because the caller picked a
+    name, not a replacement.
     """
     path = _file_path(params)
     if path.exists():
@@ -748,10 +758,12 @@ def _save_as(daemon: Daemon, params: dict) -> dict:
     return {"path": str(path), "revision": document.revision}
 
 
-def _save(daemon: Daemon, params: dict) -> dict:
-    """Writes the open document to its own file. The app calls it on Save when
-    the daemon runs with `--no-autosave`. A file changed on disk since the last
-    save is refused, not overwritten: that is `resolve_conflict`'s choice.
+def _save(daemon: Daemon, _params: dict) -> dict:
+    """Writes the open document to its own file.
+
+    The app calls it on Save when the daemon runs with `--no-autosave`. A file
+    changed on disk since the last save is refused, not overwritten: that is
+    `resolve_conflict`'s choice.
     """
     document = daemon.session.document
     if document.path is None:
@@ -763,8 +775,9 @@ def _save(daemon: Daemon, params: dict) -> dict:
 
 
 def _document_moved(daemon: Daemon, params: dict) -> dict:
-    """The file was renamed or moved by the app. Follows it without writing,
-    so unsaved edits stay unsaved.
+    """The file was renamed or moved by the app.
+
+    Follows it without writing, so unsaved edits stay unsaved.
     """
     path = _file_path(params)
     if not path.exists():
@@ -774,8 +787,9 @@ def _document_moved(daemon: Daemon, params: dict) -> dict:
 
 
 def _restore_recovery(daemon: Daemon, params: dict) -> dict:
-    """Puts back the edits a recovery file holds (see `Daemon.write_recovery`)
-    as one undoable step. They stay unsaved until the person saves them.
+    """Puts back the edits a recovery file holds (see `Daemon.write_recovery`) as one undoable step.
+
+    They stay unsaved until the person saves them.
     """
     raw = params.get("file")
     if not raw:
@@ -817,27 +831,18 @@ def _edit(daemon: Daemon, edits, params: dict) -> dict:
     revision = document.apply_edits(
         edits, params.get("base_revision"), params.get("author", "agent:unknown")
     )
-    if any(
-        isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits
-    ):
+    if any(isinstance(edit, dict) and edit.get("op") != "set_rollback" for edit in edits):
         daemon.undo_stack.append(before)
         del daemon.undo_stack[:-UNDO_LIMIT]
         daemon.redo_stack.clear()
     result = _commit(daemon, revision)
     # Fields whose "=param" expression a new number replaced, for the viewer to say so.
-    unlinked = [
-        item
-        for entry in document.log[-len(edits) :]
-        for item in entry.get("unlinked", [])
-    ]
+    unlinked = [item for entry in document.log[-len(edits) :] for item in entry.get("unlinked", [])]
     if unlinked:
         result["unlinked"] = unlinked
-    # Sketches a parameter moved that could not be solved again, because the solver is not installed.
-    unsolved = [
-        item
-        for entry in document.log[-len(edits) :]
-        for item in entry.get("unsolved", [])
-    ]
+    # Sketches a parameter moved that could not be solved again, because the
+    # solver is not installed.
+    unsolved = [item for entry in document.log[-len(edits) :] for item in entry.get("unsolved", [])]
     if unsolved:
         result["unsolved"] = unsolved
     return result
@@ -877,14 +882,9 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
     document = daemon.session.document
     before = document.snapshot()
     before["view_only"] = True
-    if (
-        params.get("base_revision") is not None
-        and params["base_revision"] != document.revision
-    ):
+    if params.get("base_revision") is not None and params["base_revision"] != document.revision:
         raise StaleRevision(params["base_revision"], document.revision)
-    revision = document.set_visibility(
-        params.get("id"), params.get("visible"), params.get("ghost")
-    )
+    revision = document.set_visibility(params.get("id"), params.get("visible"), params.get("ghost"))
     daemon.undo_stack.append(before)
     del daemon.undo_stack[:-UNDO_LIMIT]
     daemon.redo_stack.clear()
@@ -902,9 +902,7 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
         names = ("id", "visible", "ghost", "base_revision")
         view: dict[str, object] = {name: params.get(name) for name in names}
         result = _set_visibility(daemon, view)
-    changes = {
-        name: params[name] for name in ("name", "color", "material") if name in params
-    }
+    changes = {name: params[name] for name in ("name", "color", "material") if name in params}
     if changes:
         based = {} if result is None else {"base_revision": None}
         result = _edit(
@@ -982,7 +980,7 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
     }
 
 
-def _get_bodies(daemon: Daemon, params: dict) -> dict:
+def _get_bodies(daemon: Daemon, _params: dict) -> dict:
     """The built bodies in order, with their settings, volume and face count."""
     return {
         "bodies": [
@@ -1003,10 +1001,11 @@ def _get_bodies(daemon: Daemon, params: dict) -> dict:
     }
 
 
-def _check_clearance(daemon: Daemon, params: dict) -> dict:
-    """The gap between each part body and each reference body: the smallest
-    distance, and the volume they share. A distance of 0 with no shared volume
-    means they touch.
+def _check_clearance(daemon: Daemon, _params: dict) -> dict:
+    """The gap and the shared volume between each part body and each reference body.
+
+    The gap between each part body and each reference body: the smallest distance, and the
+    volume they share. A distance of 0 with no shared volume means they touch.
     """
     from build123d import ShapeList
 
@@ -1059,11 +1058,7 @@ def _sketch_method(action: str):
     def method(daemon: Daemon, params: dict) -> dict:
         edit = {"op": "edit_sketch", "action": action, "id": params.get("feature")}
         edit.update(
-            {
-                field: params[field]
-                for field in SKETCH_EDIT_FIELDS[action]
-                if field in params
-            }
+            {field: params[field] for field in SKETCH_EDIT_FIELDS[action] if field in params}
         )
         result = _edit(daemon, [edit], params)
         document = daemon.session.document
@@ -1097,9 +1092,7 @@ def _step_history(daemon: Daemon, take_from: list, put_on: list, params: dict) -
     if view_only:
         current["view_only"] = True
     put_on.append(current)
-    revision = document.restore(
-        snapshot, params.get("author", "agent:unknown"), log=not view_only
-    )
+    revision = document.restore(snapshot, params.get("author", "agent:unknown"), log=not view_only)
     return {**_commit(daemon, revision), "changed": True}
 
 
@@ -1146,7 +1139,7 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
         shape, ctx = replay(
             trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {
             "would_build": False,
             "failed_feature": getattr(exc, "feature_id", None),
@@ -1157,7 +1150,7 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
         # No solid to measure: the answer is where the construct feature lands.
         try:
             return {"would_build": True, "construct": construct_geometry(feature, ctx)}
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return {"would_build": False, "reason": f"{type(exc).__name__}: {exc}"}
     if shape is None:
         return {"would_build": False, "reason": "the previewed feature built nothing"}
@@ -1177,9 +1170,11 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
 
 
 def _preview_mesh(shape) -> dict:
-    """Flat triangle and edge-line coordinates of every solid, for a viewer
-    that draws the previewed part over the real one. No face or edge identity:
-    a preview is only looked at, never picked.
+    """Flat triangle and edge-line coordinates of every solid, for a preview.
+
+    Flat triangle and edge-line coordinates of every solid, for a viewer that draws the
+    previewed part over the real one. No face or edge identity: a preview is only looked at,
+    never picked.
     """
     from .mesh import tessellate
 
@@ -1194,25 +1189,27 @@ def _preview_mesh(shape) -> dict:
 
 
 def _get_profiles(daemon: Daemon, params: dict) -> dict:
-    """The regions of one sketch that an extrude can pick, each named by the
-    entity ids that bound it. An agent reads this to write `profiles`.
+    """The regions of one sketch that an extrude can pick.
+
+    The regions of one sketch that an extrude can pick, each named by the entity ids that bound
+    it. An agent reads this to write `profiles`.
     """
     feature_id = params.get("feature")
     document = daemon.session.document
     feature = document.for_replay()["features"][document.index_of(feature_id)]
     if feature.get("type") != "sketch":
-        raise DocumentError(
-            f"feature {feature_id!r} is a {feature.get('type')}, not a sketch"
-        )
-    # As the build left it: a sketch with projected references is solved around them there.
+        raise DocumentError(f"feature {feature_id!r} is a {feature.get('type')}, not a sketch")
+    # As the build left it: a sketch with projected references is solved around
+    # them there.
     feature = daemon.session.context().features.get(feature_id, feature)
     return {"feature": feature_id, "profiles": sketch_profiles(feature)}
 
 
 def _resolve_plane(daemon: Daemon, params: dict) -> dict:
-    """Where a sketch plane reference lands on the current build, as an explicit
-    origin, normal and x_dir. An agent checks a face plane with this before it
-    draws on it.
+    """Where a sketch plane reference lands on the current build.
+
+    Where a sketch plane reference lands on the current build, as an explicit origin, normal and
+    x_dir. An agent checks a face plane with this before it draws on it.
     """
     from .ops.sketch import plane_json, resolve_plane
 
@@ -1225,7 +1222,7 @@ def _resolve_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"plane does not resolve: {exc}") from None
 
 
-def _describe_geometry(daemon: Daemon, params: dict) -> dict:
+def _describe_geometry(daemon: Daemon, _params: dict) -> dict:
     return {
         **describe(daemon.session.require_shape()),
         "selection": _selection_view(daemon),
@@ -1234,6 +1231,7 @@ def _describe_geometry(daemon: Daemon, params: dict) -> dict:
 
 def _face_edges(daemon: Daemon, params: dict) -> dict:
     """The edge handles that bound face `handle`, in the order the part numbers them.
+
     The viewer's Fillet and Chamfer use it to round every edge of a picked face.
     """
     handle = params.get("handle")
@@ -1287,8 +1285,10 @@ def _sketch_ids(daemon: Daemon, params: dict) -> list[str]:
 
 
 def _selection_view(daemon: Daemon) -> dict:
-    """The selection with `describe_geometry`'s entry for each handle: the sentence,
-    and the centre, length or area an agent builds a selector from.
+    """The selection, with `describe_geometry`'s entry for each handle.
+
+    The selection with `describe_geometry`'s entry for each handle: the sentence, and the
+    centre, length or area an agent builds a selector from.
 
     `stale` is true when the part was rebuilt since the handles were taken.
     The sentences are left out then, because `f2` may be a different face now.
@@ -1297,16 +1297,13 @@ def _selection_view(daemon: Daemon) -> dict:
     selection = daemon.selection
     view = {
         **selection,
-        "stale": bool(selection["handles"])
-        and selection["revision"] != document.revision,
+        "stale": bool(selection["handles"]) and selection["revision"] != document.revision,
     }
     if selection["handles"] and not view["stale"]:
         shape, _ = daemon.session.shape()
         if shape is not None:
             described = describe(shape)
-            items = {
-                item["handle"]: item for item in described["faces"] + described["edges"]
-            }
+            items = {item["handle"]: item for item in described["faces"] + described["edges"]}
             view["descriptions"] = [
                 items.get(handle, {"handle": handle, "description": None})
                 for handle in selection["handles"]
@@ -1315,8 +1312,10 @@ def _selection_view(daemon: Daemon) -> dict:
 
 
 def _set_selection(daemon: Daemon, params: dict) -> dict:
-    """What the viewer calls on every pick. `revision` is the revision the
-    handles were picked at, and defaults to the current one.
+    """What the viewer calls on every pick.
+
+    `revision` is the revision the handles were picked at, and defaults to the
+    current one.
     """
     revision = params.get("revision", daemon.session.document.revision)
     if isinstance(revision, bool) or not isinstance(revision, int):
@@ -1334,13 +1333,15 @@ def _set_selection(daemon: Daemon, params: dict) -> dict:
     return view
 
 
-def _get_selection(daemon: Daemon, params: dict) -> dict:
+def _get_selection(daemon: Daemon, _params: dict) -> dict:
     return _selection_view(daemon)
 
 
 def _geometry_key(item) -> tuple:
-    """Where a face or edge is and how big: what stays the same when a rebuild
-    renumbers it but leaves it in place. Rounded to 0.1 µm.
+    """Where a face or edge is and how big, rounded to 0.1 µm.
+
+    Where a face or edge is and how big: what stays the same when a rebuild renumbers it but
+    leaves it in place. Rounded to 0.1 µm.
     """
     centre = tuple(round(value, 4) for value in item.center())
     size = item.area if hasattr(item, "area") and item.area else item.length
@@ -1356,19 +1357,18 @@ def _selection_keys(daemon: Daemon) -> dict[str, tuple]:
         return {}
     keys = {}
     for handle in handles:
-        try:
+        with contextlib.suppress(ValueError):
             keys[handle] = _geometry_key(_resolve_handle(shape, handle))
-        except ValueError:
-            pass
     return keys
 
 
 def _carry_selection(daemon: Daemon) -> None:
-    """Keeps the person's selection across a rebuild: each picked face or edge
-    is looked up again by position and size, and keeps its place in the
-    selection under its new handle. One that is gone, or no longer unique,
-    drops out. Runs before `document_changed` goes out, so a viewer that asks
-    for the selection after it reloads gets the carried one.
+    """Keeps the person's selection across a rebuild.
+
+    Keeps the person's selection across a rebuild: each picked face or edge is looked up again
+    by position and size, and keeps its place in the selection under its new handle. One that is
+    gone, or no longer unique, drops out. Runs before `document_changed` goes out, so a viewer
+    that asks for the selection after it reloads gets the carried one.
     """
     selection = daemon.selection
     revision = daemon.session.document.revision
@@ -1402,8 +1402,9 @@ def _carry_selection(daemon: Daemon) -> None:
 
 def _resolve_conflict(daemon: Daemon, params: dict) -> dict:
     """Ends a conflict between the engine's edits and a file changed on disk.
-    `keep: "file"` reloads the file, and the engine's state goes on the undo
-    stack. `keep: "mine"` writes the engine's state over the file.
+
+    `keep: "file"` reloads the file, and the engine's state goes on the undo stack.
+    `keep: "mine"` writes the engine's state over the file.
     """
     keep = params.get("keep")
     if keep not in ("file", "mine"):
@@ -1423,7 +1424,7 @@ def _resolve_conflict(daemon: Daemon, params: dict) -> dict:
     return {**result, "changed": True}
 
 
-def _get_file_status(daemon: Daemon, params: dict) -> dict:
+def _get_file_status(daemon: Daemon, _params: dict) -> dict:
     document = daemon.session.document
     return {
         "path": str(document.path) if document.path else None,
@@ -1436,16 +1437,16 @@ def _get_file_status(daemon: Daemon, params: dict) -> dict:
 
 
 class FileWatcher:
-    """Polls some files' stat and calls `on_change(path)` once one has changed
-    and then held still for one interval, so a writer that is not atomic is
-    read after it finishes. Polling, not FSEvents: stdlib only, it survives an
-    atomic rename (a new inode), and a few stat calls a second cost nothing.
-    `paths_of()` is asked every interval, so the set can change: Save As,
-    Open, or a reference added. Each path is checked the first time it is
-    polled, the ones there at start included: it may have changed between the
-    daemon noting it and this thread's first stat, and a stat taken after the
-    change would hide it for good. The callbacks compare content hashes, so a
-    check of an unchanged file is a no-op.
+    """Calls `on_change(path)` once a watched file has changed and held still.
+
+    Polls some files' stat and calls `on_change(path)` once one has changed and then held still
+    for one interval, so a writer that is not atomic is read after it finishes. Polling, not
+    FSEvents: stdlib only, it survives an atomic rename (a new inode), and a few stat calls a
+    second cost nothing. `paths_of()` is asked every interval, so the set can change: Save As,
+    Open, or a reference added. Each path is checked the first time it is polled, the ones there
+    at start included: it may have changed between the daemon noting it and this thread's first
+    stat, and a stat taken after the change would hide it for good. The callbacks compare
+    content hashes, so a check of an unchanged file is a no-op.
     """
 
     def __init__(self, paths_of, on_change, interval: float = 0.25):
@@ -1487,8 +1488,8 @@ class FileWatcher:
                 pending.pop(path, None)
                 try:
                     self.on_change(path)
-                except Exception as exc:  # the watcher must outlive one bad read
-                    print(f"file watcher: {type(exc).__name__}: {exc}", flush=True)
+                except Exception as exc:  # the watcher must outlive one bad read  # noqa: BLE001
+                    print(f"file watcher: {type(exc).__name__}: {exc}", flush=True)  # noqa: T201
             for gone in set(seen) - set(paths):
                 del seen[gone]
                 pending.pop(gone, None)
@@ -1506,9 +1507,7 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
     if params.get("handles") is None:
         selection = _selection_view(daemon)
         if selection["stale"]:
-            raise DocumentError(
-                "the selection is stale: the part was rebuilt since it was picked"
-            )
+            raise DocumentError("the selection is stale: the part was rebuilt since it was picked")
         handles = selection["handles"]
     else:
         handles = _handles(params)
@@ -1526,19 +1525,16 @@ def _resolve_selection(daemon: Daemon, params: dict) -> dict:
             shape,
             ctx,
             handles,
-            [
-                feature["id"]
-                for feature in features[:tip]
-                if feature.get("type") not in NOT_SOLIDS
-            ],
+            [feature["id"] for feature in features[:tip] if feature.get("type") not in NOT_SOLIDS],
         )
     except SelectorError as exc:
         raise DocumentError(str(exc)) from None
 
 
 def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
-    """A sketch plane that follows a picked face: `{"feature", "face"}` for a
-    new sketch's `plane`, and where it lands now.
+    """A sketch plane that follows a picked face, and where it lands now.
+
+    The reply holds `{"feature", "face"}` for a new sketch's `plane`.
 
     The face is looked up in the body that owns it, and the selector is
     synthesised against that body's tip, which is what `resolve_plane` searches.
@@ -1560,9 +1556,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
         if body["reference"]:
             continue
         faces = body["shape"].faces()
-        local = next(
-            (index for index, item in enumerate(faces) if item.is_same(face)), None
-        )
+        local = next((index for index, item in enumerate(faces) if item.is_same(face)), None)
         if local is not None:
             break
     else:
@@ -1596,7 +1590,7 @@ def _face_sketch_plane(daemon: Daemon, params: dict) -> dict:
 
 
 def _pick_axis(daemon: Daemon, params: dict) -> dict:
-    """An axis reference for a picked edge (`e7`) or cylindrical face (`f3`), and where it lands now.
+    """An axis reference for a picked edge (`e7`) or cylinder face (`f3`), and where it lands now.
 
     The reference is `{"base": <the body's tip>, "edge" or "face": <selector>}`, so a
     construct axis, a revolve or a pattern that holds it follows the geometry when an
@@ -1616,9 +1610,7 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
     kind = "face" if handle[0] == "f" else "edge"
     for body in daemon.session.bodies():
         items = body["shape"].faces() if kind == "face" else body["shape"].edges()
-        local = next(
-            (index for index, item in enumerate(items) if item.is_same(picked)), None
-        )
+        local = next((index for index, item in enumerate(items) if item.is_same(picked)), None)
         if local is not None:
             break
     else:
@@ -1652,8 +1644,10 @@ def _pick_axis(daemon: Daemon, params: dict) -> dict:
 
 
 def _edge_source(daemon: Daemon, handle: str) -> dict:
-    """A reference source for the body edge `handle` (`e7`) of the current build: the
-    body's tip feature and a selector that finds the edge again on every rebuild.
+    """A reference source for the body edge `handle` (`e7`) of the current build.
+
+    A reference source for the body edge `handle` (`e7`) of the current build: the body's tip
+    feature and a selector that finds the edge again on every rebuild.
     """
     shape = daemon.session.require_shape()
     try:
@@ -1663,9 +1657,7 @@ def _edge_source(daemon: Daemon, handle: str) -> dict:
     ctx = daemon.session.context()
     for body in daemon.session.bodies():
         edges = body["shape"].edges()
-        local = next(
-            (index for index, item in enumerate(edges) if item.is_same(edge)), None
-        )
+        local = next((index for index, item in enumerate(edges) if item.is_same(edge)), None)
         if local is not None:
             break
     else:
@@ -1716,6 +1708,7 @@ def _project_reference(daemon: Daemon, params: dict) -> dict:
 
 def _highlight(daemon: Daemon, params: dict) -> dict:
     """Shows handles in the viewer, in a colour that is not the selection's.
+
     An empty list clears it. It does not change what is selected.
     """
     handles = _handles(params)
@@ -1729,8 +1722,9 @@ def _highlight(daemon: Daemon, params: dict) -> dict:
 
 
 def _measure(daemon: Daemon, params: dict) -> dict:
-    """The part, one body (`body`), or one or two handles. The whole part also
-    lists each part body's volume and area.
+    """The part, one body (`body`), or one or two handles.
+
+    The whole part also lists each part body's volume and area.
     """
     session = daemon.session
     shape = session.require_shape()
@@ -1742,7 +1736,8 @@ def _measure(daemon: Daemon, params: dict) -> dict:
         body = next((body for body in parts if body["id"] == body_id), None)
         if body is None:
             raise DocumentError(
-                f"no part body {body_id!r}; part bodies are {', '.join(body['id'] for body in parts) or 'none'}"
+                f"no part body {body_id!r}; part bodies are "
+                f"{', '.join(body['id'] for body in parts) or 'none'}"
             )
         return {"body": body_id, **measure(body["shape"])}
     measured = measure(shape, params.get("handles"))
@@ -1760,8 +1755,10 @@ def _measure(daemon: Daemon, params: dict) -> dict:
 
 
 def _section(daemon: Daemon, params: dict) -> dict:
-    """Where a plane cuts the part: the cut's area and 2D extent in the plane's
-    own frame, and, given a `path` ending .dxf or .svg, the section drawn there.
+    """Where a plane cuts the part, and optionally the section drawn to a file.
+
+    Where a plane cuts the part: the cut's area and 2D extent in the plane's own frame, and,
+    given a `path` ending .dxf or .svg, the section drawn there.
     """
     from .export import ExportError, section_of, write_section
     from .ops.sketch import plane_json, resolve_plane
@@ -1788,9 +1785,7 @@ def _section(daemon: Daemon, params: dict) -> dict:
         )
     if params.get("path"):
         if section is None:
-            raise DocumentError(
-                "the plane misses the part, so there is no section to write"
-            )
+            raise DocumentError("the plane misses the part, so there is no section to write")
         try:
             write_section(section, params["path"])
         except ExportError as exc:
@@ -1829,9 +1824,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
             write_stl(shape, params["stl"])
             written["stl"] = params["stl"]
         if params.get("stl_dir"):
-            written["stl_dir"] = [
-                str(path) for path in write_stl_dir(bodies, params["stl_dir"])
-            ]
+            written["stl_dir"] = [str(path) for path in write_stl_dir(bodies, params["stl_dir"])]
         if params.get("3mf"):
             write_3mf(bodies, params["3mf"])
             written["3mf"] = params["3mf"]
@@ -1854,7 +1847,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
     return written
 
 
-def _get_schemas(daemon: Daemon, params: dict) -> dict:
+def _get_schemas(_daemon: Daemon, _params: dict) -> dict:
     """Every op's JSON Schema, which is how an agent learns what it can build.
 
     Generated from the registry rather than written out, so an op added in M3
@@ -1870,7 +1863,7 @@ def _validate_feature(daemon: Daemon, params: dict) -> dict:
     return {"valid": True, "resolved": resolved}
 
 
-def _list_methods(daemon: Daemon, params: dict) -> dict:
+def _list_methods(_daemon: Daemon, _params: dict) -> dict:
     return {"methods": sorted(METHODS)}
 
 
@@ -1909,7 +1902,10 @@ def _ask_viewer(daemon: Daemon, method: str, params: dict, timeout: float) -> di
     try:
         daemon.broadcast(method, {"request": request, **params})
         if not wait.done.wait(timeout):
-            message = f"no viewer answered {method} within {timeout:g} s. Is a viewer open on this document?"
+            message = (
+                f"no viewer answered {method} within {timeout:g} s. "
+                "Is a viewer open on this document?"
+            )
             raise DocumentError(message)
     finally:
         with daemon.viewer_waits_lock:
@@ -1976,7 +1972,7 @@ def _viewer_reply(daemon: Daemon, params: dict) -> dict:
 UNLOCKED = frozenset({"agent_pointer", "screenshot_app", "viewer_reply"})
 
 
-def _ping(daemon: Daemon, params: dict) -> dict:
+def _ping(daemon: Daemon, _params: dict) -> dict:
     return {"ok": True, "revision": daemon.session.document.revision}
 
 
@@ -2080,9 +2076,7 @@ class Client:
                 message = json.loads(line)
                 if message.get("id") != request_id:
                     if self.on_notification and "method" in message:
-                        self.on_notification(
-                            message["method"], message.get("params", {})
-                        )
+                        self.on_notification(message["method"], message.get("params", {}))
                     continue
                 if "error" in message:
                     error = message["error"]

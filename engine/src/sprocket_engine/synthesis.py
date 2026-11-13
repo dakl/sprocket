@@ -53,8 +53,10 @@ def _indices(items, universe) -> set[int]:
 
 
 def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
-    """Returns {selector, strategy, steps, count}. `feature_ids` are the
-    features `new_since` may name, and `ctx` is the replay context they are in.
+    """Returns {selector, strategy, steps, count}.
+
+    `feature_ids` are the features `new_since` may name, and `ctx` is the replay
+    context they are in.
     """
     starter, universe = parse_handles(handles, shape)
     target = {int(handle[1:]) for handle in handles}
@@ -62,15 +64,13 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
     def resolved(steps):
         try:
             return resolve_selector(shape, {"select": steps}, ctx)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     def exact(steps) -> bool:
         items = resolved(steps)
         return (
-            items is not None
-            and _indices(items, universe) == target
-            and len(items) == len(target)
+            items is not None and _indices(items, universe) == target and len(items) == len(target)
         )
 
     found = []  # (rank, strategy, steps)
@@ -78,13 +78,10 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
     def keep(steps, strategy):
         # A chain that starts from what a feature made follows that feature
         # when its dimensions change, so it is preferred, and then the shortest.
-        found.append(
-            ((0 if strategy == "new_since" else 1, len(steps)), strategy, steps)
-        )
+        found.append(((0 if strategy == "new_since" else 1, len(steps)), strategy, steps))
 
     prefixes = [([], "structure")] + [
-        ([{"op": "new_since", "feature": feature_id}], "new_since")
-        for feature_id in feature_ids
+        ([{"op": "new_since", "feature": feature_id}], "new_since") for feature_id in feature_ids
     ]
     for prefix, strategy in prefixes:
         for narrowing in [[]] + [[{"op": "filter_by", "axis": axis}] for axis in AXES]:
@@ -140,7 +137,8 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
             ]
     if not exact(steps):
         raise SelectorError(
-            "no selector picks exactly those, because some of them are the same distance from each other"
+            "no selector picks exactly those, because some of them are the same "
+            "distance from each other"
         )
     return _answer(steps, "position", len(target))
 

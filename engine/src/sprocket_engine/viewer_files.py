@@ -6,6 +6,7 @@ them next to it after every edit. Both go through these functions, so what the
 viewer sees cannot depend on which one is running.
 """
 
+import contextlib
 import json
 import tempfile
 from pathlib import Path
@@ -29,13 +30,13 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
     """
     try:
         parameters = document.resolved_parameters()
-    except Exception:
+    except Exception:  # noqa: BLE001
         parameters = {}
     entries = []
     for index, raw in enumerate(document.features):
         try:
             feature = resolve_value(raw, parameters)
-        except Exception:
+        except Exception:  # noqa: BLE001
             feature = raw
         entry = {
             "id": raw.get("id"),
@@ -45,43 +46,34 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             "resolved": feature,
         }
         if feature.get("type") == "sketch":
-            # A sketch with projected references is drawn as the build solved it around them.
+            # A sketch with projected references is drawn as the build
+            # solved it around them.
             built = ctx.features.get(raw.get("id")) if ctx is not None else None
             if built is not None and has_references(built):
                 feature = entry["resolved"] = built
             entry["plane"] = _drawable_plane(feature["plane"], ctx)
             if feature.get("patterns"):
                 # Pattern copies to draw. The sketcher edits only the originals.
-                try:
+                with contextlib.suppress(Exception):
                     entry["entities"] = sketch_entities(feature)
-                except Exception:
-                    pass
             # Only a polygon has corners the viewer can drag.
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]
             try:
                 entry["regions"] = sketch_profiles(feature)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # A sketch the engine cannot read has no regions to show. The
                 # timeline still has to list it so it can be fixed.
                 entry["regions"] = []
         if feature.get("type") == "thread" and entry["active"] and ctx is not None:
             # Where to draw a cosmetic thread. Nothing when it does not resolve:
             # the feature's own failure says why.
-            try:
+            with contextlib.suppress(Exception):
                 entry["thread"] = thread_geometry(feature, ctx)
-            except Exception:
-                pass
-        if (
-            feature.get("type") in CONSTRUCT_TYPES
-            and entry["active"]
-            and ctx is not None
-        ):
+        if feature.get("type") in CONSTRUCT_TYPES and entry["active"] and ctx is not None:
             # Where to draw a plane, an axis or a point.
-            try:
+            with contextlib.suppress(Exception):
                 entry["construct"] = construct_geometry(feature, ctx)
-            except Exception:
-                pass
         if feature.get("id") == failed_feature:
             entry["failed"] = True
         entries.append(entry)
@@ -89,15 +81,17 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
 
 
 def _drawable_plane(plane, ctx):
-    """A name or an explicit plane as stored. An offset or face plane becomes
-    explicit, because only the engine can find a face. None when it does not
-    resolve, such as a sketch after the feature that broke the build.
+    """A name or an explicit plane as stored.
+
+    An offset or face plane becomes explicit, because only the engine can find a
+    face. None when it does not resolve, such as a sketch after the feature that
+    broke the build.
     """
     if isinstance(plane, str) or "origin" in plane:
         return plane
     try:
         return plane_json(resolve_plane(plane, ctx))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -132,7 +126,7 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
     mesh_error = None
     try:
         data = mesh_bytes(shape, session.document.appearances, session.bodies())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         data = None
         mesh_error = f"{type(exc).__name__}: {exc}"
     mesh_path = viewer_dir / "part.mesh"
@@ -142,9 +136,7 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
         _write_atomically(mesh_path, data)
     _write_atomically(
         viewer_dir / "features.json",
-        json.dumps(
-            features_summary(session.document, failed, session.context())
-        ).encode(),
+        json.dumps(features_summary(session.document, failed, session.context())).encode(),
     )
     _write_atomically(viewer_dir / "schemas.json", json.dumps(schemas()).encode())
     return mesh_error

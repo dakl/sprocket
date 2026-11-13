@@ -48,15 +48,17 @@ def test_polygon_on_arbitrary_plane_places_geometry_at_the_given_origin():
 
 
 @pytest.mark.parametrize(
-    "winding, polygon",
+    ("winding", "polygon"),
     [
         ("counter-clockwise", [[0, 0], [10, 0], [10, 10], [0, 10]]),
         ("clockwise", [[0, 10], [10, 10], [10, 0], [0, 0]]),
     ],
 )
 def test_positive_distance_extrudes_along_the_plane_normal(winding, polygon):
-    """The sketcher emits whichever winding the user drew, and the viewer
-    measures its drag against the plane normal, so both must extrude up.
+    """Both windings extrude along the plane normal.
+
+    The sketcher emits whichever winding the user drew, and the viewer measures its drag against
+    the plane normal, so both must extrude up.
     """
     document = {
         "schema_version": 1,
@@ -102,9 +104,7 @@ def test_circle_extrudes_to_a_cylinder():
 
 
 def test_circle_center_offsets_the_profile():
-    """A dropped `center` still gives the right volume, so this asserts the
-    position instead.
-    """
+    """A dropped `center` still gives the right volume, so this asserts the position instead."""
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},
@@ -123,8 +123,10 @@ def test_circle_center_offsets_the_profile():
 
 
 def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
-    """The face-pick path hands extrude_face a plane taken off a B-rep face, so
-    a circle has to land on an arbitrary plane, not only a principal one.
+    """A circle lands on an arbitrary plane, not only a principal one.
+
+    The face-pick path hands extrude_face a plane taken off a B-rep face, so a circle has to
+    land on an arbitrary plane, not only a principal one.
     """
     document = {
         "schema_version": 1,
@@ -144,17 +146,17 @@ def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
 
 
 @pytest.mark.parametrize(
-    "case, sketch",
+    "sketch",
     [
-        ("no shape at all", {}),
-        (
-            "two shapes at once",
+        pytest.param({}, id="no shape at all"),
+        pytest.param(
             {"rect": {"width": 10, "height": 10}, "circle": {"radius": 5}},
+            id="two shapes at once",
         ),
-        ("a radius of zero", {"circle": {"radius": 0}}),
+        pytest.param({"circle": {"radius": 0}}, id="a radius of zero"),
     ],
 )
-def test_sketch_needs_exactly_one_valid_shape(case, sketch):
+def test_sketch_needs_exactly_one_valid_shape(sketch):
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},

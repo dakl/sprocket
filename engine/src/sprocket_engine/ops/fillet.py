@@ -1,6 +1,7 @@
 from build123d import fillet as b3d_fillet
 
-from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
+from sprocket_engine.selectors import SELECTOR_DESCRIPTION, resolve_edges
+
 from .registry import register
 
 SCHEMA = {
@@ -20,10 +21,9 @@ SCHEMA = {
 @register("fillet", SCHEMA)
 def apply(feature: dict, ctx):
     """Unlike extrude_face, this takes however many edges the selector matches.
-    Rounding every top edge in one feature is the normal case, not an
-    exception, so only an empty match is an error.
+
+    Rounding every top edge in one feature is the normal case, not an exception, so
+    only an empty match is an error.
     """
     base = ctx.results[feature["base"]]
-    return b3d_fillet(
-        resolve_edges(base, feature["edges"], ctx), radius=feature["radius"]
-    )
+    return b3d_fillet(resolve_edges(base, feature["edges"], ctx), radius=feature["radius"])

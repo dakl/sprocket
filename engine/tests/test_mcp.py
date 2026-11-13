@@ -61,14 +61,13 @@ def drive(daemon, work):
 
 
 def text_of(result) -> str:
-    return "".join(
-        part.text for part in result.content if isinstance(part, types.TextContent)
-    )
+    return "".join(part.text for part in result.content if isinstance(part, types.TextContent))
 
 
 def test_every_registered_op_is_callable_as_a_tool(daemon):
-    """An op added later has to become agent-callable without editing the
-    adapter. The generated list is the only thing that makes that true.
+    """An op added later has to become agent-callable without editing the adapter.
+
+    The generated list is the only thing that makes that true.
     """
     tools = drive(daemon, lambda session: session.list_tools())
     names = {tool.name for tool in tools.tools}
@@ -77,8 +76,10 @@ def test_every_registered_op_is_callable_as_a_tool(daemon):
 
 
 def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
-    """`type` is fixed by the tool name, and an agent inventing unique ids
-    across a long session collides with itself.
+    """A generated tool hides `type` and `id`, which an agent should not set.
+
+    `type` is fixed by the tool name, and an agent inventing unique ids across a long session
+    collides with itself.
     """
     tools = drive(daemon, lambda session: session.list_tools())
     fillet = next(tool for tool in tools.tools if tool.name == "add_fillet")
@@ -88,17 +89,16 @@ def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
 
 
 def test_every_op_tool_describes_what_the_op_does(daemon):
-    """The descriptions came from the apply docstrings once, and add_boolean
-    opened "Operands are feature ids, because ...", which tells an agent
-    nothing. They come from the schemas now, so check they are all there.
+    """Every tool has a description, taken from its schema.
+
+    The descriptions came from the apply docstrings once, and add_boolean opened "Operands are
+    feature ids, because ...", which tells an agent nothing. They come from the schemas now, so
+    check they are all there.
     """
     tools = drive(daemon, lambda session: session.list_tools())
     for tool in tools.tools:
         if tool.name.startswith("add_"):
-            assert (
-                tool.description
-                == REGISTRY[tool.name[len("add_") :]].schema["description"]
-            )
+            assert tool.description == REGISTRY[tool.name[len("add_") :]].schema["description"]
 
 
 def test_adding_a_feature_names_it_and_reports_the_build(daemon):
@@ -117,8 +117,10 @@ def test_adding_a_feature_names_it_and_reports_the_build(daemon):
 
 
 def test_render_view_returns_the_image_itself(daemon):
-    """A path would be a file the agent may have no tool to read, and an agent
-    that cannot see its work reports a part it has never looked at.
+    """render_view returns the image itself, not a path.
+
+    A path would be a file the agent may have no tool to read, and an agent that cannot see its
+    work reports a part it has never looked at.
     """
 
     async def work(session):
@@ -127,17 +129,17 @@ def test_render_view_returns_the_image_itself(daemon):
         )
 
     result = drive(daemon, work)
-    image = next(
-        part for part in result.content if isinstance(part, types.ImageContent)
-    )
+    image = next(part for part in result.content if isinstance(part, types.ImageContent))
     assert image.mime_type == "image/png"
     assert base64.b64decode(image.data)[:8] == b"\x89PNG\r\n\x1a\n"
     assert json.loads(text_of(result))["width"] == 200
 
 
 def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
-    """A stale revision is the agent's to fix. Raising it out of the tool call
-    loses the daemon's payload, which is the only thing that lets it rebase.
+    """A stale revision is the agent's to fix.
+
+    Raising it out of the tool call loses the daemon's payload, which is the only
+    thing that lets it rebase.
     """
 
     async def work(session):
@@ -157,9 +159,7 @@ def test_a_refused_edit_comes_back_as_content_not_an_exception(daemon):
 
 def test_a_feature_the_engine_rejects_is_reported_not_raised(daemon):
     async def work(session):
-        return await session.call_tool(
-            "add_extrude", {"profile": "nope", "distance": 10}
-        )
+        return await session.call_tool("add_extrude", {"profile": "nope", "distance": 10})
 
     result = drive(daemon, work)
     assert result.is_error is True
@@ -205,7 +205,8 @@ def test_an_agent_can_read_the_selection_and_highlight_it(daemon):
 
 def test_the_client_finds_the_app_socket_and_follows_it_to_a_new_one(daemon):
     # A dead app leaves a file that refuses connections, and it is the newest.
-    # A socket path over about 100 characters cannot be connected, and pytest's tmp_path is longer.
+    # A socket path over about 100 characters cannot be connected, and pytest's
+    # tmp_path is longer.
     tmp_path = Path(daemon.socket_path).parent
     live = tmp_path / "sprocket-2.sock"
     live.symlink_to(daemon.socket_path)

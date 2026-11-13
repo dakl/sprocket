@@ -1,4 +1,7 @@
-"""A viewer or solver edit writes numbers. The stored "=param" fields it did not change must stay expressions."""
+"""A viewer or solver edit writes numbers.
+
+The stored "=param" fields it did not change must stay expressions.
+"""
 
 import copy
 
@@ -30,9 +33,7 @@ SKETCH = {
 
 def viewer_save(document, move_circle_to):
     """What the viewer sends: the whole sketch as numbers, with one point moved."""
-    numbers = resolve_value(
-        copy.deepcopy(document.features[0]), document.resolved_parameters()
-    )
+    numbers = resolve_value(copy.deepcopy(document.features[0]), document.resolved_parameters())
     numbers["entities"][4]["c"] = move_circle_to
     return numbers
 
@@ -59,9 +60,7 @@ def test_the_untouched_fields_still_follow_a_parameter_change():
     document.apply_edits(
         [{"op": "update", "feature": viewer_save(document, [25, 10])}], None, "viewer"
     )
-    document.apply_edits(
-        [{"op": "set_parameter", "name": "pcb_l", "value": 50}], None, "agent"
-    )
+    document.apply_edits([{"op": "set_parameter", "name": "pcb_l", "value": 50}], None, "agent")
     resolved = document.for_replay()["features"][0]
     assert resolved["entities"][0]["p1"] == [50, 0]
     assert resolved["entities"][4]["c"] == [25, 10]
@@ -100,6 +99,4 @@ def test_an_engine_solved_sketch_edit_keeps_expressions_too():
     stored = document.features[0]
     assert stored["entities"][0]["p1"] == ["=pcb_l", 0]
     assert stored["constraints"][2]["value"] == "=r"
-    assert (
-        stored["entities"][4]["r"] == "=r"
-    )  # the radius constraint solved it back to 3
+    assert stored["entities"][4]["r"] == "=r"  # the radius constraint solved it back to 3

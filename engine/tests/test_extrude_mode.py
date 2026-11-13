@@ -19,7 +19,7 @@ PAD_VOLUME = 10 * 10 * 4
 
 def build(**extrude):
     feature = {"id": "f4", "type": "extrude", "profile": "f3", "base": "f2", **extrude}
-    return replay({"features": BOX + [feature]})
+    return replay({"features": [*BOX, feature]})
 
 
 def test_join_with_a_negative_distance_grows_the_part_below_the_sketch_plane():
@@ -39,7 +39,8 @@ def test_intersect_keeps_only_the_overlap():
 
 
 def test_no_mode_keeps_the_sign_rule_for_old_documents():
-    # A negative distance cuts, here into the air below the box, which is the gap `mode` closes.
+    # A negative distance cuts, here into the air below the box, which is the gap
+    # `mode` closes.
     legacy = build(distance=-4)
     assert legacy.volume == pytest.approx(BOX_VOLUME)
     assert pytest.approx(0) == legacy.bounding_box().min.Z

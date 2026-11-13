@@ -10,8 +10,10 @@ KEEP = {"above": Keep.TOP, "below": Keep.BOTTOM, "both": Keep.BOTH}
 SCHEMA = {
     "type": "object",
     "description": (
-        "Cuts a body in two along a plane. `keep` chooses the side above the plane (the way its normal points), "
-        "below it, or both. Both sides stay in the same body as separate solids, and 3MF writes them as separate objects."
+        "Cuts a body in two along a plane. `keep` chooses the side above the plane "
+        "(the way its normal points), "
+        "below it, or both. Both sides stay in the same body as separate solids, and "
+        "3MF writes them as separate objects."
     ),
     "required": ["id", "type", "base", "plane"],
     "properties": {
@@ -43,8 +45,6 @@ def apply(feature: dict, ctx):
     if len(solids) == len(base.solids()) and abs(
         sum(solid.volume for solid in solids) - base.volume
     ) < 1e-9 * max(base.volume, 1):
-        raise ValueError(
-            f"split {feature['id']}: the plane does not cross {feature['base']!r}"
-        )
+        raise ValueError(f"split {feature['id']}: the plane does not cross {feature['base']!r}")
     # The two sides share the cut face. A deep copy gives each solid its own.
     return Part([copy.deepcopy(solid) for solid in solids])

@@ -22,7 +22,7 @@ FIXED_KEYS = ("id", "kind", "reference")
 
 
 def next_id(items: list[dict], prefix: str) -> str:
-    """`<prefix><n>`, one past the highest in use, so a deleted id does not come back on another shape."""
+    """`<prefix><n>`, one past the highest in use, so a deleted id is not reused."""
     used = [
         int(item["id"][len(prefix) :])
         for item in items
@@ -32,7 +32,10 @@ def next_id(items: list[dict], prefix: str) -> str:
 
 
 def assign_constraint_ids(feature: dict) -> None:
-    """Gives every constraint without an id one. Documents from before M3.8 have none."""
+    """Gives every constraint without an id one.
+
+    Documents from before M3.8 have none.
+    """
     constraints = feature.get("constraints", [])
     for constraint in constraints:
         if "id" not in constraint:
@@ -63,11 +66,12 @@ def _object(edit: dict, key: str) -> dict:
     return dict(value)
 
 
-def _add_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _add_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraint = _object(edit, "constraint")
     if constraint.get("kind") not in CONSTRAINT_FIELDS:
         raise ValueError(
-            f"constraint kind {constraint.get('kind')!r} is not one of {', '.join(sorted(CONSTRAINT_FIELDS))}"
+            f"constraint kind {constraint.get('kind')!r} is not one of "
+            f"{', '.join(sorted(CONSTRAINT_FIELDS))}"
         )
     constraints = feature.setdefault("constraints", [])
     constraint.setdefault("id", next_id(constraints, "c"))
@@ -75,27 +79,23 @@ def _add_constraint(feature: dict, edit: dict, project=None) -> dict:
     return {"constraint_id": constraint["id"]}
 
 
-def _update_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _update_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraints = feature.get("constraints", [])
-    constraint = constraints[
-        _index_of(constraints, edit.get("constraint_id"), "constraint")
-    ]
+    constraint = constraints[_index_of(constraints, edit.get("constraint_id"), "constraint")]
     constraint.update(_changes(edit))
     return {"constraint_id": constraint["id"]}
 
 
-def _remove_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _remove_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraints = feature.get("constraints", [])
     del constraints[_index_of(constraints, edit.get("constraint_id"), "constraint")]
     return {"constraint_id": edit["constraint_id"]}
 
 
-def _add_entity(feature: dict, edit: dict, project=None) -> dict:
+def _add_entity(feature: dict, edit: dict, _project=None) -> dict:
     entity = _object(edit, "entity")
     if "reference" in entity:
-        raise ValueError(
-            "a projected reference is added with add_reference, not add_entity"
-        )
+        raise ValueError("a projected reference is added with add_reference, not add_entity")
     if entity.get("kind") not in ENTITY_KINDS:
         raise ValueError(
             f"entity kind {entity.get('kind')!r} is not one of {', '.join(ENTITY_KINDS)}"
@@ -106,19 +106,17 @@ def _add_entity(feature: dict, edit: dict, project=None) -> dict:
 
 
 def _add_reference(feature: dict, edit: dict, project=None) -> dict:
-    """Projects an edge of an earlier sketch or body into this sketch, locked, as a construction entity."""
+    """Projects an edge of an earlier sketch or body in as a locked construction entity."""
     source = _object(edit, "source")
     if project is None:
-        raise ValueError(
-            "projecting needs the document's earlier features to project from"
-        )
+        raise ValueError("projecting needs the document's earlier features to project from")
     for entity in feature["entities"]:
         if entity.get("reference") == source:
             raise ValueError(f"that is already projected as {entity['id']!r}")
     try:
         fields = project(source)
     except Exception as exc:
-        raise ValueError(f"cannot project that: {exc}") from None
+        raise ValueError(f"cannot project that: {exc}") from exc
     entity = {
         "id": next_id(feature["entities"], "e"),
         **fields,
@@ -129,19 +127,18 @@ def _add_reference(feature: dict, edit: dict, project=None) -> dict:
     return {"entity_id": entity["id"]}
 
 
-def _update_entity(feature: dict, edit: dict, project=None) -> dict:
-    entity = feature["entities"][
-        _index_of(feature["entities"], edit.get("entity_id"), "entity")
-    ]
+def _update_entity(feature: dict, edit: dict, _project=None) -> dict:
+    entity = feature["entities"][_index_of(feature["entities"], edit.get("entity_id"), "entity")]
     if entity.get("reference"):
         raise ValueError(
-            f"{entity['id']!r} is a projected reference and is locked: remove it, or change its source"
+            f"{entity['id']!r} is a projected reference and is locked: remove it, or "
+            "change its source"
         )
     entity.update(_changes(edit))
     return {"entity_id": entity["id"]}
 
 
-def _remove_entity(feature: dict, edit: dict, project=None) -> dict:
+def _remove_entity(feature: dict, edit: dict, _project=None) -> dict:
     """Removes the entity and every constraint that mentions it, as the viewer does."""
     entity_id = edit.get("entity_id")
     del feature["entities"][_index_of(feature["entities"], entity_id, "entity")]
@@ -154,9 +151,7 @@ def _remove_entity(feature: dict, edit: dict, project=None) -> dict:
         )
 
     feature["constraints"] = [
-        constraint
-        for constraint in feature.get("constraints", [])
-        if not mentions(constraint)
+        constraint for constraint in feature.get("constraints", []) if not mentions(constraint)
     ]
     return {"entity_id": entity_id}
 

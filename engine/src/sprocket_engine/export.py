@@ -36,13 +36,9 @@ def _check_writable(path: Path, kind: str) -> None:
         with path.open("ab"):
             pass
     except PermissionError:
-        raise ExportError(
-            f"cannot write {kind} file {path}: permission denied"
-        ) from None
+        raise ExportError(f"cannot write {kind} file {path}: permission denied") from None
     except OSError as exc:
-        raise ExportError(
-            f"cannot write {kind} file {path}: {exc.strerror or exc}"
-        ) from None
+        raise ExportError(f"cannot write {kind} file {path}: {exc.strerror or exc}") from None
 
 
 def _made(bodies) -> list[dict]:
@@ -51,8 +47,10 @@ def _made(bodies) -> list[dict]:
 
 
 def _labelled(body: dict):
-    """A copy of the body's shape carrying its name and colour, which build123d
-    writes into STEP and 3MF. A copy, because the original sits in the cache.
+    """A copy of the body's shape that carries its name and colour.
+
+    A copy of the body's shape carrying its name and colour, which build123d writes into STEP
+    and 3MF. A copy, because the original sits in the cache.
     """
     shape = copy.copy(body["shape"])
     shape.label = body.get("name") or body["id"]
@@ -62,9 +60,11 @@ def _labelled(body: dict):
 
 
 def write_step(shape, path, bodies=None) -> None:
-    """With bodies that have names or colours, or more than one body, writes a
-    compound of labelled solids so the STEP carries them. Otherwise writes
-    `shape` as it is, which keeps a plain one-body document byte-identical.
+    """Writes `shape` as STEP, with labelled solids when the bodies need them.
+
+    With bodies that have names or colours, or more than one body, writes a compound of labelled
+    solids so the STEP carries them. Otherwise writes `shape` as it is, which keeps a plain
+    one-body document byte-identical.
     """
     path = Path(path)
     _check_writable(path, "STEP")
@@ -76,7 +76,7 @@ def write_step(shape, path, bodies=None) -> None:
     try:
         written = export_step(shape, path)
     except Exception as exc:
-        raise ExportError(f"cannot write STEP file {path}: {exc}") from None
+        raise ExportError(f"cannot write STEP file {path}: {exc}") from exc
     if written is False:
         raise ExportError(f"cannot write STEP file {path}: the STEP writer refused it")
 
@@ -87,7 +87,7 @@ def write_stl(shape, path) -> None:
     try:
         written = export_stl(shape, path)
     except Exception as exc:
-        raise ExportError(f"cannot write STL file {path}: {exc}") from None
+        raise ExportError(f"cannot write STL file {path}: {exc}") from exc
     if written is False:
         raise ExportError(f"cannot write STL file {path}: the STL writer refused it")
 
@@ -100,9 +100,7 @@ def write_stl_dir(bodies, directory) -> list[Path]:
     """One STL per body, named after the body, in an existing directory."""
     directory = Path(directory)
     if not directory.is_dir():
-        raise ExportError(
-            f"cannot write STL files to {directory}: the directory does not exist"
-        )
+        raise ExportError(f"cannot write STL files to {directory}: the directory does not exist")
     written = []
     for body in _made(bodies):
         target = directory / f"{_file_name(body.get('name') or body['id'])}.stl"
@@ -126,16 +124,18 @@ def write_3mf(bodies, path) -> None:
             except Exception as exc:
                 raise ExportError(
                     f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: {exc}"
-                ) from None
+                ) from exc
     try:
         mesher.write(str(path))
     except Exception as exc:
-        raise ExportError(f"cannot write 3MF file {path}: {exc}") from None
+        raise ExportError(f"cannot write 3MF file {path}: {exc}") from exc
 
 
 def section_of(shape, plane):
-    """The faces where `plane` cuts `shape`, moved into the plane's own 2D frame
-    (its x_dir is +X, z = 0), or None when the plane misses the part.
+    """The faces where `plane` cuts `shape`, in the plane's own 2D frame.
+
+    The faces where `plane` cuts `shape`, moved into the plane's own 2D frame (its x_dir is +X,
+    z = 0), or None when the plane misses the part.
     """
     box = shape.bounding_box()
     # A plane's origin can sit far from the part (a face plane's is the world
@@ -145,9 +145,7 @@ def section_of(shape, plane):
     faces = (
         []
         if cut is None
-        else (
-            cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else []
-        )
+        else (cut.faces() if isinstance(cut, ShapeList) or hasattr(cut, "faces") else [])
     )
     return plane.to_local_coords(Compound(list(faces))) if faces else None
 
@@ -157,9 +155,7 @@ def write_section(section, path) -> None:
     path = Path(path)
     kind = path.suffix.lower().lstrip(".")
     if kind not in ("dxf", "svg"):
-        raise ExportError(
-            f"cannot write a section to {path}: the file must end in .dxf or .svg"
-        )
+        raise ExportError(f"cannot write a section to {path}: the file must end in .dxf or .svg")
     _check_writable(path, kind.upper())
     if kind == "dxf":
         drawing = ExportDXF()

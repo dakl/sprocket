@@ -1,5 +1,7 @@
-"""Section: where a plane cuts the part, over the daemon on the 40 x 30 x 10
-conftest box (x -20 to 20, y -15 to 15, z 0 to 10), and the drawings it writes.
+"""Section: where a plane cuts the part, and the drawings it writes.
+
+Section: where a plane cuts the part, over the daemon on the 40 x 30 x 10 conftest box (x -20 to 20,
+y -15 to 15, z 0 to 10), and the drawings it writes.
 """
 
 import math
@@ -36,9 +38,7 @@ def test_a_plane_that_misses_reports_nothing_and_writes_nothing(client, tmp_path
     assert (missed["faces"], missed["area"]) == (0, 0.0)
     assert "bounding_box" not in missed
     with pytest.raises(RpcError, match="the plane misses the part"):
-        client.call(
-            "section", plane={"name": "XY", "offset": 50}, path=str(tmp_path / "s.svg")
-        )
+        client.call("section", plane={"name": "XY", "offset": 50}, path=str(tmp_path / "s.svg"))
 
 
 def test_it_writes_svg_and_dxf_and_refuses_other_files(client, tmp_path):

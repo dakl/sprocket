@@ -51,7 +51,7 @@ def build(tmp_path, features):
 def test_a_referenced_document_is_a_reference_body_left_out_of_the_part(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
     _, part, ctx = build(
-        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
+        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY]
     )
     assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
         ("ref", True),
@@ -66,7 +66,7 @@ def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
 ):
     write(tmp_path, "board.sprocket", BOARD)
     _, part, ctx = build(
-        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
+        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY]
     )
     bodies = with_settings(ctx.bodies, {})
     header = export_mesh(part, tmp_path / "part.mesh", None, bodies)
@@ -160,7 +160,7 @@ def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
     }
     _, part, ctx = build(
         tmp_path,
-        [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY + [cut],
+        [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY, cut],
     )
     assert [body["id"] for body in ctx.bodies] == ["ref", "tray"]
     assert part.volume == pytest.approx(
@@ -184,11 +184,7 @@ def test_the_cache_key_follows_the_referenced_file(tmp_path):
         write(
             tmp_path,
             "case.sprocket",
-            {
-                "features": [
-                    {"id": "ref", "type": "reference", "file": "board.sprocket"}
-                ]
-            },
+            {"features": [{"id": "ref", "type": "reference", "file": "board.sprocket"}]},
         )
     )
     before = document.for_replay()["features"][0]["source_sha256"]
@@ -199,25 +195,27 @@ def test_the_cache_key_follows_the_referenced_file(tmp_path):
 def test_check_clearance_reports_distance_and_overlap(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
     features = [
-        {"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")}
-    ] + TRAY
+        {"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")},
+        *TRAY,
+    ]
     with (
         running({"features": features}, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
     ):
         (pair,) = client.call("check_clearance")["pairs"]
-    assert pair["body"] == "tray" and pair["reference"] == "ref"
+    assert pair["body"] == "tray"
+    assert pair["reference"] == "ref"
     assert pair["distance"] == 0
     assert pair["overlap_volume"] == pytest.approx(100)
 
 
-def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
-    tmp_path,
-):
-    """examples/orangepi-case.sprocket: the board is a reference body, the base
-    and the lid are the exported bodies, one solid each, and neither shares
-    volume with the board. The base touches it only from below (the posts), so
-    lifting the board opens a gap, and the lid's groove clears the base's lip.
+def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside():
+    """The Orange Pi case wraps the board without touching it.
+
+    examples/orangepi-case.sprocket: the board is a reference body, the base and the lid are the
+    exported bodies, one solid each, and neither shares volume with the board. The base touches
+    it only from below (the posts), so lifting the board opens a gap, and the lid's groove
+    clears the base's lip.
     """
     from pathlib import Path
 
@@ -233,9 +231,7 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
         )
         return sum(piece.volume for piece in pieces)
 
-    document = Document.load(
-        Path(__file__).parents[2] / "examples" / "orangepi-case.sprocket"
-    )
+    document = Document.load(Path(__file__).parents[2] / "examples" / "orangepi-case.sprocket")
     part, ctx = replay(document.for_replay(), return_context=True)
     assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
         ("board", True),
@@ -245,17 +241,15 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
     board, base, lid = (body["shape"] for body in ctx.bodies)
     assert part.volume == pytest.approx(base.volume + lid.volume)
     for case in (base, lid):
-        assert len(case.solids()) == 1 and case.is_valid
+        assert len(case.solids()) == 1
+        assert case.is_valid
         assert volume(case.intersect(board)) == pytest.approx(0, abs=1e-6)
     assert base.distance_to(Pos(0, 0, 0.05) * board) == pytest.approx(0.05, abs=1e-6)
     assert volume(base.intersect(lid)) == pytest.approx(0, abs=1e-6)
     (lip,) = base.intersect(
-        Pos(32.5, 16, 7.001)
-        * Box(200, 200, 10, align=(Align.CENTER, Align.CENTER, Align.MIN))
+        Pos(32.5, 16, 7.001) * Box(200, 200, 10, align=(Align.CENTER, Align.CENTER, Align.MIN))
     ).solids()
-    assert lip.distance_to(lid) == pytest.approx(
-        document.parameters["lip_fit"], abs=1e-6
-    )
+    assert lip.distance_to(lid) == pytest.approx(document.parameters["lip_fit"], abs=1e-6)
     box = base.bounding_box()
     assert pytest.approx((-3, -3, 68, 35)) == (
         box.min.X,
@@ -266,16 +260,16 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
 
 
 def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
-    """The last appearance in examples/orangepi-zero-3w.sprocket colours the
-    one face Daniel picked: pin 28's cell, -Y side, area 2.24 x 2.5.
+    """The last appearance in the Orange Pi example colours one face.
+
+    The last appearance in examples/orangepi-zero-3w.sprocket colours the one face Daniel
+    picked: pin 28's cell, -Y side, area 2.24 x 2.5.
     """
     from pathlib import Path
 
     from sprocket_engine.selectors import resolve_selector
 
-    document = Document.load(
-        Path(__file__).parents[2] / "examples" / "orangepi-zero-3w.sprocket"
-    )
+    document = Document.load(Path(__file__).parents[2] / "examples" / "orangepi-zero-3w.sprocket")
     shape, ctx = replay(document.for_replay(), return_context=True)
     entry = document.appearances[-1]
     assert entry["color"] == "#2f9e44"
@@ -300,14 +294,12 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
         "rotate": [90, 0, 30],
         "translate": [40, -10, 25],
     }
-    _, part, ctx = build(tmp_path, [reference] + TRAY)
+    _, part, ctx = build(tmp_path, [reference, *TRAY])
     bodies = with_settings(ctx.bodies, {})
     export_mesh(part, tmp_path / "part.mesh", None, bodies)
     header, buffers = read_mesh(tmp_path / "part.mesh")
 
-    faces_before = sum(
-        body["faces"] for body in header["bodies"] if not body["reference"]
-    )
+    faces_before = sum(body["faces"] for body in header["bodies"] if not body["reference"])
     per_face = buffers["triangles_per_face"].astype(int)
     first = per_face[:faces_before].sum()
     triangles = buffers["indices"].reshape(-1, 3)[first:]
@@ -316,16 +308,10 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
     normals = buffers["normals"].reshape(-1, 3)[used]
 
     box = ctx.bodies[0]["shape"].bounding_box()
-    assert vertices.min(axis=0) == pytest.approx(
-        [box.min.X, box.min.Y, box.min.Z], abs=1e-3
-    )
-    assert vertices.max(axis=0) == pytest.approx(
-        [box.max.X, box.max.Y, box.max.Z], abs=1e-3
-    )
+    assert vertices.min(axis=0) == pytest.approx([box.min.X, box.min.Y, box.min.Z], abs=1e-3)
+    assert vertices.max(axis=0) == pytest.approx([box.max.X, box.max.Y, box.max.Z], abs=1e-3)
     # Normals turn with the part: each one is the normal of a face of the moved board.
-    face_normals = np.array(
-        [tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()]
-    )
+    face_normals = np.array([tuple(face.normal_at()) for face in ctx.bodies[0]["shape"].faces()])
     nearest = np.abs(normals @ face_normals.T).max(axis=1)
     assert nearest == pytest.approx(np.ones(len(normals)), abs=1e-4)
 

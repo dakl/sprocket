@@ -1,6 +1,7 @@
-"""tests/golden/boolean_notch pins subtract. This covers the other two
-operations and the empty-result guard, which no golden case can hold because a
-golden case has to produce a solid to measure.
+"""tests/golden/boolean_notch pins subtract.
+
+This covers the other two operations and the empty-result guard, which no golden case
+can hold because a golden case has to produce a solid to measure.
 
 All four use the same 40 x 20 x 10 box and a second box placed to overlap it
 over x 10..20, y -5..5, z 0..10, so the shared volume is 1000 mm3.
@@ -47,7 +48,7 @@ def document_with(operation: str, tool_center, tool_size=(20, 10)) -> dict:
 
 
 @pytest.mark.parametrize(
-    "operation, volume",
+    ("operation", "volume"),
     [
         # base 8000, tool 2000, shared 1000
         ("union", 9000),
@@ -61,8 +62,10 @@ def test_each_operation_keeps_the_volume_it_should(operation, volume):
 
 
 def test_an_intersect_of_bodies_that_never_touch_fails():
-    """Carrying an empty solid forward would fail several features later and
-    point at the wrong one.
+    """An intersect of bodies that never touch fails at that feature.
+
+    Carrying an empty solid forward would fail several features later and point at the wrong
+    one.
     """
     with pytest.raises(ValueError, match="empty solid"):
         replay(document_with("intersect", tool_center=[40, 0]))

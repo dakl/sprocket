@@ -47,12 +47,11 @@ def default_cache_dir() -> Path:
     return base / "sprocket" / "brep"
 
 
-def prune(
-    cache_dir: Path, max_age: float = MAX_AGE_SECONDS, max_bytes: int = MAX_BYTES
-) -> int:
-    """Deletes stale `.brep` files and returns how many went. A hit touches
-    its file, so mtime is the last use. Only `.brep` and `.partial` files are
-    touched, so a `--cache-dir` that holds anything else keeps it.
+def prune(cache_dir: Path, max_age: float = MAX_AGE_SECONDS, max_bytes: int = MAX_BYTES) -> int:
+    """Deletes stale `.brep` files and returns how many went.
+
+    A hit touches its file, so mtime is the last use. Only `.brep` and `.partial`
+    files are touched, so a `--cache-dir` that holds anything else keeps it.
     """
     # A write that crashed before its rename leaves a .partial behind.
     for path in cache_dir.glob("*.partial"):
@@ -95,8 +94,10 @@ class BrepCache:
         return self.cache_dir / f"{key}.brep"
 
     def get(self, key: str) -> Shape | None:
-        """A cached shape has to come back as the build123d class its algebra
-        operators expect, not the generic Compound that import_brep returns.
+        """The cached shape cast back to the class its op returned.
+
+        A cached shape has to come back as the build123d class its algebra operators expect,
+        not the generic Compound that import_brep returns.
 
         The class is read off the shape rather than off the op that made it.
         This used to be a dict keyed by op type, and it named three of the
@@ -116,10 +117,12 @@ class BrepCache:
         return (Part if shape.solids() else Sketch)(shape.wrapped)
 
     def put(self, key: str, shape: Shape) -> None:
-        """Writes to a temporary name and renames it into place. Every open
-        document shares the folder, so a reader must never see half a file.
+        """Writes to a temporary name and renames it into place.
+
+        Every open document shares the folder, so a reader must never see half a
+        file.
         """
         path = self._path(key)
         partial = path.with_suffix(f".{os.getpid()}.partial")
         export_brep(shape, partial)
-        os.replace(partial, path)
+        partial.replace(path)

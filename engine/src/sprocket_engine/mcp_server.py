@@ -52,11 +52,11 @@ edit comes back with the current document so you can rebase."""
 EDIT_PROPERTIES = {
     "index": {
         "type": "integer",
-        "description": "where in the timeline to insert it (default: at the rollback bar)",
+        "description": ("where in the timeline to insert it (default: at the rollback bar)"),
     },
     "base_revision": {
         "type": "integer",
-        "description": "the revision you last read; omit only when nothing else is editing",
+        "description": ("the revision you last read; omit only when nothing else is editing"),
     },
 }
 
@@ -70,13 +70,9 @@ def op_tool_schema(schema: dict) -> dict:
     daemon can name a feature perfectly well.
     """
     properties = {
-        name: value
-        for name, value in schema.get("properties", {}).items()
-        if name != "type"
+        name: value for name, value in schema.get("properties", {}).items() if name != "type"
     }
-    required = [
-        name for name in schema.get("required", []) if name not in ("type", "id")
-    ]
+    required = [name for name in schema.get("required", []) if name not in ("type", "id")]
     # `description` goes too: it is already the tool's own description, and an
     # agent pays for every copy of it in the listing.
     dropped = ("properties", "required", "type", "description")
@@ -91,9 +87,7 @@ def op_tool_schema(schema: dict) -> dict:
     return tool_schema
 
 
-def _tool(
-    name: str, description: str, properties: dict, required: list[str] | None = None
-):
+def _tool(name: str, description: str, properties: dict, required: list[str] | None = None):
     return types.Tool(
         name=name,
         description=description,
@@ -121,20 +115,25 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "get_timeline",
-            "The feature list in order, with which features are built and who added each one. Start here.",
+            "The feature list in order, with which features are built and who added "
+            "each one. Start here.",
             {},
         ),
         _tool(
             "get_profiles",
-            "The closed regions of one sketch, each named by the ids of the entities that bound it. "
-            "Copy a region's bounded_by (and inside, if two regions share it) into an extrude's profiles.",
+            "The closed regions of one sketch, each named by the ids of the entities "
+            "that bound it. "
+            "Copy a region's bounded_by (and inside, if two regions share it) into an "
+            "extrude's profiles.",
             {"feature": {"type": "string", "description": "id of a sketch feature"}},
             ["feature"],
         ),
         _tool(
             "resolve_plane",
-            "Where a sketch plane lands on the current part, as origin, normal and x_dir. Takes any form a "
-            "sketch's `plane` takes, such as {'feature': 'f2', 'face': <selector>, 'offset': 0}.",
+            "Where a sketch plane lands on the current part, as origin, normal and "
+            "x_dir. Takes any form a "
+            "sketch's `plane` takes, such as {'feature': 'f2', 'face': <selector>, "
+            "'offset': 0}.",
             {"plane": {"description": "a sketch plane reference"}},
             ["plane"],
         ),
@@ -145,22 +144,28 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "get_selection",
-            "What the person has selected in the viewer right now: face and edge handles with a sentence "
-            "each, and sketch ids. Read it when they say 'this' or 'these'. If stale is true the part was "
+            "What the person has selected in the viewer right now: face and edge "
+            "handles with a sentence "
+            "each, and sketch ids. Read it when they say 'this' or 'these'. If stale "
+            "is true the part was "
             "rebuilt since they picked, so ask them to pick again.",
             {},
         ),
         _tool(
             "resolve_selection",
-            "Turns face or edge handles into a selector that survives edits, for a fillet's edges or an "
-            "extrude_face's face. With no handles it uses the person's current selection. The reply's "
-            "strategy says how robust it is: new_since and structure follow the geometry, position only "
+            "Turns face or edge handles into a selector that survives edits, for a "
+            "fillet's edges or an "
+            "extrude_face's face. With no handles it uses the person's current "
+            "selection. The reply's "
+            "strategy says how robust it is: new_since and structure follow the "
+            "geometry, position only "
             "follows where it is.",
             {"handles": HANDLES},
         ),
         _tool(
             "highlight",
-            "Shows faces, edges or sketches in the person's viewer so they can see what you mean. "
+            "Shows faces, edges or sketches in the person's viewer so they can see "
+            "what you mean. "
             "An empty list clears it. It does not change their selection.",
             {
                 "handles": HANDLES,
@@ -173,10 +178,14 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "measure",
-            "Volume, area and bounding box of the whole part, with each body's volume and area; or of one body "
-            "(`body`); or of the handles you name. One handle gives a face's area or an edge's length. Two give "
-            "`distance` (the closest they come), `centre_distance`, and `angle` in degrees when both are flat "
-            "faces (between normals, 0 to 180) or straight edges (0 to 90), or one of each (line to plane, 0 to 90).",
+            "Volume, area and bounding box of the whole part, with each body's volume "
+            "and area; or of one body "
+            "(`body`); or of the handles you name. One handle gives a face's area or "
+            "an edge's length. Two give "
+            "`distance` (the closest they come), `centre_distance`, and `angle` in "
+            "degrees when both are flat "
+            "faces (between normals, 0 to 180) or straight edges (0 to 90), or one of "
+            "each (line to plane, 0 to 90).",
             {
                 "handles": HANDLES,
                 "body": {
@@ -205,15 +214,20 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "screenshot_app",
-            "A picture of the person's viewer as they see it: in the app the whole window, toolbar, panels and "
-            "timeline included; in a browser only the 3D view. Use it with agent_pointer to drive and check the UI.",
+            "A picture of the person's viewer as they see it: in the app the whole "
+            "window, toolbar, panels and "
+            "timeline included; in a browser only the 3D view. Use it with "
+            "agent_pointer to drive and check the UI.",
             {},
         ),
         _tool(
             "agent_pointer",
-            "Moves a pointer the person can see in their viewer and acts with it: move, click, double_click, drag, "
-            "key or type. Aim with `x` and `y` in the viewer's CSS pixels (a screenshot_app picture from the app "
-            "is in device pixels: divide by its `scale`), or with `target`, a CSS selector such as '#tool-fillet'. "
+            "Moves a pointer the person can see in their viewer and acts with it: "
+            "move, click, double_click, drag, "
+            "key or type. Aim with `x` and `y` in the viewer's CSS pixels (a "
+            "screenshot_app picture from the app "
+            "is in device pixels: divide by its `scale`), or with `target`, a CSS "
+            "selector such as '#tool-fillet'. "
             "The answer names the element that took the action.",
             {
                 "action": {
@@ -231,7 +245,9 @@ def document_tools() -> list[types.Tool]:
                 "to_y": {"type": "number", "description": "where a drag ends"},
                 "key": {
                     "type": "string",
-                    "description": "for key: a KeyboardEvent.key name, e.g. 'Enter', 'Escape', 'f'",
+                    "description": (
+                        "for key: a KeyboardEvent.key name, e.g. 'Enter', 'Escape', 'f'"
+                    ),
                 },
                 "text": {
                     "type": "string",
@@ -244,7 +260,8 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "preview_feature",
-            "Builds a feature without committing it, and reports whether it would work. "
+            "Builds a feature without committing it, and reports whether it would "
+            "work. "
             "Use this before adding anything you are not sure about.",
             {
                 "feature": {
@@ -268,13 +285,16 @@ def document_tools() -> list[types.Tool]:
             "get_bodies",
             "The bodies the document builds, in order: id, name, colour, "
             "visibility, ghost, volume and face count. "
-            "A feature with no base starts a body, and the body's id is that feature's id.",
+            "A feature with no base starts a body, and the body's id is that "
+            "feature's id.",
             {},
         ),
         _tool(
             "set_appearances",
-            "Replaces the face colours. Each entry paints the faces its selector matches, in order, over the "
-            "body colours, and a later entry wins. Use set_body for a whole body's colour; this is for faces.",
+            "Replaces the face colours. Each entry paints the faces its selector "
+            "matches, in order, over the "
+            "body colours, and a later entry wins. Use set_body for a whole body's "
+            "colour; this is for faces.",
             {
                 "appearances": {
                     "type": "array",
@@ -296,8 +316,10 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "get_face_appearance",
-            "Which appearance entries colour one face (with how many faces each colours), and a within-box "
-            "selector that matches that face alone. Append {color, select: selector} with set_appearances to colour it.",
+            "Which appearance entries colour one face (with how many faces each "
+            "colours), and a within-box "
+            "selector that matches that face alone. Append {color, select: selector} "
+            "with set_appearances to colour it.",
             {
                 "handle": {
                     "type": "string",
@@ -308,25 +330,29 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "face_sketch_plane",
-            "A sketch plane that follows a face: {feature, face selector} to use as a new sketch's `plane`, "
-            "and where it lands now (origin, normal, x_dir). Sketch coordinates are in that plane's u, v.",
+            "A sketch plane that follows a face: {feature, face selector} to use as a "
+            "new sketch's `plane`, "
+            "and where it lands now (origin, normal, x_dir). Sketch coordinates are "
+            "in that plane's u, v.",
             {
                 "handle": {
                     "type": "string",
-                    "description": "a planar face handle from describe_geometry, like 'f3'",
+                    "description": ("a planar face handle from describe_geometry, like 'f3'"),
                 }
             },
             ["handle"],
         ),
         _tool(
             "get_file_status",
-            "Whether the document file changed on disk, whether the engine holds edits the file does not, "
+            "Whether the document file changed on disk, whether the engine holds "
+            "edits the file does not, "
             "and any open conflict between the two.",
             {},
         ),
         _tool(
             "check_clearance",
-            "For each part body and each reference body: the smallest distance between them and the volume "
+            "For each part body and each reference body: the smallest distance "
+            "between them and the volume "
             "they share. Overlap above 0 means the part collides with the reference.",
             {},
         ),
@@ -342,11 +368,11 @@ def document_tools() -> list[types.Tool]:
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
                 "material": {
                     "enum": [*PRESETS, None],
-                    "description": "surface finish preset; null goes back to the default",
+                    "description": ("surface finish preset; null goes back to the default"),
                 },
                 "visible": {
                     "type": "boolean",
-                    "description": "false hides the body in the viewer; it still exports",
+                    "description": ("false hides the body in the viewer; it still exports"),
                 },
                 "ghost": {
                     "type": "boolean",
@@ -361,12 +387,14 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "set_parameter",
-            "Sets a named parameter. Features refer to it as '=name', and an expression "
-            "like '=width / 2' may reference other parameters. A null value removes it.",
+            "Sets a named parameter. Features refer to it as '=name', and an "
+            "expression "
+            "like '=width / 2' may reference other parameters. A null value removes "
+            "it.",
             {
                 "name": {"type": "string"},
                 "value": {
-                    "description": "a number, or an expression string starting with '='",
+                    "description": ("a number, or an expression string starting with '='"),
                     "type": ["number", "string", "null"],
                 },
                 "base_revision": EDIT_PROPERTIES["base_revision"],
@@ -375,8 +403,10 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "apply_edit",
-            "The general edit path: a list of insert, update, delete, move, set_rollback, set_parameter or "
-            "edit_sketch edits applied as one unit. Prefer the add_* tools for adding features.",
+            "The general edit path: a list of insert, update, delete, move, "
+            "set_rollback, set_parameter or "
+            "edit_sketch edits applied as one unit. Prefer the add_* tools for adding "
+            "features.",
             {
                 "edits": {"type": "array", "items": {"type": "object"}},
                 "base_revision": EDIT_PROPERTIES["base_revision"],
@@ -385,7 +415,8 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "export",
-            "Writes the built part to STEP, STL, 3MF, or the viewer's mesh format. STEP and 3MF carry body names and colours.",
+            "Writes the built part to STEP, STL, 3MF, or the viewer's mesh format. "
+            "STEP and 3MF carry body names and colours.",
             {
                 "step": {"type": "string", "description": "path to write STEP to"},
                 "stl": {
@@ -408,8 +439,10 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "section",
-            "Cuts the part with a plane and reports the cut: its area, face count and 2D extent in the plane's own "
-            "frame. Give `path` ending .dxf or .svg to write the section as a drawing. The plane takes any form a "
+            "Cuts the part with a plane and reports the cut: its area, face count and "
+            "2D extent in the plane's own "
+            "frame. Give `path` ending .dxf or .svg to write the section as a "
+            "drawing. The plane takes any form a "
             "sketch's `plane` takes, such as {'name': 'XZ', 'offset': 5}.",
             {
                 "plane": {"description": "a sketch plane reference"},
@@ -445,19 +478,29 @@ CHANGES = {
 
 
 def sketch_tools() -> list[types.Tool]:
-    """Edits inside one sketch. Each one solves the sketch and returns the solved geometry."""
+    """Edits inside one sketch.
+
+    Each one solves the sketch and returns the solved geometry.
+    """
     # Prefixed `sketch_` because every tool that starts with `add_` is an op.
-    common = "The sketch is solved after the edit, and the reply holds the solved sketch and its degrees of freedom (dof). "
+    common = (
+        "The sketch is solved after the edit, and the reply holds the solved sketch and its "
+        "degrees of freedom (dof). "
+    )
     return [
         _tool(
             "sketch_add_constraint",
-            common
-            + "A constraint with no solution is refused, and the reply names the ones that conflict.",
+            common + "A constraint with no solution is refused, and the reply names the ones that "
+            "conflict.",
             {
                 **SKETCH_TOOL_PROPERTIES,
                 "constraint": {
                     "type": "object",
-                    "description": "{kind, and a, b or e, and value for a dimension}. distance_x and distance_y measure from a to b along the sketch's u or v axis, signed",
+                    "description": (
+                        "{kind, and a, b or e, and value for a dimension}. distance_x "
+                        "and distance_y measure from a to b along the sketch's u or v "
+                        "axis, signed"
+                    ),
                 },
             },
             ["feature", "constraint"],
@@ -485,32 +528,39 @@ def sketch_tools() -> list[types.Tool]:
                 **SKETCH_TOOL_PROPERTIES,
                 "entity": {
                     "type": "object",
-                    "description": "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind",
+                    "description": (
+                        "a line {p0, p1}, an arc {c, r, a0, a1} or a circle {c, r}, with kind"
+                    ),
                 },
             },
             ["feature", "entity"],
         ),
         _tool(
             "sketch_add_reference",
-            common
-            + "Projects an edge of an earlier sketch or body into this sketch as a locked reference entity, "
-            "drawn dashed and left out of profiles. A constraint or dimension may then name it, such as "
-            "distance_x between its end and a point of this sketch. It is projected again on every rebuild, so the "
-            "dimension holds when the source changes. A source is {sketch, entity} for an entity of an earlier sketch, "
-            "or {feature, edge} with a selector for one straight or circular edge of a body.",
+            common + "Projects an edge of an earlier sketch or body into this sketch as a locked "
+            "reference entity, "
+            "drawn dashed and left out of profiles. A constraint or dimension may "
+            "then name it, such as "
+            "distance_x between its end and a point of this sketch. It is projected "
+            "again on every rebuild, so the "
+            "dimension holds when the source changes. A source is {sketch, entity} "
+            "for an entity of an earlier sketch, "
+            "or {feature, edge} with a selector for one straight or circular edge of "
+            "a body.",
             {
                 **SKETCH_TOOL_PROPERTIES,
                 "source": {
                     "type": "object",
-                    "description": "{'sketch': 'f1', 'entity': 'e3'} or {'feature': 'f2', 'edge': <selector>}",
+                    "description": (
+                        "{'sketch': 'f1', 'entity': 'e3'} or {'feature': 'f2', 'edge': <selector>}"
+                    ),
                 },
             },
             ["feature", "source"],
         ),
         _tool(
             "sketch_update_entity",
-            common
-            + "The solver moves the entity to the nearest place that obeys the constraints.",
+            common + "The solver moves the entity to the nearest place that obeys the constraints.",
             {**SKETCH_TOOL_PROPERTIES, "entity_id": ENTITY_ID, "changes": CHANGES},
             ["feature", "entity_id", "changes"],
         ),
@@ -534,9 +584,7 @@ def op_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name=f"add_{name}",
-            description=op.schema.get(
-                "description", f"Adds a {name} feature to the timeline."
-            ),
+            description=op.schema.get("description", f"Adds a {name} feature to the timeline."),
             input_schema=op_tool_schema(op.schema),
         )
         for name, op in sorted(REGISTRY.items())
@@ -545,9 +593,7 @@ def op_tools() -> list[types.Tool]:
 
 def _next_id(client: Client, op_name: str) -> str:
     """A short id the agent did not have to invent, unique in this document."""
-    existing = {
-        feature.get("id") for feature in client.call("get_document")["features"]
-    }
+    existing = {feature.get("id") for feature in client.call("get_document")["features"]}
     index = 1
     while f"{op_name}{index}" in existing:
         index += 1
@@ -560,17 +606,13 @@ SKETCH_TOOL_NAMES = {tool.name for tool in sketch_tools()}
 def call(client: Client, name: str, arguments: dict) -> list:
     """Runs one tool against the daemon and returns MCP content."""
     if name in SKETCH_TOOL_NAMES:
-        return _json_content(
-            client.call(name[len("sketch_") :], author=AUTHOR, **arguments)
-        )
+        return _json_content(client.call(name[len("sketch_") :], author=AUTHOR, **arguments))
 
     if name.startswith("add_"):
         op_name = name[len("add_") :]
         if op_name not in REGISTRY:
             raise ValueError(f"no op named {op_name!r}")
-        feature = {
-            key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES
-        }
+        feature = {key: value for key, value in arguments.items() if key not in EDIT_PROPERTIES}
         feature["type"] = op_name
         feature.setdefault("id", _next_id(client, op_name))
         edit = {"op": "insert", "feature": feature}
@@ -647,24 +689,18 @@ def _render(client: Client, arguments: dict, method: str = "render_view") -> lis
 
 
 def _json_content(result) -> list:
-    return [
-        types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))
-    ]
+    return [types.TextContent(type="text", text=json.dumps(result, indent=1, default=str))]
 
 
 def build_server(client: Client) -> Server:
-    async def on_list_tools(ctx, params):
-        return types.ListToolsResult(
-            tools=document_tools() + sketch_tools() + op_tools()
-        )
+    async def on_list_tools(_ctx, _params):
+        return types.ListToolsResult(tools=document_tools() + sketch_tools() + op_tools())
 
-    async def on_call_tool(ctx, params):
+    async def on_call_tool(_ctx, params):
         try:
             # The client is blocking, and blocking the event loop would stall
             # the stdio transport for the whole of a replay.
-            content = await asyncio.to_thread(
-                call, client, params.name, params.arguments or {}
-            )
+            content = await asyncio.to_thread(call, client, params.name, params.arguments or {})
             return types.CallToolResult(content=content)
         except RpcError as exc:
             # A refused edit is the agent's to fix, not a transport failure, so
@@ -675,17 +711,13 @@ def build_server(client: Client) -> Server:
                 payload["data"] = exc.data
             return types.CallToolResult(
                 content=[
-                    types.TextContent(
-                        type="text", text=json.dumps(payload, indent=1, default=str)
-                    )
+                    types.TextContent(type="text", text=json.dumps(payload, indent=1, default=str))
                 ],
                 is_error=True,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return types.CallToolResult(
-                content=[
-                    types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")
-                ],
+                content=[types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")],
                 is_error=True,
             )
 
@@ -709,22 +741,16 @@ def find_socket(extra_folder: Path | None = None) -> Path:
     if extra_folder:
         candidates = list(extra_folder.glob("sprocket-*.sock"))
     else:
-        folders = {Path(tempfile.gettempdir()), Path("/tmp")}
-        candidates = [
-            path for folder in folders for path in folder.glob("sprocket-*.sock")
-        ]
+        folders = {Path(tempfile.gettempdir()), Path("/tmp")}  # noqa: S108
+        candidates = [path for folder in folders for path in folder.glob("sprocket-*.sock")]
         candidates += Path("/var/folders").glob("*/*/T/sprocket-*.sock")
-    for path in sorted(
-        candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True
-    ):
+    for path in sorted(candidates, key=lambda candidate: candidate.stat().st_mtime, reverse=True):
         try:
             Client(path).close()
         except OSError:
             continue
         return path
-    raise RpcError(
-        INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket"
-    )
+    raise RpcError(INTERNAL_ERROR, "no running Sprocket app found: open the app, or pass --socket")
 
 
 class LazyClient:
@@ -734,9 +760,7 @@ class LazyClient:
     for the socket again, which is the new app's.
     """
 
-    def __init__(
-        self, socket_path: Path | None = None, search_folder: Path | None = None
-    ):
+    def __init__(self, socket_path: Path | None = None, search_folder: Path | None = None):
         self._socket_path = socket_path
         self._search_folder = search_folder
         self._client: Client | None = None
@@ -744,19 +768,16 @@ class LazyClient:
     def call(self, method: str, **params):
         for attempt in (1, 2):
             if self._client is None:
-                self._client = Client(
-                    self._socket_path or find_socket(self._search_folder)
-                )
+                self._client = Client(self._socket_path or find_socket(self._search_folder))
             try:
                 return self._client.call(method, **params)
             except (OSError, RpcError) as error:
-                if isinstance(error, RpcError) and "closed the connection" not in str(
-                    error
-                ):
+                if isinstance(error, RpcError) and "closed the connection" not in str(error):
                     raise
                 self.close()
                 if attempt == 2:
                     raise
+        return None
 
     def close(self) -> None:
         if self._client is not None:
@@ -770,9 +791,7 @@ def run(socket_path: Path | None = None) -> int:
 
     async def main():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream, write_stream, server.create_initialization_options()
-            )
+            await server.run(read_stream, write_stream, server.create_initialization_options())
 
     try:
         asyncio.run(main())

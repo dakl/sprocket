@@ -24,10 +24,11 @@ OPERATIONS = {
 
 @register("boolean", SCHEMA)
 def apply(feature: dict, ctx):
-    """Operands are feature ids, because every earlier feature's shape is
-    already in `ctx.results` whether or not anything consumed it. An extrude
-    nothing else refers to is a second body in all but name, so a boolean can
-    reach two independent extrudes with no multi-body machinery.
+    """A boolean of two earlier features, named by id.
+
+    Operands are feature ids, because every earlier feature's shape is already in `ctx.results`
+    whether or not anything consumed it. An extrude nothing else refers to is a second body in
+    all but name, so a boolean can reach two independent extrudes with no multi-body machinery.
     """
     base = ctx.results[feature["base"]]
     tool = ctx.results[feature["tool"]]

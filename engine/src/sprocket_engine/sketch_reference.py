@@ -1,5 +1,6 @@
-"""Projected reference geometry: an edge of an earlier sketch or body, seen
-from inside another sketch.
+"""Projected reference geometry for sketches.
+
+Projected reference geometry: an edge of an earlier sketch or body, seen from inside another sketch.
 
 A sketch's constraints only join its own entities. To dimension one sketch
 against another, the other sketch's edge is projected onto this sketch's plane
@@ -24,7 +25,8 @@ from .regions import entity_edge
 from .selectors import resolve_selector
 
 TWO_PI = 2 * math.pi
-# How parallel an edge's plane must be to the sketch plane for a circle to stay a circle.
+# How parallel an edge's plane must be to the sketch plane for a circle to stay a
+# circle.
 FLAT = 1 - 1e-6
 
 
@@ -41,14 +43,10 @@ def source_edge(source: dict, ctx):
                 f"{source['sketch']!r} is not a sketch of entities built before this one"
             )
         found = [
-            entity
-            for entity in sketch_entities(sketch)
-            if entity["id"] == source.get("entity")
+            entity for entity in sketch_entities(sketch) if entity["id"] == source.get("entity")
         ]
         if not found:
-            raise ValueError(
-                f"sketch {source['sketch']!r} has no entity {source.get('entity')!r}"
-            )
+            raise ValueError(f"sketch {source['sketch']!r} has no entity {source.get('entity')!r}")
         return resolve_plane(sketch["plane"], ctx) * entity_edge(found[0])
     if "feature" in source and "edge" in source:
         shape = ctx.results.get(source["feature"])
@@ -57,7 +55,8 @@ def source_edge(source: dict, ctx):
         edges = resolve_selector(shape, source["edge"], ctx)
         if len(edges) != 1:
             raise ValueError(
-                f"the edge selector matched {len(edges)} edges of {source['feature']!r}, expected exactly 1"
+                f"the edge selector matched {len(edges)} edges of "
+                f"{source['feature']!r}, expected exactly 1"
             )
         return edges[0]
     raise ValueError("a reference names {'sketch', 'entity'} or {'feature', 'edge'}")
@@ -88,12 +87,11 @@ def project_edge(edge, plane) -> dict:
         return {"kind": "line", "p0": p0, "p1": p1}
     if edge.geom_type != GeomType.CIRCLE:
         raise ValueError(
-            f"only straight and circular edges can be projected, not a {edge.geom_type.name.lower()} one"
+            "only straight and circular edges can be projected, not a "
+            f"{edge.geom_type.name.lower()} one"
         )
     if abs(edge.normal().dot(plane.z_dir)) < FLAT:
-        raise ValueError(
-            "a circle projects as a circle only onto a plane parallel to it"
-        )
+        raise ValueError("a circle projects as a circle only onto a plane parallel to it")
     centre = local(edge.arc_center)
     radius = round(edge.radius, 9)
     if edge.is_closed:
@@ -119,7 +117,10 @@ def projector(plane_reference, ctx):
 
 
 def with_references_updated(feature: dict, project) -> dict:
-    """A copy of `feature` whose reference entities are projected again. Nothing is solved."""
+    """A copy of `feature` whose reference entities are projected again.
+
+    Nothing is solved.
+    """
     updated = copy.deepcopy(feature)
     for entity in updated["entities"]:
         source = entity.get("reference")
@@ -130,10 +131,11 @@ def with_references_updated(feature: dict, project) -> dict:
         except Exception as exc:
             raise ValueError(
                 f"reference {entity['id']!r} of sketch {feature['id']!r}: {exc}"
-            ) from None
+            ) from exc
         if fields["kind"] != entity["kind"]:
             raise ValueError(
-                f"reference {entity['id']!r} of sketch {feature['id']!r} was a {entity['kind']} and its source is now a {fields['kind']}"
+                f"reference {entity['id']!r} of sketch {feature['id']!r} was a "
+                f"{entity['kind']} and its source is now a {fields['kind']}"
             )
         entity.update(fields)
     return updated

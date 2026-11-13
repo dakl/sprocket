@@ -33,8 +33,9 @@ def test_construct_features_make_no_body_and_a_document_of_them_is_empty():
     shape, failed, ctx = build_shape(
         [YZ_AT_X30, {"id": "p", "type": "point", "at": [1, 2, 3]}], 2, None
     )
-    assert shape is None and failed is None
-    shape, ctx = build(BOX + [YZ_AT_X30, {"id": "z", "type": "axis", "axis": "Z"}])
+    assert shape is None
+    assert failed is None
+    shape, ctx = build([*BOX, YZ_AT_X30, {"id": "z", "type": "axis", "axis": "Z"}])
     assert [body["id"] for body in ctx.bodies] == ["box"]
     assert shape.volume == pytest.approx(12000)
 
@@ -47,8 +48,8 @@ def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
         "rect": {"width": 4, "height": 4},
     }
     _, ctx = build(
-        BOX
-        + [
+        [
+            *BOX,
             YZ_AT_X30,
             sketch,
             {"id": "cut", "type": "extrude", "profile": "s", "distance": 3},
@@ -58,8 +59,8 @@ def test_a_sketch_on_a_plane_feature_sits_on_it_and_follows_when_it_moves():
     assert pytest.approx((30, 33)) == (box.min.X, box.max.X)
     moved = {**YZ_AT_X30, "offset": 12}
     _, ctx = build(
-        BOX
-        + [
+        [
+            *BOX,
             moved,
             sketch,
             {"id": "cut", "type": "extrude", "profile": "s", "distance": 3},
@@ -87,8 +88,8 @@ def test_a_plane_feature_can_start_from_a_face_or_another_plane_feature():
         "rect": {"width": 4, "height": 4},
     }
     _, ctx = build(
-        BOX
-        + [
+        [
+            *BOX,
             on_top,
             again,
             sketch,
@@ -130,15 +131,14 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
         {"id": "nib", "type": "extrude", "profile": "ns", "distance": 8},
     ]
     features = [hole_sketch, post, *pin]
-    # The post's side wall is the face nearest its seam, where OCCT puts a cylinder's centre.
+    # The post's side wall is the face nearest its seam, where OCCT puts a
+    # cylinder's centre.
     axis = {
         "id": "post_axis",
         "type": "axis",
         "axis": {
             "base": "post",
-            "face": {
-                "select": [{"op": "faces"}, {"op": "nearest_to", "point": [7, 0, 4]}]
-            },
+            "face": {"select": [{"op": "faces"}, {"op": "nearest_to", "point": [7, 0, 4]}]},
         },
     }
     ring = {
@@ -147,12 +147,13 @@ def test_an_axis_follows_a_cylindrical_face_and_a_pattern_turns_about_it():
         "tool": "nib",
         "circular": {"axis": {"construct": "post_axis"}, "count": 4},
     }
-    _, ctx = build(features + [axis, ring])
+    _, ctx = build([*features, axis, ring])
     assert ctx.results["post_axis"] is not None
     result = ctx.results["ring"]
     assert len(result.solids()) == 4
     assert result.volume == pytest.approx(4 * math.pi * 1 * 8)
-    # The ring is about the post's axis at x = 10, so the pins sit 10 mm from it: x = 20, 10, 0 and 10.
+    # The ring is about the post's axis at x = 10, so the pins sit 10 mm from it:
+    # x = 20, 10, 0 and 10.
     xs = sorted(round(solid.center().X, 3) for solid in result.solids())
     assert xs == pytest.approx([0, 10, 10, 20])
 
@@ -199,7 +200,7 @@ def test_an_axis_that_does_not_resolve_fails_that_feature_by_name():
         },
     }
     with pytest.raises(Exception) as caught:
-        build(BOX + [bad])
+        build([*BOX, bad])
     assert caught.value.feature_id == "a"
     curved = {
         "id": "c",
@@ -207,7 +208,7 @@ def test_an_axis_that_does_not_resolve_fails_that_feature_by_name():
         "axis": {"base": "box", "face": {"select": [{"op": "faces"}, {"op": "first"}]}},
     }
     with pytest.raises(Exception, match="cylindrical"):
-        build(BOX + [curved])
+        build([*BOX, curved])
 
 
 def test_a_construct_feature_a_later_one_names_cannot_be_deleted():
@@ -234,10 +235,11 @@ def test_a_construct_feature_a_later_one_names_cannot_be_deleted():
         document.apply_edits([{"op": "delete", "id": "box"}], None, "test")
 
 
-def test_the_viewer_files_describe_each_construct_feature(tmp_path):
+def test_the_viewer_files_describe_each_construct_feature():
     from sprocket_engine.viewer_files import features_summary
 
-    features = BOX + [
+    features = [
+        *BOX,
         YZ_AT_X30,
         {
             "id": "z",
@@ -270,7 +272,8 @@ def test_preview_says_where_a_construct_feature_lands_even_with_no_part(tmp_path
                 "preview_feature",
                 feature={"id": "w", "type": "plane", "plane": "XY", "offset": 7},
             )
-            assert result["would_build"] and result["construct"]["origin"] == [0, 0, 7]
+            assert result["would_build"]
+            assert result["construct"]["origin"] == [0, 0, 7]
             with pytest.raises(Exception, match="nope"):
                 client.call(
                     "preview_feature",
@@ -287,7 +290,8 @@ def test_preview_says_where_a_construct_feature_lands_even_with_no_part(tmp_path
                 },
             }
             broken = client.call("preview_feature", feature=flat)
-            assert not broken["would_build"] and "cylindrical" in broken["reason"]
+            assert not broken["would_build"]
+            assert "cylindrical" in broken["reason"]
 
 
 def test_pick_axis_names_a_cylindrical_face_and_a_circular_edge_by_the_body_they_are_on(
@@ -306,30 +310,20 @@ def test_pick_axis_names_a_cylindrical_face_and_a_circular_edge_by_the_body_they
         with Client(daemon.socket_path) as client:
             geometry = client.call("describe_geometry")
             round_face = next(
-                face["handle"]
-                for face in geometry["faces"]
-                if face["kind"] == "CYLINDER"
+                face["handle"] for face in geometry["faces"] if face["kind"] == "CYLINDER"
             )
             axis = client.call("pick_axis", handle=round_face)
-            assert axis["axis"]["base"] == "post" and "face" in axis["axis"]
-            assert axis["resolved"]["origin"][:2] == pytest.approx([10, 0]) and abs(
-                axis["resolved"]["direction"][2]
-            ) == pytest.approx(1)
-            circle = next(
-                edge["handle"] for edge in geometry["edges"] if edge["kind"] == "CIRCLE"
-            )
+            assert axis["axis"]["base"] == "post"
+            assert "face" in axis["axis"]
+            assert axis["resolved"]["origin"][:2] == pytest.approx([10, 0])
+            assert abs(axis["resolved"]["direction"][2]) == pytest.approx(1)
+            circle = next(edge["handle"] for edge in geometry["edges"] if edge["kind"] == "CIRCLE")
             around = client.call("pick_axis", handle=circle)
-            assert around["axis"]["base"] == "post" and "edge" in around["axis"]
+            assert around["axis"]["base"] == "post"
+            assert "edge" in around["axis"]
             assert around["resolved"]["origin"][:2] == pytest.approx([10, 0])
-            line = next(
-                edge["handle"] for edge in geometry["edges"] if edge["kind"] == "LINE"
-            )
-            assert (
-                client.call("pick_axis", handle=line)["resolved"]["direction"]
-                is not None
-            )
-            flat = next(
-                face["handle"] for face in geometry["faces"] if face["kind"] == "PLANE"
-            )
+            line = next(edge["handle"] for edge in geometry["edges"] if edge["kind"] == "LINE")
+            assert client.call("pick_axis", handle=line)["resolved"]["direction"] is not None
+            flat = next(face["handle"] for face in geometry["faces"] if face["kind"] == "PLANE")
             with pytest.raises(Exception, match="no axis"):
                 client.call("pick_axis", handle=flat)

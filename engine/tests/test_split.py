@@ -20,35 +20,33 @@ def build(features):
 )
 def test_keep_one_side_of_the_plane(keep, volume, bottom, top):
     part, ctx = build(
-        BOX
-        + [
+        [
+            *BOX,
             {
                 "id": "s",
                 "type": "split",
                 "base": "box",
                 "plane": {"name": "XY", "offset": 4},
                 "keep": keep,
-            }
+            },
         ]
     )
     assert part.volume == pytest.approx(volume)
     box = part.bounding_box()
     assert pytest.approx((bottom, top)) == (box.min.Z, box.max.Z)
-    assert [body["id"] for body in ctx.bodies] == ["box"], (
-        "a split continues its base's body"
-    )
+    assert [body["id"] for body in ctx.bodies] == ["box"], "a split continues its base's body"
 
 
 def test_both_halves_have_their_own_cut_face():
     part, _ = build(
-        BOX
-        + [
+        [
+            *BOX,
             {
                 "id": "s",
                 "type": "split",
                 "base": "box",
                 "plane": {"name": "XY", "offset": 4},
-            }
+            },
         ]
     )
     first, second = part.solids()
@@ -59,26 +57,26 @@ def test_both_halves_have_their_own_cut_face():
 def test_a_plane_that_misses_the_body_is_refused():
     with pytest.raises(ValueError, match="does not cross 'box'"):
         build(
-            BOX
-            + [
+            [
+                *BOX,
                 {
                     "id": "s",
                     "type": "split",
                     "base": "box",
                     "plane": {"name": "XY", "offset": 40},
-                }
+                },
             ]
         )
     with pytest.raises(ValueError, match="kept nothing"):
         build(
-            BOX
-            + [
+            [
+                *BOX,
                 {
                     "id": "s",
                     "type": "split",
                     "base": "box",
                     "plane": {"name": "XY", "offset": 40},
                     "keep": "above",
-                }
+                },
             ]
         )

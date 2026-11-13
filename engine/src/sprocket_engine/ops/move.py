@@ -9,8 +9,10 @@ from .registry import register
 SCHEMA = {
     "type": "object",
     "description": (
-        "Moves a body: turns it `rotate.angle` degrees about `rotate.axis`, then shifts it by `translate`. "
-        "With `base` the body itself moves and later features see it there. With `tool` a moved copy becomes "
+        "Moves a body: turns it `rotate.angle` degrees about `rotate.axis`, then "
+        "shifts it by `translate`. "
+        "With `base` the body itself moves and later features see it there. With "
+        "`tool` a moved copy becomes "
         "a new body, and the original stays."
     ),
     "required": ["id", "type"],
@@ -45,9 +47,7 @@ def apply(feature: dict, ctx):
     source = feature.get("base") or feature.get("tool")
     shape = ctx.results.get(source)
     if shape is None or not shape.solids():
-        raise ValueError(
-            f"move {feature['id']}: {source!r} is not a solid built before it"
-        )
+        raise ValueError(f"move {feature['id']}: {source!r} is not a solid built before it")
     moved = copy.deepcopy(shape)
     if "rotate" in feature:
         moved = moved.rotate(

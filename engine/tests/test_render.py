@@ -75,7 +75,7 @@ def dominant_colours(image: np.ndarray, floor: int = 1000) -> list[tuple]:
     colours, counts = np.unique(flat, axis=0, return_counts=True)
     return [
         tuple(int(channel) for channel in colour)
-        for colour, count in zip(colours, counts)
+        for colour, count in zip(colours, counts, strict=True)
         if count >= floor and tuple(colour) != BACKGROUND
     ]
 
@@ -118,9 +118,7 @@ def test_highlight_paints_the_face_geometry_names(box, tmp_path: Path):
     from sprocket_engine.geometry import describe_faces
 
     front = next(face for face in describe_faces(box) if "front" in face["description"])
-    image = read_png_of(
-        box, tmp_path / "front.png", camera="front", highlight=[front["handle"]]
-    )
+    image = read_png_of(box, tmp_path / "front.png", camera="front", highlight=[front["handle"]])
     lit = np.any(image != np.array(BACKGROUND, dtype=np.uint8), axis=2)
     # The part colour is a blue-grey, the highlight an orange, so the sign of
     # red minus blue separates them whatever the shading does to the brightness.
@@ -142,8 +140,10 @@ def test_a_render_reports_what_it_drew(box, tmp_path: Path):
 
 
 def test_opposite_cameras_do_not_render_the_same_image(box, tmp_path: Path):
-    """A camera direction that is ignored, or applied with the wrong sign,
-    still produces a plausible picture. Two of them disagreeing is the check.
+    """Two camera directions give different pictures.
+
+    A camera direction that is ignored, or applied with the wrong sign, still produces a
+    plausible picture. Two of them disagreeing is the check.
     """
     top = read_png_of(box, tmp_path / "top.png", camera="top")
     front = read_png_of(box, tmp_path / "front.png", camera="front")

@@ -98,8 +98,10 @@ def tessellate(shape) -> dict:
 
 
 def _location_of(node, ref: int):
-    """The placement of instance `ref` in world coordinates, as (rotation 3x3,
-    translation), or None when the tree does not hold it.
+    """The world placement of instance `ref`, or None when the tree does not hold it.
+
+    The placement of instance `ref` in world coordinates, as (rotation 3x3, translation), or
+    None when the tree does not hold it.
 
     The instance's buffers are in the shape's own frame. Each node on the way
     down carries a `loc` of ((x, y, z), (qx, qy, qz, qw)), and the placement
@@ -160,9 +162,7 @@ def _place(instance: dict, location) -> None:
         )
     normals = instance["normals"].reshape(-1, 3).astype(np.float64)
     instance["normals"] = (
-        (normals @ rotation.T)
-        .astype(instance["normals"].dtype)
-        .reshape(instance["normals"].shape)
+        (normals @ rotation.T).astype(instance["normals"].dtype).reshape(instance["normals"].shape)
     )
 
 
@@ -250,8 +250,9 @@ def _painted(shape, appearances):
 
 
 def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None:
-    """(roughness, metalness) per face: the body's finish, then appearances
-    that name one. None when nothing has a finish, so the buffer is left out.
+    """(roughness, metalness) per face: the body's finish, then appearances that name one.
+
+    None when nothing has a finish, so the buffer is left out.
     """
     if not any(body.get("material") for body in bodies) and not any(
         "material" in item for item in appearances or []
@@ -259,7 +260,7 @@ def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None
         return None
     values = np.full((sum(face_counts), 2), NO_MATERIAL, dtype="<f4")
     start = 0
-    for body, count in zip(bodies, face_counts):
+    for body, count in zip(bodies, face_counts, strict=False):
         if body.get("material"):
             values[start : start + count] = PRESETS[body["material"]]
         start += count
@@ -275,7 +276,7 @@ def body_colours(bodies, face_counts, shape, appearances) -> np.ndarray:
     """Body colours first, then appearances over the part's faces, which win."""
     colours = np.full(sum(face_counts), NO_COLOUR, dtype="<u4")
     start = 0
-    for body, count in zip(bodies, face_counts):
+    for body, count in zip(bodies, face_counts, strict=False):
         if body.get("color"):
             colours[start : start + count] = int(body["color"].lstrip("#"), 16)
         start += count
@@ -306,11 +307,12 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
         instances = [tessellate(body["shape"]) for body in ordered]
         instance = _concatenate(instances)
         face_counts = [len(item["triangles_per_face"]) for item in instances]
-        for body, item, count in zip(ordered, instances, face_counts):
+        for body, item, count in zip(ordered, instances, face_counts, strict=False):
             body_entries.append(
                 {
                     "id": body["id"],
-                    # The newest feature of the body: what a Modify tool names as its base.
+                    # The newest feature of the body: what a
+                    # Modify tool names as its base.
                     "tip": body.get("tip", body["id"]),
                     "name": body.get("name", body["id"]),
                     "color": body.get("color"),
@@ -318,9 +320,11 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                     "reference": body["reference"],
                     "faces": count,
                     "edges": len(item["segments_per_edge"]),
-                    # Only when set, so a document with no finishes writes the same bytes as before.
+                    # Only when set, so a document with no
+                    # finishes writes the same bytes as before.
                     **({"material": body["material"]} if body.get("material") else {}),
-                    # Only when it differs from the default, a ghost for a reference body
+                    # Only when it differs from the default, a
+                    # ghost for a reference body
                     # and solid for a part, so older documents write the same bytes.
                     **(
                         {"ghost": body["ghost"]}
@@ -330,9 +334,7 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                 }
             )
         if appearances or any(body.get("color") for body in ordered):
-            instance["face_colors"] = body_colours(
-                ordered, face_counts, shape, appearances
-            )
+            instance["face_colors"] = body_colours(ordered, face_counts, shape, appearances)
         finishes = face_materials(ordered, face_counts, shape, appearances)
         if finishes is not None:
             instance["face_materials"] = finishes

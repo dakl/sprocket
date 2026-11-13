@@ -99,9 +99,7 @@ def describe_faces(shape) -> list[dict]:
     return described
 
 
-def _face_sentence(
-    kind: str, axis: str | None, area: float, position: str | None
-) -> str:
+def _face_sentence(kind: str, axis: str | None, area: float, position: str | None) -> str:
     words = [f"{kind.lower()} face"]
     if axis:
         words.append(f"normal {axis}")
@@ -118,7 +116,7 @@ def describe_edges(shape) -> list[dict]:
             "kind": edge.geom_type.name,
             "length": round(edge.length, 9),
             "centre": _xyz(edge.center()),
-            "description": f"{edge.geom_type.name.lower()} edge, length {edge.length:.3f} mm",
+            "description": (f"{edge.geom_type.name.lower()} edge, length {edge.length:.3f} mm"),
         }
         for index, edge in enumerate(shape.edges())
     ]
@@ -146,9 +144,7 @@ def _resolve_handle(shape, handle: str):
         raise ValueError(f"handle {handle!r} must look like 'f0' or 'e3'") from None
     items = shape.faces() if handle[0] == "f" else shape.edges()
     if not 0 <= index < len(items):
-        raise ValueError(
-            f"handle {handle!r} is out of range, this shape has {len(items)}"
-        )
+        raise ValueError(f"handle {handle!r} is out of range, this shape has {len(items)}")
     return items[index]
 
 
@@ -207,9 +203,11 @@ def _direction(item):
 
 
 def _angle(a, b) -> float | None:
-    """Degrees. Two flat faces: between their normals, 0 to 180, so faces that
-    face each other read 180. Two straight edges: 0 to 90, since a line has no
-    way round. A face and an edge: the line's angle to the plane, 0 to 90.
+    """Degrees.
+
+    Two flat faces: between their normals, 0 to 180, so faces that face each other
+    read 180. Two straight edges: 0 to 90, since a line has no way round. A face and
+    an edge: the line's angle to the plane, 0 to 90.
     """
     found = _direction(a), _direction(b)
     if None in found:

@@ -11,9 +11,12 @@ DOWN = (Align.CENTER, Align.CENTER, Align.MAX)
 SCHEMA = {
     "type": "object",
     "description": (
-        "Drills holes into a solid: simple, counterbore or countersink. Place them at `points` along "
-        "`direction`, or at the centres of the circles in a `sketch`, drilled into the face the sketch sits "
-        "on (against the sketch normal). Give `depth`, or `through: true` to cut through the whole part."
+        "Drills holes into a solid: simple, counterbore or countersink. Place them at "
+        "`points` along "
+        "`direction`, or at the centres of the circles in a `sketch`, drilled into "
+        "the face the sketch sits "
+        "on (against the sketch normal). Give `depth`, or `through: true` to cut "
+        "through the whole part."
     ),
     "required": ["id", "type", "base", "diameter"],
     "oneOf": [{"required": ["points"]}, {"required": ["sketch"]}],
@@ -23,12 +26,15 @@ SCHEMA = {
         "base": {"type": "string", "description": "id of the feature being drilled"},
         "sketch": {
             "type": "string",
-            "description": "id of a sketch feature whose circle centres place the holes",
+            "description": ("id of a sketch feature whose circle centres place the holes"),
         },
         "entities": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Only the circles with these ids. Default: every circle in the sketch that is not construction.",
+            "description": (
+                "Only the circles with these ids. Default: every circle in the sketch "
+                "that is not construction."
+            ),
         },
         "points": {
             "type": "array",
@@ -95,20 +101,14 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
             entity["c"]
             for entity in sketch_entities(sketch)
             if entity["kind"] == "circle"
-            and (
-                entity["id"] in wanted
-                if wanted is not None
-                else not entity.get("construction")
-            )
+            and (entity["id"] in wanted if wanted is not None else not entity.get("construction"))
         ]
     elif "circle" in sketch:
         uvs = [sketch["circle"].get("center", [0, 0])]
     else:
         uvs = []
     if not uvs:
-        raise ValueError(
-            f"sketch {feature['sketch']!r} has no circles to place holes at"
-        )
+        raise ValueError(f"sketch {feature['sketch']!r} has no circles to place holes at")
     direction = -plane.z_dir
     return [(plane.from_local_coords((u, v)), direction) for u, v in uvs]
 

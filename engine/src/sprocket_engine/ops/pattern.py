@@ -16,7 +16,10 @@ LINEAR = {
     "properties": {
         "direction": {
             "oneOf": [VECTOR3, AXIS_SCHEMA],
-            "description": "a world direction [x, y, z], normalised by the engine, or an axis (X, Y, Z, an axis feature) whose direction it takes",
+            "description": (
+                "a world direction [x, y, z], normalised by the engine, or an axis "
+                "(X, Y, Z, an axis feature) whose direction it takes"
+            ),
         },
         "count": COUNT,
         "spacing": {"type": "number", "description": "mm between neighbouring copies"},
@@ -26,9 +29,12 @@ LINEAR = {
 SCHEMA = {
     "type": "object",
     "description": (
-        "Copies the solid an earlier feature made, in a row, a grid or around an axis, and combines the copies "
-        "with `base`. The tool feature is usually a standalone extrude (no base) of one pin, boss or hole. "
-        "`linear` gives a row, `linear` plus `linear2` a grid, `circular` a ring. Counts include the original."
+        "Copies the solid an earlier feature made, in a row, a grid or around an "
+        "axis, and combines the copies "
+        "with `base`. The tool feature is usually a standalone extrude (no base) of "
+        "one pin, boss or hole. "
+        "`linear` gives a row, `linear` plus `linear2` a grid, `circular` a ring. "
+        "Counts include the original."
     ),
     "required": ["id", "type", "tool"],
     "oneOf": [{"required": ["linear"]}, {"required": ["circular"]}],
@@ -41,7 +47,9 @@ SCHEMA = {
         },
         "base": {
             "type": "string",
-            "description": "id of the feature the copies combine with. Without it, the copies are a new body.",
+            "description": (
+                "id of the feature the copies combine with. Without it, the copies are a new body."
+            ),
         },
         "mode": {"enum": ["join", "cut"], "description": "default join"},
         "linear": LINEAR,
@@ -54,7 +62,7 @@ SCHEMA = {
                 "count": COUNT,
                 "angle": {
                     "type": "number",
-                    "description": "degrees spanned, default 360 (copies spread evenly)",
+                    "description": ("degrees spanned, default 360 (copies spread evenly)"),
                 },
             },
         },

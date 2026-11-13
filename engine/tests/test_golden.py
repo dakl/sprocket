@@ -40,8 +40,9 @@ from golden_support import (
 
 @pytest.fixture(scope="module")
 def parts(tmp_path_factory):
-    """One replay per case for all three layers. Replaying six documents three
-    times over costs more than the tests do.
+    """One replay per case for all three layers.
+
+    Replaying six documents three times over costs more than the tests do.
     """
     cache_root = tmp_path_factory.mktemp("golden-cache")
     return {case: build(case, cache_root / case) for case in CASES}
@@ -67,9 +68,11 @@ def test_fingerprint_matches_the_hand_computed_checks(case, parts):
 
 @pytest.mark.parametrize("case", CASES)
 def test_geometry_equals_the_expected_step(case, parts):
-    """Symmetric difference, both ways round. A one-way cut passes when the
-    result is a subset of what it should be: cutting a smaller solid out of the
-    expected one leaves nothing, and a missing feature would read as correct.
+    """Symmetric difference, both ways round.
+
+    A one-way cut passes when the result is a subset of what it should be: cutting a
+    smaller solid out of the expected one leaves nothing, and a missing feature
+    would read as correct.
     """
     part = parts[case]
     expected = import_step(case_dir(case) / EXPECTED_STEP)
@@ -83,16 +86,16 @@ def test_geometry_equals_the_expected_step(case, parts):
         # Measured: an identical pair gives exactly 0.0, so this leaves room for
         # a sliver without leaving room for a real difference. The smallest
         # feature in the suite is a 1000 mm^3 notch.
-        assert volume == pytest.approx(0.0, abs=1e-6), (
-            f"{case}: {name} left {volume} mm^3"
-        )
+        assert volume == pytest.approx(0.0, abs=1e-6), f"{case}: {name} left {volume} mm^3"
 
 
 @pytest.mark.parametrize("case", CASES)
 def test_exported_bytes_are_unchanged(case, parts, tmp_path):
-    """The brittle layer, and deliberately so. An OCCT or build123d upgrade will
-    fail this while the two layers above still pass, and that combination is the
-    signal to review the upgrade rather than a defect.
+    """The brittle layer, and deliberately so.
+
+    An OCCT or build123d upgrade will fail this while the two layers above still
+    pass, and that combination is the signal to review the upgrade rather than a
+    defect.
 
     STEP is compared with its FILE_NAME timestamp scrubbed, which is the only
     part of the file that varies between two exports of one solid.
@@ -116,9 +119,9 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
     write_step(part, fresh_step)
     write_stl(part, fresh_stl)
 
-    assert normalised_step(fresh_step) == normalised_step(
-        case_dir(case) / EXPECTED_STEP
-    ), f"{case}: STEP changed beyond its timestamp"
+    assert normalised_step(fresh_step) == normalised_step(case_dir(case) / EXPECTED_STEP), (
+        f"{case}: STEP changed beyond its timestamp"
+    )
     assert fresh_stl.read_bytes() == (case_dir(case) / EXPECTED_STL).read_bytes(), (
         f"{case}: STL changed"
     )
@@ -126,8 +129,10 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
 
 @pytest.mark.parametrize("case", CASES)
 def test_every_case_ships_its_expected_files(case):
-    """A case whose expected.* files are missing would otherwise skip two whole
-    layers by erroring in a way that looks like a setup problem.
+    """Every golden case ships its expected files.
+
+    A case whose expected.* files are missing would otherwise skip two whole layers by erroring
+    in a way that looks like a setup problem.
 
     The stamp is checked here too. Without it the byte layer cannot tell "this is
     a different engine" from "nobody recorded which engine", and both would read
@@ -144,8 +149,10 @@ def test_every_case_ships_its_expected_files(case):
 
 
 def test_replay_is_deterministic(tmp_path: Path):
-    """Two replays through one cache directory, so a cache hit has to give the
-    same answer as the miss that filled it.
+    """A cache hit gives the same answer as the miss that filled it.
+
+    Two replays through one cache directory, so a cache hit has to give the same answer as the
+    miss that filled it.
     """
     from sprocket_engine.replay import replay
 
@@ -156,9 +163,11 @@ def test_replay_is_deterministic(tmp_path: Path):
 
 
 def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path):
-    """The byte layer above can pass by luck. Capture a case and run the suite in
-    the same second and the raw STEP files match, so the scrub never runs. This
-    tests the substitution itself, whatever the clock says.
+    """The byte layer above can pass by luck.
+
+    Capture a case and run the suite in the same second and the raw STEP files
+    match, so the scrub never runs. This tests the substitution itself, whatever the
+    clock says.
 
     The second half matters as much as the first: a scrub broad enough to hide a
     moved vertex would make the whole layer worthless.
@@ -175,6 +184,4 @@ def test_the_timestamp_scrub_is_narrow_enough_and_wide_enough(tmp_path):
 
     moved = tmp_path / "moved.step"
     moved.write_bytes(header % b"2026-09-28T07:43:02" + point % b"-20.5")
-    assert normalised_step(moved) != normalised_step(morning), (
-        "the scrub hides a moved vertex"
-    )
+    assert normalised_step(moved) != normalised_step(morning), "the scrub hides a moved vertex"

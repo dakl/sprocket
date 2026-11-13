@@ -20,9 +20,7 @@ def test_unknown_op_type_raises():
 
 
 def test_invalid_feature_raises():
-    document = {
-        "features": [{"id": "f1", "type": "sketch", "plane": "XY"}]
-    }  # missing "rect"
+    document = {"features": [{"id": "f1", "type": "sketch", "plane": "XY"}]}  # missing "rect"
     with pytest.raises(ReplayError, match="failed validation"):
         replay(document)
 
@@ -31,9 +29,7 @@ def test_rollback_index_stops_before_the_extrude(tmp_path: Path):
     document = json.loads(json.dumps(RECT_EXTRUDE))
     document["rollback_index"] = 1  # replay only the sketch, not the extrude
     result = replay(document, cache_dir=tmp_path / "cache")
-    assert result.area == pytest.approx(
-        800, rel=1e-6
-    )  # the sketch's own area, not a solid
+    assert result.area == pytest.approx(800, rel=1e-6)  # the sketch's own area, not a solid
 
 
 def test_rollback_index_zero_is_an_empty_document_not_an_error(tmp_path: Path):
@@ -74,8 +70,10 @@ def test_changed_feature_invalidates_cache(tmp_path: Path):
 
 @pytest.mark.parametrize("case", CASES)
 def test_every_op_type_survives_its_own_cache(case, tmp_path: Path):
-    """A cached shape has to come back as the same part the op produced, for
-    every op, not just the ones somebody remembered to list.
+    """A cached shape comes back as the same part, for every op.
+
+    A cached shape has to come back as the same part the op produced, for every op, not just the
+    ones somebody remembered to list.
 
     The other cache tests above all replay rect_extrude, so for a long time
     they only ever exercised sketch and extrude. The cache read used to pick a
@@ -96,8 +94,6 @@ def test_every_op_type_survives_its_own_cache(case, tmp_path: Path):
     cold = replay(document, cache_dir=cache_dir)
     warm = replay(document, cache_dir=cache_dir)
 
-    assert list(cache_dir.iterdir()), (
-        "nothing was cached, so the second replay proves nothing"
-    )
+    assert list(cache_dir.iterdir()), "nothing was cached, so the second replay proves nothing"
     assert type(warm) is type(cold)
     assert warm.volume == pytest.approx(cold.volume, rel=1e-9)

@@ -1,16 +1,20 @@
 from build123d import Compound, Part, ShapeList, Sketch
 from build123d import extrude as b3d_extrude
 
-from ..regions import ProfileError, find_regions, pick_region
+from sprocket_engine.regions import ProfileError, find_regions, pick_region
+
 from .registry import register
 from .sketch import resolve_plane, sketch_entities
 
 SCHEMA = {
     "type": "object",
     "description": (
-        "Pushes a sketch into a solid. With no base it makes a new body. With a base and no mode, a positive "
-        "distance fuses and a negative one cuts. Give `mode` to choose the combine yourself: then the sign of "
-        "`distance` only picks the direction, so `mode: join` with a negative distance grows the part the other "
+        "Pushes a sketch into a solid. With no base it makes a new body. With a base "
+        "and no mode, a positive "
+        "distance fuses and a negative one cuts. Give `mode` to choose the combine "
+        "yourself: then the sign of "
+        "`distance` only picks the direction, so `mode: join` with a negative "
+        "distance grows the part the other "
         "way from the sketch plane."
     ),
     "required": ["id", "type", "distance"],
@@ -37,14 +41,20 @@ SCHEMA = {
                     "bounded_by": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "ids of the entities that enclose the region. Empty for a sketch that is one shape.",
+                        "description": (
+                            "ids of the entities that enclose the region. Empty for a "
+                            "sketch that is one shape."
+                        ),
                     },
                     "inside": {
                         "type": "array",
                         "items": {"type": "number"},
                         "minItems": 2,
                         "maxItems": 2,
-                        "description": "A point [u, v] inside the region. Only needed when two regions share the same bounded_by.",
+                        "description": (
+                            "A point [u, v] inside the region. Only needed when two "
+                            "regions share the same bounded_by."
+                        ),
                     },
                 },
             },
@@ -60,11 +70,17 @@ SCHEMA = {
         },
         "mode": {
             "enum": ["join", "cut", "intersect", "new"],
-            "description": "How the extrude combines with `base`. Needs a base, except `new`, which takes none.",
+            "description": (
+                "How the extrude combines with `base`. Needs a base, except `new`, "
+                "which takes none."
+            ),
         },
         "symmetric": {
             "type": "boolean",
-            "description": "Extrude `distance` to both sides of the sketch plane, so the solid is twice as thick.",
+            "description": (
+                "Extrude `distance` to both sides of the sketch plane, so the solid "
+                "is twice as thick."
+            ),
         },
     },
 }
@@ -75,9 +91,7 @@ def profile_faces(feature: dict, ctx):
     if "profiles" not in feature:
         whole = ctx.results[feature["profile"]]
         if not whole.faces():
-            raise ProfileError(
-                f"sketch {feature['profile']!r} has no closed region to extrude"
-            )
+            raise ProfileError(f"sketch {feature['profile']!r} has no closed region to extrude")
         return whole
     picked = []
     # Region detection splits the whole sketch, so it runs once per sketch, not
@@ -87,7 +101,8 @@ def profile_faces(feature: dict, ctx):
         sketch = ctx.features.get(reference["sketch"])
         if sketch is None or sketch["type"] != "sketch":
             raise ProfileError(
-                f"profile refers to {reference['sketch']!r}, which is not a sketch earlier in the document"
+                f"profile refers to {reference['sketch']!r}, which is not a sketch "
+                "earlier in the document"
             )
         if "entities" not in sketch:
             # A sketch of one shape has no regions to choose between.
@@ -108,8 +123,10 @@ COMBINE = {
 
 
 def combine(feature: dict, tool, ctx, mode: str | None = None):
-    """`tool` combined with the feature's `base` by `mode` (default join), or
-    `tool` alone as a new body when there is no base.
+    """`tool` combined with the feature's `base`, or `tool` alone as a new body.
+
+    `tool` combined with the feature's `base` by `mode` (default join), or `tool` alone as a new
+    body when there is no base.
     """
     base_id = feature.get("base")
     mode = mode or feature.get("mode")
@@ -124,9 +141,7 @@ def combine(feature: dict, tool, ctx, mode: str | None = None):
     solids = list(result) if isinstance(result, ShapeList) else [result]
     part = Part(solids)
     if not solids or part.volume == 0:
-        raise ValueError(
-            f"{mode} of {feature['id']} with {base_id} left an empty solid"
-        )
+        raise ValueError(f"{mode} of {feature['id']} with {base_id} left an empty solid")
     return part
 
 

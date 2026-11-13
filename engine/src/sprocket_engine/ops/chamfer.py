@@ -1,6 +1,7 @@
 from build123d import chamfer as b3d_chamfer
 
-from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
+from sprocket_engine.selectors import SELECTOR_DESCRIPTION, resolve_edges
+
 from .registry import register
 
 SCHEMA = {
@@ -27,6 +28,4 @@ SCHEMA = {
 @register("chamfer", SCHEMA)
 def apply(feature: dict, ctx):
     base = ctx.results[feature["base"]]
-    return b3d_chamfer(
-        resolve_edges(base, feature["edges"], ctx), length=feature["length"]
-    )
+    return b3d_chamfer(resolve_edges(base, feature["edges"], ctx), length=feature["length"])

@@ -1,5 +1,7 @@
-"""Projected reference geometry (sketch_reference.py): an edge of an earlier
-sketch or body, locked inside another sketch, that a dimension can name.
+"""Projected reference geometry (sketch_reference.py).
+
+Projected reference geometry (sketch_reference.py): an edge of an earlier sketch or body, locked
+inside another sketch, that a dimension can name.
 
 The checks are written from the geometry, not captured from the engine's own
 output: where a projected edge must land follows from the planes, and where the
@@ -23,7 +25,7 @@ from sprocket_engine.sketch_reference import project_edge
 
 
 def rectangle(left, bottom, right, top, extra=()):
-    """A rectangle of four lines, joined, level and upright. e4 is the left edge, drawn downwards."""
+    """A joined, level, upright rectangle of four lines. e4 is the left edge, drawn down."""
     return {
         "entities": [
             {"id": "e1", "kind": "line", "p0": [left, bottom], "p1": [right, bottom]},
@@ -159,11 +161,10 @@ def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below():
     up = project_edge(quarter, B3dPlane.XY)
     assert (up["a0"], up["a1"]) == pytest.approx((0, math.pi / 2))
     # The plane facing -Z flips v, so the same arc runs from -90 to 0 degrees there.
-    down = project_edge(
-        quarter, B3dPlane(origin=(0, 0, 0), z_dir=(0, 0, -1), x_dir=(1, 0, 0))
-    )
+    down = project_edge(quarter, B3dPlane(origin=(0, 0, 0), z_dir=(0, 0, -1), x_dir=(1, 0, 0)))
     assert (down["a0"], down["a1"]) == pytest.approx((-math.pi / 2, 0))
-    assert down["c"] == [0.0, 0.0] and down["r"] == 10
+    assert down["c"] == [0.0, 0.0]
+    assert down["r"] == 10
 
 
 def test_projecting_adds_a_locked_construction_entity_with_its_source():
@@ -173,7 +174,8 @@ def test_projecting_adds_a_locked_construction_entity_with_its_source():
     assert new_id == "e5"
     assert added["reference"] == LEFT_OF_OUTER
     assert added["construction"] is True
-    assert added["p0"] == [-100, 60] and added["p1"] == [-100, 0]
+    assert added["p0"] == [-100, 60]
+    assert added["p1"] == [-100, 0]
 
 
 def test_projecting_the_same_edge_twice_is_refused():
@@ -278,7 +280,8 @@ def test_the_dimension_to_the_outer_edge_survives_a_change_of_the_outer_width():
     assert entity(solved, "e2")["p0"][0] == pytest.approx(
         -130 + 70
     )  # the inner rectangle kept its own width
-    # The stored copy was brought up to date as well, which is what a viewer reopening the sketch reads.
+    # The stored copy was brought up to date as well, which is what a viewer
+    # reopening the sketch reads.
     doc.sync_references(built(doc).features)
     assert entity(doc.features[1], "e4")["p0"][0] == pytest.approx(-130)
 
@@ -303,7 +306,8 @@ def test_the_solver_holds_a_reference_still_while_the_rest_is_dragged():
     }
     result = solver.solve(sketch)
     assert result["ok"]
-    # Joined to the reference's lower end, the inner corner moves to it and the reference stays.
+    # Joined to the reference's lower end, the inner corner moves to it and the
+    # reference stays.
     assert entity(result["sketch"], "e1")["p0"] == pytest.approx([-100, 0])
     assert entity(result["sketch"], "e5")["p1"] == [-100, 0]
 
@@ -401,10 +405,7 @@ def test_the_daemon_projects_for_a_viewer_and_an_agent(tmp_path):
             constraint_id="width",
             changes={"value": 150},
         )
-        features = {
-            feature["id"]: feature
-            for feature in client.call("get_document")["features"]
-        }
+        features = {feature["id"]: feature for feature in client.call("get_document")["features"]}
         assert entity(features["f2"], "e4")["p0"][0] == pytest.approx(-140)
         with pytest.raises(RpcError, match="cannot project"):
             client.call(
@@ -451,13 +452,12 @@ def test_the_viewer_files_draw_a_sketch_as_solved_around_its_references():
         None,
         "test",
     )
-    # A change in f1 that skips the solver, as an `update` from a viewer would: f2 is left stale on purpose.
+    # A change in f1 that skips the solver, as an `update` from a viewer would: f2
+    # is left stale on purpose.
     doc.features[0]["entities"][3]["p0"] = [-130, 60]
     doc.features[0]["entities"][3]["p1"] = [-130, 0]
     replayable = doc.for_replay()
-    _, failed, ctx = build_shape(
-        replayable["features"], replayable["rollback_index"], None
-    )
+    _, failed, ctx = build_shape(replayable["features"], replayable["rollback_index"], None)
     assert failed is None
     summary = {entry["id"]: entry for entry in features_summary(doc, failed, ctx)}
     assert entity(summary["f2"]["resolved"], reference)["p0"][0] == pytest.approx(-130)

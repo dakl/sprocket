@@ -1,5 +1,7 @@
-"""Resolve the JSON selector chains from SPEC.md's "References and
-topological naming" section into build123d shape lists.
+"""Resolves the JSON selector chains into build123d shape lists.
+
+Resolve the JSON selector chains from SPEC.md's "References and topological naming" section into
+build123d shape lists.
 
 Never reference geometry by index - OCCT renumbers faces/edges whenever
 anything upstream changes. A selector is a query that re-resolves on every
@@ -25,13 +27,14 @@ SELECTOR_DESCRIPTION = (
     '{"op": "first"} and {"op": "last"} take one end, and '
     '{"op": "nearest_to", "point": [x, y, z]} takes the one closest to a point, with an '
     'optional "normal" to break a tie across a thin wall, '
-    '{"op": "at_end", "axis": "Z", "end": "max"} keeps everything level with the highest item along that '
-    'axis ("min" for the lowest), which is how to say "the top edges" so a part that gains an edge there '
-    "is noticed, "
-    '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which is the most '
-    'robust way to say "the edges of that extrude", and '
+    '{"op": "at_end", "axis": "Z", "end": "max"} keeps everything level with the highest item '
+    'along that axis ("min" for the lowest), which is how to say "the top edges" so a part '
+    "that gains an edge there is noticed, "
+    '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which '
+    'is the most robust way to say "the edges of that extrude", and '
     '{"op": "nearest_each", "points": [[x, y, z], ...]} takes the item nearest each point, and '
-    '{"op": "within", "box": [x0, y0, z0, x1, y1, z1]} keeps the items whose centre lies inside the box. '
+    '{"op": "within", "box": [x0, y0, z0, x1, y1, z1]} keeps the items whose centre lies '
+    "inside the box. "
     'Add "expected_count": n beside "select" and a rebuild that finds a different number fails '
     "the feature instead of rounding the wrong edges. "
     'Every edge is {"select": [{"op": "edges"}]}. '
@@ -44,18 +47,17 @@ class SelectorError(Exception):
 
 
 def _nearest(candidates, point, normal=None):
-    """Pick the item whose centre is closest to `point`. `normal` is a
-    tie-breaker: an item whose normal points away from the given one is
-    penalised, so a face pick near a shared edge doesn't jump to the wrong
-    side of a thin part.
+    """Pick the item whose centre is closest to `point`.
+
+    `normal` is a tie-breaker: an item whose normal points away from the given one
+    is penalised, so a face pick near a shared edge doesn't jump to the wrong side
+    of a thin part.
     """
 
     def score(item):
         center = item.center()
         dist = (
-            (center.X - point[0]) ** 2
-            + (center.Y - point[1]) ** 2
-            + (center.Z - point[2]) ** 2
+            (center.X - point[0]) ** 2 + (center.Y - point[1]) ** 2 + (center.Z - point[2]) ** 2
         ) ** 0.5
         if normal is not None:
             n = item.normal_at(center)
@@ -112,7 +114,7 @@ def _at_end(current, axis: str, end: str):
     values = [getattr(item.center(), axis) for item in current]
     edge = max(values) if end == "max" else min(values)
     return ShapeList(
-        [item for item, value in zip(current, values) if abs(value - edge) <= LEVEL]
+        [item for item, value in zip(current, values, strict=False) if abs(value - edge) <= LEVEL]
     )
 
 
@@ -137,9 +139,10 @@ def _within(current, box):
 
 
 def _new_since(current, starter: str, feature_id: str, ctx):
-    """What feature `feature_id` made or changed: items of `current` that were
-    not in the shape it was applied to. A feature with no base starts from
-    nothing, so all of it is new.
+    """What feature `feature_id` made or changed.
+
+    What feature `feature_id` made or changed: items of `current` that were not in the shape it
+    was applied to. A feature with no base starts from nothing, so all of it is new.
     """
     feature = ctx.features.get(feature_id) if ctx is not None else None
     if feature is None:
@@ -151,16 +154,16 @@ def _new_since(current, starter: str, feature_id: str, ctx):
         return ShapeList(current)
     before = ctx.results.get(base_id)
     if before is None:
-        raise SelectorError(
-            f"new_since {feature_id!r}: its base {base_id!r} has no result"
-        )
+        raise SelectorError(f"new_since {feature_id!r}: its base {base_id!r} has no result")
     olds = [_signature(old) for old in getattr(before, starter)()]
     # A ShapeList, so the steps after this one can still sort and filter.
     return ShapeList([item for item in current if not _unchanged(item, olds)])
 
 
 def resolve_selector(shape, selector, ctx=None):
-    """selector: {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}
+    """The items of `shape` that `selector` picks.
+
+    A selector is {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}.
 
     `ctx` is the replay context, which `new_since` needs to see earlier features.
     """
@@ -203,7 +206,8 @@ def resolve_selector(shape, selector, ctx=None):
     expected = selector.get("expected_count")
     if expected is not None and len(current) != expected:
         raise SelectorError(
-            f"selector matched {len(current)}, expected {expected}: the geometry it named has changed"
+            f"selector matched {len(current)}, expected {expected}: the geometry it "
+            "named has changed"
         )
     return list(current)
 
@@ -219,11 +223,7 @@ def resolve_edges(shape, selector, ctx=None):
     matched = resolve_selector(shape, selector, ctx)
     if not matched:
         raise SelectorError("edge selector matched no edges")
-    other_kinds = {
-        type(item).__name__ for item in matched if not isinstance(item, Edge)
-    }
+    other_kinds = {type(item).__name__ for item in matched if not isinstance(item, Edge)}
     if other_kinds:
-        raise SelectorError(
-            f"edge selector matched {sorted(other_kinds)}, expected edges"
-        )
+        raise SelectorError(f"edge selector matched {sorted(other_kinds)}, expected edges")
     return matched

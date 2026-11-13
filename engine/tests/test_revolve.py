@@ -1,6 +1,7 @@
-"""The full-turn geometry is pinned by tests/golden/revolve_ring. This covers
-the two things that case cannot reach: a partial angle, and an axis given as an
-explicit line rather than a name.
+"""The full-turn geometry is pinned by tests/golden/revolve_ring.
+
+This covers the two things that case cannot reach: a partial angle, and an axis given as
+an explicit line rather than a name.
 """
 
 import math
@@ -28,7 +29,7 @@ def document_with(revolve_feature: dict) -> dict:
     }
 
 
-@pytest.mark.parametrize("angle, fraction", [(90, 0.25), (180, 0.5), (270, 0.75)])
+@pytest.mark.parametrize(("angle", "fraction"), [(90, 0.25), (180, 0.5), (270, 0.75)])
 def test_angle_sweeps_that_fraction_of_a_turn(angle, fraction):
     feature = {
         "id": "f2",
@@ -48,10 +49,11 @@ def test_angle_defaults_to_a_full_turn():
 
 
 def test_an_explicit_axis_uses_its_origin_not_just_its_direction():
-    """Revolving the same profile about a line through x = 30 mirrors it: the
-    profile now spans 10 to 20 mm from that line, so the volume is unchanged
-    and only the position moves. A dropped origin would keep the volume right,
-    which is why this asserts the bounding box.
+    """A revolve about a moved axis keeps the volume and moves the part.
+
+    Revolving the same profile about a line through x = 30 mirrors it: the profile now spans 10
+    to 20 mm from that line, so the volume is unchanged and only the position moves. A dropped
+    origin would keep the volume right, which is why this asserts the bounding box.
     """
     feature = {
         "id": "f2",

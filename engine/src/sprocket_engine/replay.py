@@ -23,8 +23,10 @@ class ReplayError(Exception):
 
 
 def _tagged(error, feature, index):
-    """Records which feature failed, so the caller can name it to the user and
-    still export everything built before it.
+    """Records which feature failed.
+
+    Records which feature failed, so the caller can name it to the user and still export
+    everything built before it.
     """
     error.feature_id = feature.get("id")
     error.feature_index = index
@@ -71,16 +73,10 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
             order.append(root)
         tip_of[root] = feature_id
         tool = feature.get("tool")
-        if (
-            feature.get("type") in CONSUMES_TOOL
-            and tool in root_of
-            and root_of[tool] != root
-        ):
+        if feature.get("type") in CONSUMES_TOOL and tool in root_of and root_of[tool] != root:
             consumed.add(root_of[tool])
     # A reference body is never consumed: cutting with it keeps it on screen.
-    reference = {
-        root for root in order if ctx.features[root].get("type") == "reference"
-    }
+    reference = {root for root in order if ctx.features[root].get("type") == "reference"}
     return [
         {
             "id": root,
@@ -116,9 +112,11 @@ def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
 
 
 def combine(bodies: list[dict]):
-    """One shape for the part: the only body itself, so a one-body document
-    exports exactly as before, or a compound of the bodies in order. Reference
-    bodies are left out, because they are not part of what is made.
+    """One shape for the part: the only body, or a compound of the bodies.
+
+    One shape for the part: the only body itself, so a one-body document exports exactly as
+    before, or a compound of the bodies in order. Reference bodies are left out, because they
+    are not part of what is made.
     """
     shapes = [body["shape"] for body in bodies if not body["reference"]]
     if not shapes:
@@ -129,10 +127,11 @@ def combine(bodies: list[dict]):
 
 
 def replay(document: dict, cache_dir: Path | None = None, return_context: bool = False):
-    """Returns the shape after replaying features[:rollback_index], or None
-    when that prefix is empty. rollback_index=0 is a valid state, the same
-    as Fusion 360's timeline rolled back before the first feature - it means
-    an empty document, not an error.
+    """The shape after replaying features[:rollback_index], or None when that is empty.
+
+    Returns the shape after replaying features[:rollback_index], or None when that prefix is
+    empty. rollback_index=0 is a valid state, the same as Fusion 360's timeline rolled back
+    before the first feature - it means an empty document, not an error.
 
     With `return_context`, returns (shape, context): every feature's result,
     which is what selector synthesis needs to see how the part was built.
@@ -150,9 +149,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         op = REGISTRY.get(op_type)
         if op is None:
             raise _tagged(
-                ReplayError(
-                    f"unknown op type {op_type!r} in feature {feature.get('id')!r}"
-                ),
+                ReplayError(f"unknown op type {op_type!r} in feature {feature.get('id')!r}"),
                 feature,
                 index,
             )
@@ -160,9 +157,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         try:
             jsonschema.validate(feature, op.schema)
         except jsonschema.ValidationError as exc:
-            error = ReplayError(
-                f"feature {feature.get('id')!r} failed validation: {exc.message}"
-            )
+            error = ReplayError(f"feature {feature.get('id')!r} failed validation: {exc.message}")
             raise _tagged(error, feature, index) from exc
 
         key = feature_cache_key(feature, upstream_key)
@@ -171,14 +166,14 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         # features in `upstream_key` it fixes what this refresh gives.
         if op_type == "sketch" and has_references(feature):
             try:
-                feature = refresh_references(feature, ctx)
-            except Exception as exc:
+                feature = refresh_references(feature, ctx)  # noqa: PLW2901
+            except Exception as exc:  # noqa: BLE001
                 raise _tagged(exc, feature, index) from None
         result = cache.get(key) if cache else None
         if result is None:
             try:
                 result = op.apply(feature, ctx)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 # Editing a sketch can leave a later feature unbuildable: a
                 # face selector may match nothing, or a cut may miss the part.
                 # The caller needs to know which feature broke, so tag the
@@ -199,11 +194,12 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
 
 
 def last_solid_index(features: list[dict], rollback_index: int) -> int:
-    """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
-    inert until something extrudes it. replay() only returns its last
-    feature's result, so a bare sketch left at the tip would become the part
-    and blank out whatever solid came before it. Walk back past any trailing
-    sketch features to the last one that actually produced a solid.
+    """The result of the last feature that built a solid, past any trailing sketches.
+
+    A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays inert until something
+    extrudes it. replay() only returns its last feature's result, so a bare sketch left at the
+    tip would become the part and blank out whatever solid came before it. Walk back past any
+    trailing sketch features to the last one that actually produced a solid.
     """
     index = rollback_index
     while index > 0 and features[index - 1].get("type") in NOT_SOLIDS:
@@ -217,8 +213,8 @@ def build_shape(
     """Replays as much of the document as still builds.
 
     Returns (shape, failed_feature_id, context). The context holds every
-    feature's result, which a sketch on a face needs to find its plane. A feature that no longer builds is not
-    a failed build: editing a sketch can break a later op, and the caller still
+    feature's result, which a sketch on a face needs to find its plane. A feature that no
+    longer builds is not a failed build: editing a sketch can break a later op, and the caller still
     needs the part up to that point. So this falls back to the prefix before
     the broken feature and names it, rather than raising.
 
@@ -253,9 +249,7 @@ def build_shape(
         return shape, failed_id, ctx
 
 
-def _trailing_sketches(
-    features: list[dict], start: int, stop: int, ctx: Context
-) -> str | None:
+def _trailing_sketches(features: list[dict], start: int, stop: int, ctx: Context) -> str | None:
     """Puts the sketches between the last solid and `stop` into `ctx.features`.
 
     Replay stops at the last solid, because a sketch makes no part. But a sketch
@@ -270,8 +264,8 @@ def _trailing_sketches(
         if feature.get("type") != "sketch":
             continue
         try:
-            feature = refresh_references(feature, ctx)
-        except Exception as exc:
+            feature = refresh_references(feature, ctx)  # noqa: PLW2901
+        except Exception as exc:  # noqa: BLE001
             ctx.features[feature["id"]] = feature
             return getattr(exc, "feature_id", None) or feature["id"]
         ctx.features[feature["id"]] = feature

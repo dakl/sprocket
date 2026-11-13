@@ -1,5 +1,6 @@
-"""Saving by hand: the daemon with autosave off, as the app runs it. Whether the
-document has unsaved edits, Save, and the recovery file that covers a crash.
+"""Saving by hand: the daemon with autosave off, as the app runs it.
+
+Whether the document has unsaved edits, Save, and the recovery file that covers a crash.
 """
 
 import json
@@ -74,9 +75,7 @@ def test_save_refuses_to_overwrite_a_file_changed_on_disk(manual, client):
     assert client.call("get_file_status")["conflict"] is not None
 
 
-def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(
-    manual, client
-):
+def test_unsaved_edits_are_copied_to_the_recovery_file_and_deleted_once_saved(manual, client):
     client.call("apply_edit", edits=[TALLER])
     recovered = json.loads(manual.recovery_path.read_text())
     assert recovered["path"] == str(manual.session.document.path)
@@ -145,9 +144,8 @@ def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(manual, client, listen
 
 
 @pytest.mark.parametrize("content", [None, "not json", '{"path": null}'])
-def test_restore_recovery_refuses_a_missing_or_broken_file(
-    manual, client, tmp_path, content
-):
+@pytest.mark.usefixtures("manual")
+def test_restore_recovery_refuses_a_missing_or_broken_file(client, tmp_path, content):
     file = tmp_path / "recovery.bad.json"
     if content is not None:
         file.write_text(content)

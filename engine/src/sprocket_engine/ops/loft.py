@@ -1,14 +1,17 @@
 from build123d import loft as b3d_loft
 
-from ..regions import ProfileError
+from sprocket_engine.regions import ProfileError
+
 from .extrude import combine
 from .registry import register
 
 SCHEMA = {
     "type": "object",
     "description": (
-        "Joins two or more sketch profiles, in order, into one solid. Each section is a sketch of one closed region. "
-        "Without a base it makes a new body; with one, `mode` joins (default), cuts or intersects."
+        "Joins two or more sketch profiles, in order, into one solid. Each section is "
+        "a sketch of one closed region. "
+        "Without a base it makes a new body; with one, `mode` joins (default), cuts "
+        "or intersects."
     ),
     "required": ["id", "type", "sections"],
     "properties": {
@@ -22,7 +25,9 @@ SCHEMA = {
         },
         "ruled": {
             "type": "boolean",
-            "description": "straight sides between sections instead of a smooth skin. Default false.",
+            "description": (
+                "straight sides between sections instead of a smooth skin. Default false."
+            ),
         },
         "base": {
             "type": "string",
@@ -48,7 +53,8 @@ def apply(feature: dict, ctx):
         found = ctx.results[sketch_id].faces()
         if len(found) != 1:
             raise ProfileError(
-                f"loft section {sketch_id!r} has {len(found)} closed regions; a section needs exactly one"
+                f"loft section {sketch_id!r} has {len(found)} closed regions; a "
+                "section needs exactly one"
             )
         faces.append(found[0])
     tool = b3d_loft(faces, ruled=feature.get("ruled", False))

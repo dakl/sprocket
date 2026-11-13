@@ -116,9 +116,7 @@ def _resolve_highlight(handles, face_count: int) -> set[int]:
     for handle in handles or []:
         if isinstance(handle, int) and not isinstance(handle, bool):
             index = handle
-        elif (
-            isinstance(handle, str) and handle.startswith("f") and handle[1:].isdigit()
-        ):
+        elif isinstance(handle, str) and handle.startswith("f") and handle[1:].isdigit():
             index = int(handle[1:])
         else:
             raise RenderError(f"highlight {handle!r} must be a face handle like 'f2'")

@@ -83,9 +83,8 @@ def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(cl
     taller(client)
     after = _faces(client)
     unchanged = [handle for handle, key in before.items() if key in after.values()]
-    assert unchanged and len(unchanged) < len(
-        before
-    )  # the edit moved some faces and not others
+    assert unchanged
+    assert len(unchanged) < len(before)
     selection = client.call("get_selection")
     assert selection["stale"] is False
     assert sorted(after[handle] for handle in selection["handles"]) == sorted(
@@ -168,9 +167,7 @@ def test_opening_another_document_clears_the_selection(client, listener, tmp_pat
 def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
     """M4.5's done-when: the person picks an edge, the agent reads it and fillets it."""
     edge = next(
-        item
-        for item in client.call("describe_geometry")["edges"]
-        if item["centre"][2] == 10
+        item for item in client.call("describe_geometry")["edges"] if item["centre"][2] == 10
     )
     client.call("set_selection", handles=[edge["handle"]], revision=0)
 
@@ -180,9 +177,7 @@ def test_fillet_these_can_be_built_from_what_the_agent_reads(client):
         "type": "fillet",
         "base": "e1",
         "radius": 1,
-        "edges": {
-            "select": [{"op": "edges"}, {"op": "nearest_to", "point": picked["centre"]}]
-        },
+        "edges": {"select": [{"op": "edges"}, {"op": "nearest_to", "point": picked["centre"]}]},
     }
     result = client.call("apply_edit", edits=[{"op": "insert", "feature": fillet}])
     assert result["built"]["ok"] is True

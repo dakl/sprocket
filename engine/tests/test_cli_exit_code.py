@@ -1,9 +1,10 @@
-"""The exit code is the only thing a shell caller or the Swift app's one-shot
-path can read, and until now it said nothing: sprocket_engine.main() dropped
-cli.main()'s return value, so a build that failed gracefully - the error path
-that prints a readable message and returns 1 - still exited 0. Everything here
-goes through the real entry point for that reason; calling cli.main() alone
-would not have caught it.
+"""The exit code says whether a build failed.
+
+The exit code is the only thing a shell caller or the Swift app's one-shot path can read, and until
+now it said nothing: sprocket_engine.main() dropped cli.main()'s return value, so a build that
+failed gracefully - the error path that prints a readable message and returns 1 - still exited 0.
+Everything here goes through the real entry point for that reason; calling cli.main() alone would
+not have caught it.
 """
 
 import json
@@ -19,8 +20,10 @@ GOLDEN_DOCUMENT = Path(__file__).parent / "golden" / "rect_extrude" / "document.
 
 
 def _run(monkeypatch, argv: list[str]) -> int:
-    """Runs the console-script entry point (sprocket_engine:main, per
-    pyproject) and returns the code it exits with.
+    """Runs the console-script entry point and returns its exit code.
+
+    Runs the console-script entry point (sprocket_engine:main, per pyproject) and returns the
+    code it exits with.
     """
     monkeypatch.setattr(sys, "argv", ["sprocket", *argv])
     with pytest.raises(SystemExit) as exit_info:
@@ -30,9 +33,11 @@ def _run(monkeypatch, argv: list[str]) -> int:
 
 
 def test_a_graceful_build_failure_exits_nonzero(tmp_path: Path, capsys, monkeypatch):
-    """A cache dir that cannot be created makes replay() raise before it reaches
-    any feature, so _build_document returns (False, message) rather than
-    raising - the graceful failure path. It must still exit 1.
+    """A cache dir that cannot be created still exits 1.
+
+    A cache dir that cannot be created makes replay() raise before it reaches any feature, so
+    _build_document returns (False, message) rather than raising - the graceful failure path. It
+    must still exit 1.
     """
     blocked_cache = tmp_path / "cache"
     blocked_cache.write_text("a file where the cache dir should go")
@@ -90,7 +95,7 @@ def test_a_missing_document_is_a_readable_error_not_a_traceback(
 
 
 @pytest.mark.parametrize(
-    "document, expected",
+    ("document", "expected"),
     [
         (
             '{"features": {"f1": {"type": "sketch"}}}',
@@ -119,9 +124,7 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     document_path = tmp_path / "document.json"
     document_path.write_text(document)
 
-    code = _run(
-        monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
-    )
+    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -129,19 +132,17 @@ def test_a_malformed_document_is_a_readable_error_not_a_traceback(
     assert "Traceback" not in stderr
 
 
-def test_a_binary_file_is_a_readable_error_not_a_traceback(
-    tmp_path: Path, capsys, monkeypatch
-):
-    """Picking an .stl or .step instead of the .json is an easy mistake. read_text
-    raises UnicodeDecodeError for it - a ValueError, so the OSError clause in
-    _load_document does not catch it.
+def test_a_binary_file_is_a_readable_error_not_a_traceback(tmp_path: Path, capsys, monkeypatch):
+    """A binary file given as the document is a readable error.
+
+    Picking an .stl or .step instead of the .json is an easy mistake. read_text raises
+    UnicodeDecodeError for it - a ValueError, so the OSError clause in _load_document does not
+    catch it.
     """
     document_path = tmp_path / "part.stl"
     document_path.write_bytes(b"solid \x80\x00\xff binary stl body")
 
-    code = _run(
-        monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")]
-    )
+    code = _run(monkeypatch, ["build", str(document_path), "--stl", str(tmp_path / "part.stl")])
 
     assert code == 1
     stderr = capsys.readouterr().err
@@ -150,15 +151,15 @@ def test_a_binary_file_is_a_readable_error_not_a_traceback(
 
 
 def test_serve_reports_a_malformed_document_the_same_way(tmp_path: Path):
-    """`serve` swallows every exception into one response line, so a traceback
-    there reached the app as an unreadable `output`. Same message as `build`.
+    """`serve` answers a broken request with a readable message.
+
+    `serve` swallows every exception into one response line, so a traceback there reached the
+    app as an unreadable `output`. Same message as `build`.
     """
     document_path = tmp_path / "document.json"
     document_path.write_text(json.dumps({"features": {"f1": {"type": "sketch"}}}))
 
-    success, output, failed_id = _build_document(
-        document_path, None, None, tmp_path / "cache"
-    )
+    success, output, failed_id = _build_document(document_path, None, None, tmp_path / "cache")
 
     assert success is False
     assert "'features' must be a list of objects" in output

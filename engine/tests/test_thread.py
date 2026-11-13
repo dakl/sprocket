@@ -66,7 +66,7 @@ def test_a_hole_gets_an_internal_thread_along_its_axis():
         "face": HOLE_FACE,
         "designation": "M3",
     }
-    _, ctx = build(plate_with_hole(1.25) + [thread])
+    _, ctx = build([*plate_with_hole(1.25), thread])
     geometry = thread_geometry(thread, ctx)
     assert geometry["internal"] is True
     assert geometry["radius"] == pytest.approx(1.25)
@@ -85,7 +85,7 @@ def test_a_shaft_gets_an_external_thread_and_a_fine_pitch_is_kept():
         "designation": "M4",
         "pitch": 0.5,
     }
-    _, ctx = build(shaft(2) + [thread])
+    _, ctx = build([*shaft(2), thread])
     geometry = thread_geometry(thread, ctx)
     assert (geometry["internal"], geometry["pitch"], geometry["length"]) == (
         False,
@@ -106,7 +106,7 @@ def test_a_face_the_wrong_size_is_refused_with_the_range():
         ValueError,
         match="a M4 hole is 3.125 to 4.05 mm across, and this face is 2.5 mm",
     ):
-        build(plate_with_hole(1.25) + [thread])
+        build([*plate_with_hole(1.25), thread])
 
 
 def test_a_flat_face_is_refused():
@@ -116,34 +116,33 @@ def test_a_flat_face_is_refused():
     }
     with pytest.raises(ValueError, match="needs a cylindrical face"):
         build(
-            plate_with_hole(1.25)
-            + [
+            [
+                *plate_with_hole(1.25),
                 {
                     "id": "t",
                     "type": "thread",
                     "base": "tap",
                     "face": top,
                     "designation": "M3",
-                }
+                },
             ]
         )
 
 
 def test_the_viewer_gets_the_thread_to_draw():
-    features = plate_with_hole(1.25) + [
+    features = [
+        *plate_with_hole(1.25),
         {
             "id": "t",
             "type": "thread",
             "base": "tap",
             "face": HOLE_FACE,
             "designation": "M3",
-        }
+        },
     ]
     document = Document(features)
     _, ctx = replay(document.for_replay(), return_context=True)
-    entry = next(
-        item for item in features_summary(document, None, ctx) if item["id"] == "t"
-    )
+    entry = next(item for item in features_summary(document, None, ctx) if item["id"] == "t")
     assert entry["thread"]["designation"] == "M3"
     assert entry["thread"]["internal"] is True
 
@@ -158,8 +157,9 @@ def test_a_modeled_internal_thread_fills_between_the_tap_hole_and_the_nominal():
         "designation": "M3",
         "modeled": True,
     }
-    part, _ = build(plate_with_hole(1.25) + [thread])
-    assert part.is_valid and len(part.solids()) == 1
+    part, _ = build([*plate_with_hole(1.25), thread])
+    assert part.is_valid
+    assert len(part.solids()) == 1
     nominal_hole = 400 - math.pi * 1.5**2 * 4
     tap_hole = 400 - math.pi * 1.25**2 * 4
     assert nominal_hole < part.volume < tap_hole
@@ -175,7 +175,8 @@ def test_a_modeled_external_thread_lies_between_the_core_and_the_shaft():
         "designation": "M4",
         "modeled": True,
     }
-    part, _ = build(shaft(2) + [thread])
-    assert part.is_valid and len(part.solids()) == 1
+    part, _ = build([*shaft(2), thread])
+    assert part.is_valid
+    assert len(part.solids()) == 1
     minor_radius = 2 - 0.6134 * 0.7
     assert math.pi * minor_radius**2 * 8 < part.volume < math.pi * 2**2 * 8

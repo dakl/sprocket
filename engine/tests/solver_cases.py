@@ -32,8 +32,10 @@ def rough_rectangle(extra=()):
 
 
 def sprocket_plate(teeth=13, pitch=6.35, roller=3.3, tip=15.0, cap_radius=0.55):
-    """The logo plate: arcs and lines joined end to end, every corner a
-    coincident constraint and every arc a radius.
+    """The logo plate: joined arcs and lines, every corner and arc constrained.
+
+    The logo plate: arcs and lines joined end to end, every corner a coincident constraint and
+    every arc a radius.
     """
     seat_radius = roller / 2 + 0.05
     pitch_radius = pitch / (2 * math.sin(math.pi / teeth))
@@ -98,9 +100,7 @@ def sprocket_plate(teeth=13, pitch=6.35, roller=3.3, tip=15.0, cap_radius=0.55):
             {"kind": "coincident", "a": f"cap{k}.p1", "b": f"dn{k}.p0"},
             {"kind": "coincident", "a": f"dn{k}.p1", "b": f"seat{(k + 1) % teeth}.p1"},
         ]
-    constraints += [
-        {"kind": "radius", "e": arc["id"], "value": arc["r"]} for arc in arcs
-    ]
+    constraints += [{"kind": "radius", "e": arc["id"], "value": arc["r"]} for arc in arcs]
     return {"entities": arcs + lines, "constraints": constraints}
 
 
@@ -212,7 +212,8 @@ PROJECTED_EDGE = {
     ],
 }
 
-# A line and a circle mirrored across a held vertical line, as the viewer's Mirror makes them.
+# A line and a circle mirrored across a held vertical line, as the viewer's Mirror
+# makes them.
 MIRRORED = {
     "entities": [
         {"id": "e1", "kind": "line", "p0": [0, -20], "p1": [0, 20]},

@@ -54,8 +54,8 @@ def _sketch_on_face(distance, sketch):
     return {
         "schema_version": 1,
         "units": {"length": "mm"},
-        "features": BOX
-        + [
+        "features": [
+            *BOX,
             sketch,
             {
                 "id": "f4",

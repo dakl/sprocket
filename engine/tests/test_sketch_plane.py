@@ -41,7 +41,7 @@ def build(features, height=10):
 def pad(features):
     """The pad alone: without a base it is a body of its own beside the box."""
     document = Document(BOX + features, parameters={"height": 10})
-    part, ctx = replay(document.for_replay(), return_context=True)
+    _part, ctx = replay(document.for_replay(), return_context=True)
     assert [body["id"] for body in ctx.bodies] == ["b", "e"]
     return ctx.results["e"]
 
@@ -90,9 +90,7 @@ def test_the_viewer_gets_an_explicit_plane_for_a_face_sketch(tmp_path):
     )
     document = Document.load(path)
     _, ctx = replay(document.for_replay(), return_context=True)
-    entry = next(
-        item for item in features_summary(document, None, ctx) if item["id"] == "p"
-    )
+    entry = next(item for item in features_summary(document, None, ctx) if item["id"] == "p")
     assert entry["plane"] == {
         "origin": [0, 0, 10],
         "normal": [0, 0, 1],
@@ -111,8 +109,9 @@ def test_the_face_owner_cannot_be_deleted_while_a_sketch_sits_on_it():
 
 
 def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
-    """The viewer's flow: pick a face, ask the daemon for a plane reference,
-    sketch on it. A taller box carries the sketch up with its top face.
+    """The viewer's flow: pick a face, ask the daemon for a plane reference, sketch on it.
+
+    A taller box carries the sketch up with its top face.
     """
     from conftest import running
 
@@ -173,9 +172,7 @@ def test_a_face_of_the_second_body_names_that_body(tmp_path):
         {"id": "c", "type": "extrude", "profile": "s2", "distance": 3},
     ]
     with (
-        running(
-            {"features": BOX + second, "parameters": {"height": 10}}, tmp_path
-        ) as daemon,
+        running({"features": BOX + second, "parameters": {"height": 10}}, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
     ):
         faces = client.call("describe_geometry")["faces"]

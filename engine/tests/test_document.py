@@ -1,5 +1,7 @@
-"""The editable document: revisions, all-or-nothing batches, and the rules
-that stop an edit producing a timeline replay cannot walk.
+"""The editable document: revisions, batches and the rules on edits.
+
+The editable document: revisions, all-or-nothing batches, and the rules that stop an edit producing
+a timeline replay cannot walk.
 """
 
 import json
@@ -43,8 +45,7 @@ def test_reference_fields_covers_every_schema_that_names_a_feature():
         field
         for op in REGISTRY.values()
         for field, spec in op.schema.get("properties", {}).items()
-        if isinstance(spec, dict)
-        and str(spec.get("description", "")).startswith("id of")
+        if isinstance(spec, dict) and str(spec.get("description", "")).startswith("id of")
     }
     assert naming <= set(REFERENCE_FIELDS), (
         f"not in REFERENCE_FIELDS: {naming - set(REFERENCE_FIELDS)}"
@@ -109,13 +110,12 @@ def test_deleting_a_feature_something_still_uses_names_the_dependant():
 
 
 def test_a_parameter_that_breaks_a_feature_is_rejected_before_it_lands():
-    """A width of zero fails the sketch schema. Catching it at set_parameter
-    beats a rebuild that fails with no obvious cause.
+    """A width of zero fails the sketch schema.
+
+    Catching it at set_parameter beats a rebuild that fails with no obvious cause.
     """
     document = Document()
-    document.apply_edits(
-        [{"op": "set_parameter", "name": "width", "value": 40}], None, "test"
-    )
+    document.apply_edits([{"op": "set_parameter", "name": "width", "value": 40}], None, "test")
     document.apply_edits(
         [
             {
@@ -127,9 +127,7 @@ def test_a_parameter_that_breaks_a_feature_is_rejected_before_it_lands():
         "test",
     )
     with pytest.raises(DocumentError):
-        document.apply_edits(
-            [{"op": "set_parameter", "name": "width", "value": 0}], None, "test"
-        )
+        document.apply_edits([{"op": "set_parameter", "name": "width", "value": 0}], None, "test")
     assert document.parameters == {"width": 40}
 
 

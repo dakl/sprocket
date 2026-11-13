@@ -6,9 +6,12 @@ from .sketch import PLANE_SCHEMA, resolve_plane
 SCHEMA = {
     "type": "object",
     "description": (
-        "Mirrors the solid an earlier feature made about a plane, and combines the original and its mirror "
-        "with `base`. To mirror a whole part, use its last feature as both `tool` and `base`. The plane is any "
-        "sketch plane: XY, XZ or YZ with an optional offset, a face of an earlier feature, or an explicit plane."
+        "Mirrors the solid an earlier feature made about a plane, and combines the "
+        "original and its mirror "
+        "with `base`. To mirror a whole part, use its last feature as both `tool` and "
+        "`base`. The plane is any "
+        "sketch plane: XY, XZ or YZ with an optional offset, a face of an earlier "
+        "feature, or an explicit plane."
     ),
     "required": ["id", "type", "tool", "plane"],
     "properties": {
@@ -21,11 +24,14 @@ SCHEMA = {
         "plane": PLANE_SCHEMA,
         "base": {
             "type": "string",
-            "description": "id of the feature the original and the mirror combine with. Without it, they are a new body.",
+            "description": (
+                "id of the feature the original and the mirror combine with. Without "
+                "it, they are a new body."
+            ),
         },
         "mode": {
             "enum": ["join", "cut"],
-            "description": "default join. cut removes the original and the mirror from base",
+            "description": ("default join. cut removes the original and the mirror from base"),
         },
     },
 }
