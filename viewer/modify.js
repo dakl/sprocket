@@ -101,6 +101,75 @@
     },
   };
 
+  // The M6 ops. Each new body or combine choice is "Into": a new body, or a body the result joins, cuts or intersects.
+  const NEW_BODY = { value: "new", label: "New body" };
+  const NO_SECTION = { value: "none", label: "None" };
+  const INTO_FIELDS = [
+    { name: "into", label: "Into", type: "select", dynamic: true, value: "new" },
+    { name: "mode", label: "Mode", type: "select", options: ["join", "cut", "intersect"], value: "join", hideWhen: { into: "new" } },
+  ];
+  /// ISO 261 coarse sizes the engine's thread op takes, with their nominal diameters in mm.
+  const THREAD_SIZES = [
+    ["M1.6", 1.6], ["M2", 2], ["M2.5", 2.5], ["M3", 3], ["M4", 4], ["M5", 5], ["M6", 6],
+    ["M8", 8], ["M10", 10], ["M12", 12], ["M14", 14], ["M16", 16], ["M20", 20], ["M24", 24],
+  ];
+  Object.assign(TOOLS, {
+    draft: {
+      title: "Draft",
+      fields: [
+        { name: "neutral", label: "Neutral", type: "select", dynamic: true, value: "XY" },
+        { name: "angle", label: "Angle", type: "number", signed: true, value: 3 },
+      ],
+    },
+    split: {
+      title: "Split",
+      fields: [
+        { name: "plane", label: "Plane", type: "select", dynamic: true, value: "" },
+        { name: "keep", label: "Keep", type: "select", options: ["both", "above", "below"], value: "both" },
+      ],
+    },
+    thread: {
+      title: "Thread",
+      fields: [
+        { name: "designation", label: "Size", type: "select", options: THREAD_SIZES.map(([name]) => name), value: "M3" },
+        { name: "modeled", label: "Modeled", type: "checkbox", value: false },
+      ],
+    },
+    sweep: {
+      title: "Sweep",
+      fields: [{ name: "path", label: "Path", type: "select", dynamic: true, value: "" }, ...INTO_FIELDS],
+    },
+    loft: {
+      title: "Loft",
+      fields: [
+        { name: "first", label: "From", type: "select", dynamic: true, value: "" },
+        { name: "second", label: "To", type: "select", dynamic: true, value: "" },
+        { name: "third", label: "Then", type: "select", dynamic: true, value: "none" },
+        { name: "ruled", label: "Ruled", type: "checkbox", value: false },
+        ...INTO_FIELDS,
+      ],
+    },
+  });
+
+  /// The smallest ISO size a cylinder of `diameter` mm can take: a hole fits
+  /// sizes from its diameter up to 1.25 pitch over, a shaft up to half a pitch
+  /// over, so the first nominal at or above the diameter suits both. M3 when unknown.
+  function threadSize(diameter) {
+    if (!POSITIVE(diameter)) {
+      return "M3";
+    }
+    const found = THREAD_SIZES.find(([, nominal]) => nominal >= diameter - 1e-3);
+    return found ? found[0] : THREAD_SIZES.at(-1)[0];
+  }
+
+  /// `base` and `mode` for a feature whose "Into" is a body, nothing for a new body.
+  function intoFields(values) {
+    if (values.into === "new") {
+      return {};
+    }
+    return { base: values.into, ...(values.mode === "join" ? {} : { mode: values.mode }) };
+  }
+
   /// The tools that make a construct feature, which builds no solid.
   const CONSTRUCT_KINDS = ["plane", "axis", "point"];
 
@@ -142,7 +211,8 @@
       const offered = scale && scale.options && scale.options[field.name];
       if (field.dynamic && offered && offered.length && !offered.some((item) => item.value === values[field.name])) values[field.name] = offered[0].value;
     }
-    if (kind === "point" && scale && scale.at) Object.assign(values, { x: scale.at[0], y: scale.at[1], z: scale.at[2] });
+    if (kind === "thread" && scale && scale.diameter) values.designation = threadSize(scale.diameter);
+    if (kind === "point" && scale && scale.at)Object.assign(values, { x: scale.at[0], y: scale.at[1], z: scale.at[2] });
     if (kind === "plane" && scale && scale.box) values.offset = nice(Math.max(...scale.box) * 0.25, values.offset);
     const smallest = scale && scale.box ? Math.min(...scale.box.filter(POSITIVE)) : NaN;
     if (kind === "fillet") values.radius = nice(smallest * 0.05, values.radius);
@@ -226,6 +296,32 @@
       const operation = { join: "union", cut: "subtract", intersect: "intersect" }[values.mode];
       return { type: "boolean", operation, base: values.target, tool: values.tool };
     }
+    if (kind === "draft") {
+      const angle = number("angle");
+      if (!(Math.abs(angle) < 45)) return { error: "Angle must be between -45 and 45" };
+      const neutral = choice("neutral");
+      if (neutral === null) return { error: "Pick the neutral plane" };
+      return { type: "draft", base: target.base, faces: target.faces, neutral, angle };
+    }
+    if (kind === "split") {
+      const plane = choice("plane");
+      if (plane === null) return { error: "Pick the plane to split along" };
+      return { type: "split", base: target.tool, plane, ...(values.keep === "both" ? {} : { keep: values.keep }) };
+    }
+    if (kind === "thread") {
+      return { type: "thread", base: target.base, face: target.face, designation: values.designation, ...(values.modeled ? { modeled: true } : {}) };
+    }
+    if (kind === "sweep") {
+      if (!values.path) return { error: "Pick the path sketch" };
+      if (values.path === target.profile) return { error: "The path must be another sketch than the profile" };
+      return { type: "sweep", profile: target.profile, path: { sketch: values.path }, ...intoFields(values) };
+    }
+    if (kind === "loft") {
+      const sections = [values.first, values.second, values.third].filter((id) => id && id !== "none");
+      if (sections.length < 2) return { error: "Pick at least two sketches" };
+      if (new Set(sections).size !== sections.length) return { error: "Each section must be a different sketch" };
+      return { type: "loft", sections, ...(values.ruled ? { ruled: true } : {}), ...intoFields(values) };
+    }
     // Mirror and the patterns act on the picked body's solid. "Into" is the body the copies join or are cut from.
     const into = values.into === "same" ? target.tool : values.into;
     const mode = values.into !== "same" && values.mode === "cut" ? { mode: "cut" } : {};
@@ -249,7 +345,7 @@
     return { error: "unknown tool " + kind };
   }
 
-  const api = { TOOLS, CONSTRUCT_KINDS, SAME, defaults, featureFor, nice, parseNumber, visible };
+  const api = { TOOLS, CONSTRUCT_KINDS, SAME, NEW_BODY, NO_SECTION, defaults, featureFor, nice, parseNumber, threadSize, visible };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ViewerModify = api;
 })(typeof window !== "undefined" ? window : globalThis);
