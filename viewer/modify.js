@@ -149,7 +149,44 @@
         ...INTO_FIELDS,
       ],
     },
+    primitive: {
+      title: "Primitive",
+      fields: [
+        { name: "shape", label: "Shape", type: "select", options: ["box", "cylinder", "cone", "sphere", "torus"], value: "box" },
+        { name: "plane", label: "Plane", type: "select", dynamic: true, value: "XY" },
+        { name: "x", label: "Centre u", type: "number", anyNumber: true, value: 0 },
+        { name: "y", label: "Centre v", type: "number", anyNumber: true, value: 0 },
+        { name: "width", label: "Width", type: "number", value: 20, showWhen: { shape: ["box"] } },
+        { name: "depth", label: "Depth", type: "number", value: 20, showWhen: { shape: ["box"] } },
+        { name: "radius", label: "Radius", type: "number", value: 10, showWhen: { shape: ["cylinder", "cone", "sphere"] } },
+        { name: "top_radius", label: "Top radius", type: "number", anyNumber: true, value: 0, showWhen: { shape: ["cone"] } },
+        { name: "height", label: "Height", type: "number", value: 20, showWhen: { shape: ["box", "cylinder", "cone"] } },
+        { name: "major_radius", label: "Ring radius", type: "number", value: 15, showWhen: { shape: ["torus"] } },
+        { name: "minor_radius", label: "Tube radius", type: "number", value: 4, showWhen: { shape: ["torus"] } },
+        ...INTO_FIELDS,
+      ],
+    },
+    move: {
+      title: "Move",
+      fields: [
+        { name: "copy", label: "Copy", type: "checkbox", value: false },
+        { name: "dx", label: "X", type: "number", anyNumber: true, value: 0 },
+        { name: "dy", label: "Y", type: "number", anyNumber: true, value: 0 },
+        { name: "dz", label: "Z", type: "number", anyNumber: true, value: 0 },
+        { name: "axis", label: "Turn about", type: "select", dynamic: true, value: "Z" },
+        { name: "angle", label: "Angle", type: "number", anyNumber: true, value: 0 },
+      ],
+    },
   });
+
+  // The sizes the engine reads for each primitive shape.
+  const PRIMITIVE_SIZES = {
+    box: ["width", "depth", "height"],
+    cylinder: ["radius", "height"],
+    cone: ["radius", "top_radius", "height"],
+    sphere: ["radius"],
+    torus: ["major_radius", "minor_radius"],
+  };
 
   /// The smallest ISO size a cylinder of `diameter` mm can take: a hole fits
   /// sizes from its diameter up to 1.25 pitch over, a shaft up to half a pitch
@@ -248,6 +285,27 @@
       const found = target.choices && target.choices[name] && target.choices[name][values[name]];
       return found === undefined ? null : found;
     };
+    if (kind === "primitive") {
+      const feature = { type: "primitive", shape: values.shape };
+      const plane = choice("plane");
+      if (plane !== null && plane !== "XY") feature.plane = plane;
+      if (number("x") !== 0 || number("y") !== 0) feature.at = [number("x"), number("y")];
+      for (const name of PRIMITIVE_SIZES[values.shape]) feature[name] = number(name);
+      if (values.shape === "cone") {
+        if (!(feature.top_radius >= 0)) return { error: "Top radius must be 0 or more" };
+        if (feature.top_radius === 0) delete feature.top_radius;
+      }
+      if (values.shape === "torus" && feature.minor_radius >= feature.major_radius) return { error: "Tube radius must be smaller than the ring radius" };
+      return { ...feature, ...intoFields(values) };
+    }
+    if (kind === "move") {
+      const feature = { type: "move", [values.copy ? "tool" : "base"]: target.tool };
+      const shift = ["dx", "dy", "dz"].map(number);
+      if (shift.some((value) => value !== 0)) feature.translate = shift;
+      if (number("angle") !== 0) feature.rotate = { axis: choice("axis") ?? values.axis, angle: number("angle") };
+      if (!feature.translate && !feature.rotate) return { error: "Give a distance or an angle to move it by" };
+      return feature;
+    }
     if (kind === "fillet") return { type: "fillet", base: target.base, edges: target.edges, radius: number("radius") };
     if (kind === "chamfer") return { type: "chamfer", base: target.base, edges: target.edges, length: number("length") };
     if (kind === "revolve") {

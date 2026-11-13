@@ -158,8 +158,8 @@
       require_(message, "feature");
       if (!message.feature.type) fail("add_feature needs a feature with a type");
       const { deletes, kept } = dropRolledBackTail(state);
-      // A construct feature needs no part: a plane can come first.
-      if (!kept.length && !["plane", "axis", "point"].includes(message.feature.type)) fail("there is no part yet");
+      // A construct feature or a primitive needs no part: either can come first.
+      if (!kept.length && !["plane", "axis", "point", "primitive"].includes(message.feature.type)) fail("there is no part yet");
       return [...deletes, { op: "insert", feature: { ...message.feature, id: newId(kept) } }];
     },
 

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "units": {
+    "length": "mm"
+  },
+  "features": [
+    {
+      "id": "bar",
+      "type": "primitive",
+      "shape": "box",
+      "width": 20,
+      "depth": 10,
+      "height": 5
+    },
+    {
+      "id": "copy",
+      "type": "move",
+      "tool": "bar",
+      "rotate": {
+        "axis": "Z",
+        "angle": 90
+      },
+      "translate": [
+        30,
+        0,
+        0
+      ]
+    }
+  ]
+}

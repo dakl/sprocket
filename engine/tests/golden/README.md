@@ -71,6 +71,12 @@ the substitution against synthetic fragments, because capturing a case and
 running the suite in the same second leaves the real files identical and the
 scrub untested.
 
+A part of several bodies needs a second regex. It is written as an assembly,
+and OCCT numbers each `NEXT_ASSEMBLY_USAGE_OCCURRENCE` from a counter that
+lasts as long as the process. `move_copy_rotated` exported after
+`test_bodies.py` said `'3'` where a fresh process said `'1'`, and failed only in
+the full run (2026-11-13). The scrub replaces that label alone.
+
 STL determinism needs the tessellation parameters pinned, so
 `golden_support.py` sets them rather than taking build123d's defaults. A hash
 that changes should mean the geometry moved, not that a library default did.

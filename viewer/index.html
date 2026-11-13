@@ -787,6 +787,7 @@
           <button class="tool-button" id="tool-hole" disabled title="Hole (H): drill the picked face"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg></button>
           <button class="tool-button" id="tool-sweep" disabled title="Sweep: move the selected sketch along a path sketch"></button>
           <button class="tool-button" id="tool-loft" disabled title="Loft: a skin through two or three sketches"></button>
+          <button class="tool-button" id="tool-primitive" disabled title="Primitive: a box, cylinder, cone, sphere or torus on a plane"></button>
         </div>
         <div class="tool-group-label">CREATE</div>
       </div>
@@ -799,6 +800,7 @@
           <button class="tool-button" id="tool-draft" disabled title="Draft: tilt the picked face about a neutral plane, for a mould"></button>
           <button class="tool-button" id="tool-split" disabled title="Split: cut the picked body along a plane"></button>
           <button class="tool-button" id="tool-thread" disabled title="Thread: an ISO metric thread on the picked round face"></button>
+          <button class="tool-button" id="tool-move" disabled title="Move: shift or turn the picked body, or a copy of it"></button>
           <button class="tool-button" id="tool-combine" disabled title="Combine: join, cut or intersect two bodies"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg></button>
           <button class="tool-button" disabled title="Parameters - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7" /><path d="M4 10V3" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M20 21v-5" /><path d="M20 12V3" /><path d="M1 14h6" /><path d="M9 8h6" /><path d="M17 16h6" /></svg></button>
         </div>
@@ -1659,6 +1661,10 @@
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="7" rx="1" /><rect x="4" y="14" width="16" height="7" rx="1" /><path d="M2 12h20" stroke-dasharray="2 2" /></svg>',
       draft:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18" /><path d="M6 20 9 5h6l3 15" /></svg>',
+      primitive:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z" /><path d="m3 8 9 5 9-5" /><path d="M12 13v8" /></svg>',
+      move:
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20" /><path d="M2 12h20" /><path d="m9 5 3-3 3 3" /><path d="m9 19 3 3 3-3" /><path d="m5 9-3 3 3 3" /><path d="m19 9 3 3-3 3" /></svg>',
       thread:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v18" /><path d="M16 3v18" /><path d="m8 6 8 3" /><path d="m8 11 8 3" /><path d="m8 16 8 3" /></svg>',
       plane:
@@ -2934,7 +2940,7 @@
     const toolPointEl = document.getElementById("tool-point");
     const toolOffsetPlaneEl = document.getElementById("tool-offset-plane");
     // The M6 ops' buttons draw the same icons as their timeline rows.
-    const M6_BUTTONS = Object.fromEntries(["sweep", "loft", "draft", "split", "thread"].map((kind) => [kind, document.getElementById("tool-" + kind)]));
+    const M6_BUTTONS = Object.fromEntries(["sweep", "loft", "draft", "split", "thread", "primitive", "move"].map((kind) => [kind, document.getElementById("tool-" + kind)]));
     for (const [kind, button] of Object.entries(M6_BUTTONS)) button.innerHTML = FEATURE_ICONS[kind];
 
     /// Extrude acts on the current selection, so it is live only while there
@@ -2963,7 +2969,8 @@
       M6_BUTTONS.sweep.disabled = !(free && selectedSketch && sketches >= 2);
       M6_BUTTONS.loft.disabled = !(free && sketches >= 2);
       M6_BUTTONS.draft.disabled = M6_BUTTONS.thread.disabled = !(free && mesh && selectedPatch);
-      M6_BUTTONS.split.disabled = !bodyPicked;
+      M6_BUTTONS.split.disabled = M6_BUTTONS.move.disabled = !bodyPicked;
+      M6_BUTTONS.primitive.disabled = !free;
       toolSketchEl.classList.toggle("active", Boolean(sketchStage));
     }
 
@@ -4989,7 +4996,8 @@
       if (modifyTool !== tool || !tool.ok) return; // the info line says why it would not build
       const feature = tool.feature;
       cancelModify();
-      sendCommand({ type: "add_feature", feature });
+      // A refused edit would otherwise close the panel and say nothing.
+      sendCommand({ type: "add_feature", feature }).catch((error) => showNotice(error.message));
     }
 
     modifyOkEl.addEventListener("click", commitModify);
@@ -5072,7 +5080,9 @@
     async function m6Choices(kind, target, scale, bodies) {
       const sketchOptions = activeSketches().map((entry) => ({ value: entry.id, label: entry.id + " (sketch)" }));
       const into = [ViewerModify.NEW_BODY, ...bodies.map((other) => ({ value: other.tip, label: other.name }))];
-      if (kind === "split") await planeChoices(target);
+      if (kind === "split" || kind === "primitive") await planeChoices(target);
+      if (kind === "primitive") target.options.into = into;
+      if (kind === "move") await axisChoices(target, "axis");
       if (kind === "draft") {
         // The neutral plane is not the picked face, which is the face that tilts.
         target.options.neutral = ORIGIN_PLANES.map((name) => ({ value: name, label: name + " plane" }));
@@ -5141,7 +5151,7 @@
       let starting = {};
       try {
         if (kind in M6_BUTTONS) {
-          if (kind === "split") {
+          if (kind === "split" || kind === "move") {
             body = pickedBody();
             if (!body) throw new Error("Pick a body in the browser first.");
             target.tool = body.tip;

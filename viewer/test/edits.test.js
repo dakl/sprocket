@@ -161,3 +161,10 @@ test("a construct feature can be the first feature, and a later extrude does not
   const edits = editsFor({ features, rollbackIndex: 4 }, { type: "extrude_sketch", profile: "f4", distance: 2 });
   assert.equal(edits[0].feature.base, "f2");
 });
+
+test("a primitive can be the first feature, and a fillet cannot", () => {
+  const empty = { features: [], rollback_index: 0 };
+  const [insert] = editsFor(empty, { type: "add_feature", feature: { type: "primitive", shape: "sphere", radius: 2 } });
+  assert.equal(insert.feature.id, "f1");
+  assert.throws(() => editsFor(empty, { type: "add_feature", feature: { type: "fillet", radius: 1 } }), /no part yet/);
+});

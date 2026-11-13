@@ -173,3 +173,28 @@ test("sweep and loft make a new body or combine with the body named in Into", ()
   assert.deepEqual(featureFor("loft", { first: "f1", second: "f3", third: "none", ruled: true, into: "f2", mode: "join" }, {}), { type: "loft", sections: ["f1", "f3"], ruled: true, base: "f2" });
   assert.match(featureFor("loft", { first: "f1", second: "f1", third: "none", into: "new" }, {}).error, /different sketch/);
 });
+
+test("primitive sends only the sizes its shape reads, and drops defaults", () => {
+  const target = { choices: { plane: { XY: "XY", XZ: "XZ" }, into: {} } };
+  const values = { ...defaults("primitive", {}), shape: "cylinder", radius: "4", height: "9" };
+  assert.deepEqual(featureFor("primitive", values, target), { type: "primitive", shape: "cylinder", radius: 4, height: 9 });
+  const placed = { ...values, plane: "XZ", x: "5", y: "-2", into: "f2", mode: "cut" };
+  assert.deepEqual(featureFor("primitive", placed, target), { type: "primitive", shape: "cylinder", plane: "XZ", at: [5, -2], radius: 4, height: 9, base: "f2", mode: "cut" });
+  const cone = { ...defaults("primitive", {}), shape: "cone", radius: "5", top_radius: "2", height: "9" };
+  assert.equal(featureFor("primitive", cone, target).top_radius, 2);
+  assert.equal(featureFor("primitive", { ...cone, top_radius: "0" }, target).top_radius, undefined);
+  assert.match(featureFor("primitive", { ...cone, top_radius: "-1" }, target).error, /0 or more/);
+  const torus = { ...defaults("primitive", {}), shape: "torus", major_radius: "3", minor_radius: "3" };
+  assert.match(featureFor("primitive", torus, target).error, /smaller than the ring/);
+  // A box's width is checked; a sphere does not read it.
+  assert.match(featureFor("primitive", { ...defaults("primitive", {}), width: "0" }, target).error, /Width/);
+  assert.ok(!featureFor("primitive", { ...defaults("primitive", {}), shape: "sphere", width: "0" }, target).error);
+});
+
+test("move moves the body, or a copy with Copy on, and needs a distance or an angle", () => {
+  const target = { tool: "f2", choices: { axis: { Z: "Z", ax: { construct: "ax" } } } };
+  const values = defaults("move", {});
+  assert.match(featureFor("move", values, target).error, /distance or an angle/);
+  assert.deepEqual(featureFor("move", { ...values, dz: "5" }, target), { type: "move", base: "f2", translate: [0, 0, 5] });
+  assert.deepEqual(featureFor("move", { ...values, copy: true, axis: "ax", angle: "90" }, target), { type: "move", tool: "f2", rotate: { axis: { construct: "ax" }, angle: 90 } });
+});
