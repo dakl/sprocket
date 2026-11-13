@@ -160,3 +160,15 @@ test("Concentric gives two circles one centre; Collinear puts two lines on one l
     return Math.abs(lines[1].p0[1] - lines[0].p0[1]) + Math.abs(lines[1].p1[1] - lines[0].p0[1]);
   }).toBeLessThan(1e-6);
 });
+
+test("an agent draws a slot through agent_pointer, clicking the button and the canvas as a person would", async ({ page, request }) => {
+  const answer = await rpc(request, "agent_pointer", { action: "click", target: '#sketch-draw-panel [data-tool="slot"]' });
+  expect(answer.element).toMatch(/^button.*"Slot:/);
+  await expect.poll(async () => (await sketchState(page)).tool).toBe("slot");
+  for (const uv of [[-10, 0], [10, 0], [0, 4]]) {
+    const point = await page.evaluate((target) => globalThis.__tcad.sketchPoint(target), uv);
+    expect((await rpc(request, "agent_pointer", { action: "click", x: point.x, y: point.y })).element).toBe("canvas");
+  }
+  await expect.poll(() => entityCount(page)).toBe(6);
+  await expect(page.locator("#agent-pointer")).toHaveClass(/shown/);
+});
