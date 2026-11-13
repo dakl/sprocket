@@ -163,7 +163,8 @@ def test_a_quarter_arc_keeps_its_ends_and_its_direction_seen_from_below():
         quarter, B3dPlane(origin=(0, 0, 0), z_dir=(0, 0, -1), x_dir=(1, 0, 0))
     )
     assert (down["a0"], down["a1"]) == pytest.approx((-math.pi / 2, 0))
-    assert down["c"] == [0.0, 0.0] and down["r"] == 10
+    assert down["c"] == [0.0, 0.0]
+    assert down["r"] == 10
 
 
 def test_projecting_adds_a_locked_construction_entity_with_its_source():
@@ -173,7 +174,8 @@ def test_projecting_adds_a_locked_construction_entity_with_its_source():
     assert new_id == "e5"
     assert added["reference"] == LEFT_OF_OUTER
     assert added["construction"] is True
-    assert added["p0"] == [-100, 60] and added["p1"] == [-100, 0]
+    assert added["p0"] == [-100, 60]
+    assert added["p1"] == [-100, 0]
 
 
 def test_projecting_the_same_edge_twice_is_refused():

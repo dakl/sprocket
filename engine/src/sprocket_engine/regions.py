@@ -125,7 +125,7 @@ def _points(wire: Wire) -> list[tuple[float, float]]:
     """
     edges = wire.edges()
     points: list[tuple[float, float]] = []
-    for index, edge in enumerate(edges):
+    for _index, edge in enumerate(edges):
         steps = 1 if edge.geom_type.name == "LINE" else 24
         along = [edge.position_at(step / steps) for step in range(steps + 1)]
         if points:
@@ -146,7 +146,7 @@ def _signed_area(points) -> float:
     return (
         sum(
             x1 * y2 - x2 * y1
-            for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])
+            for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1], strict=False)
         )
         / 2
     )

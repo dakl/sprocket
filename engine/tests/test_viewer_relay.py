@@ -68,7 +68,8 @@ def viewer(daemon):
     ready, stop = threading.Event(), threading.Event()
     thread = threading.Thread(
         target=fake_viewer,
-        args=(str(daemon.socket_path), lambda m, p: holder.answer(m, p), ready, stop),
+        # A lambda, not holder.answer: each test swaps in its own answer later.
+        args=(str(daemon.socket_path), lambda m, p: holder.answer(m, p), ready, stop),  # noqa: PLW0108
         daemon=True,
     )
     thread.start()

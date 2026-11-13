@@ -68,7 +68,7 @@ def numbers(sketch):
 
 
 @needs_node
-@pytest.mark.parametrize("name, mode", SOLVE_AND_DRAG)
+@pytest.mark.parametrize(("name", "mode"), SOLVE_AND_DRAG)
 def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(
     viewer_answers, name, mode
 ):
@@ -86,7 +86,9 @@ def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(
         return
     mine, yours = numbers(ours["sketch"]), numbers(theirs["sketch"])
     assert mine.keys() == yours.keys()
-    worst = max(abs(a - b) for key in mine for a, b in zip(mine[key], yours[key]))
+    worst = max(
+        abs(a - b) for key in mine for a, b in zip(mine[key], yours[key], strict=True)
+    )
     assert worst <= TOLERANCE, f"the two solvers differ by {worst:.2e}"
 
 
@@ -102,7 +104,8 @@ def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given():
         ]
     )
     result = solve(sketch)
-    assert result["ok"] and result["dof"] == 0
+    assert result["ok"]
+    assert result["dof"] == 0
     corners = {entity["id"]: entity for entity in result["sketch"]["entities"]}
     assert corners["e1"]["p0"] == pytest.approx([0, 0], abs=1e-9)
     assert corners["e1"]["p1"] == pytest.approx([40, 0], abs=1e-9)

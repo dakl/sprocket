@@ -1,6 +1,11 @@
 from build123d import Face, Kind, Part, offset
 
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
+
 from .registry import register
 
 SCHEMA = {

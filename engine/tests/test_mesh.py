@@ -263,7 +263,7 @@ def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
     runs = buffers["segments_per_edge"]
     assert len(runs) == len(shape.edges())
     start = 0
-    for edge, run in zip(shape.edges(), runs):
+    for edge, run in zip(shape.edges(), runs, strict=True):
         first, last = points[start][0], points[start + run - 1][1]
         ends = np.array([tuple(edge.start_point()), tuple(edge.end_point())])
         forward = np.allclose([first, last], ends, atol=1e-3)

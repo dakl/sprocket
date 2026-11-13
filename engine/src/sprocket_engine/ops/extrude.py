@@ -1,7 +1,8 @@
 from build123d import Compound, Part, ShapeList, Sketch
 from build123d import extrude as b3d_extrude
 
-from ..regions import ProfileError, find_regions, pick_region
+from sprocket_engine.regions import ProfileError, find_regions, pick_region
+
 from .registry import register
 from .sketch import resolve_plane, sketch_entities
 

@@ -23,6 +23,7 @@ freeze the user's app.
 """
 
 import base64
+import contextlib
 import json
 import os
 import re
@@ -465,10 +466,8 @@ class Daemon:
             self._server = None
         # A Unix socket is a file. Leaving it behind makes the next start fail
         # with "address already in use" against a socket nothing is listening on.
-        try:
+        with contextlib.suppress(FileNotFoundError):
             self.socket_path.unlink()
-        except FileNotFoundError:
-            pass
 
 
 class _Server(socketserver.ThreadingUnixStreamServer):
@@ -1356,10 +1355,8 @@ def _selection_keys(daemon: Daemon) -> dict[str, tuple]:
         return {}
     keys = {}
     for handle in handles:
-        try:
+        with contextlib.suppress(ValueError):
             keys[handle] = _geometry_key(_resolve_handle(shape, handle))
-        except ValueError:
-            pass
     return keys
 
 

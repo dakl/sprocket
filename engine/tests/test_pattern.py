@@ -55,8 +55,8 @@ def test_cut_mode_drills_the_copies_out():
     }  # 1 mm down, through the board
     part = replay(
         {
-            "features": BOARD[:3]
-            + [
+            "features": [
+                *BOARD[:3],
                 tall,
                 {
                     "id": "pp",
@@ -75,14 +75,14 @@ def test_cut_mode_drills_the_copies_out():
 def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies():
     _, ctx = replay(
         {
-            "features": BOARD
-            + [
+            "features": [
+                *BOARD,
                 {
                     "id": "pp",
                     "type": "pattern",
                     "tool": "pin",
                     "circular": {"axis": "Z", "count": 4},
-                }
+                },
             ]
         },
         return_context=True,

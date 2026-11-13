@@ -1,7 +1,12 @@
 from build123d import DraftAngleError, Face, Part
 from build123d import draft as b3d_draft
 
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
+
 from .registry import register
 from .sketch import PLANE_SCHEMA, resolve_plane
 

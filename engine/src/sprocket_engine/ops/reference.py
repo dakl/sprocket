@@ -36,8 +36,8 @@ _loading: set[Path] = set()
 
 
 def _load_document(path: Path):
-    from ..document import Document
-    from ..replay import replay
+    from sprocket_engine.document import Document
+    from sprocket_engine.replay import replay
 
     if path in _loading:
         raise ValueError(f"reference cycle: {path.name} includes itself")
@@ -66,7 +66,9 @@ def apply(feature: dict, ctx):
         )
     # One compound of solids, which the mesh tessellates as one body.
     shape = Part(shape.solids())
-    for axis, angle in zip((Axis.X, Axis.Y, Axis.Z), feature.get("rotate", (0, 0, 0))):
+    for axis, angle in zip(
+        (Axis.X, Axis.Y, Axis.Z), feature.get("rotate", (0, 0, 0)), strict=False
+    ):
         if angle:
             shape = shape.rotate(axis, angle)
     if any(feature.get("translate", (0, 0, 0))):

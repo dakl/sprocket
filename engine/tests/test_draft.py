@@ -26,15 +26,15 @@ def build(features):
 
 
 def top_size(part):
-    top = sorted(part.faces(), key=lambda face: face.center().Z)[-1]
+    top = max(part.faces(), key=lambda face: face.center().Z)
     size = top.bounding_box().size
     return size.X, size.Y
 
 
 def test_a_negative_angle_leans_the_walls_outward():
     part, _ = build(
-        BOX
-        + [
+        [
+            *BOX,
             {
                 "id": "d",
                 "type": "draft",
@@ -42,7 +42,7 @@ def test_a_negative_angle_leans_the_walls_outward():
                 "faces": SIDES,
                 "angle": -5,
                 "neutral": "XY",
-            }
+            },
         ]
     )
     grow = 20 * math.tan(math.radians(5))
@@ -52,8 +52,8 @@ def test_a_negative_angle_leans_the_walls_outward():
 def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
     neutral = {"feature": "box", "face": TOP}
     part, _ = build(
-        BOX
-        + [
+        [
+            *BOX,
             {
                 "id": "d",
                 "type": "draft",
@@ -61,7 +61,7 @@ def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
                 "faces": SIDES,
                 "angle": 5,
                 "neutral": neutral,
-            }
+            },
         ]
     )
     assert top_size(part) == pytest.approx((20, 10))
@@ -73,8 +73,8 @@ def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
 def test_drafting_a_face_that_lies_in_the_pull_plane_fails_with_a_reason():
     with pytest.raises(ValueError, match="draft d failed"):
         build(
-            BOX
-            + [
+            [
+                *BOX,
                 {
                     "id": "d",
                     "type": "draft",
@@ -82,6 +82,6 @@ def test_drafting_a_face_that_lies_in_the_pull_plane_fails_with_a_reason():
                     "faces": TOP,
                     "angle": 5,
                     "neutral": "XY",
-                }
+                },
             ]
         )

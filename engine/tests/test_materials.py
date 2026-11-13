@@ -41,7 +41,8 @@ def export(tmp_path, settings, appearances=None):
 def test_no_finish_writes_version_1_with_no_material_buffer(tmp_path):
     _, path = export(tmp_path, {"case": {"color": "#ff0000"}})
     header, values = read(path)
-    assert header["version"] == 1 and values is None
+    assert header["version"] == 1
+    assert values is None
     assert all("material" not in body for body in header["bodies"])
 
 

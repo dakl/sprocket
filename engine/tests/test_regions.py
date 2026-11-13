@@ -37,7 +37,7 @@ def test_a_rectangle_is_one_region_bounded_by_its_four_sides():
 def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
     # Centred on the top side: the circle leaves a half disc outside, a half
     # disc inside, and the rectangle with a bite out of it.
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 20, 6)])
     half_disc = math.pi * 36 / 2
     assert areas(regions) == pytest.approx(
         sorted([half_disc, half_disc, 800 - half_disc]), abs=1e-3
@@ -45,7 +45,7 @@ def test_a_circle_across_a_side_cuts_the_rectangle_into_three():
 
 
 def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 10, 4)])
     by_area = sorted(regions, key=lambda region: region.area)
     assert [len(region.holes) for region in by_area] == [0, 1]
     assert by_area[0].area == pytest.approx(math.pi * 16)
@@ -55,7 +55,7 @@ def test_a_circle_inside_a_rectangle_is_a_disc_and_a_rectangle_with_a_hole():
 def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
     # Radius 10 at (10, 10) touches x=0 and y=0. Tangency is where a splitter
     # is most likely to drop a cell or invent one.
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 10, 10, 10)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 10, 10, 10)])
     disc = math.pi * 100
     sliver = 100 - math.pi * 25  # a 10 x 10 corner square minus a quarter disc
     assert areas(regions) == pytest.approx(
@@ -65,8 +65,10 @@ def test_a_circle_tangent_to_two_sides_leaves_two_corner_slivers():
 
 def test_a_line_that_ends_inside_a_region_bounds_nothing():
     regions = find_regions(
-        rectangle(0, 0, 40, 20)
-        + [{"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]}]
+        [
+            *rectangle(0, 0, 40, 20),
+            {"id": "d", "kind": "line", "p0": [5, 5], "p1": [15, 5]},
+        ]
     )
     (region,) = regions
     assert region.bounded_by == ["r1", "r2", "r3", "r4"]
@@ -159,7 +161,7 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
         sum(
             x1 * y2 - x2 * y1
             for (x1, y1), (x2, y2) in zip(
-                region.outline, region.outline[1:] + region.outline[:1]
+                region.outline, region.outline[1:] + region.outline[:1], strict=True
             )
         )
         / 2
@@ -169,13 +171,13 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
 
 def test_construction_geometry_bounds_no_region():
     regions = find_regions(
-        rectangle(0, 0, 40, 20) + [circle("c", 20, 10, 4, construction=True)]
+        [*rectangle(0, 0, 40, 20), circle("c", 20, 10, 4, construction=True)]
     )
     assert len(regions) == 1
 
 
 @pytest.mark.parametrize(
-    "start, end, chord",
+    ("start", "end", "chord"),
     [
         (0, math.pi, [[-5, 0], [5, 0]]),
         (3 * math.pi / 2, math.pi / 2, [[0, 5], [0, -5]]),
@@ -197,7 +199,7 @@ def test_open_drawings_and_empty_ones_have_no_regions():
 
 
 def test_two_regions_can_share_a_bounded_by_and_only_inside_tells_them_apart():
-    regions = find_regions(rectangle(0, 0, 40, 20) + [circle("c", 20, 20, 6)])
+    regions = find_regions([*rectangle(0, 0, 40, 20), circle("c", 20, 20, 6)])
     twins = [region for region in regions if region.bounded_by == ["c", "r3"]]
     assert len(twins) == 2
     with pytest.raises(ProfileError, match="gives no 'inside' point"):

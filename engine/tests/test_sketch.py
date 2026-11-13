@@ -48,7 +48,7 @@ def test_polygon_on_arbitrary_plane_places_geometry_at_the_given_origin():
 
 
 @pytest.mark.parametrize(
-    "winding, polygon",
+    ("winding", "polygon"),
     [
         ("counter-clockwise", [[0, 0], [10, 0], [10, 10], [0, 10]]),
         ("clockwise", [[0, 10], [10, 10], [10, 0], [0, 0]]),
@@ -144,7 +144,7 @@ def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
 
 
 @pytest.mark.parametrize(
-    "case, sketch",
+    ("case", "sketch"),
     [
         ("no shape at all", {}),
         (

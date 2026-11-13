@@ -48,14 +48,15 @@ def test_two_unjoined_extrudes_are_two_bodies_in_one_compound():
 
 
 def test_a_boolean_ends_its_tools_body():
-    joined = CASE + [
+    joined = [
+        *CASE,
         {
             "id": "u",
             "type": "boolean",
             "operation": "union",
             "base": "case",
             "tool": "lid",
-        }
+        },
     ]
     _, bodies = bodies_of(joined)
     assert [(body["id"], body["tip"]) for body in bodies] == [("case", "u")]
@@ -76,7 +77,7 @@ def test_a_feature_on_an_older_chain_member_replaces_the_body_as_before():
         "length": 1,
         "edges": {"select": [{"op": "edges"}, {"op": "filter_by", "axis": "Z"}]},
     }
-    _, bodies = bodies_of(CASE[:2] + [fillet, chamfer])
+    _, bodies = bodies_of([*CASE[:2], fillet, chamfer])
     assert [(body["id"], body["tip"]) for body in bodies] == [("case", "c")]
 
 
@@ -137,11 +138,14 @@ def test_a_plain_one_body_step_is_not_relabelled(tmp_path):
     part, bodies = bodies_of(CASE[:2])
     write_step(part, tmp_path / "with.step", bodies)
     write_step(part, tmp_path / "without.step")
-    strip = lambda path: [
-        line
-        for line in path.read_text().splitlines()
-        if not line.startswith("FILE_NAME")
-    ]
+
+    def strip(path):
+        return [
+            line
+            for line in path.read_text().splitlines()
+            if not line.startswith("FILE_NAME")
+        ]
+
     assert strip(tmp_path / "with.step") == strip(tmp_path / "without.step")
 
 

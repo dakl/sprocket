@@ -11,7 +11,7 @@ RECTANGLE = [
     {"id": "e3", "kind": "line", "p0": [40, 20], "p1": [0, 20]},
     {"id": "e4", "kind": "line", "p0": [0, 20], "p1": [0, 0]},
 ]
-RING_AND_DISC = RECTANGLE + [{"id": "e5", "kind": "circle", "c": [20, 10], "r": 4}]
+RING_AND_DISC = [*RECTANGLE, {"id": "e5", "kind": "circle", "c": [20, 10], "r": 4}]
 DISC_AREA = math.pi * 16
 
 
@@ -80,7 +80,7 @@ def test_a_profile_still_resolves_after_a_dimension_changes():
     the same reference finds the same region.
     """
     disc = extrude([{"sketch": "f1", "bounded_by": ["e5"]}])
-    bigger = RECTANGLE + [{"id": "e5", "kind": "circle", "c": [25, 10], "r": 6}]
+    bigger = [*RECTANGLE, {"id": "e5", "kind": "circle", "c": [25, 10], "r": 6}]
     assert build(sketch(bigger), disc).volume == pytest.approx(math.pi * 36 * 10)
 
 
@@ -92,7 +92,7 @@ def test_a_profile_that_no_longer_exists_names_the_extrude_that_broke():
 
 
 def test_two_regions_with_one_bounded_by_are_told_apart_by_inside():
-    entities = RECTANGLE + [{"id": "e5", "kind": "circle", "c": [20, 20], "r": 6}]
+    entities = [*RECTANGLE, {"id": "e5", "kind": "circle", "c": [20, 20], "r": 6}]
     outside_half = extrude(
         [{"sketch": "f1", "bounded_by": ["e3", "e5"], "inside": [20, 24]}]
     )
@@ -166,9 +166,9 @@ def test_a_sketch_with_nothing_closed_replays_to_an_empty_shape(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "entities, constraints, message",
+    ("entities", "constraints", "message"),
     [
-        (RECTANGLE + [dict(RECTANGLE[0])], [], "two entities with id 'e1'"),
+        ([*RECTANGLE, dict(RECTANGLE[0])], [], "two entities with id 'e1'"),
         (
             RECTANGLE,
             [{"kind": "coincident", "a": "e1.p1", "b": "e9.p0"}],

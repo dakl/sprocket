@@ -41,7 +41,7 @@ def build(features, height=10):
 def pad(features):
     """The pad alone: without a base it is a body of its own beside the box."""
     document = Document(BOX + features, parameters={"height": 10})
-    part, ctx = replay(document.for_replay(), return_context=True)
+    _part, ctx = replay(document.for_replay(), return_context=True)
     assert [body["id"] for body in ctx.bodies] == ["b", "e"]
     return ctx.results["e"]
 

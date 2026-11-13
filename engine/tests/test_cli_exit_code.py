@@ -90,7 +90,7 @@ def test_a_missing_document_is_a_readable_error_not_a_traceback(
 
 
 @pytest.mark.parametrize(
-    "document, expected",
+    ("document", "expected"),
     [
         (
             '{"features": {"f1": {"type": "sketch"}}}',

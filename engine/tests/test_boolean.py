@@ -47,7 +47,7 @@ def document_with(operation: str, tool_center, tool_size=(20, 10)) -> dict:
 
 
 @pytest.mark.parametrize(
-    "operation, volume",
+    ("operation", "volume"),
     [
         # base 8000, tool 2000, shared 1000
         ("union", 9000),

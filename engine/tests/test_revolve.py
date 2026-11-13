@@ -28,7 +28,7 @@ def document_with(revolve_feature: dict) -> dict:
     }
 
 
-@pytest.mark.parametrize("angle, fraction", [(90, 0.25), (180, 0.5), (270, 0.75)])
+@pytest.mark.parametrize(("angle", "fraction"), [(90, 0.25), (180, 0.5), (270, 0.75)])
 def test_angle_sweeps_that_fraction_of_a_turn(angle, fraction):
     feature = {
         "id": "f2",

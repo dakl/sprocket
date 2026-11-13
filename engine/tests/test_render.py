@@ -75,7 +75,7 @@ def dominant_colours(image: np.ndarray, floor: int = 1000) -> list[tuple]:
     colours, counts = np.unique(flat, axis=0, return_counts=True)
     return [
         tuple(int(channel) for channel in colour)
-        for colour, count in zip(colours, counts)
+        for colour, count in zip(colours, counts, strict=True)
         if count >= floor and tuple(colour) != BACKGROUND
     ]
 

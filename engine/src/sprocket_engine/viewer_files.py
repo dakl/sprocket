@@ -6,6 +6,7 @@ them next to it after every edit. Both go through these functions, so what the
 viewer sees cannot depend on which one is running.
 """
 
+import contextlib
 import json
 import tempfile
 from pathlib import Path
@@ -52,10 +53,8 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             entry["plane"] = _drawable_plane(feature["plane"], ctx)
             if feature.get("patterns"):
                 # Pattern copies to draw. The sketcher edits only the originals.
-                try:
+                with contextlib.suppress(Exception):
                     entry["entities"] = sketch_entities(feature)
-                except Exception:
-                    pass
             # Only a polygon has corners the viewer can drag.
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]
@@ -68,20 +67,16 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
         if feature.get("type") == "thread" and entry["active"] and ctx is not None:
             # Where to draw a cosmetic thread. Nothing when it does not resolve:
             # the feature's own failure says why.
-            try:
+            with contextlib.suppress(Exception):
                 entry["thread"] = thread_geometry(feature, ctx)
-            except Exception:
-                pass
         if (
             feature.get("type") in CONSTRUCT_TYPES
             and entry["active"]
             and ctx is not None
         ):
             # Where to draw a plane, an axis or a point.
-            try:
+            with contextlib.suppress(Exception):
                 entry["construct"] = construct_geometry(feature, ctx)
-            except Exception:
-                pass
         if feature.get("id") == failed_feature:
             entry["failed"] = True
         entries.append(entry)

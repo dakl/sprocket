@@ -19,7 +19,7 @@ PAD_VOLUME = 10 * 10 * 4
 
 def build(**extrude):
     feature = {"id": "f4", "type": "extrude", "profile": "f3", "base": "f2", **extrude}
-    return replay({"features": BOX + [feature]})
+    return replay({"features": [*BOX, feature]})
 
 
 def test_join_with_a_negative_distance_grows_the_part_below_the_sketch_plane():

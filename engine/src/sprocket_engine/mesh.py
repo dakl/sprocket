@@ -259,7 +259,7 @@ def face_materials(bodies, face_counts, shape, appearances) -> np.ndarray | None
         return None
     values = np.full((sum(face_counts), 2), NO_MATERIAL, dtype="<f4")
     start = 0
-    for body, count in zip(bodies, face_counts):
+    for body, count in zip(bodies, face_counts, strict=False):
         if body.get("material"):
             values[start : start + count] = PRESETS[body["material"]]
         start += count
@@ -275,7 +275,7 @@ def body_colours(bodies, face_counts, shape, appearances) -> np.ndarray:
     """Body colours first, then appearances over the part's faces, which win."""
     colours = np.full(sum(face_counts), NO_COLOUR, dtype="<u4")
     start = 0
-    for body, count in zip(bodies, face_counts):
+    for body, count in zip(bodies, face_counts, strict=False):
         if body.get("color"):
             colours[start : start + count] = int(body["color"].lstrip("#"), 16)
         start += count
@@ -306,7 +306,7 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
         instances = [tessellate(body["shape"]) for body in ordered]
         instance = _concatenate(instances)
         face_counts = [len(item["triangles_per_face"]) for item in instances]
-        for body, item, count in zip(ordered, instances, face_counts):
+        for body, item, count in zip(ordered, instances, face_counts, strict=False):
             body_entries.append(
                 {
                     "id": body["id"],

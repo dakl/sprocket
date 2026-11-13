@@ -187,7 +187,7 @@ def test_the_selection_survives_a_reload_when_its_face_is_still_there(daemon, cl
     daemon.check_file()
     selection = client.call("get_selection")
     assert selection["stale"] is False
-    (handle,) = selection["handles"]
+    (_handle,) = selection["handles"]
     assert selection["descriptions"][0]["centre"] == bottom["centre"]
 
 

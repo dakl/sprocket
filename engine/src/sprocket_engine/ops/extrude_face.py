@@ -1,7 +1,12 @@
 from build123d import Part
 from build123d import extrude as b3d_extrude
 
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
+
 from .registry import register
 
 SCHEMA = {

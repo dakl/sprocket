@@ -2,7 +2,12 @@ from build123d import Align, Cylinder, Face, GeomType, Part, Plane, Vector
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepTools import BRepTools
 
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
+
 from .registry import register
 
 # ISO 261 coarse pitches, mm.

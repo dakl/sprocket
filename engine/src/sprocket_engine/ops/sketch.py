@@ -16,8 +16,13 @@ from OCP.BRep import BRep_Builder, BRep_Tool
 from OCP.GeomLib import GeomLib_IsPlanarSurface
 from OCP.TopoDS import TopoDS_Compound
 
-from ..regions import FUZZY, ProfileError, entity_edge, find_regions
-from ..selectors import SELECTOR_DESCRIPTION, SelectorError, resolve_selector
+from sprocket_engine.regions import FUZZY, ProfileError, entity_edge, find_regions
+from sprocket_engine.selectors import (
+    SELECTOR_DESCRIPTION,
+    SelectorError,
+    resolve_selector,
+)
+
 from .registry import register
 
 ORIGIN_PLANES = {"XY": Plane.XY, "XZ": Plane.XZ, "YZ": Plane.YZ}
@@ -362,7 +367,9 @@ def _polygon_area(points) -> float:
         abs(
             sum(
                 x1 * y2 - x2 * y1
-                for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])
+                for (x1, y1), (x2, y2) in zip(
+                    points, points[1:] + points[:1], strict=False
+                )
             )
         )
         / 2
@@ -379,7 +386,8 @@ def _counter_clockwise(points):
     it here and the sign of `distance` means the same thing for every sketch.
     """
     signed_area = sum(
-        x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1])
+        x1 * y2 - x2 * y1
+        for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1], strict=False)
     )
     return points if signed_area >= 0 else points[::-1]
 

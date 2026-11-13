@@ -41,7 +41,8 @@ def build(features):
 
 
 def test_cut_mode_bores_the_swept_profile_out_of_the_base():
-    features = BLOCK + [
+    features = [
+        *BLOCK,
         SECTION,
         route(line("e1", [0, 0], [20, 0])),
         {

@@ -8,7 +8,8 @@ and the geometry is read from the feature itself (`construct_plane`,
 
 from build123d import Axis, Compound, Edge, GeomType, Plane
 
-from ..selectors import AXES, SelectorError, resolve_selector
+from sprocket_engine.selectors import AXES, SelectorError, resolve_selector
+
 from .registry import register
 from .sketch import OFFSET, PLANE_SCHEMA, VECTOR3, resolve_plane
 

@@ -51,7 +51,7 @@ def build(tmp_path, features):
 def test_a_referenced_document_is_a_reference_body_left_out_of_the_part(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
     _, part, ctx = build(
-        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
+        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY]
     )
     assert [(body["id"], body["reference"]) for body in ctx.bodies] == [
         ("ref", True),
@@ -66,7 +66,7 @@ def test_the_mesh_puts_reference_bodies_after_the_part_and_step_leaves_them_out(
 ):
     write(tmp_path, "board.sprocket", BOARD)
     _, part, ctx = build(
-        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY
+        tmp_path, [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY]
     )
     bodies = with_settings(ctx.bodies, {})
     header = export_mesh(part, tmp_path / "part.mesh", None, bodies)
@@ -160,7 +160,7 @@ def test_cutting_with_a_reference_keeps_it_on_screen(tmp_path):
     }
     _, part, ctx = build(
         tmp_path,
-        [{"id": "ref", "type": "reference", "file": "board.sprocket"}] + TRAY + [cut],
+        [{"id": "ref", "type": "reference", "file": "board.sprocket"}, *TRAY, cut],
     )
     assert [body["id"] for body in ctx.bodies] == ["ref", "tray"]
     assert part.volume == pytest.approx(
@@ -199,14 +199,16 @@ def test_the_cache_key_follows_the_referenced_file(tmp_path):
 def test_check_clearance_reports_distance_and_overlap(tmp_path):
     write(tmp_path, "board.sprocket", BOARD)
     features = [
-        {"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")}
-    ] + TRAY
+        {"id": "ref", "type": "reference", "file": str(tmp_path / "board.sprocket")},
+        *TRAY,
+    ]
     with (
         running({"features": features}, tmp_path) as daemon,
         Client(daemon.socket_path) as client,
     ):
         (pair,) = client.call("check_clearance")["pairs"]
-    assert pair["body"] == "tray" and pair["reference"] == "ref"
+    assert pair["body"] == "tray"
+    assert pair["reference"] == "ref"
     assert pair["distance"] == 0
     assert pair["overlap_volume"] == pytest.approx(100)
 
@@ -245,7 +247,8 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
     board, base, lid = (body["shape"] for body in ctx.bodies)
     assert part.volume == pytest.approx(base.volume + lid.volume)
     for case in (base, lid):
-        assert len(case.solids()) == 1 and case.is_valid
+        assert len(case.solids()) == 1
+        assert case.is_valid
         assert volume(case.intersect(board)) == pytest.approx(0, abs=1e-6)
     assert base.distance_to(Pos(0, 0, 0.05) * board) == pytest.approx(0.05, abs=1e-6)
     assert volume(base.intersect(lid)) == pytest.approx(0, abs=1e-6)
@@ -300,7 +303,7 @@ def test_the_mesh_draws_a_reference_where_rotate_and_translate_put_it(tmp_path):
         "rotate": [90, 0, 30],
         "translate": [40, -10, 25],
     }
-    _, part, ctx = build(tmp_path, [reference] + TRAY)
+    _, part, ctx = build(tmp_path, [reference, *TRAY])
     bodies = with_settings(ctx.bodies, {})
     export_mesh(part, tmp_path / "part.mesh", None, bodies)
     header, buffers = read_mesh(tmp_path / "part.mesh")

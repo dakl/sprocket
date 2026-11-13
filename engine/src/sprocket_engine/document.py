@@ -136,7 +136,7 @@ def resolve_parameters(parameters: dict) -> dict[str, float]:
         if name in resolved:
             return resolved[name]
         if name in resolving:
-            cycle = " -> ".join(resolving[resolving.index(name) :] + [name])
+            cycle = " -> ".join([*resolving[resolving.index(name) :], name])
             raise DocumentError(f"parameters form a cycle: {cycle}")
 
         raw = parameters[name]
@@ -247,7 +247,7 @@ def keep_expressions(
         if len(old) == len(new):
             return [
                 keep_expressions(a, b, parameters, unlinked, f"{path}[{i}]")
-                for i, (a, b) in enumerate(zip(old, new))
+                for i, (a, b) in enumerate(zip(old, new, strict=False))
             ]
     return new
 
@@ -1146,7 +1146,9 @@ def _same_numbers(a, b) -> bool:
     if isinstance(a, dict) and isinstance(b, dict):
         return a.keys() == b.keys() and all(_same_numbers(a[key], b[key]) for key in a)
     if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_same_numbers(x, y) for x, y in zip(a, b))
+        return len(a) == len(b) and all(
+            _same_numbers(x, y) for x, y in zip(a, b, strict=False)
+        )
     if (
         isinstance(a, (int, float))
         and isinstance(b, (int, float))

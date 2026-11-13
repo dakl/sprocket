@@ -1,6 +1,7 @@
 from build123d import loft as b3d_loft
 
-from ..regions import ProfileError
+from sprocket_engine.regions import ProfileError
+
 from .extrude import combine
 from .registry import register
 

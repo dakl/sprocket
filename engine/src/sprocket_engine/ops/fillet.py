@@ -1,6 +1,7 @@
 from build123d import fillet as b3d_fillet
 
-from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
+from sprocket_engine.selectors import SELECTOR_DESCRIPTION, resolve_edges
+
 from .registry import register
 
 SCHEMA = {

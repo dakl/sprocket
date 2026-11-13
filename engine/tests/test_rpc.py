@@ -454,11 +454,9 @@ def test_preview_can_return_a_mesh_for_the_viewer(client):
     plain = client.call("preview_feature", feature=good)
     assert "mesh" not in plain
     mesh = client.call("preview_feature", feature=good, mesh=True)["mesh"]
-    assert (
-        len(mesh["vertices"]) % 3 == 0
-        and len(mesh["triangles"]) % 3 == 0
-        and mesh["edges"]
-    )
+    assert len(mesh["vertices"]) % 3 == 0
+    assert len(mesh["triangles"]) % 3 == 0
+    assert mesh["edges"]
     assert max(mesh["triangles"]) < len(mesh["vertices"]) // 3
 
 

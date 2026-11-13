@@ -757,6 +757,7 @@ class LazyClient:
                 self.close()
                 if attempt == 2:
                     raise
+        return None
 
     def close(self) -> None:
         if self._client is not None:

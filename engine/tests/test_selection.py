@@ -83,9 +83,8 @@ def test_a_face_a_rebuild_leaves_in_place_stays_selected_under_its_new_handle(cl
     taller(client)
     after = _faces(client)
     unchanged = [handle for handle, key in before.items() if key in after.values()]
-    assert unchanged and len(unchanged) < len(
-        before
-    )  # the edit moved some faces and not others
+    assert unchanged
+    assert len(unchanged) < len(before)
     selection = client.call("get_selection")
     assert selection["stale"] is False
     assert sorted(after[handle] for handle in selection["handles"]) == sorted(

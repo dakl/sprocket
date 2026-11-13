@@ -112,7 +112,11 @@ def _at_end(current, axis: str, end: str):
     values = [getattr(item.center(), axis) for item in current]
     edge = max(values) if end == "max" else min(values)
     return ShapeList(
-        [item for item, value in zip(current, values) if abs(value - edge) <= LEVEL]
+        [
+            item
+            for item, value in zip(current, values, strict=False)
+            if abs(value - edge) <= LEVEL
+        ]
     )
 
 
@@ -160,7 +164,7 @@ def _new_since(current, starter: str, feature_id: str, ctx):
 
 
 def resolve_selector(shape, selector, ctx=None):
-    """selector: {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}
+    """selector: {"from": "part", "select": [{"op": ..., ...}, ...], "expected_count": n}.
 
     `ctx` is the replay context, which `new_since` needs to see earlier features.
     """

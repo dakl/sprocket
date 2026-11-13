@@ -51,7 +51,8 @@ def test_prune_drops_files_unused_for_a_month(tmp_path):
     _age(fresh, 29 * DAY)
 
     assert prune(tmp_path) == 1
-    assert not old.exists() and fresh.exists()
+    assert not old.exists()
+    assert fresh.exists()
 
 
 def test_prune_drops_the_oldest_until_it_fits(tmp_path):
@@ -83,7 +84,8 @@ def test_prune_sweeps_a_partial_write_left_by_a_crash(tmp_path):
 
     prune(tmp_path)
 
-    assert not stale.exists() and live.exists()
+    assert not stale.exists()
+    assert live.exists()
 
 
 def test_a_hit_counts_as_a_use(tmp_path):
@@ -103,7 +105,7 @@ def test_a_file_pruned_by_another_process_is_a_miss(tmp_path):
 
 def test_opening_a_cache_prunes_it_once(tmp_path, monkeypatch):
     calls = []
-    monkeypatch.setattr(cache, "prune", lambda folder: calls.append(folder))
+    monkeypatch.setattr(cache, "prune", calls.append)
     monkeypatch.setattr(cache, "_pruned", set())
 
     BrepCache(tmp_path)

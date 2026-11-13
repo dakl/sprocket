@@ -1,6 +1,7 @@
 from build123d import chamfer as b3d_chamfer
 
-from ..selectors import SELECTOR_DESCRIPTION, resolve_edges
+from sprocket_engine.selectors import SELECTOR_DESCRIPTION, resolve_edges
+
 from .registry import register
 
 SCHEMA = {

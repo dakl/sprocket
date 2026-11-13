@@ -30,7 +30,7 @@ def build(features):
 
 
 def test_without_a_base_the_original_and_its_mirror_are_a_new_body_and_the_tool_body_goes():
-    part, ctx = build(
+    _part, ctx = build(
         PLATE + PEG + [{"id": "m", "type": "mirror", "tool": "peg", "plane": "YZ"}]
     )
     assert [body["id"] for body in ctx.bodies] == ["plate", "m"]
@@ -47,7 +47,7 @@ def test_a_face_plane_mirrors_about_that_face():
         "select": [{"op": "faces"}, {"op": "at_end", "axis": "X", "end": "max"}],
         "expected_count": 1,
     }
-    part, ctx = build(
+    _part, ctx = build(
         PLATE
         + PEG
         + [

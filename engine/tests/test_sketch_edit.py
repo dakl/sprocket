@@ -61,7 +61,8 @@ def test_an_edit_that_has_no_solution_is_refused_and_names_the_conflict(sketch_c
         sketch_client.call(
             "add_constraint", feature="s1", constraint={**LENGTH, "value": 55}
         )
-    assert "c9" in caught.value.args[0] and "c10" in caught.value.args[0]
+    assert "c9" in caught.value.args[0]
+    assert "c10" in caught.value.args[0]
     assert sketch_client.call("get_document")["revision"] == revision
 
 
