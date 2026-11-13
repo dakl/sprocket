@@ -1,5 +1,6 @@
-"""Projected reference geometry: an edge of an earlier sketch or body, seen
-from inside another sketch.
+"""Projected reference geometry for sketches.
+
+Projected reference geometry: an edge of an earlier sketch or body, seen from inside another sketch.
 
 A sketch's constraints only join its own entities. To dimension one sketch
 against another, the other sketch's edge is projected onto this sketch's plane

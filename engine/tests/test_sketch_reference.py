@@ -1,5 +1,7 @@
-"""Projected reference geometry (sketch_reference.py): an edge of an earlier
-sketch or body, locked inside another sketch, that a dimension can name.
+"""Projected reference geometry (sketch_reference.py).
+
+Projected reference geometry (sketch_reference.py): an edge of an earlier sketch or body, locked
+inside another sketch, that a dimension can name.
 
 The checks are written from the geometry, not captured from the engine's own
 output: where a projected edge must land follows from the planes, and where the
@@ -23,7 +25,7 @@ from sprocket_engine.sketch_reference import project_edge
 
 
 def rectangle(left, bottom, right, top, extra=()):
-    """A rectangle of four lines, joined, level and upright. e4 is the left edge, drawn downwards."""
+    """A joined, level, upright rectangle of four lines. e4 is the left edge, drawn down."""
     return {
         "entities": [
             {"id": "e1", "kind": "line", "p0": [left, bottom], "p1": [right, bottom]},

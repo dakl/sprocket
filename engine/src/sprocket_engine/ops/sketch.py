@@ -50,13 +50,18 @@ PLANE_SCHEMA = {
         {
             "type": "object",
             "required": ["name"],
-            "description": 'An origin plane moved along its normal, as {"name": "XY", "offset": 5}.',
+            "description": (
+                'An origin plane moved along its normal, as {"name": "XY", "offset": 5}.'
+            ),
             "properties": {"name": {"enum": ["XY", "XZ", "YZ"]}, "offset": OFFSET},
         },
         {
             "type": "object",
             "required": ["construct"],
-            "description": 'A construct plane feature (type `plane`), optionally moved along its normal: {"construct": "f3", "offset": 2}.',
+            "description": (
+                "A construct plane feature (type `plane`), optionally moved along its normal: "
+                '{"construct": "f3", "offset": 2}.'
+            ),
             "properties": {
                 "construct": {"type": "string", "description": "id of a plane feature"},
                 "offset": OFFSET,
@@ -133,7 +138,8 @@ ENTITY_SCHEMA = {
                 "sketch's plane and locked. Its numbers are refreshed from the source "
                 "on every rebuild, so do not edit them. "
                 '{"sketch": "f1", "entity": "e3"} names an entity of an earlier sketch. '
-                '{"feature": "f2", "edge": <selector>} names one straight or circular edge of that feature\'s body.'
+                '{"feature": "f2", "edge": <selector>} names one straight or circular edge of '
+                "that feature's body."
             ),
         },
     },
@@ -536,10 +542,11 @@ _ENTITY_FIELDS = {
 
 
 def check_entities(feature: dict) -> None:
-    """The checks a JSON Schema cannot make: fields per kind, unique ids, and
-    constraints that name something that exists. A constraint on a deleted
-    entity would otherwise replay fine and break the next time the viewer
-    solves the sketch.
+    """The checks on a sketch that a JSON Schema cannot make.
+
+    The checks a JSON Schema cannot make: fields per kind, unique ids, and constraints that name
+    something that exists. A constraint on a deleted entity would otherwise replay fine and
+    break the next time the viewer solves the sketch.
     """
     kinds = {}
     for entity in feature["entities"]:
@@ -659,8 +666,9 @@ def sketch_profiles(feature: dict) -> list[dict]:
 
 def _empty_sketch() -> Sketch:
     """A sketch with nothing closed in it yet, such as a lone construction line.
-    build123d's own empty Sketch has no shape underneath, so the BREP cache
-    cannot write it.
+
+    A sketch with nothing closed in it yet, such as a lone construction line. build123d's own
+    empty Sketch has no shape underneath, so the BREP cache cannot write it.
     """
     compound = TopoDS_Compound()
     BRep_Builder().MakeCompound(compound)

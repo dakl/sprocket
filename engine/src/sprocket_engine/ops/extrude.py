@@ -123,8 +123,10 @@ COMBINE = {
 
 
 def combine(feature: dict, tool, ctx, mode: str | None = None):
-    """`tool` combined with the feature's `base` by `mode` (default join), or
-    `tool` alone as a new body when there is no base.
+    """`tool` combined with the feature's `base`, or `tool` alone as a new body.
+
+    `tool` combined with the feature's `base` by `mode` (default join), or `tool` alone as a new
+    body when there is no base.
     """
     base_id = feature.get("base")
     mode = mode or feature.get("mode")

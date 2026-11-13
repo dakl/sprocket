@@ -1,7 +1,8 @@
-"""`serve` keeps one process warm across builds instead of re-importing
-build123d per request (see cli.py's module docstring). The one thing that
-must hold: several requests on one stdin stream each get their own response
-line, success or failure, without the loop dying on a bad request.
+"""`serve`: one warm process, one response line per request.
+
+`serve` keeps one process warm across builds instead of re-importing build123d per request (see
+cli.py's module docstring). The one thing that must hold: several requests on one stdin stream each
+get their own response line, success or failure, without the loop dying on a bad request.
 """
 
 import io

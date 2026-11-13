@@ -1,5 +1,7 @@
-"""How a client learns what it can pick: get_profiles, and the regions the
-viewer reads out of features.json.
+"""How a client learns what it can pick.
+
+How a client learns what it can pick: get_profiles, and the regions the viewer reads out of
+features.json.
 """
 
 import json

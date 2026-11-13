@@ -210,10 +210,12 @@ def test_check_clearance_reports_distance_and_overlap(tmp_path):
 
 
 def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside():
-    """examples/orangepi-case.sprocket: the board is a reference body, the base
-    and the lid are the exported bodies, one solid each, and neither shares
-    volume with the board. The base touches it only from below (the posts), so
-    lifting the board opens a gap, and the lid's groove clears the base's lip.
+    """The Orange Pi case wraps the board without touching it.
+
+    examples/orangepi-case.sprocket: the board is a reference body, the base and the lid are the
+    exported bodies, one solid each, and neither shares volume with the board. The base touches
+    it only from below (the posts), so lifting the board opens a gap, and the lid's groove
+    clears the base's lip.
     """
     from pathlib import Path
 
@@ -258,8 +260,10 @@ def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside()
 
 
 def test_the_orange_pi_green_face_entry_selects_exactly_the_picked_face():
-    """The last appearance in examples/orangepi-zero-3w.sprocket colours the
-    one face Daniel picked: pin 28's cell, -Y side, area 2.24 x 2.5.
+    """The last appearance in the Orange Pi example colours one face.
+
+    The last appearance in examples/orangepi-zero-3w.sprocket colours the one face Daniel
+    picked: pin 28's cell, -Y side, area 2.24 x 2.5.
     """
     from pathlib import Path
 

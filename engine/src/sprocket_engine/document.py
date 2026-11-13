@@ -475,8 +475,10 @@ class Document:
         ]
 
     def referenced_files(self) -> list[Path]:
-        """Every file this document's build reads besides itself: its references,
-        and theirs, and so on. A cycle is cut where it closes.
+        """Every file this document's build reads, references of references included.
+
+        Every file this document's build reads besides itself: its references, and theirs,
+        and so on. A cycle is cut where it closes.
         """
         found: list[Path] = []
         pending = [path for _, path in self.reference_sources()]
@@ -880,10 +882,12 @@ class Document:
         return project
 
     def sync_references(self, built: dict) -> None:
-        """Copies the solved entities of sketches with projected references back
-        into the stored features. `built` maps a sketch id to its feature as
-        replay left it. The numbers are derived from the sources, so this is a
-        cache refresh, not an edit: no revision, no log entry, no undo step.
+        """Copies solved reference entities back into the stored sketches.
+
+        Copies the solved entities of sketches with projected references back into the
+        stored features. `built` maps a sketch id to its feature as replay left it. The
+        numbers are derived from the sources, so this is a cache refresh, not an edit: no
+        revision, no log entry, no undo step.
         """
         parameters = self.resolved_parameters()
         for index, stored in enumerate(self.features):
@@ -1016,7 +1020,8 @@ def _check_appearances(appearances) -> None:
         for item in appearances
     ):
         raise DocumentError(
-            '\'appearances\' must be a list of {"color": "#rrggbb", "select": <selector>, "material": <optional preset>}'
+            "'appearances' must be a list of "
+            '{"color": "#rrggbb", "select": <selector>, "material": <optional preset>}'
         )
     for item in appearances:
         if "material" in item and item["material"] not in PRESETS:

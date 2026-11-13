@@ -1,6 +1,8 @@
-"""The geometry of fillet and chamfer is pinned by the golden cases
-(tests/golden/fillet_box, tests/golden/chamfer_box). What a golden case cannot
-reach is a selector that fails, so that is what this covers.
+"""Fillet and chamfer with a selector that fails.
+
+The geometry of fillet and chamfer is pinned by the golden cases (tests/golden/fillet_box,
+tests/golden/chamfer_box). What a golden case cannot reach is a selector that fails, so that is what
+this covers.
 
 Both ops share `resolve_edges`, so each test runs against both: a guard added
 to one op and not the other is the mistake worth catching.
@@ -52,8 +54,10 @@ def test_a_selector_matching_no_edges_fails_rather_than_doing_nothing(op):
 
 @pytest.mark.parametrize("op", sorted(SIZES))
 def test_a_selector_landing_on_faces_says_so(op):
-    """`edges` is a field name, not something the schema can enforce: a chain
-    starting with `faces` is a valid selector that this op cannot use.
+    """A selector that lands on faces says so.
+
+    `edges` is a field name, not something the schema can enforce: a chain starting with `faces`
+    is a valid selector that this op cannot use.
     """
     selector = {"from": "part", "select": [{"op": "faces"}, {"op": "first"}]}
     with pytest.raises(SelectorError, match="expected edges"):

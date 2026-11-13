@@ -1,5 +1,7 @@
-"""The editable document: revisions, all-or-nothing batches, and the rules
-that stop an edit producing a timeline replay cannot walk.
+"""The editable document: revisions, batches and the rules on edits.
+
+The editable document: revisions, all-or-nothing batches, and the rules that stop an edit producing
+a timeline replay cannot walk.
 """
 
 import json

@@ -48,8 +48,10 @@ def test_a_fillet_that_builds_reports_the_new_volume(client):
 
 
 def test_preview_returns_no_measurements_when_the_feature_fails(client):
-    """A number beside `would_build: false` is a number somebody reads as the
-    answer, so a failed preview carries the reason and nothing else.
+    """A failed preview carries the reason and nothing else.
+
+    A number beside `would_build: false` is a number somebody reads as the answer, so a failed
+    preview carries the reason and nothing else.
     """
     bad = {
         "id": "try",
@@ -82,8 +84,10 @@ def test_preview_does_not_change_the_document(client):
 
 
 def test_a_stale_edit_comes_back_with_the_current_document(client):
-    """One round trip, not two: the rejection carries what the client needs to
-    rebase, so a losing writer does not have to re-read before retrying.
+    """A stale-revision rejection carries what the client needs to rebase.
+
+    One round trip, not two: the rejection carries what the client needs to rebase, so a losing
+    writer does not have to re-read before retrying.
     """
     client.call("set_parameter", name="width", value=40)
     with pytest.raises(RpcError) as caught:
@@ -104,8 +108,10 @@ def test_a_parameter_change_rebuilds_the_part(client):
 
 
 def test_an_edit_is_saved_to_disk_before_the_reply(client, daemon):
-    """A crashed app must lose nothing an agent did, so the file on disk is
-    always the revision the reply names.
+    """The file on disk is always the revision the reply names.
+
+    A crashed app must lose nothing an agent did, so the file on disk is always the revision the
+    reply names.
     """
     revision = client.call("set_parameter", name="width", value=40)["revision"]
     saved = json.loads(daemon.session.document.path.read_text())

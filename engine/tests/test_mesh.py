@@ -84,9 +84,10 @@ def test_counts_in_the_header_match_what_the_buffers_hold(box_mesh):
 
 
 def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
-    """Face identity is a triangle range, so the ranges have to tile the index
-    buffer exactly: no gap leaves triangles belonging to no face, and no
-    overlap puts one triangle in two faces.
+    """The face triangle ranges tile the index buffer exactly.
+
+    Face identity is a triangle range, so the ranges have to tile the index buffer exactly: no
+    gap leaves triangles belonging to no face, and no overlap puts one triangle in two faces.
     """
     part, _written, (header, buffers) = box_mesh
 
@@ -112,9 +113,10 @@ def test_every_face_owns_a_disjoint_run_of_triangles(box_mesh):
 
 
 def test_edges_are_ready_to_draw_as_line_segments(box_mesh):
-    """The viewer draws edges with LineSegments, which consumes the buffer as
-    consecutive point pairs. `segments_per_edge` then names which pairs came
-    from which B-rep edge.
+    """The edge buffer is point pairs, and `segments_per_edge` names them.
+
+    The viewer draws edges with LineSegments, which consumes the buffer as consecutive point
+    pairs. `segments_per_edge` then names which pairs came from which B-rep edge.
     """
     part, _written, (header, buffers) = box_mesh
 
@@ -143,10 +145,11 @@ def test_box_topology_is_pinned(box_mesh):
 
 
 def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
-    """The STL path had to call computeVertexNormals(), which averages
-    triangle normals and so rounds off a curved face. These are OCCT's own
-    surface normals, so they are unit length and, on a planar face, identical
-    across the face.
+    """The normals are OCCT's own surface normals.
+
+    The STL path had to call computeVertexNormals(), which averages triangle normals and so
+    rounds off a curved face. These are OCCT's own surface normals, so they are unit length and,
+    on a planar face, identical across the face.
     """
     _part, _written, (_header, buffers) = box_mesh
 
@@ -161,11 +164,12 @@ def test_normals_come_from_the_brep_rather_than_the_triangles(box_mesh):
 
 
 def test_a_faces_triangulation_is_index_shared_and_its_boundary_closes(box_mesh):
-    """The viewer builds a push/pull preview wall around a picked face, which
-    needs that face's boundary loop. It finds the boundary by vertex index: an
-    edge two of the face's triangles share is inside it, an edge only one uses
-    is on the outside. That works only because OCCT shares a face's
-    triangulation nodes, so two triangles meeting inside a face reuse one index
+    """A face's triangles share their nodes, so its boundary can be found.
+
+    The viewer builds a push/pull preview wall around a picked face, which needs that face's
+    boundary loop. It finds the boundary by vertex index: an edge two of the face's triangles
+    share is inside it, an edge only one uses is on the outside. That works only because OCCT
+    shares a face's triangulation nodes, so two triangles meeting inside a face reuse one index
     rather than holding their own copy of the vertex.
 
     If OCCT ever split those, every interior edge would read as a boundary
@@ -238,10 +242,12 @@ def test_node_normals_agree_with_the_triangle_winding(box_mesh):
 
 @pytest.mark.parametrize("name", ["sphere", "cone"])
 def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
-    """A sphere's pole and a cone's apex are zero-length edges. build123d hides
-    them from `shape.edges()` and ocp-tessellate does not, so the runs came out
-    longer than the edge list and the export refused the part. The filleted
-    logo failed the same way, which left the app showing the previous document.
+    """Zero-length edges do not break the edge runs.
+
+    A sphere's pole and a cone's apex are zero-length edges. build123d hides them from
+    `shape.edges()` and ocp-tessellate does not, so the runs came out longer than the edge list
+    and the export refused the part. The filleted logo failed the same way, which left the app
+    showing the previous document.
 
     Each run must also belong to its own edge: the polyline's two ends are the
     edge's two ends. A run shifted by one fails that, where counting would not.

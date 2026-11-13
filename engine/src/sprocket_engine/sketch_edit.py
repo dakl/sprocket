@@ -22,7 +22,7 @@ FIXED_KEYS = ("id", "kind", "reference")
 
 
 def next_id(items: list[dict], prefix: str) -> str:
-    """`<prefix><n>`, one past the highest in use, so a deleted id does not come back on another shape."""
+    """`<prefix><n>`, one past the highest in use, so a deleted id is not reused."""
     used = [
         int(item["id"][len(prefix) :])
         for item in items
@@ -70,7 +70,8 @@ def _add_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraint = _object(edit, "constraint")
     if constraint.get("kind") not in CONSTRAINT_FIELDS:
         raise ValueError(
-            f"constraint kind {constraint.get('kind')!r} is not one of {', '.join(sorted(CONSTRAINT_FIELDS))}"
+            f"constraint kind {constraint.get('kind')!r} is not one of "
+            f"{', '.join(sorted(CONSTRAINT_FIELDS))}"
         )
     constraints = feature.setdefault("constraints", [])
     constraint.setdefault("id", next_id(constraints, "c"))
@@ -105,7 +106,7 @@ def _add_entity(feature: dict, edit: dict, _project=None) -> dict:
 
 
 def _add_reference(feature: dict, edit: dict, project=None) -> dict:
-    """Projects an edge of an earlier sketch or body into this sketch, locked, as a construction entity."""
+    """Projects an edge of an earlier sketch or body in as a locked construction entity."""
     source = _object(edit, "source")
     if project is None:
         raise ValueError("projecting needs the document's earlier features to project from")

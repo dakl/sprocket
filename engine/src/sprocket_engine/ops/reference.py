@@ -65,7 +65,8 @@ def apply(feature: dict, _ctx):
         shape = import_step(path)
     else:
         raise ValueError(
-            f"a reference must be a .sprocket or STEP file, not {path.suffix or 'a file with no suffix'}"
+            "a reference must be a .sprocket or STEP file, not "
+            f"{path.suffix or 'a file with no suffix'}"
         )
     # One compound of solids, which the mesh tessellates as one body.
     shape = Part(shape.solids())

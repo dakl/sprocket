@@ -70,8 +70,10 @@ def test_changed_feature_invalidates_cache(tmp_path: Path):
 
 @pytest.mark.parametrize("case", CASES)
 def test_every_op_type_survives_its_own_cache(case, tmp_path: Path):
-    """A cached shape has to come back as the same part the op produced, for
-    every op, not just the ones somebody remembered to list.
+    """A cached shape comes back as the same part, for every op.
+
+    A cached shape has to come back as the same part the op produced, for every op, not just the
+    ones somebody remembered to list.
 
     The other cache tests above all replay rect_extrude, so for a long time
     they only ever exercised sketch and extrude. The cache read used to pick a

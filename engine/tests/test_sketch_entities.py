@@ -74,8 +74,10 @@ def test_a_region_on_another_plane_lands_on_that_plane():
 
 
 def test_a_profile_still_resolves_after_a_dimension_changes():
-    """The reason profiles name entities and not positions: move the circle and
-    the same reference finds the same region.
+    """A profile follows its entities when they move.
+
+    The reason profiles name entities and not positions: move the circle and the same reference
+    finds the same region.
     """
     disc = extrude([{"sketch": "f1", "bounded_by": ["e5"]}])
     bigger = [*RECTANGLE, {"id": "e5", "kind": "circle", "c": [25, 10], "r": 6}]

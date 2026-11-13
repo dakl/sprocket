@@ -1,5 +1,7 @@
-"""Live updates: who changed the document, and the file changing on disk under
-an open daemon (see Daemon.check_file for the rule).
+"""Live updates: who changed the document, and the file changing on disk.
+
+Live updates: who changed the document, and the file changing on disk under an open daemon (see
+Daemon.check_file for the rule).
 """
 
 import json

@@ -1,5 +1,7 @@
-"""Resolve the JSON selector chains from SPEC.md's "References and
-topological naming" section into build123d shape lists.
+"""Resolves the JSON selector chains into build123d shape lists.
+
+Resolve the JSON selector chains from SPEC.md's "References and topological naming" section into
+build123d shape lists.
 
 Never reference geometry by index - OCCT renumbers faces/edges whenever
 anything upstream changes. A selector is a query that re-resolves on every
@@ -25,13 +27,14 @@ SELECTOR_DESCRIPTION = (
     '{"op": "first"} and {"op": "last"} take one end, and '
     '{"op": "nearest_to", "point": [x, y, z]} takes the one closest to a point, with an '
     'optional "normal" to break a tie across a thin wall, '
-    '{"op": "at_end", "axis": "Z", "end": "max"} keeps everything level with the highest item along that '
-    'axis ("min" for the lowest), which is how to say "the top edges" so a part that gains an edge there '
-    "is noticed, "
-    '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which is the most '
-    'robust way to say "the edges of that extrude", and '
+    '{"op": "at_end", "axis": "Z", "end": "max"} keeps everything level with the highest item '
+    'along that axis ("min" for the lowest), which is how to say "the top edges" so a part '
+    "that gains an edge there is noticed, "
+    '{"op": "new_since", "feature": "f2"} keeps only what feature f2 made or changed, which '
+    'is the most robust way to say "the edges of that extrude", and '
     '{"op": "nearest_each", "points": [[x, y, z], ...]} takes the item nearest each point, and '
-    '{"op": "within", "box": [x0, y0, z0, x1, y1, z1]} keeps the items whose centre lies inside the box. '
+    '{"op": "within", "box": [x0, y0, z0, x1, y1, z1]} keeps the items whose centre lies '
+    "inside the box. "
     'Add "expected_count": n beside "select" and a rebuild that finds a different number fails '
     "the feature instead of rounding the wrong edges. "
     'Every edge is {"select": [{"op": "edges"}]}. '
@@ -136,9 +139,10 @@ def _within(current, box):
 
 
 def _new_since(current, starter: str, feature_id: str, ctx):
-    """What feature `feature_id` made or changed: items of `current` that were
-    not in the shape it was applied to. A feature with no base starts from
-    nothing, so all of it is new.
+    """What feature `feature_id` made or changed.
+
+    What feature `feature_id` made or changed: items of `current` that were not in the shape it
+    was applied to. A feature with no base starts from nothing, so all of it is new.
     """
     feature = ctx.features.get(feature_id) if ctx is not None else None
     if feature is None:

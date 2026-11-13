@@ -1,7 +1,5 @@
 """`sprocket web`: the viewer in a plain browser, on top of the daemon.
 
-
-
 The spec's architecture rule is that the viewer must run outside the Swift app,
 or an agent and Playwright have nothing to drive. In the app, the daemon writes
 `part.mesh` and `features.json` next to the viewer (`--viewer-dir`) and Swift
@@ -23,7 +21,8 @@ Routes:
     GET  /part.mesh       the built part, in the viewer's mesh format; 404 if empty
     GET  /features.json   the timeline, each entry carrying its full feature
     GET  /schemas.json    every op's JSON Schema, which the parameter form is built from
-    GET  /export?format=stl|3mf|step   the built part as a download; 409 with the reason if there is none
+    GET  /export?format=stl|3mf|step   the built part as a download; 409 with the reason
+                                       if there is none
     GET  /events          server-sent events: document_changed, selection_changed, highlight
     POST /rpc             one JSON-RPC request, the same methods the socket takes
     GET  anything else    a static file from the viewer directory

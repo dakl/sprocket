@@ -101,7 +101,7 @@ def test_a_parameter_no_sketch_uses_does_not_solve_anything(monkeypatch):
 
 
 def test_a_sketch_that_projects_from_the_driven_one_follows_it():
-    """The gap from the outer rectangle's right edge holds, so the inner one moves with the outer width."""
+    """The gap to the outer right edge holds, so the inner one moves with the outer width."""
     outer = box_sketch()
     inner = {"id": "f2", "type": "sketch", "plane": "XY", **rectangle(45, 5, 55, 15)}
     document = Document(copy.deepcopy([outer, inner]), 2, {"w": 40})

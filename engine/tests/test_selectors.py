@@ -47,9 +47,11 @@ def test_top_face_selector_identifies_the_correct_face(tmp_path: Path):
 
 
 def test_selector_survives_an_upstream_dimension_change(tmp_path: Path):
-    """The whole point of a selector: it re-resolves after an edit instead of
-    pointing at a stale index. Bump the extrude depth and confirm both
-    selectors still find the same semantic geometry, not just any 4 edges.
+    """A selector finds the same geometry after an edit.
+
+    The whole point of a selector: it re-resolves after an edit instead of pointing at a stale
+    index. Bump the extrude depth and confirm both selectors still find the same semantic
+    geometry, not just any 4 edges.
     """
     cache_dir = tmp_path / "cache"
     changed = json.loads(json.dumps(RECT_EXTRUDE))

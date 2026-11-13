@@ -98,8 +98,10 @@ def tessellate(shape) -> dict:
 
 
 def _location_of(node, ref: int):
-    """The placement of instance `ref` in world coordinates, as (rotation 3x3,
-    translation), or None when the tree does not hold it.
+    """The world placement of instance `ref`, or None when the tree does not hold it.
+
+    The placement of instance `ref` in world coordinates, as (rotation 3x3, translation), or
+    None when the tree does not hold it.
 
     The instance's buffers are in the shape's own frame. Each node on the way
     down carries a `loc` of ((x, y, z), (qx, qy, qz, qw)), and the placement

@@ -55,8 +55,10 @@ def test_polygon_on_arbitrary_plane_places_geometry_at_the_given_origin():
     ],
 )
 def test_positive_distance_extrudes_along_the_plane_normal(winding, polygon):
-    """The sketcher emits whichever winding the user drew, and the viewer
-    measures its drag against the plane normal, so both must extrude up.
+    """Both windings extrude along the plane normal.
+
+    The sketcher emits whichever winding the user drew, and the viewer measures its drag against
+    the plane normal, so both must extrude up.
     """
     document = {
         "schema_version": 1,
@@ -121,8 +123,10 @@ def test_circle_center_offsets_the_profile():
 
 
 def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
-    """The face-pick path hands extrude_face a plane taken off a B-rep face, so
-    a circle has to land on an arbitrary plane, not only a principal one.
+    """A circle lands on an arbitrary plane, not only a principal one.
+
+    The face-pick path hands extrude_face a plane taken off a B-rep face, so a circle has to
+    land on an arbitrary plane, not only a principal one.
     """
     document = {
         "schema_version": 1,

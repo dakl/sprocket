@@ -85,8 +85,10 @@ def test_the_engine_and_the_viewer_solve_a_sketch_the_same_way(viewer_answers, n
 
 
 def test_a_dimensioned_rectangle_comes_out_the_size_it_was_given():
-    """Not a comparison: the numbers the dimensions ask for, so a pair of solvers
-    that agree on a wrong answer would still fail.
+    """The solved numbers match what the dimensions ask for.
+
+    Not a comparison: the numbers the dimensions ask for, so a pair of solvers that agree on a
+    wrong answer would still fail.
     """
     sketch = rough_rectangle(
         [

@@ -1,4 +1,4 @@
-"""Pick -> selector (M4): the selector a pick turns into has to outlive the edit that renumbers the part."""
+"""Pick -> selector (M4): a pick's selector outlives the edit that renumbers the part."""
 
 import math
 

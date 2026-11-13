@@ -49,10 +49,11 @@ def test_angle_defaults_to_a_full_turn():
 
 
 def test_an_explicit_axis_uses_its_origin_not_just_its_direction():
-    """Revolving the same profile about a line through x = 30 mirrors it: the
-    profile now spans 10 to 20 mm from that line, so the volume is unchanged
-    and only the position moves. A dropped origin would keep the volume right,
-    which is why this asserts the bounding box.
+    """A revolve about a moved axis keeps the volume and moves the part.
+
+    Revolving the same profile about a line through x = 30 mirrors it: the profile now spans 10
+    to 20 mm from that line, so the volume is unchanged and only the position moves. A dropped
+    origin would keep the volume right, which is why this asserts the bounding box.
     """
     feature = {
         "id": "f2",

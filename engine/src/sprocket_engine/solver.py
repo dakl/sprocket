@@ -87,8 +87,10 @@ def _dragged(sketch: dict, drag: dict) -> tuple[dict, list[str]]:
 
 
 class _Build:
-    """One planegcs system for one sketch, with a map from each of its
-    constraint tags back to the index of the document constraint.
+    """One planegcs system for one sketch, with its constraint tags mapped back.
+
+    One planegcs system for one sketch, with a map from each of its constraint tags back to the
+    index of the document constraint.
     """
 
     def __init__(self, sketch: dict, pinned: list[str] | None):

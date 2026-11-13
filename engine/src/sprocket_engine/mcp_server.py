@@ -483,12 +483,15 @@ def sketch_tools() -> list[types.Tool]:
     Each one solves the sketch and returns the solved geometry.
     """
     # Prefixed `sketch_` because every tool that starts with `add_` is an op.
-    common = "The sketch is solved after the edit, and the reply holds the solved sketch and its degrees of freedom (dof). "
+    common = (
+        "The sketch is solved after the edit, and the reply holds the solved sketch and its "
+        "degrees of freedom (dof). "
+    )
     return [
         _tool(
             "sketch_add_constraint",
-            common
-            + "A constraint with no solution is refused, and the reply names the ones that conflict.",
+            common + "A constraint with no solution is refused, and the reply names the ones that "
+            "conflict.",
             {
                 **SKETCH_TOOL_PROPERTIES,
                 "constraint": {
@@ -534,8 +537,8 @@ def sketch_tools() -> list[types.Tool]:
         ),
         _tool(
             "sketch_add_reference",
-            common
-            + "Projects an edge of an earlier sketch or body into this sketch as a locked reference entity, "
+            common + "Projects an edge of an earlier sketch or body into this sketch as a locked "
+            "reference entity, "
             "drawn dashed and left out of profiles. A constraint or dimension may "
             "then name it, such as "
             "distance_x between its end and a point of this sketch. It is projected "

@@ -129,8 +129,10 @@ def test_exported_bytes_are_unchanged(case, parts, tmp_path):
 
 @pytest.mark.parametrize("case", CASES)
 def test_every_case_ships_its_expected_files(case):
-    """A case whose expected.* files are missing would otherwise skip two whole
-    layers by erroring in a way that looks like a setup problem.
+    """Every golden case ships its expected files.
+
+    A case whose expected.* files are missing would otherwise skip two whole layers by erroring
+    in a way that looks like a setup problem.
 
     The stamp is checked here too. Without it the byte layer cannot tell "this is
     a different engine" from "nobody recorded which engine", and both would read
@@ -147,8 +149,10 @@ def test_every_case_ships_its_expected_files(case):
 
 
 def test_replay_is_deterministic(tmp_path: Path):
-    """Two replays through one cache directory, so a cache hit has to give the
-    same answer as the miss that filled it.
+    """A cache hit gives the same answer as the miss that filled it.
+
+    Two replays through one cache directory, so a cache hit has to give the same answer as the
+    miss that filled it.
     """
     from sprocket_engine.replay import replay
 

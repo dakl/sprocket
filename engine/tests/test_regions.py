@@ -83,9 +83,10 @@ def test_corners_that_miss_by_a_solver_tolerance_still_close():
 
 
 def toothed_wheel(teeth, tip=15.0):
-    """Arcs and lines the way examples/sprocket-icon/gen.py writes them: arc
-    centres and line ends rounded to 6 decimals, arc ends left as angles, so
-    each corner misses by about 1e-7.
+    """A toothed wheel written the way the icon script writes it.
+
+    Arcs and lines the way examples/sprocket-icon/gen.py writes them: arc centres and line ends
+    rounded to 6 decimals, arc ends left as angles, so each corner misses by about 1e-7.
     """
     pitch_radius = 6.35 / (2 * math.sin(math.pi / teeth))
     step = math.tau / teeth
@@ -236,8 +237,10 @@ coordinate = st.integers(min_value=-20, max_value=20)
     st.integers(1, 30),
 )
 def test_the_regions_of_two_rectangles_add_up_to_their_union(ax, ay, aw, ah, bx, by, bw, bh):
-    """Whatever the overlap, and including rectangles that share an edge or a
-    corner, the regions tile the union exactly once.
+    """Overlapping rectangles' regions tile the union exactly once.
+
+    Whatever the overlap, and including rectangles that share an edge or a corner, the regions
+    tile the union exactly once.
     """
     overlap_w = max(0, min(ax + aw, bx + bw) - max(ax, bx))
     overlap_h = max(0, min(ay + ah, by + bh) - max(ay, by))

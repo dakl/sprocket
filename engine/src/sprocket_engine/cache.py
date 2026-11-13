@@ -94,8 +94,10 @@ class BrepCache:
         return self.cache_dir / f"{key}.brep"
 
     def get(self, key: str) -> Shape | None:
-        """A cached shape has to come back as the build123d class its algebra
-        operators expect, not the generic Compound that import_brep returns.
+        """The cached shape cast back to the class its op returned.
+
+        A cached shape has to come back as the build123d class its algebra operators expect,
+        not the generic Compound that import_brep returns.
 
         The class is read off the shape rather than off the op that made it.
         This used to be a dict keyed by op type, and it named three of the

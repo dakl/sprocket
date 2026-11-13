@@ -23,8 +23,10 @@ class ReplayError(Exception):
 
 
 def _tagged(error, feature, index):
-    """Records which feature failed, so the caller can name it to the user and
-    still export everything built before it.
+    """Records which feature failed.
+
+    Records which feature failed, so the caller can name it to the user and still export
+    everything built before it.
     """
     error.feature_id = feature.get("id")
     error.feature_index = index
@@ -110,9 +112,11 @@ def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
 
 
 def combine(bodies: list[dict]):
-    """One shape for the part: the only body itself, so a one-body document
-    exports exactly as before, or a compound of the bodies in order. Reference
-    bodies are left out, because they are not part of what is made.
+    """One shape for the part: the only body, or a compound of the bodies.
+
+    One shape for the part: the only body itself, so a one-body document exports exactly as
+    before, or a compound of the bodies in order. Reference bodies are left out, because they
+    are not part of what is made.
     """
     shapes = [body["shape"] for body in bodies if not body["reference"]]
     if not shapes:
@@ -123,10 +127,11 @@ def combine(bodies: list[dict]):
 
 
 def replay(document: dict, cache_dir: Path | None = None, return_context: bool = False):
-    """Returns the shape after replaying features[:rollback_index], or None
-    when that prefix is empty. rollback_index=0 is a valid state, the same
-    as Fusion 360's timeline rolled back before the first feature - it means
-    an empty document, not an error.
+    """The shape after replaying features[:rollback_index], or None when that is empty.
+
+    Returns the shape after replaying features[:rollback_index], or None when that prefix is
+    empty. rollback_index=0 is a valid state, the same as Fusion 360's timeline rolled back
+    before the first feature - it means an empty document, not an error.
 
     With `return_context`, returns (shape, context): every feature's result,
     which is what selector synthesis needs to see how the part was built.
@@ -189,11 +194,12 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
 
 
 def last_solid_index(features: list[dict], rollback_index: int) -> int:
-    """A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays
-    inert until something extrudes it. replay() only returns its last
-    feature's result, so a bare sketch left at the tip would become the part
-    and blank out whatever solid came before it. Walk back past any trailing
-    sketch features to the last one that actually produced a solid.
+    """The result of the last feature that built a solid, past any trailing sketches.
+
+    A sketch is a flat profile, not a solid (see ops/sketch.py) - it stays inert until something
+    extrudes it. replay() only returns its last feature's result, so a bare sketch left at the
+    tip would become the part and blank out whatever solid came before it. Walk back past any
+    trailing sketch features to the last one that actually produced a solid.
     """
     index = rollback_index
     while index > 0 and features[index - 1].get("type") in NOT_SOLIDS:
@@ -206,11 +212,9 @@ def build_shape(
 ) -> tuple[object, str | None, Context]:
     """Replays as much of the document as still builds.
 
-
-
     Returns (shape, failed_feature_id, context). The context holds every
-    feature's result, which a sketch on a face needs to find its plane. A feature that no longer builds is not
-    a failed build: editing a sketch can break a later op, and the caller still
+    feature's result, which a sketch on a face needs to find its plane. A feature that no
+    longer builds is not a failed build: editing a sketch can break a later op, and the caller still
     needs the part up to that point. So this falls back to the prefix before
     the broken feature and names it, rather than raising.
 

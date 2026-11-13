@@ -76,8 +76,10 @@ def test_every_registered_op_is_callable_as_a_tool(daemon):
 
 
 def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
-    """`type` is fixed by the tool name, and an agent inventing unique ids
-    across a long session collides with itself.
+    """A generated tool hides `type` and `id`, which an agent should not set.
+
+    `type` is fixed by the tool name, and an agent inventing unique ids across a long session
+    collides with itself.
     """
     tools = drive(daemon, lambda session: session.list_tools())
     fillet = next(tool for tool in tools.tools if tool.name == "add_fillet")
@@ -87,9 +89,11 @@ def test_a_generated_tool_hides_the_fields_an_agent_should_not_set(daemon):
 
 
 def test_every_op_tool_describes_what_the_op_does(daemon):
-    """The descriptions came from the apply docstrings once, and add_boolean
-    opened "Operands are feature ids, because ...", which tells an agent
-    nothing. They come from the schemas now, so check they are all there.
+    """Every tool has a description, taken from its schema.
+
+    The descriptions came from the apply docstrings once, and add_boolean opened "Operands are
+    feature ids, because ...", which tells an agent nothing. They come from the schemas now, so
+    check they are all there.
     """
     tools = drive(daemon, lambda session: session.list_tools())
     for tool in tools.tools:
@@ -113,8 +117,10 @@ def test_adding_a_feature_names_it_and_reports_the_build(daemon):
 
 
 def test_render_view_returns_the_image_itself(daemon):
-    """A path would be a file the agent may have no tool to read, and an agent
-    that cannot see its work reports a part it has never looked at.
+    """render_view returns the image itself, not a path.
+
+    A path would be a file the agent may have no tool to read, and an agent that cannot see its
+    work reports a part it has never looked at.
     """
 
     async def work(session):
