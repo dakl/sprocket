@@ -751,6 +751,8 @@
           <button class="tool-button" id="tool-extrude" disabled title="Extrude the selection (E)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 9-6-6-6 6" /><path d="M12 3v14" /><path d="M5 21h14" /></svg></button>
           <button class="tool-button" id="tool-revolve" disabled title="Revolve (R): sweep the selected sketch around an axis"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="5" ry="9" /><path d="M3 12h18" /></svg></button>
           <button class="tool-button" id="tool-hole" disabled title="Hole (H): drill the picked face"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg></button>
+          <button class="tool-button" id="tool-sweep" disabled title="Sweep: move the selected sketch along a path sketch"></button>
+          <button class="tool-button" id="tool-loft" disabled title="Loft: a skin through two or three sketches"></button>
         </div>
         <div class="tool-group-label">CREATE</div>
       </div>
@@ -760,6 +762,9 @@
           <button class="tool-button" id="tool-fillet" disabled title="Fillet (F): round the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10a6 6 0 0 1 6-6h10" /><path d="M4 10V4h6" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" id="tool-chamfer" disabled title="Chamfer (C): bevel the selected edges, or every edge of the selected face. Shift-click adds edges"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-8l8-8h8" /><path d="M4 12V4h8" stroke-dasharray="2 2" /></svg></button>
           <button class="tool-button" id="tool-shell" disabled title="Shell: hollow the part, the picked face is left open"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><rect x="7" y="7" width="10" height="10" rx="1" /></svg></button>
+          <button class="tool-button" id="tool-draft" disabled title="Draft: tilt the picked face about a neutral plane, for a mould"></button>
+          <button class="tool-button" id="tool-split" disabled title="Split: cut the picked body along a plane"></button>
+          <button class="tool-button" id="tool-thread" disabled title="Thread: an ISO metric thread on the picked round face"></button>
           <button class="tool-button" id="tool-combine" disabled title="Combine: join, cut or intersect two bodies"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="6" /><circle cx="15" cy="12" r="6" /></svg></button>
           <button class="tool-button" disabled title="Parameters - not implemented yet"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7" /><path d="M4 10V3" /><path d="M12 21v-9" /><path d="M12 8V3" /><path d="M20 21v-5" /><path d="M20 12V3" /><path d="M1 14h6" /><path d="M9 8h6" /><path d="M17 16h6" /></svg></button>
         </div>
@@ -2735,6 +2740,9 @@
     const toolAxisEl = document.getElementById("tool-axis");
     const toolPointEl = document.getElementById("tool-point");
     const toolOffsetPlaneEl = document.getElementById("tool-offset-plane");
+    // The M6 ops' buttons draw the same icons as their timeline rows.
+    const M6_BUTTONS = Object.fromEntries(["sweep", "loft", "draft", "split", "thread"].map((kind) => [kind, document.getElementById("tool-" + kind)]));
+    for (const [kind, button] of Object.entries(M6_BUTTONS)) button.innerHTML = FEATURE_ICONS[kind];
 
     /// Extrude acts on the current selection, so it is live only while there
     /// is one. Called from every place a selection or a mode changes.
@@ -2757,6 +2765,12 @@
       toolCombineEl.disabled = !(free && mesh && partBodies().length >= 2);
       toolAxisEl.disabled = !(free && mesh && (selectedPatch || selectedEdges.length));
       toolPointEl.disabled = toolOffsetPlaneEl.disabled = !free;
+      // Sweep needs a profile sketch and a path sketch, Loft two sketches. Draft and Thread act on the picked face.
+      const sketches = activeSketches().length;
+      M6_BUTTONS.sweep.disabled = !(free && selectedSketch && sketches >= 2);
+      M6_BUTTONS.loft.disabled = !(free && sketches >= 2);
+      M6_BUTTONS.draft.disabled = M6_BUTTONS.thread.disabled = !(free && mesh && selectedPatch);
+      M6_BUTTONS.split.disabled = !bodyPicked;
       toolSketchEl.classList.toggle("active", Boolean(sketchStage));
     }
 
@@ -4855,6 +4869,68 @@
       target.choices[name] = choices;
     }
 
+    /// The sketches in the timeline that are rolled in.
+    function activeSketches() {
+      return browserFeatures.filter((entry) => entry.active && entry.type === "sketch");
+    }
+
+    /// The choices of the M6 tools, made from the document and the pick into
+    /// `target`. Returns the starting values the choices alone cannot give.
+    async function m6Choices(kind, target, scale, bodies) {
+      const sketchOptions = activeSketches().map((entry) => ({ value: entry.id, label: entry.id + " (sketch)" }));
+      const into = [ViewerModify.NEW_BODY, ...bodies.map((other) => ({ value: other.tip, label: other.name }))];
+      if (kind === "split") await planeChoices(target);
+      if (kind === "draft") {
+        // The neutral plane is not the picked face, which is the face that tilts.
+        target.options.neutral = ORIGIN_PLANES.map((name) => ({ value: name, label: name + " plane" }));
+        target.choices.neutral = Object.fromEntries(ORIGIN_PLANES.map((name) => [name, name]));
+        for (const feature of browserFeatures.filter((entry) => entry.active && entry.type === "plane")) {
+          target.options.neutral.push({ value: feature.id, label: feature.id + " (plane)" });
+          target.choices.neutral[feature.id] = { construct: feature.id };
+        }
+        const found = modifyBody("draft");
+        if (found.error) throw new Error(found.error);
+        target.base = found.body.tip;
+        target.faces = (await trackPending(rpcCall("resolve_selection", { handles: ["f" + selectedPatch.faceIndex] }))).selector;
+      }
+      if (kind === "thread") {
+        let found;
+        try {
+          found = await trackPending(rpcCall("pick_axis", { handle: "f" + selectedPatch.faceIndex }));
+        } catch (error) {
+          throw new Error("Pick a round face: a hole or a shaft.");
+        }
+        if (!found.axis.face) throw new Error("Pick a round face: a hole or a shaft.");
+        target.base = found.axis.base;
+        target.face = found.axis.face;
+        // The face's diameter: twice the farthest its mesh comes from the axis.
+        const origin = new THREE.Vector3(...found.resolved.origin);
+        const direction = new THREE.Vector3(...found.resolved.direction).normalize();
+        let radius = 0;
+        const offset = new THREE.Vector3();
+        visitVertices(faceTriangleRange(selectedPatch.faceIndex, 1), (x, y, z) => {
+          offset.set(x, y, z).sub(origin);
+          radius = Math.max(radius, offset.sub(direction.clone().multiplyScalar(offset.dot(direction))).length());
+        });
+        scale.diameter = 2 * radius;
+      }
+      if (kind === "sweep") {
+        target.profile = selectedSketch.id;
+        target.options.path = sketchOptions.filter((option) => option.value !== selectedSketch.id);
+        target.options.into = into;
+      }
+      if (kind === "loft") {
+        target.options.first = sketchOptions;
+        target.options.second = sketchOptions;
+        target.options.third = [ViewerModify.NO_SECTION, ...sketchOptions];
+        target.options.into = into;
+        const first = selectedSketch ? selectedSketch.id : sketchOptions[0].value;
+        const second = sketchOptions.find((option) => option.value !== first);
+        return { first, second: second ? second.value : first };
+      }
+      return {};
+    }
+
     async function armConstruct(kind) {
       if (modifyTool || extrudeArmed || sketchStage) return;
       const target = { options: {}, choices: {}, where: {} };
@@ -4869,7 +4945,16 @@
       modifyTool = tool; // claims the tool before the first await
       updateToolbarState();
       const scale = { options: target.options };
+      let starting = {};
       try {
+        if (kind in M6_BUTTONS) {
+          if (kind === "split") {
+            body = pickedBody();
+            if (!body) throw new Error("Pick a body in the browser first.");
+            target.tool = body.tip;
+          }
+          starting = await m6Choices(kind, target, scale, bodies);
+        }
         if (kind === "plane" || kind === "mirror") await planeChoices(target);
         if (kind === "linear") await axisChoices(target, "direction");
         if (kind === "circular") await axisChoices(target, "axis");
@@ -4904,7 +4989,7 @@
         return;
       }
       if (modifyTool !== tool) return; // cancelled while the choices were made
-      tool.values = ViewerModify.defaults(kind, scale);
+      tool.values = { ...ViewerModify.defaults(kind, scale), ...starting };
       if (kind === "combine") {
         const picked = pickedBody() || bodies[0];
         tool.values.target = picked.tip;
@@ -4929,6 +5014,7 @@
     toolLinearEl.addEventListener("click", () => armConstruct("linear"));
     toolCircularEl.addEventListener("click", () => armConstruct("circular"));
     toolCombineEl.addEventListener("click", () => armConstruct("combine"));
+    for (const [kind, button] of Object.entries(M6_BUTTONS)) button.addEventListener("click", () => armConstruct(kind));
 
     // A click (a press let go without a drag) in pick mode or an open tool:
     // the first pick opens the tool, a later one reselects inside it.

@@ -140,3 +140,36 @@ test("a dynamic choice starts on the first one offered", () => {
   assert.equal(values.plane, "XY");
   assert.equal(values.into, "same");
 });
+
+const { threadSize } = require("../modify.js");
+
+test("draft keeps its angle under 45 degrees either way and names the neutral plane", () => {
+  const faces = { select: [{ op: "faces" }] };
+  const target = { base: "f2", faces, choices: { neutral: { XY: "XY" } } };
+  assert.deepEqual(featureFor("draft", { neutral: "XY", angle: "-3" }, target), { type: "draft", base: "f2", faces, neutral: "XY", angle: -3 });
+  assert.match(featureFor("draft", { neutral: "XY", angle: "45" }, target).error, /-45 and 45/);
+  assert.match(featureFor("draft", { neutral: "XY", angle: "0" }, target).error, /not 0/);
+});
+
+test("split leaves out keep when it keeps both pieces", () => {
+  const target = { tool: "f2", choices: { plane: { XY: "XY" } } };
+  assert.deepEqual(featureFor("split", { plane: "XY", keep: "both" }, target), { type: "split", base: "f2", plane: "XY" });
+  assert.equal(featureFor("split", { plane: "XY", keep: "above" }, target).keep, "above");
+});
+
+test("thread size is the first ISO nominal at or above the diameter", () => {
+  assert.equal(threadSize(3), "M3");
+  assert.equal(threadSize(2.5), "M2.5");
+  assert.equal(threadSize(2.6), "M3"); // an M3 tap-drill hole
+  assert.equal(threadSize(30), "M24");
+  assert.equal(threadSize(NaN), "M3");
+  assert.equal(defaults("thread", { diameter: 5.9 }).designation, "M6");
+});
+
+test("sweep and loft make a new body or combine with the body named in Into", () => {
+  assert.deepEqual(featureFor("sweep", { path: "f3", into: "new", mode: "join" }, { profile: "f1" }), { type: "sweep", profile: "f1", path: { sketch: "f3" } });
+  assert.deepEqual(featureFor("sweep", { path: "f3", into: "f2", mode: "cut" }, { profile: "f1" }), { type: "sweep", profile: "f1", path: { sketch: "f3" }, base: "f2", mode: "cut" });
+  assert.match(featureFor("sweep", { path: "f1", into: "new" }, { profile: "f1" }).error, /another sketch/);
+  assert.deepEqual(featureFor("loft", { first: "f1", second: "f3", third: "none", ruled: true, into: "f2", mode: "join" }, {}), { type: "loft", sections: ["f1", "f3"], ruled: true, base: "f2" });
+  assert.match(featureFor("loft", { first: "f1", second: "f1", third: "none", into: "new" }, {}).error, /different sketch/);
+});
