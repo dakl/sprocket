@@ -3,7 +3,7 @@
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
 
-const { rpc, resetDocument, settled } = require("./helpers");
+const { rpc, resetDocument, settled } = require("./helpers.js");
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, fixture);

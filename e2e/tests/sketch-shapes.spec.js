@@ -75,7 +75,9 @@ test("Polygon takes its side count from the box and draws a regular shape", asyn
   await expect.poll(() => entityCount(page)).toBe(6);
   const lines = (await entities(page)).filter((entity) => entity.kind === "line");
   expect(lines).toHaveLength(5);
-  for (const line of lines) expect(length(line)).toBeCloseTo(2 * 10 * Math.sin(Math.PI / 5), 4);
+  for (const line of lines) {
+    expect(length(line)).toBeCloseTo(2 * 10 * Math.sin(Math.PI / 5), 4);
+  }
   await page.screenshot({ path: info.outputPath("polygon.png") });
   const profiles = await finish(page, request);
   // A regular pentagon of circumradius 10.

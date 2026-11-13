@@ -1,7 +1,7 @@
 // The Modify tools' panels: which fields each tool asks for, and the feature
 // its values make. Pure functions with no DOM, so viewer/test/modify.test.js
 // runs them under node. index.html draws the fields and sends the feature.
-(function (root) {
+((root) => {
   const POSITIVE = (value) => Number.isFinite(value) && value > 0;
 
   // `showWhen` names another field's value that must hold for this one to show.
@@ -341,12 +341,18 @@
   /// Whether `field` is on the panel for `values`.
   function visible(field, values) {
     if (field.showWhen) {
-      for (const [name, allowed] of Object.entries(field.showWhen))
-        if (!allowed.includes(values[name])) return false;
+      for (const [name, allowed] of Object.entries(field.showWhen)) {
+        if (!allowed.includes(values[name])) {
+          return false;
+        }
+      }
     }
     if (field.hideWhen) {
-      for (const [name, hidden] of Object.entries(field.hideWhen))
-        if (values[name] === hidden) return false;
+      for (const [name, hidden] of Object.entries(field.hideWhen)) {
+        if (values[name] === hidden) {
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -356,13 +362,15 @@
     const cleaned = String(text)
       .trim()
       .replace(/\s*mm$/i, "");
-    return cleaned === "" ? NaN : Number(cleaned);
+    return cleaned === "" ? Number.NaN : Number(cleaned);
   }
 
   /// A size rounded to a figure a person would type: a tenth below 2 mm, half
   /// a millimetre below 20, a millimetre above. `fallback` when it is not a size.
   function nice(value, fallback) {
-    if (!POSITIVE(value)) return fallback;
+    if (!POSITIVE(value)) {
+      return fallback;
+    }
     const step = value < 2 ? 0.1 : value < 20 ? 0.5 : 1;
     return Math.max(step, Math.round(Math.round(value / step) * step * 100) / 100);
   }
@@ -377,25 +385,34 @@
     const values = Object.fromEntries(TOOLS[kind].fields.map((field) => [field.name, field.value]));
     // A dynamic choice starts on the first one offered, unless it names its own default.
     for (const field of TOOLS[kind].fields) {
-      const offered = scale && scale.options && scale.options[field.name];
+      const offered = scale?.options?.[field.name];
       if (
         field.dynamic &&
-        offered &&
-        offered.length &&
+        offered?.length &&
         !offered.some((item) => item.value === values[field.name])
-      )
+      ) {
         values[field.name] = offered[0].value;
+      }
     }
-    if (kind === "thread" && scale && scale.diameter)
+    if (kind === "thread" && scale && scale.diameter) {
       values.designation = threadSize(scale.diameter);
-    if (kind === "point" && scale && scale.at)
+    }
+    if (kind === "point" && scale && scale.at) {
       Object.assign(values, { x: scale.at[0], y: scale.at[1], z: scale.at[2] });
-    if (kind === "plane" && scale && scale.box)
+    }
+    if (kind === "plane" && scale && scale.box) {
       values.offset = nice(Math.max(...scale.box) * 0.25, values.offset);
-    const smallest = scale && scale.box ? Math.min(...scale.box.filter(POSITIVE)) : NaN;
-    if (kind === "fillet") values.radius = nice(smallest * 0.05, values.radius);
-    if (kind === "chamfer") values.length = nice(smallest * 0.05, values.length);
-    if (kind === "shell") values.thickness = nice(smallest * 0.08, values.thickness);
+    }
+    const smallest = scale?.box ? Math.min(...scale.box.filter(POSITIVE)) : Number.NaN;
+    if (kind === "fillet") {
+      values.radius = nice(smallest * 0.05, values.radius);
+    }
+    if (kind === "chamfer") {
+      values.length = nice(smallest * 0.05, values.length);
+    }
+    if (kind === "shell") {
+      values.thickness = nice(smallest * 0.08, values.thickness);
+    }
     if (kind === "hole" && scale && scale.face) {
       const diameter = nice(Math.min(...scale.face) * 0.15, values.diameter);
       values.diameter = diameter;
@@ -411,55 +428,87 @@
   /// it builds on and what was picked, already turned into selectors.
   function featureFor(kind, values, target) {
     for (const field of TOOLS[kind].fields) {
-      if (field.type !== "number" || !visible(field, values)) continue;
+      if (field.type !== "number" || !visible(field, values)) {
+        continue;
+      }
       const value = parseNumber(values[field.name]);
-      if (field.integer && !(Number.isInteger(value) && value >= field.min))
-        return { error: field.label + " must be a whole number, at least " + field.min };
-      if (field.integer) continue;
-      if (field.anyNumber && !Number.isFinite(value))
-        return { error: field.label + " must be a number" };
-      if (field.anyNumber) continue;
-      if (field.signed && !(Number.isFinite(value) && value !== 0))
-        return { error: field.label + " must be a number, not 0" };
-      if (field.signed) continue;
-      if (!POSITIVE(value)) return { error: field.label + " must be a number above 0" };
+      if (field.integer && !(Number.isInteger(value) && value >= field.min)) {
+        return { error: `${field.label} must be a whole number, at least ${field.min}` };
+      }
+      if (field.integer) {
+        continue;
+      }
+      if (field.anyNumber && !Number.isFinite(value)) {
+        return { error: `${field.label} must be a number` };
+      }
+      if (field.anyNumber) {
+        continue;
+      }
+      if (field.signed && !(Number.isFinite(value) && value !== 0)) {
+        return { error: `${field.label} must be a number, not 0` };
+      }
+      if (field.signed) {
+        continue;
+      }
+      if (!POSITIVE(value)) {
+        return { error: `${field.label} must be a number above 0` };
+      }
     }
     const number = (name) => parseNumber(values[name]);
     const choice = (name) => {
-      const found = target.choices && target.choices[name] && target.choices[name][values[name]];
+      const found = target.choices?.[name]?.[values[name]];
       return found === undefined ? null : found;
     };
     if (kind === "primitive") {
       const feature = { type: "primitive", shape: values.shape };
       const plane = choice("plane");
-      if (plane !== null && plane !== "XY") feature.plane = plane;
-      if (number("x") !== 0 || number("y") !== 0) feature.at = [number("x"), number("y")];
-      for (const name of PRIMITIVE_SIZES[values.shape]) feature[name] = number(name);
-      if (values.shape === "cone") {
-        if (!(feature.top_radius >= 0)) return { error: "Top radius must be 0 or more" };
-        if (feature.top_radius === 0) delete feature.top_radius;
+      if (plane !== null && plane !== "XY") {
+        feature.plane = plane;
       }
-      if (values.shape === "torus" && feature.minor_radius >= feature.major_radius)
+      if (number("x") !== 0 || number("y") !== 0) {
+        feature.at = [number("x"), number("y")];
+      }
+      for (const name of PRIMITIVE_SIZES[values.shape]) {
+        feature[name] = number(name);
+      }
+      if (values.shape === "cone") {
+        if (!(feature.top_radius >= 0)) {
+          return { error: "Top radius must be 0 or more" };
+        }
+        if (feature.top_radius === 0) {
+          delete feature.top_radius;
+        }
+      }
+      if (values.shape === "torus" && feature.minor_radius >= feature.major_radius) {
         return { error: "Tube radius must be smaller than the ring radius" };
+      }
       return { ...feature, ...intoFields(values) };
     }
     if (kind === "move") {
       const feature = { type: "move", [values.copy ? "tool" : "base"]: target.tool };
       const shift = ["dx", "dy", "dz"].map(number);
-      if (shift.some((value) => value !== 0)) feature.translate = shift;
-      if (number("angle") !== 0)
+      if (shift.some((value) => value !== 0)) {
+        feature.translate = shift;
+      }
+      if (number("angle") !== 0) {
         feature.rotate = { axis: choice("axis") ?? values.axis, angle: number("angle") };
-      if (!feature.translate && !feature.rotate)
+      }
+      if (!(feature.translate || feature.rotate)) {
         return { error: "Give a distance or an angle to move it by" };
+      }
       return feature;
     }
-    if (kind === "fillet")
+    if (kind === "fillet") {
       return { type: "fillet", base: target.base, edges: target.edges, radius: number("radius") };
-    if (kind === "chamfer")
+    }
+    if (kind === "chamfer") {
       return { type: "chamfer", base: target.base, edges: target.edges, length: number("length") };
+    }
     if (kind === "revolve") {
       const angle = number("angle");
-      if (angle > 360) return { error: "Angle must be 360 or less" };
+      if (angle > 360) {
+        return { error: "Angle must be 360 or less" };
+      }
       return {
         type: "revolve",
         profile: target.profile,
@@ -469,8 +518,12 @@
     }
     if (kind === "shell") {
       const feature = { type: "shell", base: target.base, thickness: number("thickness") };
-      if (target.open && !values.closed) feature.open = target.open;
-      if (values.outward) feature.outward = true;
+      if (target.open && !values.closed) {
+        feature.open = target.open;
+      }
+      if (values.outward) {
+        feature.outward = true;
+      }
       return feature;
     }
     if (kind === "hole") {
@@ -482,48 +535,67 @@
         kind: values.kind,
         diameter: number("diameter"),
       };
-      if (values.through) feature.through = true;
-      else feature.depth = number("depth");
+      if (values.through) {
+        feature.through = true;
+      } else {
+        feature.depth = number("depth");
+      }
       if (values.kind !== "simple") {
         feature.head_diameter = number("head_diameter");
-        if (feature.head_diameter <= feature.diameter)
+        if (feature.head_diameter <= feature.diameter) {
           return { error: "Head dia must be larger than Diameter" };
-        if (values.kind === "counterbore") feature.head_depth = number("head_depth");
-        else feature.head_angle = number("head_angle");
+        }
+        if (values.kind === "counterbore") {
+          feature.head_depth = number("head_depth");
+        } else {
+          feature.head_angle = number("head_angle");
+        }
       }
       return feature;
     }
     const rounded = (value) => Math.round(value * 1e4) / 1e4;
     if (kind === "plane") {
       const plane = choice("plane");
-      if (plane === null) return { error: "Pick the plane to start from" };
+      if (plane === null) {
+        return { error: "Pick the plane to start from" };
+      }
       return { type: "plane", plane, offset: number("offset") };
     }
     if (kind === "axis") {
-      if (!target.axis) return { error: "Pick a round face or an edge first" };
+      if (!target.axis) {
+        return { error: "Pick a round face or an edge first" };
+      }
       return { type: "axis", axis: target.axis };
     }
-    if (kind === "point")
+    if (kind === "point") {
       return {
         type: "point",
         at: [rounded(number("x")), rounded(number("y")), rounded(number("z"))],
       };
+    }
     if (kind === "combine") {
-      if (values.target === values.tool)
+      if (values.target === values.tool) {
         return { error: "Target and tool must be different bodies" };
+      }
       const operation = { join: "union", cut: "subtract", intersect: "intersect" }[values.mode];
       return { type: "boolean", operation, base: values.target, tool: values.tool };
     }
     if (kind === "draft") {
       const angle = number("angle");
-      if (!(Math.abs(angle) < 45)) return { error: "Angle must be between -45 and 45" };
+      if (!(Math.abs(angle) < 45)) {
+        return { error: "Angle must be between -45 and 45" };
+      }
       const neutral = choice("neutral");
-      if (neutral === null) return { error: "Pick the neutral plane" };
+      if (neutral === null) {
+        return { error: "Pick the neutral plane" };
+      }
       return { type: "draft", base: target.base, faces: target.faces, neutral, angle };
     }
     if (kind === "split") {
       const plane = choice("plane");
-      if (plane === null) return { error: "Pick the plane to split along" };
+      if (plane === null) {
+        return { error: "Pick the plane to split along" };
+      }
       return {
         type: "split",
         base: target.tool,
@@ -541,9 +613,12 @@
       };
     }
     if (kind === "sweep") {
-      if (!values.path) return { error: "Pick the path sketch" };
-      if (values.path === target.profile)
+      if (!values.path) {
+        return { error: "Pick the path sketch" };
+      }
+      if (values.path === target.profile) {
         return { error: "The path must be another sketch than the profile" };
+      }
       return {
         type: "sweep",
         profile: target.profile,
@@ -555,9 +630,12 @@
       const sections = [values.first, values.second, values.third].filter(
         (id) => id && id !== "none",
       );
-      if (sections.length < 2) return { error: "Pick at least two sketches" };
-      if (new Set(sections).size !== sections.length)
+      if (sections.length < 2) {
+        return { error: "Pick at least two sketches" };
+      }
+      if (new Set(sections).size !== sections.length) {
         return { error: "Each section must be a different sketch" };
+      }
       return {
         type: "loft",
         sections,
@@ -570,12 +648,16 @@
     const mode = values.into !== "same" && values.mode === "cut" ? { mode: "cut" } : {};
     if (kind === "mirror") {
       const plane = choice("plane");
-      if (plane === null) return { error: "Pick the plane to mirror across" };
+      if (plane === null) {
+        return { error: "Pick the plane to mirror across" };
+      }
       return { type: "mirror", tool: target.tool, base: into, plane, ...mode };
     }
     if (kind === "linear") {
       const direction = choice("direction");
-      if (direction === null) return { error: "Pick the direction" };
+      if (direction === null) {
+        return { error: "Pick the direction" };
+      }
       return {
         type: "pattern",
         tool: target.tool,
@@ -586,9 +668,13 @@
     }
     if (kind === "circular") {
       const axis = choice("axis");
-      if (axis === null) return { error: "Pick the axis" };
+      if (axis === null) {
+        return { error: "Pick the axis" };
+      }
       const angle = number("angle");
-      if (!(angle > 0 && angle <= 360)) return { error: "Angle must be above 0 and at most 360" };
+      if (!(angle > 0 && angle <= 360)) {
+        return { error: "Angle must be above 0 and at most 360" };
+      }
       return {
         type: "pattern",
         tool: target.tool,
@@ -597,7 +683,7 @@
         ...mode,
       };
     }
-    return { error: "unknown tool " + kind };
+    return { error: `unknown tool ${kind}` };
   }
 
   const api = {
@@ -613,6 +699,9 @@
     threadSize,
     visible,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.ViewerModify = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.ViewerModify = api;
+  }
+})(typeof window === "undefined" ? globalThis : window);

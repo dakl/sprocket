@@ -1,7 +1,7 @@
 // Trim, Extend and Offset in the sketcher, driven by clicks. Each click lands
 // where `__tcad.sketchPoint` says a sketch point is on screen.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 test.beforeEach(async ({ page, request }) => {
   await resetDocument(request, { features: [], rollback_index: 0 });

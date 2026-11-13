@@ -294,7 +294,8 @@ SCHEMA = {
 
 def resolve_plane(plane_ref, ctx=None):
     """The build123d Plane a sketch sits on. A face plane needs `ctx`, the
-    replay context, to find the face in an earlier feature's result."""
+    replay context, to find the face in an earlier feature's result.
+    """
     if isinstance(plane_ref, str):
         return ORIGIN_PLANES[plane_ref]
     if "name" in plane_ref:
@@ -505,7 +506,8 @@ def check_entities(feature: dict) -> None:
     """The checks a JSON Schema cannot make: fields per kind, unique ids, and
     constraints that name something that exists. A constraint on a deleted
     entity would otherwise replay fine and break the next time the viewer
-    solves the sketch."""
+    solves the sketch.
+    """
     kinds = {}
     for entity in feature["entities"]:
         entity_id = entity["id"]
@@ -633,7 +635,8 @@ def sketch_profiles(feature: dict) -> list[dict]:
 def _empty_sketch() -> Sketch:
     """A sketch with nothing closed in it yet, such as a lone construction line.
     build123d's own empty Sketch has no shape underneath, so the BREP cache
-    cannot write it."""
+    cannot write it.
+    """
     compound = TopoDS_Compound()
     BRep_Builder().MakeCompound(compound)
     return Sketch(compound)

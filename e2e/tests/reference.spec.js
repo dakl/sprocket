@@ -3,7 +3,7 @@
 // distance between the left edge of the outer rectangle and the left edge of
 // the inner one, and the gap holding when the outer sketch changes.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const tool = (page, name) => page.locator(`#sketch-draw-panel [data-tool="${name}"]`);
 const sketchState = (page) => page.evaluate(() => window.__tcad.sketch);

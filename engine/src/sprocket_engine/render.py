@@ -217,9 +217,9 @@ def render_png(
         "width": width,
         "height": height,
         "camera": camera if isinstance(camera, str) else list(camera),
-        "triangles": int(len(triangles)),
-        "faces": int(len(per_face)),
-        "edges": int(len(instance["segments_per_edge"])),
+        "triangles": len(triangles),
+        "faces": len(per_face),
+        "edges": len(instance["segments_per_edge"]),
         "highlighted": sorted(f"f{index}" for index in highlighted),
     }
 

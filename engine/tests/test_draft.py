@@ -65,8 +65,8 @@ def test_a_neutral_plane_on_the_top_face_keeps_the_top_and_grows_the_base():
         ]
     )
     assert top_size(part) == pytest.approx((20, 10))
-    assert part.bounding_box().size.X == pytest.approx(
-        20 + 20 * math.tan(math.radians(5))
+    assert (
+        pytest.approx(20 + 20 * math.tan(math.radians(5))) == part.bounding_box().size.X
     )
 
 

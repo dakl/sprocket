@@ -92,7 +92,8 @@ def _dragged(sketch: dict, drag: dict) -> tuple[dict, list[str]]:
 
 class _Build:
     """One planegcs system for one sketch, with a map from each of its
-    constraint tags back to the index of the document constraint."""
+    constraint tags back to the index of the document constraint.
+    """
 
     def __init__(self, sketch: dict, pinned: list[str] | None):
         self.sketch = sketch
@@ -268,7 +269,8 @@ class _Build:
 
     def _fix(self, constraint: dict) -> list[int]:
         """A point is fixed where it is. A whole entity fixes all its points,
-        and a whole circle holds its size too, as Fusion does."""
+        and a whole circle holds its size too, as Fusion does.
+        """
         entity_id = constraint["e"]
         if "." in entity_id:
             references, whole = [entity_id], None

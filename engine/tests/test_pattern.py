@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from sprocket_engine.replay import replay
 from sprocket_engine.ops.sketch import sketch_entities
+from sprocket_engine.replay import replay
 
 BOARD = [
     {
@@ -39,8 +39,9 @@ def test_a_grid_of_pins_joins_the_board():
     assert part.volume == pytest.approx(300 + 10 * 2)
     assert len(part.solids()) == 1
     box = part.bounding_box()
-    assert (box.max.X, box.max.Y) == pytest.approx(
-        (30, 10)
+    assert pytest.approx((30, 10)) == (
+        box.max.X,
+        box.max.Y,
     )  # the board edge, pins inside it
     assert len(part.faces()) == 6 + 10 * 5  # the board, then 4 walls and a top per pin
 
@@ -92,7 +93,7 @@ def test_a_circular_pattern_with_no_base_is_a_new_body_of_copies():
     assert part.volume == pytest.approx(4 * 2)
     assert len(part.solids()) == 4
     centre = part.center()
-    assert (centre.X, centre.Y) == pytest.approx((0, 0), abs=1e-9)
+    assert pytest.approx((0, 0), abs=1e-9) == (centre.X, centre.Y)
 
 
 SQUARE = [
@@ -140,7 +141,7 @@ def test_a_sketch_pattern_copies_entities_before_regions_are_found():
             ]
         }
     )
-    assert one.bounding_box().min.X == pytest.approx(10)
+    assert pytest.approx(10) == one.bounding_box().min.X
 
 
 def test_a_circular_sketch_pattern_turns_copies_about_the_centre():

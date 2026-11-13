@@ -9,7 +9,8 @@ from sprocket_engine.regions import ProfileError, find_regions, pick_region
 
 def rectangle(x0, y0, x1, y1, tag="r", gap=0.0):
     """Four lines. `gap` leaves the corner at (x1, y0) open by that much, as a
-    solver that stopped at its tolerance would."""
+    solver that stopped at its tolerance would.
+    """
     return [
         {"id": f"{tag}1", "kind": "line", "p0": [x0, y0], "p1": [x1, y0]},
         {"id": f"{tag}2", "kind": "line", "p0": [x1 + gap, y0], "p1": [x1, y1]},
@@ -80,7 +81,8 @@ def test_corners_that_miss_by_a_solver_tolerance_still_close():
 def toothed_wheel(teeth, tip=15.0):
     """Arcs and lines the way examples/sprocket-icon/gen.py writes them: arc
     centres and line ends rounded to 6 decimals, arc ends left as angles, so
-    each corner misses by about 1e-7."""
+    each corner misses by about 1e-7.
+    """
     pitch_radius = 6.35 / (2 * math.sin(math.pi / teeth))
     step = math.tau / teeth
 
@@ -150,7 +152,8 @@ def test_the_outline_follows_the_wire_when_corners_miss_by_rounding():
     sketch with rounded coordinates came out as a self-crossing polygon: the
     face was right and the fill on screen was a tangle of triangles. A simple
     polygon has the face's own area, give or take the chords that stand in for
-    the arcs."""
+    the arcs.
+    """
     (region,) = find_regions(toothed_wheel(8))
     shoelace = (
         sum(
@@ -237,7 +240,8 @@ def test_the_regions_of_two_rectangles_add_up_to_their_union(
     ax, ay, aw, ah, bx, by, bw, bh
 ):
     """Whatever the overlap, and including rectangles that share an edge or a
-    corner, the regions tile the union exactly once."""
+    corner, the regions tile the union exactly once.
+    """
     overlap_w = max(0, min(ax + aw, bx + bw) - max(ax, bx))
     overlap_h = max(0, min(ay + ah, by + bh) - max(ay, by))
     union = aw * ah + bw * bh - overlap_w * overlap_h

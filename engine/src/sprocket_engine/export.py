@@ -52,7 +52,8 @@ def _made(bodies) -> list[dict]:
 
 def _labelled(body: dict):
     """A copy of the body's shape carrying its name and colour, which build123d
-    writes into STEP and 3MF. A copy, because the original sits in the cache."""
+    writes into STEP and 3MF. A copy, because the original sits in the cache.
+    """
     shape = copy.copy(body["shape"])
     shape.label = body.get("name") or body["id"]
     if body.get("color"):
@@ -63,7 +64,8 @@ def _labelled(body: dict):
 def write_step(shape, path, bodies=None) -> None:
     """With bodies that have names or colours, or more than one body, writes a
     compound of labelled solids so the STEP carries them. Otherwise writes
-    `shape` as it is, which keeps a plain one-body document byte-identical."""
+    `shape` as it is, which keeps a plain one-body document byte-identical.
+    """
     path = Path(path)
     _check_writable(path, "STEP")
     made = _made(bodies)
@@ -133,7 +135,8 @@ def write_3mf(bodies, path) -> None:
 
 def section_of(shape, plane):
     """The faces where `plane` cuts `shape`, moved into the plane's own 2D frame
-    (its x_dir is +X, z = 0), or None when the plane misses the part."""
+    (its x_dir is +X, z = 0), or None when the plane misses the part.
+    """
     box = shape.bounding_box()
     # A plane's origin can sit far from the part (a face plane's is the world
     # origin projected onto it), so the cutting face reaches past the whole box.

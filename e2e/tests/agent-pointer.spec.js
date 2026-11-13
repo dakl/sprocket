@@ -3,7 +3,7 @@
 // it a picture. In a browser the picture is the canvas only; the app's
 // whole-window capture is Swift's and is checked by hand (see SPEC).
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled } = require("./helpers");
+const { rpc, resetDocument, settled } = require("./helpers.js");
 
 const SLOW = { timeout: 15_000 };
 

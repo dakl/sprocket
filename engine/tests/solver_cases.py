@@ -33,7 +33,8 @@ def rough_rectangle(extra=()):
 
 def sprocket_plate(teeth=13, pitch=6.35, roller=3.3, tip=15.0, cap_radius=0.55):
     """The logo plate: arcs and lines joined end to end, every corner a
-    coincident constraint and every arc a radius."""
+    coincident constraint and every arc a radius.
+    """
     seat_radius = roller / 2 + 0.05
     pitch_radius = pitch / (2 * math.sin(math.pi / teeth))
     step = math.tau / teeth

@@ -1,5 +1,6 @@
 """Section: where a plane cuts the part, over the daemon on the 40 x 30 x 10
-conftest box (x -20 to 20, y -15 to 15, z 0 to 10), and the drawings it writes."""
+conftest box (x -20 to 20, y -15 to 15, z 0 to 10), and the drawings it writes.
+"""
 
 import math
 

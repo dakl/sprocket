@@ -11,19 +11,19 @@
 // the end. A sketch that is already in the document is synced as you work: each
 // change goes to the engine as one update, and a change made somewhere else, by
 // an agent, is adopted here. Undo and redo are local to the sketcher either way.
-(function (root) {
+((root) => {
   const TWO_PI = 2 * Math.PI;
   const SNAP_PIXELS = 10;
   const ALIGN_DEGREES = 4;
   const DRAG_PIXELS = 4;
   const COLOURS = {
-    free: 0x4da3ff,
-    fixed: 0xe8e8e8,
-    selected: 0xffaa00,
-    hover: 0xffdd55,
-    preview: 0x5be0a0,
-    origin: 0xff6b6b,
-    reference: 0xc77dff,
+    free: 0x4d_a3_ff,
+    fixed: 0xe8_e8_e8,
+    selected: 0xff_aa_00,
+    hover: 0xff_dd_55,
+    preview: 0x5b_e0_a0,
+    origin: 0xff_6b_6b,
+    reference: 0xc7_7d_ff,
   };
   const TOOL_KEYS = {
     s: "select",
@@ -111,7 +111,9 @@
     let gcsPromise = null;
     let gcs = null;
     const ensureSolver = () => {
-      if (!gcsPromise) gcsPromise = root.Planegcs.createSolver().then((made) => (gcs = made));
+      if (!gcsPromise) {
+        gcsPromise = root.Planegcs.createSolver().then((made) => (gcs = made));
+      }
       return gcsPromise;
     };
 
@@ -147,11 +149,13 @@
     const toWorld = ([u, v]) =>
       plane.origin.clone().addScaledVector(plane.xDir, u).addScaledVector(plane.yDir, v);
 
-    function pointerUV(event) {
+    function pointerUv(event) {
       const ray = host.rayFor(event);
       const target = new THREE.Vector3();
       const infinite = new THREE.Plane().setFromNormalAndCoplanarPoint(plane.normal, plane.origin);
-      if (!ray.intersectPlane(infinite, target)) return null;
+      if (!ray.intersectPlane(infinite, target)) {
+        return null;
+      }
       const local = target.sub(plane.origin);
       return [local.dot(plane.xDir), local.dot(plane.yDir)];
     }
@@ -160,7 +164,9 @@
     const radius = (pixels, uv) => host.worldRadius(pixels, toWorld(uv || [0, 0]));
 
     function polyline(entity) {
-      if (entity.kind === "line") return [entity.p0, entity.p1];
+      if (entity.kind === "line") {
+        return [entity.p0, entity.p1];
+      }
       const steps = entity.kind === "circle" ? 72 : 48;
       const [start, end] = entity.kind === "circle" ? [0, TWO_PI] : [entity.a0, entity.a1];
       return Array.from({ length: steps + 1 }, (_, step) => {
@@ -187,7 +193,9 @@
           })
         : new THREE.LineBasicMaterial({ color: host.srgb(colour), depthTest: false });
       const object = new THREE.Line(geometry, material);
-      if (dashed) object.computeLineDistances();
+      if (dashed) {
+        object.computeLineDistances();
+      }
       object.renderOrder = 1000;
       return object;
     }
@@ -212,41 +220,46 @@
     };
 
     function colourOf(id) {
-      if (selection.includes(id) || chosen().includes(id)) return COLOURS.selected;
+      if (selection.includes(id) || chosen().includes(id)) {
+        return COLOURS.selected;
+      }
       if (
-        hover &&
-        hover.hit &&
+        hover?.hit &&
         hover.hit.kind === "entity" &&
         hover.hit.reference === id &&
         tool !== "line"
-      )
+      ) {
         return COLOURS.hover;
-      if (isReferenceEntity(id)) return COLOURS.reference;
+      }
+      if (isReferenceEntity(id)) {
+        return COLOURS.reference;
+      }
       return states[id] === "fixed" ? COLOURS.fixed : COLOURS.free;
     }
 
     let dots = null;
     function render() {
-      while (group.children.length) {
+      while (group.children.length > 0) {
         const child = group.children.pop();
         dispose(child);
       }
       // Construction shapes and projected references are dashed: they bound no region.
-      for (const entity of sketch.entities)
+      for (const entity of sketch.entities) {
         group.add(
           line(polyline(entity), colourOf(entity.id), entity.construction || entity.reference),
         );
+      }
 
       const references = [
         model.ORIGIN,
         ...sketch.entities.flatMap((entity) =>
-          solver.POINTS[entity.kind].map((name) => entity.id + "." + name),
+          solver.POINTS[entity.kind].map((name) => `${entity.id}.${name}`),
         ),
       ];
       const dotColours = references.map((reference) => {
         const isHover =
-          hover && hover.hit && hover.hit.kind === "point" && hover.hit.reference === reference;
-        const plain = reference === model.ORIGIN ? COLOURS.origin : 0xffffff;
+          hover?.hit && hover.hit.kind === "point" && hover.hit.reference === reference;
+        const plain = reference === model.ORIGIN ? COLOURS.origin : 0xff_ff_ff;
         return new THREE.Color(
           host.srgb(
             selection.includes(reference) ? COLOURS.selected : isHover ? COLOURS.hover : plain,
@@ -276,10 +289,18 @@
       group.add(dots);
 
       const preview = previewShape();
-      if (preview) group.add(line(preview, COLOURS.preview));
-      for (const shape of previewShapes()) group.add(line(shape, COLOURS.preview));
-      if (offsetPreview) offsetPreview.forEach((shape) => group.add(line(shape, COLOURS.preview)));
-      if (hover && hover.project) group.add(segments(hover.project.segments, COLOURS.hover));
+      if (preview) {
+        group.add(line(preview, COLOURS.preview));
+      }
+      for (const shape of previewShapes()) {
+        group.add(line(shape, COLOURS.preview));
+      }
+      if (offsetPreview) {
+        offsetPreview.forEach((shape) => group.add(line(shape, COLOURS.preview)));
+      }
+      if (hover?.project) {
+        group.add(segments(hover.project.segments, COLOURS.hover));
+      }
       renderLabels();
       renderSnap();
       renderPanel();
@@ -300,26 +321,36 @@
       snapped.reference ? SNAP_NAMES[snapped.reference.split(".").pop()] : snapped.label;
 
     function renderSnap() {
-      const snapped = active && hover && hover.snap;
+      const snapped = active && hover?.snap;
       snapMarker.style.display = snapped ? "block" : "none";
-      if (!snapped) return;
+      if (!snapped) {
+        return;
+      }
       snapMarker.dataset.kind = snapped.reference ? "point" : "curve";
       snapMarker.lastChild.textContent = snapName(snapped);
     }
 
     /// The shape the next click would finish, following the pointer.
     function previewShape() {
-      if (!hover || !pending.length) return null;
+      if (!(hover && pending.length > 0)) {
+        return null;
+      }
       const from = pending[0].uv;
       const to = hover.uv;
-      if (tool === "line") return [from, to];
-      if (tool === "rectangle") return [from, [to[0], from[1]], to, [from[0], to[1]], from];
+      if (tool === "line") {
+        return [from, to];
+      }
+      if (tool === "rectangle") {
+        return [from, [to[0], from[1]], to, [from[0], to[1]], from];
+      }
       if (tool === "circle") {
         const r = Math.hypot(to[0] - from[0], to[1] - from[1]);
         return polyline({ kind: "circle", c: from, r });
       }
       if (tool === "arc") {
-        if (pending.length === 1) return [from, to];
+        if (pending.length === 1) {
+          return [from, to];
+        }
         const arc = model.arcThrough(from, pending[1].uv, to);
         return arc ? polyline({ kind: "arc", ...arc }) : [from, pending[1].uv];
       }
@@ -328,9 +359,13 @@
 
     /// For the shapes of several curves: every curve the next click would add.
     function previewShapes() {
-      if (!hover || !pending.length || !BUTTON_TOOLS.includes(tool)) return [];
+      if (!(hover && pending.length > 0 && BUTTON_TOOLS.includes(tool))) {
+        return [];
+      }
       const made = buildShape([...pending, { uv: hover.uv }], model.emptySketch(), true);
-      if (made) return made.sketch.entities.map(polyline);
+      if (made) {
+        return made.sketch.entities.map(polyline);
+      }
       return pending.length > 1
         ? [pending.map((point) => point.uv).concat([hover.uv])]
         : [[pending[0].uv, hover.uv]];
@@ -342,25 +377,35 @@
     /// With `partial` (a preview), a tangent arc is only its curve.
     function buildShape(points, base, partial) {
       const uv = points.map((point) => point.uv);
-      if (tool === "center-rectangle") return model.addCenterRectangle(base, uv[0], uv[1]);
-      if (tool === "polygon") return model.addPolygon(base, uv[0], uv[1], sides());
+      if (tool === "center-rectangle") {
+        return model.addCenterRectangle(base, uv[0], uv[1]);
+      }
+      if (tool === "polygon") {
+        return model.addPolygon(base, uv[0], uv[1], sides());
+      }
       if (tool === "slot") {
         return uv.length < 3
           ? null
           : model.addSlot(base, uv[0], uv[1], model.slotRadius(uv[0], uv[1], uv[2]));
       }
-      if (tool === "circle-3")
+      if (tool === "circle-3") {
         return uv.length < 3 ? null : model.addCircleThrough(base, uv[0], uv[1], uv[2]);
+      }
       if (tool === "tangent-arc") {
         const start = points[0].reference;
-        if (!start) return null;
+        if (!start) {
+          return null;
+        }
         const direction = model.exitDirection(sketch, start);
         const made = direction && model.tangentArcThrough(uv[0], direction, uv[1]);
-        if (!made) return null;
-        if (partial)
+        if (!made) {
+          return null;
+        }
+        if (partial) {
           return {
             sketch: { entities: [{ id: "preview", kind: "arc", ...made.arc }], constraints: [] },
           };
+        }
         return model.addTangentArc(base, start, uv[1]);
       }
       return null;
@@ -372,11 +417,11 @@
     const VALUE_KINDS = ["distance", "distance_x", "distance_y", "radius", "diameter", "angle"];
     const FORMAT = {
       distance: (value) => value.toFixed(2),
-      distance_x: (value) => "↔ " + value.toFixed(2),
-      distance_y: (value) => "↕ " + value.toFixed(2),
-      radius: (value) => "R" + value.toFixed(2),
-      diameter: (value) => "⌀" + value.toFixed(2),
-      angle: (value) => value.toFixed(1) + "°",
+      distance_x: (value) => `↔ ${value.toFixed(2)}`,
+      distance_y: (value) => `↕ ${value.toFixed(2)}`,
+      radius: (value) => `R${value.toFixed(2)}`,
+      diameter: (value) => `⌀${value.toFixed(2)}`,
+      angle: (value) => `${value.toFixed(1)}°`,
     };
 
     // Labels are kept between renders and matched by constraint id and position.
@@ -412,8 +457,10 @@
       sketch.constraints.forEach((constraint, index) => {
         if (VALUE_KINDS.includes(constraint.kind)) {
           const anchor = model.dimensionAnchor(sketch, constraint);
-          if (!anchor) return;
-          const key = constraint.id + ":dimension";
+          if (!anchor) {
+            return;
+          }
+          const key = `${constraint.id}:dimension`;
           wanted.add(key);
           const element = labelFor(
             key,
@@ -422,7 +469,7 @@
             constraint,
             index,
           );
-          element.title = describe(constraint) + ". Double-click to change, Delete removes it";
+          element.title = `${describe(constraint)}. Double-click to change, Delete removes it`;
           element.ondblclick = (event) => {
             event.stopPropagation();
             openDimension({ constraint, anchor, index });
@@ -430,21 +477,25 @@
           labels.push({ element, anchor, index, dx: 6, dy: -22 });
           return;
         }
-        if (!showConstraints) return;
+        if (!showConstraints) {
+          return;
+        }
         model.glyphAnchors(sketch, constraint).forEach((anchor, position) => {
           // Glyphs that land on one spot sit side by side, not on top of each other.
           const spot = anchor.map((value) => value.toFixed(2)).join(",");
           const beside = stacked.get(spot) || 0;
           stacked.set(spot, beside + 1);
-          const key = constraint.id + ":" + position;
+          const key = `${constraint.id}:${position}`;
           wanted.add(key);
           const element = labelFor(key, GLYPHS[constraint.kind], "sketch-glyph", constraint, index);
-          element.title = describe(constraint) + ". Click to select, Delete removes it";
+          element.title = `${describe(constraint)}. Click to select, Delete removes it`;
           labels.push({ element, anchor, index, dx: 4 + beside * 18, dy: 4 });
         });
       });
       for (const [key, element] of elements) {
-        if (wanted.has(key)) continue;
+        if (wanted.has(key)) {
+          continue;
+        }
         element.remove();
         elements.delete(key);
       }
@@ -466,17 +517,23 @@
     function placeAt(element, anchor, dx, dy) {
       const rect = renderer.domElement.getBoundingClientRect();
       const projected = toWorld(anchor).project(camera);
-      element.style.left = rect.left + ((projected.x + 1) / 2) * rect.width + dx + "px";
-      element.style.top = rect.top + ((1 - projected.y) / 2) * rect.height + dy + "px";
+      element.style.left = `${rect.left + ((projected.x + 1) / 2) * rect.width + dx}px`;
+      element.style.top = `${rect.top + ((1 - projected.y) / 2) * rect.height + dy}px`;
     }
 
     /// Puts each label, and the open box, where its anchor is on screen. Runs
     /// every frame, because the camera can move under them.
     function frame() {
-      if (!active) return;
+      if (!active) {
+        return;
+      }
       labels.forEach((label) => placeAt(label.element, label.anchor, label.dx, label.dy));
-      if (dimension) placeAt(ui.dimension, dimension.anchor, 6, 6);
-      if (hover && hover.snap) placeAt(snapMarker, hover.snap.uv, 0, 0);
+      if (dimension) {
+        placeAt(ui.dimension, dimension.anchor, 6, 6);
+      }
+      if (hover?.snap) {
+        placeAt(snapMarker, hover.snap.uv, 0, 0);
+      }
     }
 
     function openDimension(open) {
@@ -500,7 +557,7 @@
         open.selection.every(model.isPointReference)
           ? ". H across, V up, A straight"
           : "";
-      setMessage(open.constraint.kind + ": type a value and press Enter" + orient);
+      setMessage(`${open.constraint.kind}: type a value and press Enter${orient}`);
     }
 
     function closeDimension() {
@@ -513,7 +570,7 @@
     }
 
     function acceptDimension() {
-      const value = parseFloat(ui.dimension.value);
+      const value = Number.parseFloat(ui.dimension.value);
       if (!Number.isFinite(value) || (value <= 0 && dimension.constraint.kind !== "angle")) {
         setMessage("Type a number above zero");
         return;
@@ -545,7 +602,9 @@
       if (dimension.fillet) {
         try {
           const rounded = model.addFillet(sketch, dimension.fillet, value);
-          if (change(rounded.sketch)) closeDimension();
+          if (change(rounded.sketch)) {
+            closeDimension();
+          }
         } catch (error) {
           setMessage(error.message);
         }
@@ -556,7 +615,9 @@
         dimension.index === null || dimension.index === undefined
           ? model.withConstraint(sketch, constraint)
           : model.replaceConstraint(sketch, dimension.index, constraint);
-      if (change(next)) closeDimension();
+      if (change(next)) {
+        closeDimension();
+      }
     }
 
     // --- Changing the sketch ---------------------------------------------------
@@ -570,7 +631,9 @@
     /// through here, so a constraint that contradicts the others is turned
     /// away with the sketch untouched.
     function change(next, options) {
-      if (!gcs) return false;
+      if (!gcs) {
+        return false;
+      }
       const solved = solver.solve(gcs, next, options);
       if (!solved.ok) {
         // The solver reports every constraint in the clashing group, which can
@@ -578,25 +641,29 @@
         // purpose, so name those, and fall back to the group when there are none.
         const named = solved.conflicting.map((index) => next.constraints[index]).filter(Boolean);
         const dimensions = named.filter((constraint) => VALUE_KINDS.includes(constraint.kind));
-        const shown = (dimensions.length ? dimensions : named).slice(0, 3);
+        const shown = (dimensions.length > 0 ? dimensions : named).slice(0, 3);
         conflicting = shown.map((constraint) => constraint.id);
         setMessage(
-          shown.length
-            ? "That conflicts with " + shown.map(describe).join(" and ")
+          shown.length > 0
+            ? `That conflicts with ${shown.map(describe).join(" and ")}`
             : "That conflicts with the constraints already there",
         );
         render();
         return false;
       }
       // A drag is one step in the history, taken when it starts.
-      if (!(options && options.drag)) remember();
+      if (!options?.drag) {
+        remember();
+      }
       sketch = solved.sketch;
       dirty = true;
       conflicting = [];
-      refreshStates(options && options.drag);
+      refreshStates(options?.drag);
       message = "";
       render();
-      if (!(options && options.drag)) sync();
+      if (!options?.drag) {
+        sync();
+      }
       return true;
     }
 
@@ -611,8 +678,8 @@
     }
 
     function step(from, to, word) {
-      if (!from.length) {
-        setMessage("Nothing to " + word);
+      if (from.length === 0) {
+        setMessage(`Nothing to ${word}`);
         return;
       }
       to.push(copy(sketch));
@@ -621,7 +688,9 @@
       selectedConstraint = null;
       conflicting = [];
       dirty = true;
-      if (gcs) refreshStates(false);
+      if (gcs) {
+        refreshStates(false);
+      }
       setMessage(word === "undo" ? "Undone" : "Redone");
       render();
       sync();
@@ -635,7 +704,9 @@
     /// Sends what changed since the last sync. One at a time, in order, so a
     /// slow reply cannot be overtaken by the change after it.
     function sync() {
-      if (!liveSync) return queue;
+      if (!liveSync) {
+        return queue;
+      }
       queue = queue.then(pushChanges);
       return queue;
     }
@@ -647,7 +718,9 @@
           await host.updateSketch(editing.id, sent);
           synced = sent;
         } catch (error) {
-          if (!(await recover(error))) return;
+          if (!(await recover(error))) {
+            return;
+          }
         }
       }
     }
@@ -657,7 +730,7 @@
     /// not, take theirs and drop the change that lost.
     async function recover(error) {
       if (!STALE.test(error.message)) {
-        setMessage("Could not save: " + error.message);
+        setMessage(`Could not save: ${error.message}`);
         return false;
       }
       const remote = await host.fetchSketch(editing.id);
@@ -666,8 +739,9 @@
         liveSync = false;
         return false;
       }
-      if (model.sameSketch(model.withConstraintIds(remote), model.withConstraintIds(synced)))
+      if (model.sameSketch(model.withConstraintIds(remote), model.withConstraintIds(synced))) {
         return true;
+      }
       adopt(remote);
       setMessage("It was changed elsewhere, so your last change was dropped");
       return true;
@@ -683,19 +757,26 @@
       selection = [];
       selectedConstraint = null;
       conflicting = [];
-      if (gcs) refreshStates(false);
+      if (gcs) {
+        refreshStates(false);
+      }
       render();
     }
 
     /// The viewer calls this when the document changes. A change that is not
     /// this sketcher's own is adopted. One it made itself matches `synced`.
     async function remoteChanged() {
-      if (!active || !liveSync) return;
+      if (!(active && liveSync)) {
+        return;
+      }
       await queue;
       const remote = await host.fetchSketch(editing.id);
-      if (!active || !remote || !model.sameSketch(sketch, synced)) return;
-      if (model.sameSketch(model.withConstraintIds(remote), model.withConstraintIds(synced)))
+      if (!(active && remote && model.sameSketch(sketch, synced))) {
         return;
+      }
+      if (model.sameSketch(model.withConstraintIds(remote), model.withConstraintIds(synced))) {
+        return;
+      }
       adopt(remote);
       setMessage("Updated from outside");
     }
@@ -703,7 +784,9 @@
     /// Which entities are fully constrained, for the colouring. Skipped while
     /// dragging: it costs a solve per point and the colours settle on release.
     function refreshStates(dragging) {
-      if (dragging) return;
+      if (dragging) {
+        return;
+      }
       const result = solver.entityStates(gcs, sketch);
       states = result.states;
       dof = result.dof;
@@ -712,12 +795,16 @@
     // --- Tools -------------------------------------------------------------------
 
     function setTool(name) {
-      if (!TOOL_KEYS_INVERSE.includes(name)) return;
+      if (!TOOL_KEYS_INVERSE.includes(name)) {
+        return;
+      }
       tool = name;
       pending = [];
       selection = [];
       hover = null;
-      if (dimension) closeDimension();
+      if (dimension) {
+        closeDimension();
+      }
       setMessage("");
       render();
     }
@@ -736,10 +823,12 @@
         const offAxis = plane.origin
           .clone()
           .addScaledVector(world.direction, -plane.origin.dot(world.direction));
-        if (offAxis.length() > 1e-6) return [];
+        if (offAxis.length() > 1e-6) {
+          return [];
+        }
         return Object.entries(along)
           .filter(([, direction]) => Math.abs(direction.dot(world.direction)) > 1 - 1e-6)
-          .map(([ref]) => ({ ref, name: world.name + " axis" }));
+          .map(([ref]) => ({ ref, name: `${world.name} axis` }));
       });
     }
 
@@ -748,30 +837,34 @@
     const target = (uv) => model.snap(sketch, uv, radius(SNAP_PIXELS, uv), shownAxes());
 
     function place(event) {
-      const raw = pointerUV(event);
-      if (!raw) return;
+      const raw = pointerUv(event);
+      if (!raw) {
+        return;
+      }
       let point = target(raw);
-      if (tool === "line" && pending.length && !point.reference && !point.curve) {
+      if (tool === "line" && pending.length > 0 && !point.reference && !point.curve) {
         // Drawing nearly level or upright makes the line exactly so.
         const direction = model.alignment(pending[0].uv, point.uv, ALIGN_DEGREES);
-        if (direction === "horizontal")
+        if (direction === "horizontal") {
           point = {
             uv: [point.uv[0], pending[0].uv[1]],
             reference: null,
             curve: null,
             align: direction,
           };
-        if (direction === "vertical")
+        }
+        if (direction === "vertical") {
           point = {
             uv: [pending[0].uv[0], point.uv[1]],
             reference: null,
             curve: null,
             align: direction,
           };
+        }
       }
       if (
         tool === "tangent-arc" &&
-        !pending.length &&
+        pending.length === 0 &&
         !(point.reference && model.exitDirection(sketch, point.reference))
       ) {
         setMessage("Start on the end of a line or arc");
@@ -795,58 +888,68 @@
       if (tool === "line") {
         added = model.addLine(sketch, points[0].uv, points[1].uv);
         joins = [
-          [points[0], added.id + ".p0"],
-          [points[1], added.id + ".p1"],
+          [points[0], `${added.id}.p0`],
+          [points[1], `${added.id}.p1`],
         ];
         next = added.sketch;
-        if (points[1].align)
+        if (points[1].align) {
           next = model.withConstraint(next, { kind: points[1].align, e: added.id });
+        }
       } else if (tool === "rectangle") {
         added = model.addRectangle(sketch, points[0].uv, points[1].uv);
-        next = added && added.sketch;
-        if (added)
+        next = added?.sketch;
+        if (added) {
           joins = [
-            [points[0], added.ids[0] + ".p0"],
-            [points[1], added.ids[2] + ".p0"],
+            [points[0], `${added.ids[0]}.p0`],
+            [points[1], `${added.ids[2]}.p0`],
           ];
+        }
       } else if (tool === "circle") {
         const r = Math.hypot(points[1].uv[0] - points[0].uv[0], points[1].uv[1] - points[0].uv[1]);
         added = r > 1e-6 ? model.addCircle(sketch, points[0].uv, r) : null;
-        next = added && added.sketch;
-        if (added) joins = [[points[0], added.id + ".c"]];
+        next = added?.sketch;
+        if (added) {
+          joins = [[points[0], `${added.id}.c`]];
+        }
       } else if (tool === "arc") {
         added = model.addArc(sketch, points[0].uv, points[1].uv, points[2].uv);
-        next = added && added.sketch;
+        next = added?.sketch;
         if (added) {
           // The arc may run the other way round, so join each end to whichever
           // of its own ends is nearer.
           const arc = next.entities.find((entity) => entity.id === added.id);
-          const ends = ["p0", "p1"].map((name) => solver.pointOf(next, added.id + "." + name));
+          const ends = ["p0", "p1"].map((name) => solver.pointOf(next, `${added.id}.${name}`));
           points.slice(0, 2).forEach((point) => {
             const nearer =
               Math.hypot(ends[0][0] - point.uv[0], ends[0][1] - point.uv[1]) <=
               Math.hypot(ends[1][0] - point.uv[0], ends[1][1] - point.uv[1])
                 ? "p0"
                 : "p1";
-            joins.push([point, arc.id + "." + nearer]);
+            joins.push([point, `${arc.id}.${nearer}`]);
           });
         }
       }
       if (BUTTON_TOOLS.includes(tool)) {
         added = buildShape(points, sketch, false);
-        next = added && added.sketch;
-        if (added) joins = buttonJoins(points, added);
-        if (added && tool === "center-rectangle" && points[0].reference)
+        next = added?.sketch;
+        if (added) {
+          joins = buttonJoins(points, added);
+        }
+        if (added && tool === "center-rectangle" && points[0].reference) {
           next = model.centreOn(next, points[0].reference, added.diagonals);
+        }
         // The circle has no point of its own where it was clicked, so a clicked sketch point goes on the circle.
-        if (added && tool === "circle-3")
-          for (const point of points)
-            if (point.reference)
+        if (added && tool === "circle-3") {
+          for (const point of points) {
+            if (point.reference) {
               next = model.withConstraint(next, {
                 kind: "point_on",
                 a: point.reference,
                 b: added.id,
               });
+            }
+          }
+        }
       }
       if (!next) {
         pending = [];
@@ -854,7 +957,9 @@
         render();
         return;
       }
-      for (const [snapped, fresh] of joins) next = model.join(next, snapped, fresh);
+      for (const [snapped, fresh] of joins) {
+        next = model.join(next, snapped, fresh);
+      }
       const closedLoop =
         tool === "line" && points[1].reference && points[1].reference === chainStart;
       if (!change(next)) {
@@ -863,8 +968,10 @@
         return;
       }
       if (tool === "line" && !closedLoop) {
-        if (!chainStart) chainStart = points[0].reference || added.id + ".p0";
-        pending = [{ uv: solver.pointOf(sketch, added.id + ".p1"), reference: added.id + ".p1" }];
+        if (!chainStart) {
+          chainStart = points[0].reference || `${added.id}.p0`;
+        }
+        pending = [{ uv: solver.pointOf(sketch, `${added.id}.p1`), reference: `${added.id}.p1` }];
         setMessage(PLACING.line[0]);
       } else {
         chainStart = null;
@@ -877,19 +984,24 @@
     /// Which new point each click of a button tool joins: [[snapped, fresh]].
     /// A point clicked on an existing point or curve stays on it.
     function buttonJoins(points, added) {
-      if (tool === "center-rectangle") return [[points[1], added.ids[2] + ".p0"]];
-      if (tool === "polygon")
+      if (tool === "center-rectangle") {
+        return [[points[1], `${added.ids[2]}.p0`]];
+      }
+      if (tool === "polygon") {
         return [
-          [points[0], added.circle + ".c"],
-          [points[1], added.ids[0] + ".p0"],
+          [points[0], `${added.circle}.c`],
+          [points[1], `${added.ids[0]}.p0`],
         ];
-      if (tool === "slot")
+      }
+      if (tool === "slot") {
         return [
-          [points[0], added.arcs[0] + ".c"],
-          [points[1], added.arcs[1] + ".c"],
+          [points[0], `${added.arcs[0]}.c`],
+          [points[1], `${added.arcs[1]}.c`],
         ];
-      if (tool === "tangent-arc")
-        return [[points[1], added.id + "." + (added.startEnd === "p0" ? "p1" : "p0")]];
+      }
+      if (tool === "tangent-arc") {
+        return [[points[1], `${added.id}.${added.startEnd === "p0" ? "p1" : "p0"}`]];
+      }
       return [];
     }
 
@@ -903,24 +1015,31 @@
     // --- Selecting and dragging -----------------------------------------------------
 
     function toggleSelected(reference, additive) {
-      if (selection.includes(reference)) selection = selection.filter((item) => item !== reference);
-      else selection = additive ? [...selection, reference] : [reference];
+      if (selection.includes(reference)) {
+        selection = selection.filter((item) => item !== reference);
+      } else {
+        selection = additive ? [...selection, reference] : [reference];
+      }
     }
 
     function dimensionClick(hit) {
-      if (!hit) return;
+      if (!hit) {
+        return;
+      }
       toggleSelected(hit.reference, true);
       // A line or circle alone is enough for a dimension. Points and lines
       // want a second pick, and a second line turns the length into an angle.
       const suggestion = model.suggestDimension(sketch, selection);
-      if (suggestion)
+      if (suggestion) {
         openDimension({
           constraint: suggestion.constraint,
           anchor: suggestion.anchor,
           index: null,
           selection: [...selection],
         });
-      else render();
+      } else {
+        render();
+      }
     }
 
     /// A new dimension's box is open on one pick, say a line's length. Clicking
@@ -928,9 +1047,13 @@
     /// give the gap between them, two points the distance, a line and a circle nothing.
     function addSecondPick(event) {
       const isNew = dimension.index === null || dimension.index === undefined;
-      if (tool !== "dimension" || !isNew || !dimension.selection) return;
+      if (tool !== "dimension" || !isNew || !dimension.selection) {
+        return;
+      }
       const under = selectionUnder(event);
-      if (!under || !under.hit || dimension.selection.includes(under.hit.reference)) return;
+      if (!under?.hit || dimension.selection.includes(under.hit.reference)) {
+        return;
+      }
       const picks = [...dimension.selection, under.hit.reference];
       const suggestion = model.suggestDimension(sketch, picks);
       if (!suggestion) {
@@ -948,7 +1071,7 @@
     }
 
     function selectionUnder(event) {
-      const uv = pointerUV(event);
+      const uv = pointerUv(event);
       return uv ? { uv, hit: model.hit(sketch, uv, radius(SNAP_PIXELS, uv)) } : null;
     }
 
@@ -962,8 +1085,9 @@
               sketch,
             ),
           )
-        )
+        ) {
           selection = [];
+        }
       } catch (error) {
         setMessage(error.message);
       }
@@ -981,7 +1105,9 @@
       const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))].filter(
         (id) => known.has(id),
       );
-      if (!ids.length) return;
+      if (ids.length === 0) {
+        return;
+      }
       selection = [];
       change(model.deleteEntities(sketch, ids));
     }
@@ -993,7 +1119,7 @@
       const ids = [...new Set(selection.map((reference) => model.entityIdOf(reference)))].filter(
         (id) => sketch.entities.some((entity) => entity.id === id),
       );
-      const last = selection.length ? model.entityIdOf(selection[selection.length - 1]) : null;
+      const last = selection.length > 0 ? model.entityIdOf(selection.at(-1)) : null;
       const line = sketch.entities.find((entity) => entity.id === last && entity.kind === "line");
       return line && ids.length > 1 ? { ids: ids.filter((id) => id !== last), line: last } : null;
     }
@@ -1030,7 +1156,7 @@
       const next = model.toggleConstruction(sketch, ids);
       if (!next) {
         setMessage(
-          ids.length
+          ids.length > 0
             ? "A projected reference is always construction"
             : "Select a shape first, then toggle construction",
         );
@@ -1065,7 +1191,7 @@
     function cutClick(under) {
       // The nearest curve, not what is under a point: the origin or a corner is no use here.
       const curve = under && model.snapToCurve(sketch, under.uv, radius(SNAP_PIXELS, under.uv));
-      const id = curve && curve.entity;
+      const id = curve?.entity;
       if (!id) {
         setMessage("Click a line, arc or circle");
         return;
@@ -1089,7 +1215,7 @@
             : root.SketchTools.extendEntity(sketch, id, under.uv);
         if (change(edit.sketch)) {
           selection = [];
-          setMessage(tool === "trim" ? "Trimmed " + id : "Extended " + id);
+          setMessage(tool === "trim" ? `Trimmed ${id}` : `Extended ${id}`);
         }
       } catch (error) {
         setMessage(error.message);
@@ -1102,7 +1228,9 @@
       const open = dimension.offset;
       const entity = sketch.entities.find((item) => item.id === open.id);
       const side = root.SketchTools.sideOf(sketch, open.id, uv);
-      if (side) open.side = side;
+      if (side) {
+        open.side = side;
+      }
       if (!open.edited) {
         ui.dimension.value = String(
           Math.max(0.1, Math.round(model.distanceToEntity(entity, uv) * 10) / 10),
@@ -1113,9 +1241,9 @@
     }
 
     function updateOffsetPreview() {
-      const open = dimension && dimension.offset;
+      const open = dimension?.offset;
       offsetPreview = null;
-      const value = parseFloat(ui.dimension.value);
+      const value = Number.parseFloat(ui.dimension.value);
       if (open && value > 0) {
         try {
           const made = root.SketchTools.offsetChain(sketch, open.id, open.side * value);
@@ -1134,7 +1262,9 @@
     /// Asks the engine to project what the pointer is over into this sketch,
     /// and adds it as a locked reference.
     async function projectPick(pick) {
-      if (projecting) return;
+      if (projecting) {
+        return;
+      }
       projecting = true;
       setMessage("Projecting...");
       try {
@@ -1144,12 +1274,10 @@
           setMessage("That edge is already projected here");
         } else if (change(added.sketch)) {
           selection = [added.id];
-          setMessage(
-            "Projected as " + added.id + ", locked. Dimension it with D, or Delete removes it",
-          );
+          setMessage(`Projected as ${added.id}, locked. Dimension it with D, or Delete removes it`);
         }
       } catch (error) {
-        setMessage("Cannot project that: " + error.message);
+        setMessage(`Cannot project that: ${error.message}`);
       } finally {
         projecting = false;
         render();
@@ -1159,8 +1287,10 @@
     // --- Pointer and key events, called by the viewer ----------------------------------
 
     function pointerMove(event) {
-      const uv = pointerUV(event);
-      if (!uv) return;
+      const uv = pointerUv(event);
+      if (!uv) {
+        return;
+      }
       if (
         press &&
         !press.dragging &&
@@ -1173,12 +1303,14 @@
         remember();
         host.setCameraEnabled(false);
       }
-      if (press && press.dragging) {
+      if (press?.dragging) {
         const delta = [uv[0] - press.uv[0], uv[1] - press.uv[1]];
-        if (change(sketch, { drag: { ref: press.hit.reference, delta } })) press.uv = uv;
+        if (change(sketch, { drag: { ref: press.hit.reference, delta } })) {
+          press.uv = uv;
+        }
         return;
       }
-      if (dimension && dimension.offset) {
+      if (dimension?.offset) {
         moveOffset(uv);
         return;
       }
@@ -1193,12 +1325,18 @@
         hit: under,
         snap: snapped.reference || snapped.curve ? snapped : null,
       };
-      if (tool === "line" && pending.length && !snapped.reference && !snapped.curve) {
+      if (tool === "line" && pending.length > 0 && !snapped.reference && !snapped.curve) {
         const direction = model.alignment(pending[0].uv, uv, ALIGN_DEGREES);
-        if (direction === "horizontal") hover.uv = [uv[0], pending[0].uv[1]];
-        if (direction === "vertical") hover.uv = [pending[0].uv[0], uv[1]];
+        if (direction === "horizontal") {
+          hover.uv = [uv[0], pending[0].uv[1]];
+        }
+        if (direction === "vertical") {
+          hover.uv = [pending[0].uv[0], uv[1]];
+        }
       }
-      if (tool === "project") hover.project = host.pickProjectable(event);
+      if (tool === "project") {
+        hover.project = host.pickProjectable(event);
+      }
       renderer.domElement.style.cursor =
         tool === "project"
           ? hover.project
@@ -1211,8 +1349,10 @@
     }
 
     function pointerDown(event) {
-      if (event.button !== 0) return;
-      if (dimension && dimension.offset) {
+      if (event.button !== 0) {
+        return;
+      }
+      if (dimension?.offset) {
         acceptDimension();
         return;
       }
@@ -1226,7 +1366,9 @@
       }
       if (tool === "select") {
         const under = selectionUnder(event);
-        if (!under) return;
+        if (!under) {
+          return;
+        }
         press = {
           x: event.clientX,
           y: event.clientY,
@@ -1239,96 +1381,127 @@
       }
       if (tool === "dimension") {
         const under = selectionUnder(event);
-        dimensionClick(under && under.hit);
+        dimensionClick(under?.hit);
         return;
       }
       if (tool === "fillet") {
         const under = selectionUnder(event);
-        if (under && under.hit && under.hit.kind === "point") startFillet(under.hit.reference);
-        else setMessage("Click a point where two lines meet");
+        if (under?.hit && under.hit.kind === "point") {
+          startFillet(under.hit.reference);
+        } else {
+          setMessage("Click a point where two lines meet");
+        }
         return;
       }
       if (tool === "project") {
         const pick = host.pickProjectable(event);
-        if (pick) projectPick(pick);
-        else
+        if (pick) {
+          projectPick(pick);
+        } else {
           setMessage("Nothing to project there. Click an edge of another sketch, or of the part");
+        }
         return;
       }
       place(event);
     }
 
     function pointerUp() {
-      if (!press) return;
+      if (!press) {
+        return;
+      }
       const finished = press;
       press = null;
       if (finished.dragging) {
         host.setCameraEnabled(true);
         refreshStates(false);
         // A drag the solver refused throughout is not a step to undo.
-        if (undoStack.length && model.sameSketch(undoStack[undoStack.length - 1], sketch))
+        if (undoStack.length > 0 && model.sameSketch(undoStack.at(-1), sketch)) {
           undoStack.pop();
+        }
         render();
         sync();
         return;
       }
       selectedConstraint = null;
-      if (finished.hit) toggleSelected(finished.hit.reference, finished.additive);
-      else if (!finished.additive) selection = [];
+      if (finished.hit) {
+        toggleSelected(finished.hit.reference, finished.additive);
+      } else if (!finished.additive) {
+        selection = [];
+      }
       render();
     }
 
     function doubleClick() {
-      if (tool === "line") endChain();
+      if (tool === "line") {
+        endChain();
+      }
     }
 
     /// True when the sketcher used the key.
     function keyDown(event) {
       // The polygon's side count is a number box: its keys are typing.
-      if (ui.sides && event.target === ui.sides) return false;
+      if (ui.sides && event.target === ui.sides) {
+        return false;
+      }
       if (event.target === ui.dimension) {
         const orientation = ORIENTATIONS[event.key.toLowerCase()];
-        if (event.key === "Enter") acceptDimension();
-        else if (event.key === "Escape") closeDimension();
-        else if (
+        if (event.key === "Enter") {
+          acceptDimension();
+        } else if (event.key === "Escape") {
+          closeDimension();
+        } else if (
           orientation &&
-          dimension &&
-          dimension.selection &&
+          dimension?.selection &&
           (dimension.index === null || dimension.index === undefined)
         ) {
           const suggestion = model.suggestDimension(sketch, dimension.selection, orientation);
-          if (suggestion)
+          if (suggestion) {
             openDimension({
               constraint: suggestion.constraint,
               anchor: suggestion.anchor,
               index: null,
               selection: dimension.selection,
             });
-        } else return false;
+          }
+        } else {
+          return false;
+        }
         event.preventDefault();
         return true;
       }
       const key = event.key.toLowerCase();
       if ((event.metaKey || event.ctrlKey) && (key === "z" || key === "y")) {
-        if (key === "y" || event.shiftKey) redo();
-        else undo();
+        if (key === "y" || event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
         event.preventDefault();
         return true;
       }
-      if (event.metaKey || event.ctrlKey) return false;
+      if (event.metaKey || event.ctrlKey) {
+        return false;
+      }
       if (event.key === "Escape") {
-        if (pending.length) endChain();
-        else if (selection.length || selectedConstraint) {
+        if (pending.length > 0) {
+          endChain();
+        } else if (selection.length > 0 || selectedConstraint) {
           selection = [];
           selectedConstraint = null;
           render();
-        } else if (tool !== "select") setTool("select");
-        else if (!sketch.entities.length) cancel();
+        } else if (tool !== "select") {
+          setTool("select");
+        } else if (sketch.entities.length === 0) {
+          cancel();
+        }
         return true;
       }
       if (event.key === "Enter") {
-        if (tool === "line" && pending.length) endChain();
-        else finish();
+        if (tool === "line" && pending.length > 0) {
+          endChain();
+        } else {
+          finish();
+        }
         return true;
       }
       if (key === "x") {
@@ -1359,13 +1532,17 @@
         let usable = true;
         try {
           model.constraintsFor(sketch, button.dataset.constraint, selection);
-        } catch (error) {
+        } catch {
           usable = false;
         }
         button.disabled = !usable;
       });
-      if (ui.toggle) ui.toggle.classList.toggle("active", showConstraints);
-      if (ui.mirror) ui.mirror.disabled = !mirrorPlan();
+      if (ui.toggle) {
+        ui.toggle.classList.toggle("active", showConstraints);
+      }
+      if (ui.mirror) {
+        ui.mirror.disabled = !mirrorPlan();
+      }
       if (ui.construction) {
         const known = new Set(
           sketch.entities.filter((entity) => !entity.reference).map((entity) => entity.id),
@@ -1386,12 +1563,12 @@
         );
       }
       const constrained =
-        dof === 0 && sketch.entities.length
+        dof === 0 && sketch.entities.length > 0
           ? "Fully constrained"
           : dof === null
             ? ""
-            : dof + " freedom left";
-      ui.status.textContent = message || (pending.length ? "" : HINTS[tool]);
+            : `${dof} freedom left`;
+      ui.status.textContent = message || (pending.length > 0 ? "" : HINTS[tool]);
       ui.state.textContent = constrained;
     }
 
@@ -1427,8 +1604,12 @@
       active = true;
       ui.dimension.style.display = "none";
       ensureSolver().then(() => {
-        if (!active) return;
-        if (sketch.entities.length) refreshStates(false);
+        if (!active) {
+          return;
+        }
+        if (sketch.entities.length > 0) {
+          refreshStates(false);
+        }
         // A new sketch starts on the tool people reach for first.
         setTool(editing ? "select" : "line");
       });
@@ -1450,11 +1631,13 @@
       labels = [];
       hover = null;
       snapMarker.style.display = "none";
-      while (group.children.length) dispose(group.children.pop());
+      while (group.children.length > 0) {
+        dispose(group.children.pop());
+      }
     }
 
     async function finish() {
-      if (!sketch.entities.length) {
+      if (sketch.entities.length === 0) {
         cancel();
         return;
       }
@@ -1500,15 +1683,14 @@
         dof,
         states: { ...states },
         selection: [...selection],
-        snap:
-          hover && hover.snap
-            ? {
-                name: snapName(hover.snap),
-                reference: hover.snap.reference,
-                curve: hover.snap.curve,
-                uv: hover.snap.uv,
-              }
-            : null,
+        snap: hover?.snap
+          ? {
+              name: snapName(hover.snap),
+              reference: hover.snap.reference,
+              curve: hover.snap.curve,
+              uv: hover.snap.uv,
+            }
+          : null,
         message,
         dirty,
         editing: editing ? editing.id : null,
@@ -1524,7 +1706,7 @@
     }
 
     /// Where [u, v] is on screen, in page pixels, for tests to click.
-    function screenPointOfUV(uv) {
+    function screenPointOfUv(uv) {
       camera.updateMatrixWorld();
       const projected = toWorld(uv).project(camera);
       const rect = renderer.domElement.getBoundingClientRect();
@@ -1538,7 +1720,9 @@
       button.addEventListener("click", () => setTool(button.dataset.tool)),
     );
     ui.dimension.addEventListener("input", () => {
-      if (!dimension || !dimension.offset) return;
+      if (!dimension?.offset) {
+        return;
+      }
       dimension.offset.edited = true;
       updateOffsetPreview();
     });
@@ -1547,8 +1731,12 @@
     );
     ui.finish.addEventListener("click", finish);
     ui.cancel.addEventListener("click", cancel);
-    if (ui.construction) ui.construction.addEventListener("click", toggleConstruction);
-    if (ui.mirror) ui.mirror.addEventListener("click", mirrorSelection);
+    if (ui.construction) {
+      ui.construction.addEventListener("click", toggleConstruction);
+    }
+    if (ui.mirror) {
+      ui.mirror.addEventListener("click", mirrorSelection);
+    }
     if (ui.toggle) {
       ui.toggle.addEventListener("click", () => {
         showConstraints = !showConstraints;
@@ -1569,7 +1757,7 @@
       cancel,
       sync,
       snapshot,
-      screenPointOfUV,
+      screenPointOfUV: screenPointOfUv,
       get active() {
         return active;
       },
@@ -1578,4 +1766,4 @@
   }
 
   root.createSketcher = createSketcher;
-})(typeof window !== "undefined" ? window : globalThis);
+})(typeof window === "undefined" ? globalThis : window);

@@ -5,7 +5,7 @@
 // returns a new one, and none touches the DOM, three.js or the solver, so
 // viewer/test/sketch-model.test.js runs them under node. sketcher.js turns
 // pointer events into calls to these, then hands the result to the solver.
-(function (root) {
+((root) => {
   const TWO_PI = 2 * Math.PI;
 
   const solver = () =>
@@ -31,7 +31,7 @@
     const used = sketch.entities
       .map((entity) => Number(entity.id.slice(1)))
       .filter(Number.isFinite);
-    return "e" + (Math.max(0, ...used) + 1);
+    return `e${Math.max(0, ...used) + 1}`;
   }
 
   /// `c<n>`, one past the highest in use. Same rule as entities: a constraint's
@@ -40,14 +40,17 @@
     const used = sketch.constraints
       .map((constraint) => Number((constraint.id || "").slice(1)))
       .filter(Number.isFinite);
-    return "c" + (Math.max(0, ...used) + 1);
+    return `c${Math.max(0, ...used) + 1}`;
   }
 
   /// A sketch whose constraints all have ids. Documents from before M3.8 have none.
   function withConstraintIds(sketch) {
     const next = copy(sketch);
-    for (const constraint of next.constraints)
-      if (!constraint.id) constraint.id = nextConstraintId(next);
+    for (const constraint of next.constraints) {
+      if (!constraint.id) {
+        constraint.id = nextConstraintId(next);
+      }
+    }
     return next;
   }
 
@@ -68,8 +71,9 @@
       ["a", "b", "e"].every((key) => other[key] === constraint[key]) &&
       // Two dimensions on one thing are a conflict for the solver to report, not a duplicate to drop.
       other.value === constraint.value;
-    if (!next.constraints.some(same))
+    if (!next.constraints.some(same)) {
       next.constraints.push({ ...constraint, id: constraint.id || nextConstraintId(next) });
+    }
     return next;
   }
 
@@ -81,8 +85,9 @@
       sketch.entities.some(
         (entity) => entity.reference && JSON.stringify(entity.reference) === JSON.stringify(source),
       )
-    )
+    ) {
       return null;
+    }
     const id = nextId(sketch);
     return {
       sketch: withEntity(sketch, {
@@ -103,11 +108,15 @@
   /// {sketch, ids} with the new entity ids, or throws an Error.
   function mirrorEntities(sketch, ids, lineId) {
     const axis = sketch.entities.find((entity) => entity.id === lineId);
-    if (!axis || axis.kind !== "line") fail("Mirror across a line");
+    if (axis?.kind !== "line") {
+      fail("Mirror across a line");
+    }
     const [ax, ay] = axis.p0;
     const [dx, dy] = [axis.p1[0] - ax, axis.p1[1] - ay];
     const length = Math.hypot(dx, dy);
-    if (length < 1e-9) fail("The mirror line has no length");
+    if (length < 1e-9) {
+      fail("The mirror line has no length");
+    }
     const [ux, uy] = [dx / length, dy / length];
     const reflect = ([x, y]) => {
       const along = (x - ax) * ux + (y - ay) * uy;
@@ -118,14 +127,18 @@
     const sources = sketch.entities.filter(
       (entity) => ids.includes(entity.id) && entity.id !== lineId,
     );
-    if (!sources.length) fail("Select the shapes to mirror, then the line to mirror across");
-    let next = copy(sketch);
+    if (sources.length === 0) {
+      fail("Select the shapes to mirror, then the line to mirror across");
+    }
+    const next = copy(sketch);
     const created = [];
     for (const source of sources) {
       const id = nextId(next);
       created.push(id);
       const entity = { id, kind: source.kind };
-      if (source.construction) entity.construction = true;
+      if (source.construction) {
+        entity.construction = true;
+      }
       const tie = (from, to) =>
         next.constraints.push({
           kind: "symmetric",
@@ -138,24 +151,27 @@
         entity.p0 = reflect(source.p0);
         entity.p1 = reflect(source.p1);
         next.entities.push(entity);
-        tie(source.id + ".p0", id + ".p0");
-        tie(source.id + ".p1", id + ".p1");
+        tie(`${source.id}.p0`, `${id}.p0`);
+        tie(`${source.id}.p1`, `${id}.p1`);
       } else {
         entity.c = reflect(source.c);
         entity.r = source.r;
         if (source.kind === "arc") {
           entity.a0 = mirrorAngle - source.a1;
           entity.a1 = mirrorAngle - source.a0;
-          while (entity.a1 <= entity.a0) entity.a1 += TWO_PI;
+          while (entity.a1 <= entity.a0) {
+            entity.a1 += TWO_PI;
+          }
         }
         next.entities.push(entity);
-        tie(source.id + ".c", id + ".c");
+        tie(`${source.id}.c`, `${id}.c`);
         if (source.kind === "arc") {
-          tie(source.id + ".p0", id + ".p1");
-          tie(source.id + ".p1", id + ".p0");
+          tie(`${source.id}.p0`, `${id}.p1`);
+          tie(`${source.id}.p1`, `${id}.p0`);
         }
-        if (source.kind === "circle")
+        if (source.kind === "circle") {
           next.constraints.push({ kind: "equal", a: source.id, b: id, id: nextConstraintId(next) });
+        }
       }
     }
     return { sketch: next, ids: created };
@@ -170,15 +186,22 @@
         .filter((entity) => ids.includes(entity.id) && !entity.reference)
         .map((entity) => entity.id),
     );
-    if (!targets.size) return null;
+    if (targets.size === 0) {
+      return null;
+    }
     const make = !sketch.entities
       .filter((entity) => targets.has(entity.id))
       .every((entity) => entity.construction);
     const next = copy(sketch);
     for (const entity of next.entities) {
-      if (!targets.has(entity.id)) continue;
-      if (make) entity.construction = true;
-      else delete entity.construction;
+      if (!targets.has(entity.id)) {
+        continue;
+      }
+      if (make) {
+        entity.construction = true;
+      } else {
+        delete entity.construction;
+      }
     }
     return next;
   }
@@ -196,7 +219,9 @@
   /// The circle through three points, or null when they are in a line.
   function circumcircle(a, b, c) {
     const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
-    if (Math.abs(d) < 1e-9) return null;
+    if (Math.abs(d) < 1e-9) {
+      return null;
+    }
     const a2 = a[0] ** 2 + a[1] ** 2;
     const b2 = b[0] ** 2 + b[1] ** 2;
     const c2 = c[0] ** 2 + c[1] ** 2;
@@ -213,7 +238,9 @@
   /// that runs from `end` back round to `start`.
   function arcThrough(start, end, through) {
     const circle = circumcircle(start, through, end);
-    if (!circle) return null;
+    if (!circle) {
+      return null;
+    }
     const angleOf = (point) => Math.atan2(point[1] - circle.c[1], point[0] - circle.c[0]);
     const sweep = (from, to) => (((to - from) % TWO_PI) + TWO_PI) % TWO_PI;
     const aStart = angleOf(start);
@@ -225,7 +252,9 @@
 
   function addArc(sketch, start, end, through) {
     const arc = arcThrough(start, end, through);
-    if (!arc) return null;
+    if (!arc) {
+      return null;
+    }
     const id = nextId(sketch);
     return { sketch: withEntity(sketch, { id, kind: "arc", ...arc }), id };
   }
@@ -233,7 +262,9 @@
   /// Four lines joined at the corners and held horizontal and vertical, the
   /// constraints Fusion 360 gives a rectangle. Returns null for a flat one.
   function addRectangle(sketch, a, b) {
-    if (Math.abs(a[0] - b[0]) < 1e-9 || Math.abs(a[1] - b[1]) < 1e-9) return null;
+    if (Math.abs(a[0] - b[0]) < 1e-9 || Math.abs(a[1] - b[1]) < 1e-9) {
+      return null;
+    }
     const corners = [a, [b[0], a[1]], b, [a[0], b[1]]];
     let next = sketch;
     const ids = [];
@@ -245,8 +276,8 @@
     ids.forEach((id, index) => {
       next = withConstraint(next, {
         kind: "coincident",
-        a: id + ".p1",
-        b: ids[(index + 1) % 4] + ".p0",
+        a: `${id}.p1`,
+        b: `${ids[(index + 1) % 4]}.p0`,
       });
       next = withConstraint(next, { kind: index % 2 === 0 ? "horizontal" : "vertical", e: id });
     });
@@ -260,7 +291,9 @@
   function addCenterRectangle(sketch, centre, corner) {
     const opposite = [2 * centre[0] - corner[0], 2 * centre[1] - corner[1]];
     const rectangle = addRectangle(sketch, opposite, corner);
-    if (!rectangle) return null;
+    if (!rectangle) {
+      return null;
+    }
     let next = rectangle.sketch;
     const { ids } = rectangle;
     const diagonals = [
@@ -277,8 +310,8 @@
         p1: [...end],
         construction: true,
       });
-      next = withConstraint(next, { kind: "coincident", a: id + ".p0", b: from + ".p0" });
-      next = withConstraint(next, { kind: "coincident", a: id + ".p1", b: to + ".p0" });
+      next = withConstraint(next, { kind: "coincident", a: `${id}.p0`, b: `${from}.p0` });
+      next = withConstraint(next, { kind: "coincident", a: `${id}.p1`, b: `${to}.p0` });
       return id;
     });
     return { sketch: next, ids, diagonals };
@@ -298,9 +331,13 @@
   /// dragged or dimensioned. Returns {sketch, ids, circle} or null.
   function addPolygon(sketch, centre, vertex, sides) {
     const count = Math.round(sides);
-    if (!Number.isFinite(count) || count < 3 || count > 64) return null;
+    if (!Number.isFinite(count) || count < 3 || count > 64) {
+      return null;
+    }
     const r = distance(centre, vertex);
-    if (r < 1e-9) return null;
+    if (r < 1e-9) {
+      return null;
+    }
     const circle = nextId(sketch);
     let next = withEntity(sketch, {
       id: circle,
@@ -323,11 +360,13 @@
     ids.forEach((id, index) => {
       next = withConstraint(next, {
         kind: "coincident",
-        a: id + ".p1",
-        b: ids[(index + 1) % count] + ".p0",
+        a: `${id}.p1`,
+        b: `${ids[(index + 1) % count]}.p0`,
       });
-      next = withConstraint(next, { kind: "point_on", a: id + ".p0", b: circle });
-      if (index > 0) next = withConstraint(next, { kind: "equal", a: ids[0], b: id });
+      next = withConstraint(next, { kind: "point_on", a: `${id}.p0`, b: circle });
+      if (index > 0) {
+        next = withConstraint(next, { kind: "equal", a: ids[0], b: id });
+      }
     });
     return { sketch: next, ids, circle };
   }
@@ -341,7 +380,9 @@
   /// Returns {sketch, ids: [side, side], arcs: [at a, at b], diameters} or null.
   function addSlot(sketch, a, b, r) {
     const length = distance(a, b);
-    if (length < 1e-9 || !(r > 1e-9)) return null;
+    if (length < 1e-9 || !(r > 1e-9)) {
+      return null;
+    }
     const normal = [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
     const at = (point, sign) => [point[0] + sign * normal[0] * r, point[1] + sign * normal[1] * r];
     const across = Math.atan2(normal[1], normal[0]);
@@ -366,16 +407,16 @@
         arc.c[1] + r * Math.sin(angle),
       ]);
       const id = add({ kind: "line", p0: ends[0], p1: ends[1], construction: true });
-      tie("coincident", { a: id + ".p0", b: cap + ".p0" });
-      tie("coincident", { a: id + ".p1", b: cap + ".p1" });
-      tie("point_on", { a: cap + ".c", b: id });
+      tie("coincident", { a: `${id}.p0`, b: `${cap}.p0` });
+      tie("coincident", { a: `${id}.p1`, b: `${cap}.p1` });
+      tie("point_on", { a: `${cap}.c`, b: id });
       tie("perpendicular", { a: left, b: id });
       return id;
     });
-    tie("coincident", { a: left + ".p0", b: capA + ".p0" });
-    tie("coincident", { a: right + ".p1", b: capA + ".p1" });
-    tie("coincident", { a: right + ".p0", b: capB + ".p0" });
-    tie("coincident", { a: left + ".p1", b: capB + ".p1" });
+    tie("coincident", { a: `${left}.p0`, b: `${capA}.p0` });
+    tie("coincident", { a: `${right}.p1`, b: `${capA}.p1` });
+    tie("coincident", { a: `${right}.p0`, b: `${capB}.p0` });
+    tie("coincident", { a: `${left}.p1`, b: `${capB}.p1` });
     tie("parallel", { a: left, b: right });
     return { sketch: next, ids: [left, right], arcs: [capA, capB], diameters };
   }
@@ -384,15 +425,21 @@
   /// the point's distance from the line through the centres.
   function slotRadius(a, b, point) {
     const length = distance(a, b);
-    if (length < 1e-9) return 0;
+    if (length < 1e-9) {
+      return 0;
+    }
     return Math.abs((b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])) / length;
   }
 
   function pointOnSketch(sketch, reference) {
     const [id, name] = reference.split(".");
     const entity = sketch.entities.find((item) => item.id === id);
-    if (name === "c") return entity.c;
-    if (entity.kind === "line") return entity[name];
+    if (name === "c") {
+      return entity.c;
+    }
+    if (entity.kind === "line") {
+      return entity[name];
+    }
     const angle = name === "p0" ? entity.a0 : entity.a1;
     return [entity.c[0] + entity.r * Math.cos(angle), entity.c[1] + entity.r * Math.sin(angle)];
   }
@@ -403,7 +450,9 @@
   function exitDirection(sketch, reference) {
     const [id, name] = reference.split(".");
     const entity = sketch.entities.find((item) => item.id === id);
-    if (!entity || !["p0", "p1"].includes(name)) return null;
+    if (!(entity && ["p0", "p1"].includes(name))) {
+      return null;
+    }
     let direction;
     if (entity.kind === "line") {
       const [from, to] = name === "p1" ? [entity.p0, entity.p1] : [entity.p1, entity.p0];
@@ -413,7 +462,9 @@
       const angle = name === "p1" ? entity.a1 : entity.a0;
       const sign = name === "p1" ? 1 : -1;
       direction = [-Math.sin(angle) * sign, Math.cos(angle) * sign];
-    } else return null;
+    } else {
+      return null;
+    }
     const size = Math.hypot(direction[0], direction[1]);
     return size < 1e-12 ? null : [direction[0] / size, direction[1] / size];
   }
@@ -426,7 +477,9 @@
     const gap = [start[0] - end[0], start[1] - end[1]];
     const across = normal[0] * gap[0] + normal[1] * gap[1];
     const squared = gap[0] ** 2 + gap[1] ** 2;
-    if (squared < 1e-18 || Math.abs(across) < 1e-6 * Math.sqrt(squared)) return null;
+    if (squared < 1e-18 || Math.abs(across) < 1e-6 * Math.sqrt(squared)) {
+      return null;
+    }
     // The centre is on the normal through `start`, as far from `end` as from `start`.
     const k = -squared / (2 * across);
     const c = [start[0] + normal[0] * k, start[1] + normal[1] * k];
@@ -435,7 +488,9 @@
     const [first, second, startEnd] = k > 0 ? [start, end, "p0"] : [end, start, "p1"];
     const a0 = angleOf(first);
     let a1 = angleOf(second);
-    while (a1 <= a0) a1 += TWO_PI;
+    while (a1 <= a0) {
+      a1 += TWO_PI;
+    }
     return { arc: { c, r: Math.abs(k), a0, a1 }, startEnd };
   }
 
@@ -446,10 +501,14 @@
   /// Returns {sketch, id, startEnd, radius} or null.
   function addTangentArc(sketch, reference, end) {
     const direction = exitDirection(sketch, reference);
-    if (!direction) return null;
+    if (!direction) {
+      return null;
+    }
     const start = pointOnSketch(sketch, reference);
     const made = tangentArcThrough(start, direction, end);
-    if (!made) return null;
+    if (!made) {
+      return null;
+    }
     const id = nextId(sketch);
     let next = withEntity(sketch, { id, kind: "arc", ...made.arc });
     const radius = nextId(next);
@@ -462,12 +521,12 @@
     });
     const from = sketch.entities.find((entity) => entity.id === reference.split(".")[0]);
     for (const constraint of [
-      { kind: "coincident", a: id + "." + made.startEnd, b: reference },
-      { kind: "coincident", a: radius + ".p0", b: id + ".c" },
-      { kind: "coincident", a: radius + ".p1", b: reference },
+      { kind: "coincident", a: `${id}.${made.startEnd}`, b: reference },
+      { kind: "coincident", a: `${radius}.p0`, b: `${id}.c` },
+      { kind: "coincident", a: `${radius}.p1`, b: reference },
       from.kind === "line"
         ? { kind: "perpendicular", a: radius, b: from.id }
-        : { kind: "point_on", a: from.id + ".c", b: radius },
+        : { kind: "point_on", a: `${from.id}.c`, b: radius },
     ]) {
       next = withConstraint(next, constraint);
     }
@@ -489,9 +548,12 @@
   /// Joins the new point `fresh` to what a click snapped to: coincident with a
   /// point, on a curve, or nothing when it snapped to neither.
   function join(sketch, snapped, fresh) {
-    if (snapped.reference) return connect(sketch, snapped.reference, fresh);
-    if (snapped.curve)
+    if (snapped.reference) {
+      return connect(sketch, snapped.reference, fresh);
+    }
+    if (snapped.curve) {
       return withConstraint(sketch, { kind: "point_on", a: fresh, b: snapped.curve });
+    }
     return sketch;
   }
 
@@ -504,7 +566,9 @@
     while (grew) {
       grew = false;
       for (const constraint of sketch.constraints) {
-        if (constraint.kind !== "coincident") continue;
+        if (constraint.kind !== "coincident") {
+          continue;
+        }
         const [a, b] = [constraint.a, constraint.b];
         if (joined.has(a) !== joined.has(b)) {
           joined.add(a);
@@ -530,25 +594,32 @@
   /// says why the corner cannot be rounded.
   function addFillet(sketch, reference, radius) {
     const ends = lineEndsAt(sketch, reference);
-    if (ends.length !== 2 || ends[0].id === ends[1].id)
+    if (ends.length !== 2 || ends[0].id === ends[1].id) {
       fail("Click a point where exactly two lines meet");
-    if (!(radius > 0)) fail("The radius must be above zero");
+    }
+    if (!(radius > 0)) {
+      fail("The radius must be above zero");
+    }
     const corner = pointOf(sketch, reference);
     const lines = ends.map((end) => sketch.entities.find((entity) => entity.id === end.id));
     const far = ends.map((end, index) => lines[index][end.end === "p0" ? "p1" : "p0"]);
     const lengths = far.map((point) => distance(point, corner));
-    if (lengths.some((length) => length < 1e-9)) fail("A line there has no length");
+    if (lengths.some((length) => length < 1e-9)) {
+      fail("A line there has no length");
+    }
     const [d1, d2] = far.map((point, index) => [
       (point[0] - corner[0]) / lengths[index],
       (point[1] - corner[1]) / lengths[index],
     ]);
     const cosine = Math.max(-1, Math.min(1, d1[0] * d2[0] + d1[1] * d2[1]));
     const angle = Math.acos(cosine);
-    if (angle < 1e-3 || angle > Math.PI - 1e-3)
+    if (angle < 1e-3 || angle > Math.PI - 1e-3) {
       fail("Those two lines run along each other, so there is no corner to round");
+    }
     const reach = radius / Math.tan(angle / 2);
-    if (reach > 0.999 * Math.min(...lengths))
+    if (reach > 0.999 * Math.min(...lengths)) {
       fail("The radius is too big for these lines: the arc would start past the end of one");
+    }
     const touch = [d1, d2].map((direction) => [
       corner[0] + direction[0] * reach,
       corner[1] + direction[1] * reach,
@@ -568,7 +639,9 @@
     const startsAtFirst = turn > 0;
     const a0 = angleOf(touch[startsAtFirst ? 0 : 1]);
     let a1 = angleOf(touch[startsAtFirst ? 1 : 0]);
-    while (a1 <= a0) a1 += TWO_PI;
+    while (a1 <= a0) {
+      a1 += TWO_PI;
+    }
 
     const next = copy(sketch);
     const id = nextId(next);
@@ -591,7 +664,7 @@
       next.constraints.push({
         kind: "coincident",
         a: end.reference,
-        b: id + "." + arcEnd,
+        b: `${id}.${arcEnd}`,
         id: nextConstraintId(next),
       });
       next.constraints.push({ kind: "tangent", a: end.id, b: id, id: nextConstraintId(next) });
@@ -604,7 +677,9 @@
   /// shorter line, to two places. Null when it is not a corner of two lines.
   function suggestFilletRadius(sketch, reference) {
     const ends = lineEndsAt(sketch, reference);
-    if (ends.length !== 2 || ends[0].id === ends[1].id) return null;
+    if (ends.length !== 2 || ends[0].id === ends[1].id) {
+      return null;
+    }
     const lengths = ends.map((end) => {
       const line = sketch.entities.find((entity) => entity.id === end.id);
       return distance(line.p0, line.p1);
@@ -656,8 +731,8 @@
 
   /// "horizontal c3", or "distance 40.00 c9" for a dimension. Names a constraint in a message.
   function describeConstraint(constraint) {
-    const value = typeof constraint.value === "number" ? " " + constraint.value.toFixed(2) : "";
-    return constraint.kind + value + (constraint.id ? " " + constraint.id : "");
+    const value = typeof constraint.value === "number" ? ` ${constraint.value.toFixed(2)}` : "";
+    return constraint.kind + value + (constraint.id ? ` ${constraint.id}` : "");
   }
 
   // --- Hit testing, in the sketch's own [u, v] ---------------------------
@@ -665,8 +740,8 @@
   function allPoints(sketch) {
     const own = sketch.entities.flatMap((entity) =>
       solver().POINTS[entity.kind].map((name) => ({
-        reference: entity.id + "." + name,
-        uv: pointOf(sketch, entity.id + "." + name),
+        reference: `${entity.id}.${name}`,
+        uv: pointOf(sketch, `${entity.id}.${name}`),
       })),
     );
     // Last, so a shape drawn from the origin snaps to its own point on a tie.
@@ -677,10 +752,13 @@
   function snapTarget(sketch, uv, radius, exclude) {
     let best = null;
     for (const point of allPoints(sketch)) {
-      if (exclude && exclude.includes(point.reference)) continue;
+      if (exclude?.includes(point.reference)) {
+        continue;
+      }
       const gap = distance(point.uv, uv);
-      if (gap <= radius && (!best || gap < best.gap))
+      if (gap <= radius && (!best || gap < best.gap)) {
         best = { reference: point.reference, uv: point.uv, gap };
+      }
     }
     return best;
   }
@@ -707,11 +785,12 @@
       entity.c[0] + entity.r * Math.cos(angle),
       entity.c[1] + entity.r * Math.sin(angle),
     ];
-    if (entity.kind === "circle" || sweep(entity.a0, angle) <= sweep(entity.a0, entity.a1))
+    if (entity.kind === "circle" || sweep(entity.a0, angle) <= sweep(entity.a0, entity.a1)) {
       return onCircle;
+    }
     // Off the end of the arc: the nearer endpoint is the nearest part of it.
     const ends = ["p0", "p1"].map((name) =>
-      pointOf({ entities: [entity] }, entity.id + "." + name),
+      pointOf({ entities: [entity] }, `${entity.id}.${name}`),
     );
     return distance(uv, ends[0]) <= distance(uv, ends[1]) ? ends[0] : ends[1];
   }
@@ -724,8 +803,9 @@
     for (const entity of sketch.entities) {
       const onIt = nearestOnEntity(entity, uv);
       const gap = distance(onIt, uv);
-      if (gap <= radius && (!best || gap < best.gap))
+      if (gap <= radius && (!best || gap < best.gap)) {
         best = { entity: entity.id, kind: entity.kind, uv: onIt, gap };
+      }
     }
     return best;
   }
@@ -737,8 +817,9 @@
     for (const axis of axes) {
       const onIt = axis.ref === "axis_u" ? [uv[0], 0] : [0, uv[1]];
       const gap = distance(onIt, uv);
-      if (gap <= radius && (!best || gap < best.gap))
+      if (gap <= radius && (!best || gap < best.gap)) {
         best = { ref: axis.ref, name: axis.name, uv: onIt, gap };
+      }
     }
     return best;
   }
@@ -748,13 +829,17 @@
   /// it snapped to, and joining a new shape to it adds the matching constraint.
   function snap(sketch, uv, radius, axes = []) {
     const point = snapTarget(sketch, uv, radius);
-    if (point) return { uv: point.uv, reference: point.reference, curve: null };
+    if (point) {
+      return { uv: point.uv, reference: point.reference, curve: null };
+    }
     const curve = snapToCurve(sketch, uv, radius);
     const axis = snapToAxis(axes, uv, radius);
-    if (axis && (!curve || axis.gap < curve.gap))
-      return { uv: axis.uv, reference: null, curve: axis.ref, label: "On " + axis.name };
-    if (curve)
-      return { uv: curve.uv, reference: null, curve: curve.entity, label: "On " + curve.kind };
+    if (axis && (!curve || axis.gap < curve.gap)) {
+      return { uv: axis.uv, reference: null, curve: axis.ref, label: `On ${axis.name}` };
+    }
+    if (curve) {
+      return { uv: curve.uv, reference: null, curve: curve.entity, label: `On ${curve.kind}` };
+    }
     return { uv, reference: null, curve: null };
   }
 
@@ -762,12 +847,15 @@
   /// entity within it, else null.
   function hit(sketch, uv, radius) {
     const point = snapTarget(sketch, uv, radius);
-    if (point) return { kind: "point", reference: point.reference };
+    if (point) {
+      return { kind: "point", reference: point.reference };
+    }
     let best = null;
     for (const entity of sketch.entities) {
       const gap = distanceToEntity(entity, uv);
-      if (gap <= radius && (!best || gap < best.gap))
+      if (gap <= radius && (!best || gap < best.gap)) {
         best = { kind: "entity", reference: entity.id, gap };
+      }
     }
     return best;
   }
@@ -777,10 +865,16 @@
   function alignment(from, to, toleranceDegrees) {
     const dx = Math.abs(to[0] - from[0]);
     const dy = Math.abs(to[1] - from[1]);
-    if (dx + dy < 1e-9) return null;
+    if (dx + dy < 1e-9) {
+      return null;
+    }
     const tolerance = Math.tan((toleranceDegrees * Math.PI) / 180);
-    if (dy <= dx * tolerance) return "horizontal";
-    if (dx <= dy * tolerance) return "vertical";
+    if (dy <= dx * tolerance) {
+      return "horizontal";
+    }
+    if (dx <= dy * tolerance) {
+      return "vertical";
+    }
     return null;
   }
 
@@ -799,30 +893,36 @@
     const [first, second] = selection;
     switch (kind) {
       case "coincident":
-        if (selection.length === 2 && selection.every(isPointReference))
+        if (selection.length === 2 && selection.every(isPointReference)) {
           return { kind, a: first, b: second };
+        }
         return fail("Select two points to make them coincident");
       case "horizontal":
       case "vertical":
-        if (selection.length === 1 && isLine(sketch, first)) return { kind, e: first };
-        if (selection.length === 2 && selection.every(isPointReference))
+        if (selection.length === 1 && isLine(sketch, first)) {
+          return { kind, e: first };
+        }
+        if (selection.length === 2 && selection.every(isPointReference)) {
           return { kind, a: first, b: second };
+        }
         return fail(
-          "Select a line, or two points, to make " + (kind === "horizontal" ? "level" : "upright"),
+          `Select a line, or two points, to make ${kind === "horizontal" ? "level" : "upright"}`,
         );
       case "parallel":
       case "perpendicular":
-        if (selection.length === 2 && selection.every((reference) => isLine(sketch, reference)))
+        if (selection.length === 2 && selection.every((reference) => isLine(sketch, reference))) {
           return { kind, a: first, b: second };
-        return fail("Select two lines to make them " + kind);
+        }
+        return fail(`Select two lines to make them ${kind}`);
       case "equal":
         if (
           selection.length === 2 &&
           selection.every((reference) => !isPointReference(reference))
         ) {
           const kinds = selection.map((reference) => kindOf(sketch, reference));
-          if (kinds[0] === "line" ? kinds[1] === "line" : kinds[1] !== "line")
+          if (kinds[0] === "line" ? kinds[1] === "line" : kinds[1] !== "line") {
             return { kind, a: first, b: second };
+          }
         }
         return fail("Select two lines, or two circles or arcs, to make them equal");
       case "tangent":
@@ -842,23 +942,29 @@
           isPointReference(point) &&
           !isPointReference(curve) &&
           curve !== entityIdOf(point)
-        )
+        ) {
           return { kind, a: point, b: curve };
+        }
         return fail("Select a point and a line, circle or arc to put it on");
       }
       case "symmetric": {
         const points = selection.filter(isPointReference);
         const lines = selection.filter((reference) => isLine(sketch, reference));
-        if (selection.length === 3 && points.length === 2 && lines.length === 1)
+        if (selection.length === 3 && points.length === 2 && lines.length === 1) {
           return { kind, a: points[0], b: points[1], e: lines[0] };
+        }
         return fail("Select two points and a line to make the points mirror images across it");
       }
       case "fix":
-        if (selection.length === 1 && first === ORIGIN) return fail("The origin is already fixed");
-        if (selection.length === 1) return { kind, e: first };
+        if (selection.length === 1 && first === ORIGIN) {
+          return fail("The origin is already fixed");
+        }
+        if (selection.length === 1) {
+          return { kind, e: first };
+        }
         return fail("Select one point or shape to fix");
       default:
-        return fail("unknown constraint '" + kind + "'");
+        return fail(`unknown constraint '${kind}'`);
     }
   }
 
@@ -869,15 +975,15 @@
     const [first, second] = selection;
     if (kind === "concentric") {
       if (selection.length === 2 && selection.every((reference) => isCurve(sketch, reference))) {
-        return [{ kind: "coincident", a: first + ".c", b: second + ".c" }];
+        return [{ kind: "coincident", a: `${first}.c`, b: `${second}.c` }];
       }
       return fail("Select two circles or arcs to give them one centre");
     }
     if (kind === "collinear") {
       if (selection.length === 2 && selection.every((reference) => isLine(sketch, reference))) {
         return [
-          { kind: "point_on", a: second + ".p0", b: first },
-          { kind: "point_on", a: second + ".p1", b: first },
+          { kind: "point_on", a: `${second}.p0`, b: first },
+          { kind: "point_on", a: `${second}.p1`, b: first },
         ];
       }
       return fail("Select two lines to put them on one line");
@@ -908,25 +1014,29 @@
         return {
           constraint: {
             kind: "distance",
-            a: entity.id + ".p0",
-            b: entity.id + ".p1",
+            a: `${entity.id}.p0`,
+            b: `${entity.id}.p1`,
             value: distance(entity.p0, entity.p1),
           },
           anchor: midpoint(entity.p0, entity.p1),
         };
       }
-      if (entity.kind === "circle")
+      if (entity.kind === "circle") {
         return {
           constraint: { kind: "diameter", e: entity.id, value: entity.r * 2 },
           anchor: entity.c,
         };
+      }
       return { constraint: { kind: "radius", e: entity.id, value: entity.r }, anchor: entity.c };
     }
     if (selection.length === 2 && selection.every(isPointReference)) {
       const [a, b] = selection.map((reference) => pointOf(sketch, reference));
-      if (orientation === "horizontal")
+      if (orientation === "horizontal") {
         return across("distance_x", selection[0], selection[1], a, b);
-      if (orientation === "vertical") return across("distance_y", selection[0], selection[1], a, b);
+      }
+      if (orientation === "vertical") {
+        return across("distance_y", selection[0], selection[1], a, b);
+      }
       return {
         constraint: { kind: "distance", a: selection[0], b: selection[1], value: distance(a, b) },
         anchor: midpoint(a, b),
@@ -938,10 +1048,12 @@
       const d2 = [two.p1[0] - two.p0[0], two.p1[1] - two.p0[1]];
       const upright = (d) => Math.abs(d[0]) < 1e-6 * Math.max(1, Math.abs(d[1]));
       const level = (d) => Math.abs(d[1]) < 1e-6 * Math.max(1, Math.abs(d[0]));
-      if (upright(d1) && upright(d2))
-        return across("distance_x", one.id + ".p0", two.id + ".p0", one.p0, two.p0);
-      if (level(d1) && level(d2))
-        return across("distance_y", one.id + ".p0", two.id + ".p0", one.p0, two.p0);
+      if (upright(d1) && upright(d2)) {
+        return across("distance_x", `${one.id}.p0`, `${two.id}.p0`, one.p0, two.p0);
+      }
+      if (level(d1) && level(d2)) {
+        return across("distance_y", `${one.id}.p0`, `${two.id}.p0`, one.p0, two.p0);
+      }
       // planegcs measures the angle counter-clockwise from the first line to the second.
       const degrees =
         (Math.atan2(d1[0] * d2[1] - d1[1] * d2[0], d1[0] * d2[0] + d1[1] * d2[1]) * 180) / Math.PI;
@@ -967,7 +1079,9 @@
             ? [constraint.e]
             : [],
     );
-    if (!suggestion) return null;
+    if (!suggestion) {
+      return null;
+    }
     // A distance between a line's own two ends is drawn on the line.
     return suggestion.anchor;
   }
@@ -977,13 +1091,17 @@
   function referenceAnchor(sketch, reference) {
     if (
       reference === ORIGIN ||
-      (!reference.includes(".") && !sketch.entities.some((entity) => entity.id === reference))
-    )
+      !(reference.includes(".") || sketch.entities.some((entity) => entity.id === reference))
+    ) {
       return [0, 0];
-    if (isPointReference(reference)) return pointOf(sketch, reference);
+    }
+    if (isPointReference(reference)) {
+      return pointOf(sketch, reference);
+    }
     const entity = sketch.entities.find((item) => item.id === reference);
-    if (entity.kind === "line")
+    if (entity.kind === "line") {
       return [(entity.p0[0] + entity.p1[0]) / 2, (entity.p0[1] + entity.p1[1]) / 2];
+    }
     const angle =
       entity.kind === "arc"
         ? (entity.a0 + (entity.a1 > entity.a0 ? entity.a1 : entity.a1 + TWO_PI)) / 2
@@ -1002,7 +1120,9 @@
         return [anchor(constraint.a)];
       case "horizontal":
       case "vertical":
-        if (constraint.e) return [anchor(constraint.e)];
+        if (constraint.e) {
+          return [anchor(constraint.e)];
+        }
         return [
           [
             (anchor(constraint.a)[0] + anchor(constraint.b)[0]) / 2,
@@ -1079,6 +1199,9 @@
     entityIdOf,
     ORIGIN,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.SketchModel = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.SketchModel = api;
+  }
+})(typeof window === "undefined" ? globalThis : window);

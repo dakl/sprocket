@@ -3,7 +3,7 @@
 // feature, is in construct.spec.js.)
 const fs = require("node:fs");
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const BOX = {
   features: [
@@ -147,7 +147,7 @@ test("a parameter that drives a sketch dimension moves the sketch itself, not on
   await page.locator(".parameter-row .browser-param").first().press("Enter");
   await expect
     .poll(async () => (await rpc(request, "measure")).volume, REBUILD)
-    .toBeCloseTo(12000, 3);
+    .toBeCloseTo(12_000, 3);
   const sketch = (await rpc(request, "get_document")).features[0];
   expect(sketch.entities.find((item) => item.id === "e1").p1).toEqual([60, 0]);
   expect(sketch.constraints.find((item) => typeof item.value === "string").value).toBe("=w");
@@ -299,9 +299,13 @@ test("Mirror copies the selected shape across the line picked last, and the copy
   await cameraStill(page);
   const click = async (uv, shift) => {
     const point = await page.evaluate((target) => window.__tcad.sketchPoint(target), uv);
-    if (shift) await page.keyboard.down("Shift");
+    if (shift) {
+      await page.keyboard.down("Shift");
+    }
     await page.mouse.click(point.x, point.y);
-    if (shift) await page.keyboard.up("Shift");
+    if (shift) {
+      await page.keyboard.up("Shift");
+    }
   };
   // The mirror line, upright at u = 0, and a slanted line to its right.
   await click([0, -20]);

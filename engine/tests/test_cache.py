@@ -5,12 +5,12 @@ import os
 import time
 from pathlib import Path
 
+from golden_support import document
+
 from sprocket_engine import cache
 from sprocket_engine.cache import BrepCache, default_cache_dir, prune
 from sprocket_engine.cli import _build_document
 from sprocket_engine.replay import replay
-
-from golden_support import document
 
 DAY = 24 * 3600
 

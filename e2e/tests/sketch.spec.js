@@ -5,7 +5,7 @@
 // change to the camera or the panel does not break them. Every assertion on the
 // resulting part is the engine's own measurement, never the viewer's.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const EMPTY = { features: [], rollback_index: 0 };
 

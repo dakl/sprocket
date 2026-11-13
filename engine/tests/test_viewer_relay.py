@@ -1,7 +1,8 @@
 """agent_pointer and screenshot_app: the daemon relays a request to the viewer
 and returns the viewer's answer. A fake viewer on a raw socket stands in for
 the real one, so the relay, the timeout and the PNG hand-off are under test
-without a browser."""
+without a browser.
+"""
 
 import base64
 import json

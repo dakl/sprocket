@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const CYLINDER = {
   features: [

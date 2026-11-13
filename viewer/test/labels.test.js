@@ -18,9 +18,11 @@ test("a label sits a leader length out from its anchor, away from the centre", (
 test("labels whose anchors share a point end up apart", () => {
   const anchors = ["a", "b", "c", "d"].map((id) => ({ id, x: 300, y: 300, width: 60, height: 16 }));
   const labels = layoutLabels(anchors, view);
-  for (let i = 0; i < labels.length; i++)
-    for (let j = i + 1; j < labels.length; j++)
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
       assert.ok(!overlaps(labels[i], labels[j]), `${labels[i].id} overlaps ${labels[j].id}`);
+    }
+  }
 });
 
 test("anchors on the centre each get a direction of their own", () => {
@@ -68,13 +70,16 @@ test("labels crowded against the edge of the view still end up apart", () => {
   // short labels pushed sideways off the edge came back onto long ones.
   const { view: narrow, anchors } = require("./labels-luxo.json");
   const labels = layoutLabels(anchors, narrow);
-  for (const label of labels)
+  for (const label of labels) {
     assert.ok(
       label.x >= narrow.left + MARGIN - 1e-6 &&
         label.x + label.width <= narrow.left + narrow.width - MARGIN + 1e-6,
       `${label.id} is off the view`,
     );
-  for (let i = 0; i < labels.length; i++)
-    for (let j = i + 1; j < labels.length; j++)
+  }
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
       assert.ok(!overlaps(labels[i], labels[j]), `${labels[i].id} overlaps ${labels[j].id}`);
+    }
+  }
 });

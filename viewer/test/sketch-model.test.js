@@ -393,7 +393,7 @@ test("a constraint between two shapes has a glyph beside each", () => {
 
 /// The user's case: an inner rectangle, and the outer one's left edge projected beside it.
 function innerWithProjectedEdge() {
-  let { sketch } = model.addRectangle(model.emptySketch(), [10, 10], [70, 40]);
+  const { sketch } = model.addRectangle(model.emptySketch(), [10, 10], [70, 40]);
   const added = model.addReference(
     sketch,
     { sketch: "f1", entity: "e4" },
@@ -421,7 +421,7 @@ test("two upright lines are dimensioned across, edge to edge, with the lower one
   assert.equal(suggestion.constraint.kind, "distance_x");
   assert.equal(
     suggestion.constraint.a,
-    reference + ".p0",
+    `${reference}.p0`,
     "the reference is the left one, so it comes first",
   );
   assert.equal(suggestion.constraint.b, "e4.p0");
@@ -637,8 +637,8 @@ test("mirroring across a vertical line puts each copy at its reflection, and tie
   near(by("e6").c[0], -20);
   near(by("e6").c[1], -5);
   near(by("e6").r, 3);
-  const original = solver_endpoints(by("e4"));
-  const copy = solver_endpoints(by("e7"));
+  const original = solverEndpoints(by("e4"));
+  const copy = solverEndpoints(by("e7"));
   // The copy's start is the reflection of the original's end, and the other way round.
   near(copy.p0[0], -original.p1[0]);
   near(copy.p0[1], original.p1[1]);
@@ -650,7 +650,7 @@ test("mirroring across a vertical line puts each copy at its reflection, and tie
   );
 });
 
-function solver_endpoints(arc) {
+function solverEndpoints(arc) {
   const at = (angle) => [arc.c[0] + arc.r * Math.cos(angle), arc.c[1] + arc.r * Math.sin(angle)];
   return { p0: at(arc.a0), p1: at(arc.a1) };
 }
@@ -698,7 +698,9 @@ const checkSolves = (sketch, dof) => {
   assert.ok(solved.ok, "the shape solves");
   assert.deepEqual(solved.conflicting, []);
   assert.deepEqual(solved.redundant, []);
-  if (dof !== undefined) assert.equal(solved.dof, dof);
+  if (dof !== undefined) {
+    assert.equal(solved.dof, dof);
+  }
   return solved.sketch;
 };
 
@@ -724,7 +726,7 @@ test("a center rectangle drawn on the origin stays centred on it when a corner i
   const made = model.addCenterRectangle(model.emptySketch(), [0, 0], [20, 10]);
   const centred = model.centreOn(made.sketch, model.ORIGIN, made.diagonals);
   checkSolves(centred, 2);
-  const moved = solve(gcs, centred, { drag: { ref: made.ids[2] + ".p0", delta: [10, 10] } });
+  const moved = solve(gcs, centred, { drag: { ref: `${made.ids[2]}.p0`, delta: [10, 10] } });
   assert.ok(moved.ok);
   const corner = moved.sketch.entities.find((entity) => entity.id === made.ids[2]).p0;
   const opposite = moved.sketch.entities.find((entity) => entity.id === made.ids[0]).p0;
@@ -752,9 +754,9 @@ test("a slot is two parallel sides and two half circles held square by construct
   near(capA.a1 - capA.a0, Math.PI);
   near(capB.a1 - capB.a0, Math.PI);
   // The ends meet the sides where they were drawn.
-  near(model.pointOnSketch(sketch, arcs[0] + ".p0")[1], 3);
-  near(model.pointOnSketch(sketch, arcs[1] + ".p1")[1], 3);
-  near(model.pointOnSketch(sketch, arcs[1] + ".p1")[0], 20);
+  near(model.pointOnSketch(sketch, `${arcs[0]}.p0`)[1], 3);
+  near(model.pointOnSketch(sketch, `${arcs[1]}.p1`)[1], 3);
+  near(model.pointOnSketch(sketch, `${arcs[1]}.p1`)[0], 20);
   // Two centres and a width.
   const solved = checkSolves(sketch, 5);
   const left = solved.entities.find((entity) => entity.id === ids[0]);
@@ -764,7 +766,7 @@ test("a slot is two parallel sides and two half circles held square by construct
   // In pointer-sized steps, as the sketcher drags: one 9 mm jump can collapse a 3 mm slot to nothing.
   let dragged = { sketch };
   for (let step = 0; step < 10; step++) {
-    dragged = solve(gcs, dragged.sketch, { drag: { ref: arcs[1] + ".c", delta: [0.5, 0.8] } });
+    dragged = solve(gcs, dragged.sketch, { drag: { ref: `${arcs[1]}.c`, delta: [0.5, 0.8] } });
     assert.ok(dragged.ok);
   }
   const [a, b] = arcs.map((id) => dragged.sketch.entities.find((entity) => entity.id === id));
@@ -800,16 +802,16 @@ test("a tangent arc leaves the end of a line smoothly, on whichever side the end
   near(arc.c[0], 10);
   near(arc.c[1], 5);
   near(arc.r, 5);
-  near(model.pointOnSketch(left.sketch, left.id + ".p1")[1], 10);
+  near(model.pointOnSketch(left.sketch, `${left.id}.p1`)[1], 10);
   checkSolves(left.sketch, 6);
   // Dragging the far end keeps the centre square above the joint.
-  const dragged = solve(gcs, left.sketch, { drag: { ref: left.id + ".p1", delta: [3, 2] } });
+  const dragged = solve(gcs, left.sketch, { drag: { ref: `${left.id}.p1`, delta: [3, 2] } });
   assert.ok(dragged.ok);
   near(dragged.sketch.entities.find((entity) => entity.id === left.id).c[0], 10);
   // Below: a clockwise turn, which is stored the other way round.
   const right = model.addTangentArc(base, "e1.p1", [10, -10]);
   assert.equal(right.startEnd, "p1");
-  const start = model.pointOnSketch(right.sketch, right.id + ".p1");
+  const start = model.pointOnSketch(right.sketch, `${right.id}.p1`);
   near(start[0], 10);
   near(start[1], 0);
   checkSolves(right.sketch);
@@ -819,7 +821,12 @@ test("a tangent arc leaves the end of a line smoothly, on whichever side the end
 });
 
 test("a tangent arc can follow another arc", () => {
-  const base = model.addArc(model.emptySketch(), [10, 0], [0, 10], [7.0710678, 7.0710678]).sketch;
+  const base = model.addArc(
+    model.emptySketch(),
+    [10, 0],
+    [0, 10],
+    [7.071_067_8, 7.071_067_8],
+  ).sketch;
   const direction = model.exitDirection(base, "e1.p1");
   // The quarter arc ends at (0, 10) heading in -u.
   near(direction[0], -1);

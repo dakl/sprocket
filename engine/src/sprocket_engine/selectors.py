@@ -47,7 +47,8 @@ def _nearest(candidates, point, normal=None):
     """Pick the item whose centre is closest to `point`. `normal` is a
     tie-breaker: an item whose normal points away from the given one is
     penalised, so a face pick near a shared edge doesn't jump to the wrong
-    side of a thin part."""
+    side of a thin part.
+    """
 
     def score(item):
         center = item.center()
@@ -138,7 +139,8 @@ def _within(current, box):
 def _new_since(current, starter: str, feature_id: str, ctx):
     """What feature `feature_id` made or changed: items of `current` that were
     not in the shape it was applied to. A feature with no base starts from
-    nothing, so all of it is new."""
+    nothing, so all of it is new.
+    """
     feature = ctx.features.get(feature_id) if ctx is not None else None
     if feature is None:
         raise SelectorError(

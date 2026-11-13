@@ -110,7 +110,8 @@ def test_deleting_a_feature_something_still_uses_names_the_dependant():
 
 def test_a_parameter_that_breaks_a_feature_is_rejected_before_it_lands():
     """A width of zero fails the sketch schema. Catching it at set_parameter
-    beats a rebuild that fails with no obvious cause."""
+    beats a rebuild that fails with no obvious cause.
+    """
     document = Document()
     document.apply_edits(
         [{"op": "set_parameter", "name": "width", "value": 40}], None, "test"

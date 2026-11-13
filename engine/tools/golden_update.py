@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
-from golden_support import (  # noqa: E402
+from golden_support import (
     CAPTURE_STAMP,
     CASES,
     EXPECTED_STEP,

@@ -11,11 +11,11 @@ import pytest
 
 pytest.importorskip("planegcs")
 
-from sprocket_engine.document import Document, DocumentError
-from sprocket_engine.rpc import RpcError
-
 from conftest import running
 from solver_cases import rough_rectangle
+
+from sprocket_engine.document import Document, DocumentError
+from sprocket_engine.rpc import RpcError
 
 SKETCH = {"id": "s1", "type": "sketch", "plane": "XY", **rough_rectangle()}
 DOCUMENT = {"features": [SKETCH], "rollback_index": 1}

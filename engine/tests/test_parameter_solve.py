@@ -16,8 +16,9 @@ from sprocket_engine.replay import replay
 pytest.importorskip("planegcs")
 
 from conftest import running
+from test_sketch_reference import entity, rectangle
+
 from sprocket_engine.rpc import Client
-from test_sketch_reference import GAP, INNER, entity, rectangle
 
 
 def box_sketch(width="=w", extra=()):
@@ -183,20 +184,22 @@ def test_without_the_solver_the_reply_names_the_sketches_it_could_not_move(monke
 
 
 def test_the_daemon_moves_the_sketch_and_undo_puts_it_back(tmp_path):
-    with running(
-        {
-            "features": [box_sketch(), EXTRUDE],
-            "rollback_index": 2,
-            "parameters": {"w": 40},
-        },
-        tmp_path,
-    ) as daemon:
-        with Client(daemon.socket_path) as client:
-            assert client.call("measure")["volume"] == pytest.approx(8000)
-            client.call("set_parameter", name="w", value=60)
-            assert client.call("measure")["volume"] == pytest.approx(12000)
-            client.call("undo")
-            assert client.call("measure")["volume"] == pytest.approx(8000)
-            assert entity(client.call("get_document")["features"][0], "e1")[
-                "p1"
-            ] == pytest.approx([40, 0])
+    with (
+        running(
+            {
+                "features": [box_sketch(), EXTRUDE],
+                "rollback_index": 2,
+                "parameters": {"w": 40},
+            },
+            tmp_path,
+        ) as daemon,
+        Client(daemon.socket_path) as client,
+    ):
+        assert client.call("measure")["volume"] == pytest.approx(8000)
+        client.call("set_parameter", name="w", value=60)
+        assert client.call("measure")["volume"] == pytest.approx(12000)
+        client.call("undo")
+        assert client.call("measure")["volume"] == pytest.approx(8000)
+        assert entity(client.call("get_document")["features"][0], "e1")[
+            "p1"
+        ] == pytest.approx([40, 0])

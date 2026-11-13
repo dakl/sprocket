@@ -13,7 +13,7 @@ const {
 } = require("../handles.js");
 
 const close = (actual, expected) =>
-  assert.ok(Math.abs(actual - expected) < 1e-9, actual + " is not " + expected);
+  assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
 
 test("axisParameter finds where a ray passes the axis closest", () => {
   // A ray along -Y at height z = 7 crosses the Z axis line at t = 7.
@@ -49,7 +49,7 @@ test("snapStep grows with the zoom and snap leaves no float residue", () => {
   assert.equal(snapStep(0.02), 0.1);
   assert.equal(snapStep(0.2), 1);
   assert.equal(snapStep(1000), 100);
-  assert.equal(snap(0.30000000004, 0.1), 0.3);
+  assert.equal(snap(0.300_000_000_04, 0.1), 0.3);
   assert.equal(snap(12.26, 0.5), 12.5);
 });
 
@@ -81,7 +81,7 @@ test("anyPerpendicular is a unit vector square to the axis", () => {
 test("arcPoints runs from the reference to the angle", () => {
   const points = arcPoints(90);
   assert.deepEqual(points[0], [1, 0, 0]);
-  close(points[points.length - 1][0], 0);
-  close(points[points.length - 1][1], 1);
+  close(points.at(-1)[0], 0);
+  close(points.at(-1)[1], 1);
   assert.equal(points.length, 19);
 });

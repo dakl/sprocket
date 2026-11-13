@@ -7,8 +7,8 @@ import struct
 import numpy as np
 import pytest
 from build123d import Mesher, import_step
-
 from conftest import running
+
 from sprocket_engine.cli import _build_document
 from sprocket_engine.document import Document, DocumentError
 from sprocket_engine.export import write_3mf, write_step, write_stl_dir
@@ -113,7 +113,7 @@ def test_the_mesh_lists_bodies_in_face_order_with_colours(tmp_path):
     top = next(
         index
         for index, face in enumerate(part.faces())
-        if face.center().Z == pytest.approx(2) and face.center().X == pytest.approx(30)
+        if pytest.approx(2) == face.center().Z and pytest.approx(30) == face.center().X
     )
     assert colours[top] == 0x00FF00
     assert sorted(colours[6:].tolist()) == [0x00FF00, NO_COLOUR, NO_COLOUR]
