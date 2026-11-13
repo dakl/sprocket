@@ -60,6 +60,12 @@ ignore = [
     # The docstrings here open with what a thing is or does ("A cached shape
     # has to come back as ..."), not an imperative. Daniel's call, 2026-10-23.
     "D401",
+    # Exception messages are written inline, in the raise, as sentences for a
+    # person or an agent. These ask for every one to go through a variable
+    # first. Daniel's call, 2026-10-23.
+    "TRY003",
+    "EM101",
+    "EM102",
 ]
 
 [tool.ruff.lint.per-file-ignores]
