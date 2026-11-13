@@ -1,5 +1,6 @@
 """Saving by hand: the daemon with autosave off, as the app runs it. Whether the
-document has unsaved edits, Save, and the recovery file that covers a crash."""
+document has unsaved edits, Save, and the recovery file that covers a crash.
+"""
 
 import json
 

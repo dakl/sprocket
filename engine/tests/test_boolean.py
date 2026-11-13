@@ -62,7 +62,8 @@ def test_each_operation_keeps_the_volume_it_should(operation, volume):
 
 def test_an_intersect_of_bodies_that_never_touch_fails():
     """Carrying an empty solid forward would fail several features later and
-    point at the wrong one."""
+    point at the wrong one.
+    """
     with pytest.raises(ValueError, match="empty solid"):
         replay(document_with("intersect", tool_center=[40, 0]))
 

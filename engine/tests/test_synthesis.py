@@ -57,7 +57,8 @@ def test_picked_edges_become_a_selector_that_selects_exactly_them(client):
 def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
     """M4's done-when. A fillet that named its edges by index would round the
     wrong ones once the sketch changed, and one that named them by position
-    would follow them only by luck."""
+    would follow them only by luck.
+    """
     answer = client.call("resolve_selection", handles=top_edges(client))
     built = client.call(
         "apply_edit",
@@ -76,7 +77,8 @@ def test_a_fillet_made_from_a_pick_survives_a_change_of_dimension(client):
 
 def test_a_selector_that_finds_a_different_number_fails_loudly(client):
     """A pentagon has five top edges. Rounding five when four were picked is the
-    silent wrong answer expected_count exists to stop."""
+    silent wrong answer expected_count exists to stop.
+    """
     answer = client.call("resolve_selection", handles=top_edges(client))
     client.call(
         "apply_edit",

@@ -1,13 +1,14 @@
 """Live updates: who changed the document, and the file changing on disk under
-an open daemon (see Daemon.check_file for the rule)."""
+an open daemon (see Daemon.check_file for the rule).
+"""
 
 import json
 import os
 import time
 
 import pytest
-
 from conftest import BOX_DOCUMENT, running
+
 from sprocket_engine.rpc import Client, FileWatcher
 
 TALLER = {

@@ -1,5 +1,6 @@
 """The primitive and move ops. The golden cases primitive_box_cylinder_cut and
-move_copy_rotated cover a box, a cylinder cut, and a rotated copy."""
+move_copy_rotated cover a box, a cylinder cut, and a rotated copy.
+"""
 
 import math
 
@@ -57,8 +58,8 @@ def test_a_box_stands_on_an_offset_plane_and_at_moves_it_along_the_plane():
     )
     box = part.bounding_box()
     # XZ: u is X, v is Z, and the normal is -Y, so the box rises toward -Y from y = -3.
-    assert (box.min.X, box.max.X) == pytest.approx((0, 10))
-    assert (box.min.Z, box.max.Z) == pytest.approx((-1, 3))
+    assert pytest.approx((0, 10)) == (box.min.X, box.max.X)
+    assert pytest.approx((-1, 3)) == (box.min.Z, box.max.Z)
     assert sorted((box.min.Y, box.max.Y)) == pytest.approx(sorted((-3, -5)))
 
 
@@ -75,7 +76,7 @@ def test_a_sphere_is_centred_on_the_plane():
         ]
     )
     centre = part.center()
-    assert (centre.X, centre.Y, centre.Z) == pytest.approx((0, 0, 10))
+    assert pytest.approx((0, 0, 10)) == (centre.X, centre.Y, centre.Z)
 
 
 def test_a_missing_size_or_a_fat_torus_says_what_is_wrong():
@@ -137,7 +138,7 @@ def test_move_with_base_moves_the_body_itself():
         [BAR, {"id": "m", "type": "move", "base": "bar", "translate": [0, 0, 7]}]
     )
     assert len(ctx.bodies) == 1
-    assert part.bounding_box().min.Z == pytest.approx(7)
+    assert pytest.approx(7) == part.bounding_box().min.Z
 
 
 def test_move_with_tool_leaves_the_original_and_makes_a_new_body():
@@ -168,7 +169,7 @@ def test_move_rotates_about_an_axis_feature():
     )
     box = part.bounding_box()
     # Half a turn about x = 10 sends x -10..10 to 10..30.
-    assert (box.min.X, box.max.X) == pytest.approx((10, 30))
+    assert pytest.approx((10, 30)) == (box.min.X, box.max.X)
 
 
 def test_move_of_something_that_is_not_a_solid_is_refused():

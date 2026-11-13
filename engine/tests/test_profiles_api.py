@@ -1,15 +1,16 @@
 """How a client learns what it can pick: get_profiles, and the regions the
-viewer reads out of features.json."""
+viewer reads out of features.json.
+"""
 
 import json
 
 import pytest
-
 from conftest import running
-from sprocket_engine.document import Document
-from sprocket_engine.rpc import Client, RpcError, Session
-from sprocket_engine.viewer_files import features_summary
 from test_mcp import drive
+
+from sprocket_engine.document import Document
+from sprocket_engine.rpc import Client, RpcError
+from sprocket_engine.viewer_files import features_summary
 
 RING_AND_DISC = [
     {"id": "e1", "kind": "line", "p0": [0, 0], "p1": [40, 0]},

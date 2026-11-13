@@ -1,7 +1,7 @@
 // Construct features and the body tools: Offset plane, Axis, Point, Mirror,
 // Linear and Circular pattern, and Combine, each driven from the toolbar.
 const { test, expect } = require("@playwright/test");
-const { rpc, resetDocument, settled, cameraStill } = require("./helpers");
+const { rpc, resetDocument, settled, cameraStill } = require("./helpers.js");
 
 const SLOW = { timeout: 15_000 };
 
@@ -33,7 +33,7 @@ async function open(page, request, document) {
 const modifying = (page) => page.evaluate(() => window.__tcad.modifying);
 const previewReady = (page) =>
   page.waitForFunction(
-    () => window.__tcad.modifying && window.__tcad.modifying.ok && window.__tcad.modifying.preview,
+    () => window.__tcad.modifying?.ok && window.__tcad.modifying.preview,
     null,
     SLOW,
   );
@@ -189,8 +189,7 @@ test("Axis names a round face's axis, and a circular pattern can use it by name"
   await page.locator("#modify-count").fill("4");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.circular &&
+      window.__tcad.modifying.feature?.circular &&
       window.__tcad.modifying.feature.circular.count === 4 &&
       window.__tcad.modifying.ok,
     null,
@@ -281,7 +280,7 @@ test("Mirror can cut the copies out of another body", async ({ page, request }) 
   const found = await bodies(request);
   // The box minus the 4 x 4 x 10 tool at x = 10 and its mirror at x = -10: 12000 - 2 * 160 (the tool is as tall as the box).
   expect(found.map((body) => body.id)).toEqual(["f2"]);
-  expect(found[0].volume).toBeCloseTo(12000 - 320, 3);
+  expect(found[0].volume).toBeCloseTo(12_000 - 320, 3);
 });
 
 test("Linear pattern repeats the picked body along a direction", async ({ page, request }) => {
@@ -294,8 +293,7 @@ test("Linear pattern repeats the picked body along a direction", async ({ page, 
   await page.locator("#modify-spacing").fill("6");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.linear &&
+      window.__tcad.modifying.feature?.linear &&
       window.__tcad.modifying.feature.linear.count === 3 &&
       window.__tcad.modifying.feature.linear.spacing === 6 &&
       window.__tcad.modifying.ok,
@@ -328,8 +326,7 @@ test("Circular pattern turns the picked body about an axis", async ({ page, requ
   await page.locator("#modify-count").fill("4");
   await page.waitForFunction(
     () =>
-      window.__tcad.modifying.feature &&
-      window.__tcad.modifying.feature.circular &&
+      window.__tcad.modifying.feature?.circular &&
       window.__tcad.modifying.feature.circular.count === 4 &&
       window.__tcad.modifying.ok,
     null,
@@ -367,9 +364,9 @@ test("Combine cuts one body from another", async ({ page, request }) => {
     SLOW,
   );
   await commit(page, 5);
-  let found = await bodies(request);
+  const found = await bodies(request);
   expect(found.map((body) => body.id)).toEqual(["f2"]);
-  expect(found[0].volume).toBeCloseTo(12000 - 500, 3);
+  expect(found[0].volume).toBeCloseTo(12_000 - 500, 3);
 });
 
 test("Combine refuses the same body twice, and is off with one body", async ({ page, request }) => {

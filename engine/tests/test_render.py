@@ -143,7 +143,8 @@ def test_a_render_reports_what_it_drew(box, tmp_path: Path):
 
 def test_opposite_cameras_do_not_render_the_same_image(box, tmp_path: Path):
     """A camera direction that is ignored, or applied with the wrong sign,
-    still produces a plausible picture. Two of them disagreeing is the check."""
+    still produces a plausible picture. Two of them disagreeing is the check.
+    """
     top = read_png_of(box, tmp_path / "top.png", camera="top")
     front = read_png_of(box, tmp_path / "front.png", camera="front")
     assert not np.array_equal(top, front)

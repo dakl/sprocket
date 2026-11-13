@@ -8,7 +8,7 @@
 // other.
 //
 // Pure functions with no DOM, so viewer/test/labels.test.js runs them under node.
-(function (root) {
+((root) => {
   // How far out from its anchor a label starts, in screen pixels.
   const LEADER = 70;
   // The gap kept between two labels.
@@ -67,7 +67,9 @@
           const b = boxes[j];
           const overlapX = (a.width + b.width) / 2 + GAP - Math.abs(a.cx - b.cx);
           const overlapY = (a.height + b.height) / 2 + GAP - Math.abs(a.cy - b.cy);
-          if (overlapX <= 0 || overlapY <= 0) continue;
+          if (overlapX <= 0 || overlapY <= 0) {
+            continue;
+          }
           moved = true;
           // Push apart along the axis that needs the shorter move, unless a
           // sideways push would leave the view: then up and down. A tie (two
@@ -89,7 +91,9 @@
         }
       }
       boxes.forEach(clampBox);
-      if (!moved) break;
+      if (!moved) {
+        break;
+      }
     }
 
     return boxes.map((box) => ({
@@ -116,6 +120,9 @@
   }
 
   const api = { LEADER, MARGIN, layoutLabels, leaderEnd };
-  if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.FloatingLabels = api;
-})(typeof window !== "undefined" ? window : globalThis);
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.FloatingLabels = api;
+  }
+})(typeof window === "undefined" ? globalThis : window);

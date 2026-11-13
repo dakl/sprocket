@@ -38,7 +38,7 @@ def test_without_a_base_the_original_and_its_mirror_are_a_new_body_and_the_tool_
     assert len(pegs.solids()) == 2
     assert pegs.volume == pytest.approx(16)
     box = pegs.bounding_box()
-    assert (box.min.X, box.max.X) == pytest.approx((-6, 6))
+    assert pytest.approx((-6, 6)) == (box.min.X, box.max.X)
 
 
 def test_a_face_plane_mirrors_about_that_face():
@@ -60,7 +60,7 @@ def test_a_face_plane_mirrors_about_that_face():
         ]
     )
     box = ctx.results["m"].bounding_box()
-    assert (box.min.X, box.max.X) == pytest.approx((4, 36))
+    assert pytest.approx((4, 36)) == (box.min.X, box.max.X)
 
 
 def test_cut_removes_the_original_and_the_mirror_from_the_base():

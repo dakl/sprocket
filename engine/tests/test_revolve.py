@@ -51,7 +51,8 @@ def test_an_explicit_axis_uses_its_origin_not_just_its_direction():
     """Revolving the same profile about a line through x = 30 mirrors it: the
     profile now spans 10 to 20 mm from that line, so the volume is unchanged
     and only the position moves. A dropped origin would keep the volume right,
-    which is why this asserts the bounding box."""
+    which is why this asserts the bounding box.
+    """
     feature = {
         "id": "f2",
         "type": "revolve",
@@ -61,7 +62,7 @@ def test_an_explicit_axis_uses_its_origin_not_just_its_direction():
     part = replay(document_with(feature))
     assert part.volume == pytest.approx(FULL_TURN_VOLUME, rel=1e-4)
     bbox = part.bounding_box()
-    assert (bbox.min.X, bbox.max.X) == pytest.approx((10, 50), abs=1e-6)
+    assert pytest.approx((10, 50), abs=1e-6) == (bbox.min.X, bbox.max.X)
 
 
 def test_an_angle_over_a_full_turn_is_rejected():

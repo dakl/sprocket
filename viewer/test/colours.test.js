@@ -29,9 +29,13 @@ test("hex input accepts what people type and refuses the rest", () => {
 
 test("recent colours put the newest first with no repeats, six at most", () => {
   let recent = [];
-  for (const colour of ["#111111", "#222222", "#111111"]) recent = pushRecent(recent, colour);
+  for (const colour of ["#111111", "#222222", "#111111"]) {
+    recent = pushRecent(recent, colour);
+  }
   assert.deepEqual(recent, ["#111111", "#222222"]);
-  for (let k = 0; k < 10; k++) recent = pushRecent(recent, "#00000" + k);
+  for (let k = 0; k < 10; k++) {
+    recent = pushRecent(recent, `#00000${k}`);
+  }
   assert.equal(recent.length, 6);
   assert.deepEqual(pushRecent(recent, "nope"), recent);
 });

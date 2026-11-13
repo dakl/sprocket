@@ -6,7 +6,7 @@
 const { test, expect } = require("@playwright/test");
 const fixture = require("../fixtures/box.json");
 
-const { rpc, resetDocument, settled } = require("./helpers");
+const { rpc, resetDocument, settled } = require("./helpers.js");
 
 const SLOW = { timeout: 15_000 };
 
@@ -36,9 +36,8 @@ async function dragHandle(page, fraction = 1) {
 
 async function faceWithNormal(page, request, normal) {
   const { faces } = await rpc(request, "describe_geometry");
-  const face = faces.findIndex(
-    (item) =>
-      item.normal && item.normal.every((value, axis) => Math.abs(value - normal[axis]) < 1e-6),
+  const face = faces.findIndex((item) =>
+    item.normal?.every((value, axis) => Math.abs(value - normal[axis]) < 1e-6),
   );
   const point = await page.evaluate((index) => window.__tcad.screenPointOf({ face: index }), face);
   expect(point.visible).toBe(true);
@@ -51,7 +50,9 @@ async function topEdge(page, request) {
     (candidates) => {
       for (const edge of candidates) {
         const point = window.__tcad.screenPointOf({ edge });
-        if (point && point.visible) return { edge, x: point.x, y: point.y };
+        if (point?.visible) {
+          return { edge, x: point.x, y: point.y };
+        }
       }
       return null;
     },
@@ -97,7 +98,7 @@ test("dragging the extrude arrow sets the distance, and Enter applies what the d
   await dragHandle(page);
   const dragged = (await extruding(page)).distance;
   expect(dragged).toBeGreaterThan(0);
-  expect((await handle(page)).box).toBe(dragged + " mm");
+  expect((await handle(page)).box).toBe(`${dragged} mm`);
   // The drag moved the arrow, not the camera.
   const cameraAfter = await page.evaluate(() => window.__tcad.camera);
   cameraAfter.position.forEach((value, axis) =>
@@ -162,7 +163,9 @@ test("the camera orbits while extrude is open, and a click on another face moves
   const side = await page.evaluate(() => {
     for (let face = 0; face < window.__tcad.mesh.faces; face++) {
       const point = window.__tcad.screenPointOf({ face });
-      if (point.visible && face !== window.__tcad.selection.face) return { face, ...point };
+      if (point.visible && face !== window.__tcad.selection.face) {
+        return { face, ...point };
+      }
     }
     return null;
   });
@@ -206,9 +209,13 @@ test("F with nothing selected picks an edge; its arrow drives the radius field, 
   const second = await page.evaluate(
     ([candidates, first]) => {
       for (const index of candidates) {
-        if (index === first) continue;
+        if (index === first) {
+          continue;
+        }
         const point = window.__tcad.screenPointOf({ edge: index });
-        if (point && point.visible) return { edge: index, x: point.x, y: point.y };
+        if (point?.visible) {
+          return { edge: index, x: point.x, y: point.y };
+        }
       }
       return null;
     },
@@ -221,16 +228,7 @@ test("F with nothing selected picks an edge; its arrow drives the radius field, 
     .poll(() => page.evaluate(() => window.__tcad.selectedEdges))
     .toEqual([edge.edge, second.edge]);
   await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            window.__tcad.modifying &&
-            window.__tcad.modifying.feature &&
-            window.__tcad.modifying.feature.edges.expected_count,
-        ),
-      SLOW,
-    )
+    .poll(() => page.evaluate(() => window.__tcad.modifying?.feature?.edges.expected_count), SLOW)
     .toBe(2);
   await expect(page.locator("#modify-radius")).toHaveValue(String(radius));
   await page.keyboard.press("Escape");

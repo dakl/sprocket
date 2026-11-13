@@ -50,26 +50,26 @@ def test_a_sketch_on_the_top_face_follows_the_face_when_the_box_grows():
     features = pad_on({"feature": "b", "face": face("Z", "max")}, base="b", mode="join")
     for height in (10, 14):
         part = build(features, height)
-        assert part.bounding_box().max.Z == pytest.approx(height + 5)
+        assert pytest.approx(height + 5) == part.bounding_box().max.Z
         assert part.volume == pytest.approx(400 * height + 80)
 
 
 def test_an_offset_origin_plane():
     part = pad(pad_on({"name": "XY", "offset": 30}))
     box = part.bounding_box()
-    assert (box.min.Z, box.max.Z) == pytest.approx((30, 35))
+    assert pytest.approx((30, 35)) == (box.min.Z, box.max.Z)
 
 
 def test_on_a_side_face_v_is_world_up_and_coordinates_stay_world_aligned():
     part = pad(pad_on({"feature": "b", "face": face("X", "max")}, center=(2, 3)))
     centre = part.center()
-    assert (centre.X, centre.Y, centre.Z) == pytest.approx((12.5, 2, 3))
+    assert pytest.approx((12.5, 2, 3)) == (centre.X, centre.Y, centre.Z)
 
 
 def test_on_the_bottom_face_u_is_x_and_v_is_minus_y():
     part = pad(pad_on({"feature": "b", "face": face("Z", "min")}, center=(2, 3)))
     centre = part.center()
-    assert (centre.X, centre.Y, centre.Z) == pytest.approx((2, -3, -2.5))
+    assert pytest.approx((2, -3, -2.5)) == (centre.X, centre.Y, centre.Z)
 
 
 def test_a_face_plane_must_be_one_planar_face():
@@ -112,8 +112,10 @@ def test_the_face_owner_cannot_be_deleted_while_a_sketch_sits_on_it():
 
 def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
     """The viewer's flow: pick a face, ask the daemon for a plane reference,
-    sketch on it. A taller box carries the sketch up with its top face."""
+    sketch on it. A taller box carries the sketch up with its top face.
+    """
     from conftest import running
+
     from sprocket_engine.rpc import Client
 
     with (
@@ -158,6 +160,7 @@ def test_a_picked_face_becomes_a_plane_that_follows_it(tmp_path):
 
 def test_a_face_of_the_second_body_names_that_body(tmp_path):
     from conftest import running
+
     from sprocket_engine.rpc import Client
 
     second = [

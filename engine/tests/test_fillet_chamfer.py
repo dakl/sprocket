@@ -39,7 +39,8 @@ def document_with(op: str, selector: dict) -> dict:
 def test_a_selector_matching_no_edges_fails_rather_than_doing_nothing(op):
     """An upstream edit can leave a stored selector matching nothing. Replaying
     it as a no-op gives back the part before the feature, which looks like the
-    edit was never made rather than like it broke."""
+    edit was never made rather than like it broke.
+    """
     selector = {
         "from": "part",
         "select": [{"op": "edges"}, {"op": "slice", "start": 99}],
@@ -51,7 +52,8 @@ def test_a_selector_matching_no_edges_fails_rather_than_doing_nothing(op):
 @pytest.mark.parametrize("op", sorted(SIZES))
 def test_a_selector_landing_on_faces_says_so(op):
     """`edges` is a field name, not something the schema can enforce: a chain
-    starting with `faces` is a valid selector that this op cannot use."""
+    starting with `faces` is a valid selector that this op cannot use.
+    """
     selector = {"from": "part", "select": [{"op": "faces"}, {"op": "first"}]}
     with pytest.raises(SelectorError, match="expected edges"):
         replay(document_with(op, selector))

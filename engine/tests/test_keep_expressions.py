@@ -3,8 +3,8 @@
 import copy
 
 import pytest
-
 from conftest import running
+
 from sprocket_engine.document import Document, resolve_value
 from sprocket_engine.rpc import Client
 

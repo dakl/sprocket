@@ -3,7 +3,9 @@
 async function rpc(request, method, params = {}) {
   const response = await request.post("/rpc", { data: { jsonrpc: "2.0", id: 1, method, params } });
   const body = await response.json();
-  if (body.error) throw new Error(body.error.message);
+  if (body.error) {
+    throw new Error(body.error.message);
+  }
   return body.result;
 }
 
@@ -25,7 +27,7 @@ async function resetDocument(request, document) {
 }
 
 async function settled(page) {
-  await page.waitForFunction(() => window.__tcad && window.__tcad.idle);
+  await page.waitForFunction(() => window.__tcad?.idle);
 }
 
 /// Waits for the camera to stop easing into a sketch plane. A click made while
