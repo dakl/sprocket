@@ -237,7 +237,7 @@ def test_a_construct_feature_a_later_one_names_cannot_be_deleted():
         document.apply_edits([{"op": "delete", "id": "box"}], None, "test")
 
 
-def test_the_viewer_files_describe_each_construct_feature(tmp_path):
+def test_the_viewer_files_describe_each_construct_feature():
     from sprocket_engine.viewer_files import features_summary
 
     features = [

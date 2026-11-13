@@ -55,7 +55,7 @@ def _load_document(path: Path):
 
 
 @register("reference", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: dict, _ctx):
     path = Path(feature["file"]).resolve()
     if not path.is_file():
         raise ValueError(f"reference file {feature['file']} does not exist")

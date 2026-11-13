@@ -173,7 +173,7 @@ def make_handler(app: WebApp):
                     super().do_GET()
             except (BrokenPipeError, ConnectionResetError):
                 pass
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 self._send_json(
                     {"error": f"{type(exc).__name__}: {exc}"},
                     HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -246,7 +246,7 @@ def make_handler(app: WebApp):
                     self._send_json(
                         {"error": f"no route {route}"}, HTTPStatus.NOT_FOUND
                     )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 self._send_json(
                     {"error": f"{type(exc).__name__}: {exc}"},
                     HTTPStatus.INTERNAL_SERVER_ERROR,

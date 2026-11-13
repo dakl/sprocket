@@ -23,4 +23,28 @@ from . import (
 )
 from .registry import REGISTRY, Op, register
 
-__all__ = ["REGISTRY", "Op", "register"]
+__all__ = [
+    "REGISTRY",
+    "Op",
+    "boolean",
+    "chamfer",
+    "construct",
+    "draft",
+    "extrude",
+    "extrude_face",
+    "fillet",
+    "hole",
+    "loft",
+    "mirror",
+    "move",
+    "pattern",
+    "primitive",
+    "reference",
+    "register",
+    "revolve",
+    "shell",
+    "sketch",
+    "split",
+    "sweep",
+    "thread",
+]

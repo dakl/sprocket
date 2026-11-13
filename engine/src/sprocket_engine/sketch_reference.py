@@ -137,7 +137,7 @@ def with_references_updated(feature: dict, project) -> dict:
         except Exception as exc:
             raise ValueError(
                 f"reference {entity['id']!r} of sketch {feature['id']!r}: {exc}"
-            ) from None
+            ) from exc
         if fields["kind"] != entity["kind"]:
             raise ValueError(
                 f"reference {entity['id']!r} of sketch {feature['id']!r} was a "

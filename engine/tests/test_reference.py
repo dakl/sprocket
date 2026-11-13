@@ -213,9 +213,7 @@ def test_check_clearance_reports_distance_and_overlap(tmp_path):
     assert pair["overlap_volume"] == pytest.approx(100)
 
 
-def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside(
-    tmp_path,
-):
+def test_the_orange_pi_case_example_wraps_the_board_without_touching_it_inside():
     """examples/orangepi-case.sprocket: the board is a reference body, the base
     and the lid are the exported bodies, one solid each, and neither shares
     volume with the board. The base touches it only from below (the posts), so

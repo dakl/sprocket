@@ -288,7 +288,7 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
     """
     from sprocket_engine import viewer_files
 
-    def refuse(shape, appearances=None, bodies=None):
+    def refuse(_shape, _appearances=None, _bodies=None):
         raise ValueError("tessellation disagrees with the B-rep")
 
     viewer_dir = tmp_path / "viewer"
@@ -308,7 +308,7 @@ def test_a_mesh_that_cannot_be_written_reaches_the_viewer_as_text(
     try:
         with Client(
             daemon.socket_path,
-            on_notification=lambda method, params: heard.append(params),
+            on_notification=lambda _method, params: heard.append(params),
         ) as client:
             client.call("set_rollback", index=1)
             client.call(
@@ -370,7 +370,7 @@ def test_a_file_that_will_not_open_leaves_the_open_document_alone(client, tmp_pa
     ]
 
 
-@pytest.mark.parametrize("path", ["part.sprocket", "/tmp/part.txt", ""])
+@pytest.mark.parametrize("path", ["part.sprocket", "/tmp/part.txt", ""])  # noqa: S108
 def test_file_methods_want_an_absolute_sprocket_path(client, path):
     with pytest.raises(RpcError):
         client.call("open_document", path=path)
@@ -382,7 +382,7 @@ def test_opening_announces_a_replacement_not_an_edit(daemon, tmp_path):
     other = write_document(tmp_path / "other.sprocket", [SKETCH])
     heard = []
     with Client(
-        daemon.socket_path, on_notification=lambda method, params: heard.append(params)
+        daemon.socket_path, on_notification=lambda _method, params: heard.append(params)
     ) as watcher:
         watcher.call("ping")
         with Client(daemon.socket_path) as other_client:

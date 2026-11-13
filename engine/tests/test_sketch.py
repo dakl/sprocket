@@ -144,17 +144,17 @@ def test_circle_on_an_arbitrary_plane_follows_that_plane_normal():
 
 
 @pytest.mark.parametrize(
-    ("case", "sketch"),
+    "sketch",
     [
-        ("no shape at all", {}),
-        (
-            "two shapes at once",
+        pytest.param({}, id="no shape at all"),
+        pytest.param(
             {"rect": {"width": 10, "height": 10}, "circle": {"radius": 5}},
+            id="two shapes at once",
         ),
-        ("a radius of zero", {"circle": {"radius": 0}}),
+        pytest.param({"circle": {"radius": 0}}, id="a radius of zero"),
     ],
 )
-def test_sketch_needs_exactly_one_valid_shape(case, sketch):
+def test_sketch_needs_exactly_one_valid_shape(sketch):
     document = {
         "schema_version": 1,
         "units": {"length": "mm"},

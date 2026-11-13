@@ -212,7 +212,7 @@ def _build_document(
         result, failed_id, context = build_shape(
             features, rollback_index, resolved_cache_dir
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return False, f"error: {exc}", getattr(exc, "feature_id", None)
 
     if result is None:
@@ -283,8 +283,8 @@ def _build(args: argparse.Namespace) -> int:
 
 
 def _serve() -> int:
-    for line in sys.stdin:
-        line = line.strip()
+    for raw in sys.stdin:
+        line = raw.strip()
         if not line:
             continue
         try:
@@ -296,7 +296,7 @@ def _serve() -> int:
                 request.get("cache_dir"),
                 request.get("mesh"),
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             success, output, failed_id = False, f"error: {exc}", None
         print(
             json.dumps(

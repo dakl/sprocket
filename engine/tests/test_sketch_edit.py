@@ -128,9 +128,7 @@ def test_moving_an_entity_keeps_what_the_constraints_hold(sketch_client):
     assert first["p0"][1] == pytest.approx(first["p1"][1])
 
 
-def test_a_dimension_may_be_a_parameter_and_the_stored_constraint_keeps_the_expression(
-    tmp_path,
-):
+def test_a_dimension_may_be_a_parameter_and_the_stored_constraint_keeps_the_expression():
     document = Document([dict(SKETCH)], 1, {"width": 30})
     document.apply_edits(
         [

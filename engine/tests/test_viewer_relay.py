@@ -64,7 +64,7 @@ def fake_viewer(
 def viewer(daemon):
     """Starts a fake viewer; the test sets `viewer.answer` before calling."""
     holder = type("Viewer", (), {})()
-    holder.answer = lambda method, params: {"result": {"heard": params}}
+    holder.answer = lambda _method, params: {"result": {"heard": params}}
     ready, stop = threading.Event(), threading.Event()
     thread = threading.Thread(
         target=fake_viewer,
@@ -80,7 +80,7 @@ def viewer(daemon):
 
 
 def test_a_click_reaches_the_viewer_and_its_answer_comes_back(client, viewer):
-    viewer.answer = lambda method, params: {
+    viewer.answer = lambda _method, params: {
         "result": {"element": "button#tool-fillet", "x": params["x"], "y": params["y"]}
     }
     assert client.call("agent_pointer", action="click", x=12, y=34, shift=True) == {
@@ -90,7 +90,8 @@ def test_a_click_reaches_the_viewer_and_its_answer_comes_back(client, viewer):
     }
 
 
-def test_only_the_pointer_fields_are_relayed(client, viewer):
+@pytest.mark.usefixtures("viewer")
+def test_only_the_pointer_fields_are_relayed(client):
     heard = client.call("agent_pointer", action="key", key="Enter", junk="x")["heard"]
     assert heard["action"] == "key"
     assert heard["key"] == "Enter"
@@ -98,7 +99,7 @@ def test_only_the_pointer_fields_are_relayed(client, viewer):
 
 
 def test_a_viewer_error_comes_back_as_the_call_error(client, viewer):
-    viewer.answer = lambda method, params: {"error": "nothing at that point"}
+    viewer.answer = lambda _method, _params: {"error": "nothing at that point"}
     with pytest.raises(RpcError, match="nothing at that point"):
         client.call("agent_pointer", action="click", x=1, y=1)
 
@@ -132,7 +133,7 @@ def test_a_waiting_call_does_not_hold_up_other_clients(daemon, client, monkeypat
 
 
 def test_a_canvas_capture_is_written_where_asked(client, viewer, tmp_path: Path):
-    viewer.answer = lambda method, params: {
+    viewer.answer = lambda _method, _params: {
         "result": {
             "png_base64": base64.b64encode(PNG).decode(),
             "scope": "canvas",
@@ -147,7 +148,7 @@ def test_a_canvas_capture_is_written_where_asked(client, viewer, tmp_path: Path)
 
 
 def test_the_app_writes_the_file_itself(client, viewer, tmp_path: Path):
-    def app(method, params):
+    def app(_method, params):
         Path(params["path"]).write_bytes(PNG)
         return {"result": {"scope": "window", "width": 1, "height": 1, "scale": 2}}
 
@@ -158,6 +159,6 @@ def test_the_app_writes_the_file_itself(client, viewer, tmp_path: Path):
 
 
 def test_an_answer_with_no_png_is_an_error(client, viewer, tmp_path: Path):
-    viewer.answer = lambda method, params: {"result": {}}
+    viewer.answer = lambda _method, _params: {"result": {}}
     with pytest.raises(RpcError, match="wrote no PNG"):
         client.call("screenshot_app", path=str(tmp_path / "none.png"))

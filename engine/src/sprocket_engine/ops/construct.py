@@ -215,5 +215,5 @@ def apply_axis(feature: dict, ctx):
 
 
 @register("point", POINT_SCHEMA_OF_FEATURE)
-def apply_point(feature: dict, ctx):
+def apply_point(_feature: dict, _ctx):
     return _marker()

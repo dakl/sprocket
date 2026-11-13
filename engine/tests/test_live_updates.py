@@ -3,7 +3,6 @@ an open daemon (see Daemon.check_file for the rule).
 """
 
 import json
-import os
 import time
 
 import pytest
@@ -35,24 +34,26 @@ def heard(listener, method):
 
 
 def write_atomically(path, document):
-    """What `sprocket build`, git and most editors do: a new file renamed over the old."""
+    """A new file renamed over the old, as `sprocket build`, git and most editors do."""
     temporary = path.with_name(path.name + ".other")
     temporary.write_text(json.dumps(document))
-    os.replace(temporary, path)
+    temporary.replace(path)
 
 
 def on_disk(daemon):
     return json.loads(daemon.session.document.path.read_text())
 
 
-def test_document_changed_says_who_made_the_change(daemon, client, listener):
+@pytest.mark.usefixtures("daemon")
+def test_document_changed_says_who_made_the_change(client, listener):
     client.call("apply_edit", edits=[TALLER], author="agent:test")
     (change,) = heard(listener, "document_changed")
     assert change["author"] == "agent:test"
     assert change["changes"] == [{"action": "update", "feature_id": "e1"}]
 
 
-def test_a_view_change_has_no_author(daemon, client, listener):
+@pytest.mark.usefixtures("daemon")
+def test_a_view_change_has_no_author(client, listener):
     client.call("set_visibility", id="e1", visible=False)
     assert heard(listener, "document_changed")[-1]["author"] is None
 

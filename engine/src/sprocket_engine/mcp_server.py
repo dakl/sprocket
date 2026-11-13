@@ -722,12 +722,12 @@ def _json_content(result) -> list:
 
 
 def build_server(client: Client) -> Server:
-    async def on_list_tools(ctx, params):
+    async def on_list_tools(_ctx, _params):
         return types.ListToolsResult(
             tools=document_tools() + sketch_tools() + op_tools()
         )
 
-    async def on_call_tool(ctx, params):
+    async def on_call_tool(_ctx, params):
         try:
             # The client is blocking, and blocking the event loop would stall
             # the stdio transport for the whole of a replay.
@@ -750,7 +750,7 @@ def build_server(client: Client) -> Server:
                 ],
                 is_error=True,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return types.CallToolResult(
                 content=[
                     types.TextContent(type="text", text=f"{type(exc).__name__}: {exc}")
@@ -778,7 +778,7 @@ def find_socket(extra_folder: Path | None = None) -> Path:
     if extra_folder:
         candidates = list(extra_folder.glob("sprocket-*.sock"))
     else:
-        folders = {Path(tempfile.gettempdir()), Path("/tmp")}
+        folders = {Path(tempfile.gettempdir()), Path("/tmp")}  # noqa: S108
         candidates = [
             path for folder in folders for path in folder.glob("sprocket-*.sock")
         ]

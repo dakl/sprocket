@@ -65,7 +65,7 @@ def synthesize(shape, ctx, handles: list[str], feature_ids: list[str]) -> dict:
     def resolved(steps):
         try:
             return resolve_selector(shape, {"select": steps}, ctx)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     def exact(steps) -> bool:

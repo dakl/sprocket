@@ -77,7 +77,7 @@ def write_step(shape, path, bodies=None) -> None:
     try:
         written = export_step(shape, path)
     except Exception as exc:
-        raise ExportError(f"cannot write STEP file {path}: {exc}") from None
+        raise ExportError(f"cannot write STEP file {path}: {exc}") from exc
     if written is False:
         raise ExportError(f"cannot write STEP file {path}: the STEP writer refused it")
 
@@ -88,7 +88,7 @@ def write_stl(shape, path) -> None:
     try:
         written = export_stl(shape, path)
     except Exception as exc:
-        raise ExportError(f"cannot write STL file {path}: {exc}") from None
+        raise ExportError(f"cannot write STL file {path}: {exc}") from exc
     if written is False:
         raise ExportError(f"cannot write STL file {path}: the STL writer refused it")
 
@@ -128,11 +128,11 @@ def write_3mf(bodies, path) -> None:
                 raise ExportError(
                     f"cannot write 3MF file {path}: body {body.get('name') or body['id']}: "
                     f"{exc}"
-                ) from None
+                ) from exc
     try:
         mesher.write(str(path))
     except Exception as exc:
-        raise ExportError(f"cannot write 3MF file {path}: {exc}") from None
+        raise ExportError(f"cannot write 3MF file {path}: {exc}") from exc
 
 
 def section_of(shape, plane):

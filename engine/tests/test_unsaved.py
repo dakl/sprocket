@@ -146,9 +146,8 @@ def test_a_file_reloaded_from_disk_is_not_an_unsaved_edit(manual, client, listen
 
 
 @pytest.mark.parametrize("content", [None, "not json", '{"path": null}'])
-def test_restore_recovery_refuses_a_missing_or_broken_file(
-    manual, client, tmp_path, content
-):
+@pytest.mark.usefixtures("manual")
+def test_restore_recovery_refuses_a_missing_or_broken_file(client, tmp_path, content):
     file = tmp_path / "recovery.bad.json"
     if content is not None:
         file.write_text(content)

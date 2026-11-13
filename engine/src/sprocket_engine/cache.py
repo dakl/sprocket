@@ -125,4 +125,4 @@ class BrepCache:
         path = self._path(key)
         partial = path.with_suffix(f".{os.getpid()}.partial")
         export_brep(shape, partial)
-        os.replace(partial, path)
+        partial.replace(path)

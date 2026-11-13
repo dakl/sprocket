@@ -238,12 +238,12 @@ class Daemon:
             return None
         try:
             error = write_viewer_files(self.session, self.viewer_dir)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             # A document that will not build must not stop the edit that
             # caused it. The viewer keeps the files from the last good build.
             error = f"{type(exc).__name__}: {exc}"
         if error:
-            print(f"viewer files not written: {error}", flush=True)
+            print(f"viewer files not written: {error}", flush=True)  # noqa: T201
         return error
 
     def announce_change(
@@ -372,7 +372,7 @@ class Daemon:
             except DocumentError as exc:
                 # Half written by an editor that does not write atomically, or
                 # simply broken. The next change to the file is looked at again.
-                print(f"not reloading {document.path}: {exc}", flush=True)
+                print(f"not reloading {document.path}: {exc}", flush=True)  # noqa: T201
                 return "unreadable"
             return "reloaded"
 
@@ -599,7 +599,7 @@ def _handle_line(daemon: Daemon, line: bytes):
         return _error(request_id, DOCUMENT_ERROR, str(exc))
     except (TypeError, ValueError, KeyError) as exc:
         return _error(request_id, INVALID_PARAMS, f"{type(exc).__name__}: {exc}")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # A geometry kernel failure must not take the daemon down with it: the
         # user still has a document open, and the next edit may well build.
         return _error(
@@ -675,7 +675,7 @@ def _commit(
 
     try:
         shape, failed = session.shape()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {
             "revision": revision,
             "timeline": session.document.timeline(),
@@ -692,7 +692,7 @@ def _commit(
     }
 
 
-def _get_document(daemon: Daemon, params: dict) -> dict:
+def _get_document(daemon: Daemon, _params: dict) -> dict:
     return _document_state(daemon)
 
 
@@ -768,7 +768,7 @@ def _save_as(daemon: Daemon, params: dict) -> dict:
     return {"path": str(path), "revision": document.revision}
 
 
-def _save(daemon: Daemon, params: dict) -> dict:
+def _save(daemon: Daemon, _params: dict) -> dict:
     """Writes the open document to its own file.
 
     The app calls it on Save when the daemon runs with `--no-autosave`. A file
@@ -1007,7 +1007,7 @@ def _get_face_appearance(daemon: Daemon, params: dict) -> dict:
     }
 
 
-def _get_bodies(daemon: Daemon, params: dict) -> dict:
+def _get_bodies(daemon: Daemon, _params: dict) -> dict:
     """The built bodies in order, with their settings, volume and face count."""
     return {
         "bodies": [
@@ -1028,7 +1028,7 @@ def _get_bodies(daemon: Daemon, params: dict) -> dict:
     }
 
 
-def _check_clearance(daemon: Daemon, params: dict) -> dict:
+def _check_clearance(daemon: Daemon, _params: dict) -> dict:
     """The gap between each part body and each reference body: the smallest
     distance, and the volume they share. A distance of 0 with no shared volume
     means they touch.
@@ -1171,7 +1171,7 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
         shape, ctx = replay(
             trial.for_replay(), cache_dir=daemon.session.cache_dir, return_context=True
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {
             "would_build": False,
             "failed_feature": getattr(exc, "feature_id", None),
@@ -1182,7 +1182,7 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
         # No solid to measure: the answer is where the construct feature lands.
         try:
             return {"would_build": True, "construct": construct_geometry(feature, ctx)}
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return {"would_build": False, "reason": f"{type(exc).__name__}: {exc}"}
     if shape is None:
         return {"would_build": False, "reason": "the previewed feature built nothing"}
@@ -1251,7 +1251,7 @@ def _resolve_plane(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"plane does not resolve: {exc}") from None
 
 
-def _describe_geometry(daemon: Daemon, params: dict) -> dict:
+def _describe_geometry(daemon: Daemon, _params: dict) -> dict:
     return {
         **describe(daemon.session.require_shape()),
         "selection": _selection_view(daemon),
@@ -1363,7 +1363,7 @@ def _set_selection(daemon: Daemon, params: dict) -> dict:
     return view
 
 
-def _get_selection(daemon: Daemon, params: dict) -> dict:
+def _get_selection(daemon: Daemon, _params: dict) -> dict:
     return _selection_view(daemon)
 
 
@@ -1451,7 +1451,7 @@ def _resolve_conflict(daemon: Daemon, params: dict) -> dict:
     return {**result, "changed": True}
 
 
-def _get_file_status(daemon: Daemon, params: dict) -> dict:
+def _get_file_status(daemon: Daemon, _params: dict) -> dict:
     document = daemon.session.document
     return {
         "path": str(document.path) if document.path else None,
@@ -1515,8 +1515,8 @@ class FileWatcher:
                 pending.pop(path, None)
                 try:
                     self.on_change(path)
-                except Exception as exc:  # the watcher must outlive one bad read
-                    print(f"file watcher: {type(exc).__name__}: {exc}", flush=True)
+                except Exception as exc:  # the watcher must outlive one bad read  # noqa: BLE001
+                    print(f"file watcher: {type(exc).__name__}: {exc}", flush=True)  # noqa: T201
             for gone in set(seen) - set(paths):
                 del seen[gone]
                 pending.pop(gone, None)
@@ -1885,7 +1885,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
     return written
 
 
-def _get_schemas(daemon: Daemon, params: dict) -> dict:
+def _get_schemas(_daemon: Daemon, _params: dict) -> dict:
     """Every op's JSON Schema, which is how an agent learns what it can build.
 
     Generated from the registry rather than written out, so an op added in M3
@@ -1901,7 +1901,7 @@ def _validate_feature(daemon: Daemon, params: dict) -> dict:
     return {"valid": True, "resolved": resolved}
 
 
-def _list_methods(daemon: Daemon, params: dict) -> dict:
+def _list_methods(_daemon: Daemon, _params: dict) -> dict:
     return {"methods": sorted(METHODS)}
 
 
@@ -2007,7 +2007,7 @@ def _viewer_reply(daemon: Daemon, params: dict) -> dict:
 UNLOCKED = frozenset({"agent_pointer", "screenshot_app", "viewer_reply"})
 
 
-def _ping(daemon: Daemon, params: dict) -> dict:
+def _ping(daemon: Daemon, _params: dict) -> dict:
     return {"ok": True, "revision": daemon.session.document.revision}
 
 

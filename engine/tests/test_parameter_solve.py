@@ -97,7 +97,7 @@ def test_an_expression_over_a_parameter_follows_too():
 def test_a_parameter_no_sketch_uses_does_not_solve_anything(monkeypatch):
     from sprocket_engine import solver
 
-    def fail(*args, **kwargs):
+    def fail(*_args, **_kwargs):
         raise AssertionError("the solver ran for a parameter that no sketch uses")
 
     document = Document(

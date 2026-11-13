@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.case not in CASES:
-        print(
+        print(  # noqa: T201
             f"no such golden case: {args.case}\nknown cases: {', '.join(CASES)}",
             file=sys.stderr,
         )
@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     directory = case_dir(args.case)
     already_there = [name for name in CAPTURED if (directory / name).is_file()]
     if already_there and not args.approved:
-        print(
+        print(  # noqa: T201
             f"{args.case} already has {', '.join(already_there)}.\n"
             "Regenerating an existing case replaces the expectation with whatever the "
             "engine now\n"
@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     with tempfile.TemporaryDirectory() as scratch:
-        scratch = Path(scratch)
+        scratch = Path(scratch)  # noqa: PLW2901
         part = build(args.case, scratch / "cache")
         # Exported to scratch first, then moved. A failed export part way through
         # would otherwise leave the case with a fresh STEP and a stale STL, which
@@ -94,9 +94,9 @@ def main(argv: list[str] | None = None) -> int:
         for name in CAPTURED:
             shutil.move(scratch / name, directory / name)
 
-    print(f"wrote {', '.join(CAPTURED)} in {directory}")
-    print(f"engine {engine_identity()}")
-    print(f"volume {part.volume:.6f} mm^3, {len(part.faces())} faces")
+    print(f"wrote {', '.join(CAPTURED)} in {directory}")  # noqa: T201
+    print(f"engine {engine_identity()}")  # noqa: T201
+    print(f"volume {part.volume:.6f} mm^3, {len(part.faces())} faces")  # noqa: T201
     return 0
 
 

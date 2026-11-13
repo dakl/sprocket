@@ -849,7 +849,7 @@ class Document:
             if has_references(new):
                 try:
                     new = with_references_updated(new, self._projector(index, after))
-                except Exception:
+                except Exception:  # noqa: BLE001
                     # A reference that does not resolve is that
                     # feature's own failure to report, not this
                     # edit's.

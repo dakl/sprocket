@@ -66,7 +66,7 @@ def _object(edit: dict, key: str) -> dict:
     return dict(value)
 
 
-def _add_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _add_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraint = _object(edit, "constraint")
     if constraint.get("kind") not in CONSTRAINT_FIELDS:
         raise ValueError(
@@ -78,7 +78,7 @@ def _add_constraint(feature: dict, edit: dict, project=None) -> dict:
     return {"constraint_id": constraint["id"]}
 
 
-def _update_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _update_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraints = feature.get("constraints", [])
     constraint = constraints[
         _index_of(constraints, edit.get("constraint_id"), "constraint")
@@ -87,13 +87,13 @@ def _update_constraint(feature: dict, edit: dict, project=None) -> dict:
     return {"constraint_id": constraint["id"]}
 
 
-def _remove_constraint(feature: dict, edit: dict, project=None) -> dict:
+def _remove_constraint(feature: dict, edit: dict, _project=None) -> dict:
     constraints = feature.get("constraints", [])
     del constraints[_index_of(constraints, edit.get("constraint_id"), "constraint")]
     return {"constraint_id": edit["constraint_id"]}
 
 
-def _add_entity(feature: dict, edit: dict, project=None) -> dict:
+def _add_entity(feature: dict, edit: dict, _project=None) -> dict:
     entity = _object(edit, "entity")
     if "reference" in entity:
         raise ValueError(
@@ -121,7 +121,7 @@ def _add_reference(feature: dict, edit: dict, project=None) -> dict:
     try:
         fields = project(source)
     except Exception as exc:
-        raise ValueError(f"cannot project that: {exc}") from None
+        raise ValueError(f"cannot project that: {exc}") from exc
     entity = {
         "id": next_id(feature["entities"], "e"),
         **fields,
@@ -132,7 +132,7 @@ def _add_reference(feature: dict, edit: dict, project=None) -> dict:
     return {"entity_id": entity["id"]}
 
 
-def _update_entity(feature: dict, edit: dict, project=None) -> dict:
+def _update_entity(feature: dict, edit: dict, _project=None) -> dict:
     entity = feature["entities"][
         _index_of(feature["entities"], edit.get("entity_id"), "entity")
     ]
@@ -145,7 +145,7 @@ def _update_entity(feature: dict, edit: dict, project=None) -> dict:
     return {"entity_id": entity["id"]}
 
 
-def _remove_entity(feature: dict, edit: dict, project=None) -> dict:
+def _remove_entity(feature: dict, edit: dict, _project=None) -> dict:
     """Removes the entity and every constraint that mentions it, as the viewer does."""
     entity_id = edit.get("entity_id")
     del feature["entities"][_index_of(feature["entities"], entity_id, "entity")]

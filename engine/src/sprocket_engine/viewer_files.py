@@ -30,13 +30,13 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
     """
     try:
         parameters = document.resolved_parameters()
-    except Exception:
+    except Exception:  # noqa: BLE001
         parameters = {}
     entries = []
     for index, raw in enumerate(document.features):
         try:
             feature = resolve_value(raw, parameters)
-        except Exception:
+        except Exception:  # noqa: BLE001
             feature = raw
         entry = {
             "id": raw.get("id"),
@@ -61,7 +61,7 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
                 entry["polygon"] = feature["polygon"]
             try:
                 entry["regions"] = sketch_profiles(feature)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # A sketch the engine cannot read has no regions to show. The
                 # timeline still has to list it so it can be fixed.
                 entry["regions"] = []
@@ -95,7 +95,7 @@ def _drawable_plane(plane, ctx):
         return plane
     try:
         return plane_json(resolve_plane(plane, ctx))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -130,7 +130,7 @@ def write_viewer_files(session, viewer_dir: Path) -> str | None:
     mesh_error = None
     try:
         data = mesh_bytes(shape, session.document.appearances, session.bodies())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         data = None
         mesh_error = f"{type(exc).__name__}: {exc}"
     mesh_path = viewer_dir / "part.mesh"

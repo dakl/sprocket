@@ -171,14 +171,14 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
         # features in `upstream_key` it fixes what this refresh gives.
         if op_type == "sketch" and has_references(feature):
             try:
-                feature = refresh_references(feature, ctx)
-            except Exception as exc:
+                feature = refresh_references(feature, ctx)  # noqa: PLW2901
+            except Exception as exc:  # noqa: BLE001
                 raise _tagged(exc, feature, index) from None
         result = cache.get(key) if cache else None
         if result is None:
             try:
                 result = op.apply(feature, ctx)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 # Editing a sketch can leave a later feature unbuildable: a
                 # face selector may match nothing, or a cut may miss the part.
                 # The caller needs to know which feature broke, so tag the
@@ -271,8 +271,8 @@ def _trailing_sketches(
         if feature.get("type") != "sketch":
             continue
         try:
-            feature = refresh_references(feature, ctx)
-        except Exception as exc:
+            feature = refresh_references(feature, ctx)  # noqa: PLW2901
+        except Exception as exc:  # noqa: BLE001
             ctx.features[feature["id"]] = feature
             return getattr(exc, "feature_id", None) or feature["id"]
         ctx.features[feature["id"]] = feature

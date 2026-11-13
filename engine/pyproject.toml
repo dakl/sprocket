@@ -69,6 +69,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# The CLI's printed lines are its interface: a build's result, and serve's
+# one JSON reply per request.
+"src/sprocket_engine/cli.py" = ["T201"]
 "tests/**" = [
     "S101",    # pytest checks with bare `assert`
     # A test's name says what it checks, so a docstring would repeat it.
