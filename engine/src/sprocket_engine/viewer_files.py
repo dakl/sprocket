@@ -9,6 +9,7 @@ viewer sees cannot depend on which one is running.
 import contextlib
 import json
 import tempfile
+from collections import OrderedDict
 from pathlib import Path
 
 from .document import resolve_value
@@ -60,7 +61,7 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             if "polygon" in feature:
                 entry["polygon"] = feature["polygon"]
             try:
-                entry["regions"] = sketch_profiles(feature)
+                entry["regions"] = _profiles(feature)
             except Exception:  # noqa: BLE001
                 # A sketch the engine cannot read has no regions to show. The
                 # timeline still has to list it so it can be fixed.
@@ -78,6 +79,26 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             entry["failed"] = True
         entries.append(entry)
     return entries
+
+
+# Each sketch's regions, by the sketch's JSON, newest last. Finding regions is
+# about 5 ms a sketch, and this file is written after every change, a body
+# toggle included: 689 sketches cost 3.2 s per change before this.
+PROFILE_ENTRIES = 8192
+_profile_memo: OrderedDict[str, list] = OrderedDict()
+
+
+def _profiles(feature: dict) -> list[dict]:
+    """`sketch_profiles(feature)`, remembered. The result is only serialised."""
+    key = json.dumps(feature, sort_keys=True)
+    if key in _profile_memo:
+        _profile_memo.move_to_end(key)
+        return _profile_memo[key]
+    regions = sketch_profiles(feature)
+    _profile_memo[key] = regions
+    while len(_profile_memo) > PROFILE_ENTRIES:
+        _profile_memo.popitem(last=False)
+    return regions
 
 
 def _drawable_plane(plane, ctx):

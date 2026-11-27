@@ -32,6 +32,7 @@ import socketserver
 import threading
 import traceback
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -81,6 +82,7 @@ class Session:
         self._failed_feature = None
         self._context = None
         self._built_revision = None
+        self._volumes: OrderedDict = OrderedDict()
         # Counts the documents this session has held. A revision number is
         # only unique within one document.
         self.generation = 0
@@ -100,6 +102,16 @@ class Session:
     def invalidate(self) -> None:
         self._built_revision = None
 
+    def keep_build(self, base_revision: int) -> None:
+        """The revision moved past `base_revision` by a view change only.
+
+        Visibility and ghosting are read at export time (`bodies()`), so the
+        shape built for `base_revision` is still the shape. Replaying even from
+        cache costs 0.25 s on a 931-feature document.
+        """
+        if self._built_revision == base_revision:
+            self._built_revision = self.document.revision
+
     def shape(self):
         """Returns (shape, failed_feature_id).
 
@@ -114,6 +126,35 @@ class Session:
             self._built_revision = self.document.revision
             self.document.sync_references(self._context.features)
         return self._shape, self._failed_feature
+
+    def volume(self) -> float | None:
+        """The part's volume: the sum of its bodies' volumes, each remembered.
+
+        The part is a compound of its bodies, and OCCT's volume of a compound is
+        that sum. Computing it whole took 0.5 s per change on a 55-body
+        document; a body that did not change keeps its geometry (see
+        cache.py), so its volume is looked up instead.
+        """
+        shape, _ = self.shape()
+        if shape is None:
+            return None
+        bodies = self._context.bodies if self._context is not None else []
+        parts = [body["shape"] for body in bodies if not body["reference"]] or [shape]
+        return sum(self._volume_of(part) for part in parts)
+
+    def _volume_of(self, shape) -> float:
+        wrapped = shape.wrapped
+        key = (hash(wrapped), wrapped.Orientation())
+        entry = self._volumes.get(key)
+        if entry is not None and entry[0].IsEqual(wrapped):
+            self._volumes.move_to_end(key)
+            return entry[1]
+        volume = shape.volume
+        # The entry keeps the geometry alive, so its address is not reused.
+        self._volumes[key] = (wrapped, volume)
+        while len(self._volumes) > 1024:
+            self._volumes.popitem(last=False)
+        return volume
 
     def context(self):
         """The replay context of the current build: every feature's result."""
@@ -248,6 +289,7 @@ class Daemon:
         opened: bool = False,
         author: str | None = None,
         changes: list | None = None,
+        view: dict | None = None,
     ) -> None:
         """`opened` says the document was replaced by another, not edited.
 
@@ -292,6 +334,8 @@ class Daemon:
                 # must reload instead of skipping a revision it already has.
                 "refresh": changes is not None,
                 "conflict": self.conflict,
+                # A visibility change: see _view_change.
+                **(view or {}),
             },
         )
 
@@ -638,7 +682,30 @@ def _document_state(daemon: Daemon) -> dict:
     }
 
 
-def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = False) -> dict:
+def _view_change(daemon: Daemon, base_revision: int) -> dict:
+    """What a viewer needs to apply a view-only change to the mesh it holds.
+
+    The mesh has every body in it, hidden ones included, so a viewer that has
+    `base_revision` on screen can redraw from it instead of fetching the
+    whole mesh again.
+    """
+    return {
+        "view_only": True,
+        "base_revision": base_revision,
+        "bodies": [
+            {"id": body["id"], "visible": body["visible"], "ghost": body["ghost"]}
+            for body in daemon.session.bodies()
+        ],
+    }
+
+
+def _commit(
+    daemon: Daemon,
+    revision: int,
+    save: bool = True,
+    opened: bool = False,
+    view_of: int | None = None,
+) -> dict:
     """What every mutating method returns, and the side effects that go with it.
 
     It rebuilds before replying, and says which feature failed if one did. An
@@ -652,7 +719,11 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
     agent did, and the file on disk is always the revision the reply names.
     """
     session = daemon.session
-    session.invalidate()
+    if view_of is None:
+        session.invalidate()
+    else:
+        # `view_of` is the revision before a view-only change.
+        session.keep_build(view_of)
     if save and session.document.path:
         if daemon.autosave and daemon.conflict is None:
             daemon.save_document()
@@ -661,7 +732,8 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
             # not an unsaved edit.
             daemon.unsaved = session.document.has_unsaved_changes()
     _carry_selection(daemon)
-    daemon.announce_change(opened=opened)
+    view = _view_change(daemon, view_of) if view_of is not None else {}
+    daemon.announce_change(opened=opened, view=view)
 
     try:
         shape, failed = session.shape()
@@ -673,11 +745,12 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
         }
     return {
         "revision": revision,
+        **view,
         "timeline": session.document.timeline(),
         "built": {
             "ok": failed is None,
             "failed_feature": failed,
-            "volume": round(shape.volume, 9) if shape is not None else None,
+            "volume": round(session.volume(), 9) if shape is not None else None,
         },
     }
 
@@ -884,11 +957,12 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
     before["view_only"] = True
     if params.get("base_revision") is not None and params["base_revision"] != document.revision:
         raise StaleRevision(params["base_revision"], document.revision)
+    base_revision = document.revision
     revision = document.set_visibility(params.get("id"), params.get("visible"), params.get("ghost"))
     daemon.undo_stack.append(before)
     del daemon.undo_stack[:-UNDO_LIMIT]
     daemon.redo_stack.clear()
-    return _commit(daemon, revision)
+    return _commit(daemon, revision, view_of=base_revision)
 
 
 def _set_body(daemon: Daemon, params: dict) -> dict:
