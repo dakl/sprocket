@@ -3117,8 +3117,17 @@
     // corner handles go with it, and pickSketchPart refuses to grab a hidden
     // outline, so the only thing left is Extrude.
     function setSketchHidden(id, hidden) {
-      if (hidden) hiddenSketchIDs.add(id);
-      else hiddenSketchIDs.delete(id);
+      setSketchesHidden([id], hidden);
+    }
+
+    /// One scene update and one browser redraw for any number of sketches.
+    /// The Sketches folder's eye used to call setSketchHidden per sketch, which
+    /// redrew the whole tree each time: 8.4 s for 689 sketches with the folder open.
+    function setSketchesHidden(ids, hidden) {
+      for (const id of ids) {
+        if (hidden) hiddenSketchIDs.add(id);
+        else hiddenSketchIDs.delete(id);
+      }
       applyVisibility();
       renderBrowser();
     }
@@ -3334,7 +3343,7 @@
         visible: visibleSketches().length > 0,
         onToggle: () => {
           const showing = visibleSketches().length > 0;
-          sketches.forEach((feature) => setSketchHidden(feature.id, showing));
+          setSketchesHidden(sketches.map((feature) => feature.id), showing);
         },
       });
       if (collapsedGroups.has("sketches")) return;

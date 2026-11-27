@@ -552,6 +552,33 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   await rpc(request, "set_body", { id: "f2", color: null });
 });
 
+test("the Sketches folder's eye hides every sketch, and a second click shows them", async ({
+  page,
+  request,
+}) => {
+  const plane = { origin: [0, 0, 20], normal: [0, 0, 1], x_dir: [1, 0, 0] };
+  await rpc(request, "apply_edit", {
+    edits: [
+      { op: "insert", feature: { id: "s2", type: "sketch", plane, rect: { width: 5, height: 5 } } },
+      { op: "insert", feature: { id: "s3", type: "sketch", plane, circle: { radius: 3 } } },
+    ],
+  });
+  const row = (/** @type {string} */ label) =>
+    page
+      .locator(".browser-row")
+      .filter({ has: page.locator(".browser-label", { hasText: new RegExp(`^${label}$`) }) });
+  await expect(row("s3")).toHaveCount(1);
+  const sketchEyes = () =>
+    Promise.all(["f1", "s2", "s3"].map((id) => row(id).locator(".browser-eye").getAttribute("data-display")));
+
+  await row("Sketches").locator(".browser-eye").click();
+  await expect.poll(sketchEyes).toEqual(["hidden", "hidden", "hidden"]);
+  await expect(row("Sketches").locator(".browser-eye")).toHaveAttribute("data-display", "hidden");
+
+  await row("Sketches").locator(".browser-eye").click();
+  await expect.poll(sketchEyes).toEqual(["shown", "shown", "shown"]);
+});
+
 test("a body's eye shows, ghosts and hides it, and a hidden ghost is not drawn", async ({
   page,
   request,
