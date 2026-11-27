@@ -102,6 +102,16 @@ class Session:
     def invalidate(self) -> None:
         self._built_revision = None
 
+    def keep_build(self, base_revision: int) -> None:
+        """The revision moved past `base_revision` by a view change only.
+
+        Visibility and ghosting are read at export time (`bodies()`), so the
+        shape built for `base_revision` is still the shape. Replaying even from
+        cache costs 0.25 s on a 931-feature document.
+        """
+        if self._built_revision == base_revision:
+            self._built_revision = self.document.revision
+
     def shape(self):
         """Returns (shape, failed_feature_id).
 
@@ -279,6 +289,7 @@ class Daemon:
         opened: bool = False,
         author: str | None = None,
         changes: list | None = None,
+        view: dict | None = None,
     ) -> None:
         """`opened` says the document was replaced by another, not edited.
 
@@ -323,6 +334,8 @@ class Daemon:
                 # must reload instead of skipping a revision it already has.
                 "refresh": changes is not None,
                 "conflict": self.conflict,
+                # A visibility change: see _view_change.
+                **(view or {}),
             },
         )
 
@@ -669,7 +682,30 @@ def _document_state(daemon: Daemon) -> dict:
     }
 
 
-def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = False) -> dict:
+def _view_change(daemon: Daemon, base_revision: int) -> dict:
+    """What a viewer needs to apply a view-only change to the mesh it holds.
+
+    The mesh has every body in it, hidden ones included, so a viewer that has
+    `base_revision` on screen can redraw from it instead of fetching the
+    whole mesh again.
+    """
+    return {
+        "view_only": True,
+        "base_revision": base_revision,
+        "bodies": [
+            {"id": body["id"], "visible": body["visible"], "ghost": body["ghost"]}
+            for body in daemon.session.bodies()
+        ],
+    }
+
+
+def _commit(
+    daemon: Daemon,
+    revision: int,
+    save: bool = True,
+    opened: bool = False,
+    view_of: int | None = None,
+) -> dict:
     """What every mutating method returns, and the side effects that go with it.
 
     It rebuilds before replying, and says which feature failed if one did. An
@@ -683,7 +719,11 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
     agent did, and the file on disk is always the revision the reply names.
     """
     session = daemon.session
-    session.invalidate()
+    if view_of is None:
+        session.invalidate()
+    else:
+        # `view_of` is the revision before a view-only change.
+        session.keep_build(view_of)
     if save and session.document.path:
         if daemon.autosave and daemon.conflict is None:
             daemon.save_document()
@@ -692,7 +732,8 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
             # not an unsaved edit.
             daemon.unsaved = session.document.has_unsaved_changes()
     _carry_selection(daemon)
-    daemon.announce_change(opened=opened)
+    view = _view_change(daemon, view_of) if view_of is not None else {}
+    daemon.announce_change(opened=opened, view=view)
 
     try:
         shape, failed = session.shape()
@@ -704,6 +745,7 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
         }
     return {
         "revision": revision,
+        **view,
         "timeline": session.document.timeline(),
         "built": {
             "ok": failed is None,
@@ -915,11 +957,12 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
     before["view_only"] = True
     if params.get("base_revision") is not None and params["base_revision"] != document.revision:
         raise StaleRevision(params["base_revision"], document.revision)
+    base_revision = document.revision
     revision = document.set_visibility(params.get("id"), params.get("visible"), params.get("ghost"))
     daemon.undo_stack.append(before)
     del daemon.undo_stack[:-UNDO_LIMIT]
     daemon.redo_stack.clear()
-    return _commit(daemon, revision)
+    return _commit(daemon, revision, view_of=base_revision)
 
 
 def _set_body(daemon: Daemon, params: dict) -> dict:

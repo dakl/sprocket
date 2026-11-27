@@ -201,6 +201,37 @@ def test_hiding_a_body_is_undoable_view_state_with_no_log_entry(tmp_path):
         assert client.call("get_timeline")["timeline"] == timeline["timeline"]
 
 
+def test_hiding_a_body_tells_the_viewer_without_a_rebuild(tmp_path, monkeypatch):
+    """The reply carries what a viewer needs to redraw the mesh it holds.
+
+    The mesh has every body in it, so the viewer redraws from the one on
+    screen instead of fetching it again, and the engine keeps its build.
+    """
+    import sprocket_engine.rpc as rpc
+
+    with (
+        running({"features": CASE}, tmp_path) as daemon,
+        Client(daemon.socket_path) as client,
+    ):
+        before = client.call("get_timeline")["revision"]
+        client.call("get_bodies")  # builds the revision on screen
+        builds = []
+        real = rpc.build_shape
+        monkeypatch.setattr(rpc, "build_shape", lambda *a, **k: builds.append(1) or real(*a, **k))
+
+        reply = client.call("set_visibility", id="lid", visible=False)
+
+        assert reply["view_only"] is True
+        assert reply["base_revision"] == before
+        assert reply["revision"] == before + 1
+        assert {body["id"]: body["visible"] for body in reply["bodies"]} == {"case": True, "lid": False}
+        assert builds == []
+        assert client.call("get_bodies")["bodies"][1]["visible"] is False
+        # An edit still rebuilds and says nothing of a view change.
+        edit = client.call("set_body", id="lid", name="Lid")
+        assert "view_only" not in edit
+
+
 def test_cli_build_reports_bodies_and_writes_3mf(tmp_path):
     path = tmp_path / "two.sprocket"
     path.write_text(json.dumps({"features": CASE, "bodies": SETTINGS}))
