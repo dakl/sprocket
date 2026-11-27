@@ -119,7 +119,7 @@ jobs:
     needs: release
     # Also runs when the release job was skipped (a DMG rebuild).
     if: ${{ !cancelled() && needs.release.result != 'failure' }}
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       RELEASE: ${{ inputs.release || needs.release.outputs.tag }}
     steps:
