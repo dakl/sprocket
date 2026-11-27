@@ -270,3 +270,24 @@ def test_a_pole_or_apex_does_not_shift_the_edge_runs(tmp_path, name):
         backward = np.allclose([last, first], ends, atol=1e-3)
         assert forward or backward, "this run drew a different edge"
         start += run
+
+
+def test_a_tessellation_hit_writes_the_same_bytes(tmp_path):
+    """The second export of an unchanged shape comes from memory and must match."""
+    from sprocket_engine.mesh import _tessellated
+
+    document = json.loads(
+        (Path(__file__).parent / "golden" / "fillet_box" / "document.json").read_text()
+    )
+    shape = replay(document)
+    _tessellated.clear()
+    export_mesh(
+        shape, tmp_path / "a.mesh", [{"color": "#ff0000", "select": {"select": [{"op": "faces"}]}}]
+    )
+    assert _tessellated, "nothing was remembered, so the second export proves nothing"
+    export_mesh(shape, tmp_path / "b.mesh")
+    export_mesh(shape, tmp_path / "c.mesh")
+    _tessellated.clear()
+    export_mesh(shape, tmp_path / "d.mesh")
+    assert (tmp_path / "b.mesh").read_bytes() == (tmp_path / "c.mesh").read_bytes()
+    assert (tmp_path / "c.mesh").read_bytes() == (tmp_path / "d.mesh").read_bytes()

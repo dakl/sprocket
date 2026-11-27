@@ -30,6 +30,7 @@ in a typed array over the same ArrayBuffer with no copying.
 
 import json
 import struct
+from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
@@ -71,7 +72,35 @@ def _pad_to_4(length: int) -> int:
     return -length % 4
 
 
+# Tessellated bodies, newest last, keyed by the B-rep they came from. The BREP
+# cache hands an unchanged feature back with the same geometry, so a rebuild
+# meshes again only the bodies an edit changed. Each entry keeps its shape, so
+# the geometry cannot be freed and its address handed to another shape.
+TESSELLATED_ENTRIES = 512
+_tessellated: OrderedDict[tuple, tuple] = OrderedDict()
+
+
 def tessellate(shape) -> dict:
+    """`_tessellate(shape)`, from memory when this geometry was meshed before.
+
+    A hit needs the same TShape at the same location and orientation
+    (`IsEqual`). The caller gets its own dict, as `_tessellate` gives, because
+    export_mesh writes colours into the dict it gets.
+    """
+    wrapped = shape.wrapped
+    key = (hash(wrapped), wrapped.Orientation())
+    entry = _tessellated.get(key)
+    if entry is not None and entry[0].IsEqual(wrapped):
+        _tessellated.move_to_end(key)
+        return dict(entry[1])
+    instance = _tessellate(shape)
+    _tessellated[key] = (wrapped, instance)
+    while len(_tessellated) > TESSELLATED_ENTRIES:
+        _tessellated.popitem(last=False)
+    return dict(instance)
+
+
+def _tessellate(shape) -> dict:
     """Returns ocp-tessellate's buffer set for one body, as flat numpy arrays.
 
     ocp-tessellate nests the mesh behind a scene graph: tessellate_group

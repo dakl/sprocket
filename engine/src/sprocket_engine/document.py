@@ -262,7 +262,7 @@ def validate_feature(feature, parameters: dict[str, float]) -> dict:
 
     resolved = resolve_value(feature, parameters)
     try:
-        jsonschema.validate(resolved, op.schema)
+        op.validate(resolved)
     except jsonschema.ValidationError as exc:
         raise DocumentError(f"feature {feature_id!r} failed validation: {exc.message}") from None
     return resolved

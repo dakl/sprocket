@@ -1,7 +1,8 @@
 """Per-feature BREP (OCCT's native boundary-representation format) cache.
 
-Cache key = hash(feature JSON + upstream key + pinned engine versions).
-A cache hit skips re-running the op and restores the shape from disk.
+Cache key = hash(feature JSON + the keys of the features it names + pinned
+engine versions). A cache hit skips re-running the op and restores the shape,
+from memory when this process has seen it, else from disk.
 
 The key is a content hash, so one directory serves every document. It lives in
 the user's cache folder, not beside the document, and prunes itself.
@@ -12,6 +13,7 @@ import json
 import os
 import sys
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 from build123d import Part, Shape, Sketch, export_brep, import_brep
@@ -19,9 +21,16 @@ from build123d import Part, Shape, Sketch, export_brep, import_brep
 from . import ENGINE_VERSIONS
 
 
-def feature_cache_key(feature: dict, upstream_key: str) -> str:
+def feature_cache_key(feature: dict, dependency_keys: list[str]) -> str:
+    """The key of one feature's result.
+
+    `dependency_keys` are the keys of the earlier features this one names (see
+    replay.dependencies). Each of those covers what it names in turn, so the key
+    covers everything the result can read. It does not cover the features in
+    between: an edit to one body leaves the keys of every other body as they were.
+    """
     payload = json.dumps(
-        {"feature": feature, "upstream": upstream_key, "engine": ENGINE_VERSIONS},
+        {"feature": feature, "depends_on": dependency_keys, "engine": ENGINE_VERSIONS},
         sort_keys=True,
     )
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -34,6 +43,31 @@ MAX_BYTES = 1 << 30
 
 # Pruning stats every file, so each process does it once per directory.
 _pruned: set[Path] = set()
+
+# Shapes this process has read or written, newest last, by (directory, key).
+# Reading a BREP back costs about 1 ms a feature, which a 900-feature document
+# pays on every rebuild. The directory is in the key so that a hit always means
+# the file is on disk too: a new directory starts empty, as it does on disk.
+MEMORY_ENTRIES = 4096
+_memory: OrderedDict[tuple[Path, str], Shape] = OrderedDict()
+
+
+def _remember(key: tuple[Path, str], shape: Shape) -> None:
+    _memory[key] = shape
+    _memory.move_to_end(key)
+    while len(_memory) > MEMORY_ENTRIES:
+        _memory.popitem(last=False)
+
+
+def _fresh(shape: Shape) -> Shape:
+    """A new wrapper on the same geometry, cast as `get` documents.
+
+    The geometry (the TShape) is shared. The location handle and the Python
+    object are new, so a caller that moves or labels what it got in place does
+    not change what the next hit returns.
+    """
+    wrapped = shape.wrapped.Located(shape.wrapped.Location())
+    return (Part if shape.solids() else Sketch)(wrapped)
 
 
 def default_cache_dir() -> Path:
@@ -86,6 +120,7 @@ class BrepCache:
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         resolved = cache_dir.resolve()
+        self._resolved = resolved
         if resolved not in _pruned:
             _pruned.add(resolved)
             prune(cache_dir)
@@ -108,13 +143,19 @@ class BrepCache:
         an op that produced a solid has solids, a sketch does not.
         """
         path = self._path(key)
+        remembered = _memory.get((self._resolved, key))
+        if remembered is not None and path.exists():
+            _memory.move_to_end((self._resolved, key))
+            os.utime(path)  # marks the hit for prune()
+            return _fresh(remembered)
         try:
             os.utime(path)  # marks the hit for prune()
             shape = import_brep(path)
         except (FileNotFoundError, ValueError):
             # Missing, or pruned by another process between the two calls.
             return None
-        return (Part if shape.solids() else Sketch)(shape.wrapped)
+        _remember((self._resolved, key), shape)
+        return _fresh(shape)
 
     def put(self, key: str, shape: Shape) -> None:
         """Writes to a temporary name and renames it into place.
@@ -126,3 +167,4 @@ class BrepCache:
         partial = path.with_suffix(f".{os.getpid()}.partial")
         export_brep(shape, partial)
         partial.replace(path)
+        _remember((self._resolved, key), _fresh(shape))

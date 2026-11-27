@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from build123d import Location
 from golden_support import CASES
 from golden_support import document as golden_document
 
@@ -97,3 +98,67 @@ def test_every_op_type_survives_its_own_cache(case, tmp_path: Path):
     assert list(cache_dir.iterdir()), "nothing was cached, so the second replay proves nothing"
     assert type(warm) is type(cold)
     assert warm.volume == pytest.approx(cold.volume, rel=1e-9)
+
+
+def _two_bodies(width_a: float) -> dict:
+    """Two independent boxes, the first one's sketch first in the timeline."""
+    plane = {"origin": [0, 0, 0], "normal": [0, 0, 1], "x_dir": [1, 0, 0]}
+    far = {**plane, "origin": [100, 0, 0]}
+    return {
+        "features": [
+            {
+                "id": "a_s",
+                "type": "sketch",
+                "plane": plane,
+                "rect": {"width": width_a, "height": 10},
+            },
+            {"id": "a", "type": "extrude", "profile": "a_s", "distance": 5},
+            {"id": "b_s", "type": "sketch", "plane": far, "rect": {"width": 20, "height": 10}},
+            {"id": "b", "type": "extrude", "profile": "b_s", "distance": 5},
+        ]
+    }
+
+
+def test_an_edit_leaves_an_unrelated_later_body_cached(tmp_path: Path, monkeypatch):
+    """A feature's cache key covers the features it names, not every one before it.
+
+    Before, each key chained the previous one, so editing the first body of a
+    55-body document rebuilt the 900 features after it.
+    """
+    calls = []
+    real_apply = ops.REGISTRY["extrude"].apply
+
+    def counting_apply(feature, ctx):
+        calls.append(feature["id"])
+        return real_apply(feature, ctx)
+
+    monkeypatch.setattr(ops.REGISTRY["extrude"], "apply", counting_apply)
+    cache_dir = tmp_path / "cache"
+    replay(_two_bodies(10), cache_dir=cache_dir)
+    calls.clear()
+
+    _, ctx = replay(_two_bodies(30), cache_dir=cache_dir, return_context=True)
+
+    assert calls == ["a"]
+    assert ctx.results["a"].volume == pytest.approx(30 * 10 * 5)
+    assert ctx.results["b"].volume == pytest.approx(20 * 10 * 5)
+
+
+def test_an_edit_rebuilds_what_names_the_edited_feature(tmp_path: Path):
+    cache_dir = tmp_path / "cache"
+    replay(_two_bodies(10), cache_dir=cache_dir)
+    document = _two_bodies(10)
+    document["features"][0]["rect"]["width"] = 40
+    _, ctx = replay(document, cache_dir=cache_dir, return_context=True)
+    assert ctx.results["a"].volume == pytest.approx(40 * 10 * 5)
+
+
+def test_a_memory_hit_does_not_share_the_location_handle(tmp_path: Path):
+    """Moving what a hit returns in place must not move the next hit."""
+    cache_dir = tmp_path / "cache"
+    replay(RECT_EXTRUDE, cache_dir=cache_dir)
+    first = replay(RECT_EXTRUDE, cache_dir=cache_dir)
+    before = first.center()
+    first.move(Location((50, 0, 0)))
+    second = replay(RECT_EXTRUDE, cache_dir=cache_dir)
+    assert second.center().X == pytest.approx(before.X)

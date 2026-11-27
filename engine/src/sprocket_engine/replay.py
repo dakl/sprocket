@@ -126,6 +126,29 @@ def combine(bodies: list[dict]):
     return Compound(children=shapes)
 
 
+def dependencies(value, known: dict) -> set[str]:
+    """The ids in `known` that `value` names, anywhere in it.
+
+    Every op reads an earlier result by an id written in its feature: a base,
+    a tool, a profile, a sketch, a source of a projected edge. So any string
+    that equals an earlier feature's id is taken as a dependency. A string
+    that only happens to match costs a cache miss, never a wrong hit.
+    """
+    found = set()
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            if item in known:
+                found.add(item)
+        elif isinstance(item, dict):
+            stack.extend(item.keys())
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    return found
+
+
 def replay(document: dict, cache_dir: Path | None = None, return_context: bool = False):
     """The shape after replaying features[:rollback_index], or None when that is empty.
 
@@ -141,7 +164,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
     cache = BrepCache(cache_dir) if cache_dir else None
 
     ctx = Context()
-    upstream_key = "root"
+    keys: dict[str, str] = {}
     last_result = None
 
     for index, feature in enumerate(features[:rollback_index]):
@@ -155,15 +178,16 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
             )
 
         try:
-            jsonschema.validate(feature, op.schema)
+            op.validate(feature)
         except jsonschema.ValidationError as exc:
             error = ReplayError(f"feature {feature.get('id')!r} failed validation: {exc.message}")
             raise _tagged(error, feature, index) from exc
 
-        key = feature_cache_key(feature, upstream_key)
+        named = dependencies(feature, keys) - {feature.get("id")}
+        key = feature_cache_key(feature, sorted(keys[name] for name in named))
         # A sketch with projected references is read as its sources leave it
-        # now. The key above is of what is stored: with the sources' own
-        # features in `upstream_key` it fixes what this refresh gives.
+        # now. The key above is of what is stored: the sources are named in it,
+        # so their keys fix what this refresh gives.
         if op_type == "sketch" and has_references(feature):
             try:
                 feature = refresh_references(feature, ctx)  # noqa: PLW2901
@@ -184,7 +208,7 @@ def replay(document: dict, cache_dir: Path | None = None, return_context: bool =
 
         ctx.results[feature["id"]] = result
         ctx.features[feature["id"]] = feature
-        upstream_key = key
+        keys[feature["id"]] = key
         last_result = result
 
     ctx.bodies = find_bodies(features[:rollback_index], ctx)
