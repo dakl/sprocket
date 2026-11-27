@@ -33,6 +33,35 @@ uv pip install --quiet --python "$RESOURCES/python/bin/python3" --no-deps -r "$R
 uv pip install --quiet --python "$RESOURCES/python/bin/python3" --no-deps "$ROOT/engine"
 rm -f "$REQUIREMENTS"
 
+# uv writes this build machine's path into each script it installs, so
+# bin/sprocket failed with "bad interpreter" in an installed app. Start each one
+# through sh instead, which runs the python3 next to the script. Python reads the
+# two lines after the shebang as a string, so the script itself runs unchanged.
+# uv writes a plain shebang for a short path (CI) and this same sh form, with the
+# absolute path, for one too long for a shebang.
+PY="$RESOURCES/python/bin/python3"
+for script in "$RESOURCES"/python/bin/*; do
+    [ -f "$script" ] && [ ! -L "$script" ] || continue
+    if [ "$(head -n 1 "$script")" = "#!$PY" ]; then
+        header=1
+    elif [ "$(head -n 1 "$script")" = "#!/bin/sh" ] && head -n 2 "$script" | tail -n 1 | grep -qF "'$PY'"; then
+        header=3
+    else
+        continue
+    fi
+    {
+        echo '#!/bin/sh'
+        echo "'''exec' \"\$(cd \"\$(dirname \"\$0\")\" && pwd -P)/python3\" \"\$0\" \"\$@\""
+        echo "' '''"
+        tail -n +$((header + 1)) "$script"
+    } > "$script.tmp"
+    chmod 755 "$script.tmp"
+    mv "$script.tmp" "$script"
+done
+if grep -lF "$PY" "$RESOURCES"/python/bin/* 2>/dev/null; then
+    echo "scripts above still name the build path"; exit 1
+fi
+
 # Nothing the engine imports lives in these.
 cd "$RESOURCES/python"
 rm -rf include share lib/python3.12/test lib/python3.12/idlelib lib/python3.12/tkinter \
