@@ -32,6 +32,7 @@ import socketserver
 import threading
 import traceback
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -81,6 +82,7 @@ class Session:
         self._failed_feature = None
         self._context = None
         self._built_revision = None
+        self._volumes: OrderedDict = OrderedDict()
         # Counts the documents this session has held. A revision number is
         # only unique within one document.
         self.generation = 0
@@ -114,6 +116,35 @@ class Session:
             self._built_revision = self.document.revision
             self.document.sync_references(self._context.features)
         return self._shape, self._failed_feature
+
+    def volume(self) -> float | None:
+        """The part's volume: the sum of its bodies' volumes, each remembered.
+
+        The part is a compound of its bodies, and OCCT's volume of a compound is
+        that sum. Computing it whole took 0.5 s per change on a 55-body
+        document; a body that did not change keeps its geometry (see
+        cache.py), so its volume is looked up instead.
+        """
+        shape, _ = self.shape()
+        if shape is None:
+            return None
+        bodies = self._context.bodies if self._context is not None else []
+        parts = [body["shape"] for body in bodies if not body["reference"]] or [shape]
+        return sum(self._volume_of(part) for part in parts)
+
+    def _volume_of(self, shape) -> float:
+        wrapped = shape.wrapped
+        key = (hash(wrapped), wrapped.Orientation())
+        entry = self._volumes.get(key)
+        if entry is not None and entry[0].IsEqual(wrapped):
+            self._volumes.move_to_end(key)
+            return entry[1]
+        volume = shape.volume
+        # The entry keeps the geometry alive, so its address is not reused.
+        self._volumes[key] = (wrapped, volume)
+        while len(self._volumes) > 1024:
+            self._volumes.popitem(last=False)
+        return volume
 
     def context(self):
         """The replay context of the current build: every feature's result."""
@@ -677,7 +708,7 @@ def _commit(daemon: Daemon, revision: int, save: bool = True, opened: bool = Fal
         "built": {
             "ok": failed is None,
             "failed_feature": failed,
-            "volume": round(shape.volume, 9) if shape is not None else None,
+            "volume": round(session.volume(), 9) if shape is not None else None,
         },
     }
 
