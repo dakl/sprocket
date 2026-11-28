@@ -109,6 +109,48 @@ def write_stl_dir(bodies, directory) -> list[Path]:
     return written
 
 
+def select_bodies(bodies, wanted):
+    """The bodies whose id, name or group is in `wanted`, or all when it is empty.
+
+    An unknown one is an error, not a silently smaller export.
+    """
+    if not wanted:
+        return bodies
+
+    def keys(body):
+        return {body["id"], body.get("name"), body.get("group")} - {None}
+
+    wanted = set(wanted)
+    known = set().union(*(keys(body) for body in bodies or []))
+    missing = sorted(wanted - known)
+    if missing:
+        raise ExportError(f"no body with id, name or group {', '.join(map(repr, missing))}")
+    return [body for body in bodies if keys(body) & wanted]
+
+
+def write_3mf_dir(bodies, directory, split: str = "body") -> list[Path]:
+    """One 3MF per body, or per group, in an existing directory.
+
+    With `split="group"` the bodies of one group share a file named after the
+    group, one object per body, and a body in no group gets a file of its own.
+    """
+    if split not in ("body", "group"):
+        raise ExportError(f"3MF split must be 'body' or 'group', not {split!r}")
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise ExportError(f"cannot write 3MF files to {directory}: the directory does not exist")
+    files: dict[str, list[dict]] = {}
+    for body in _made(bodies):
+        group = body.get("group") if split == "group" else None
+        files.setdefault(group or body.get("name") or body["id"], []).append(body)
+    written = []
+    for name, members in files.items():
+        target = directory / f"{_file_name(name)}.3mf"
+        write_3mf(members, target)
+        written.append(target)
+    return written
+
+
 def write_3mf(bodies, path) -> None:
     """One 3MF with an object per body, carrying names and colours."""
     path = Path(path)

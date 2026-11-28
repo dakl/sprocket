@@ -11,7 +11,14 @@ from conftest import running
 
 from sprocket_engine.cli import _build_document
 from sprocket_engine.document import Document, DocumentError
-from sprocket_engine.export import write_3mf, write_step, write_stl_dir
+from sprocket_engine.export import (
+    ExportError,
+    select_bodies,
+    write_3mf,
+    write_3mf_dir,
+    write_step,
+    write_stl_dir,
+)
 from sprocket_engine.mesh import NO_COLOUR, export_mesh
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
@@ -154,6 +161,51 @@ def test_stl_per_body_and_3mf(tmp_path):
     mesher = Mesher()
     mesher.read(str(tmp_path / "part.3mf"))
     assert mesher.mesh_count == 2
+
+
+def test_3mf_per_body_and_a_chosen_body(tmp_path):
+    _, bodies = bodies_of(CASE, SETTINGS)
+    written = write_3mf_dir(bodies, tmp_path)
+    assert sorted(path.name for path in written) == ["Case.3mf", "Lid.3mf"]
+    for path in written:
+        mesher = Mesher()
+        mesher.read(str(path))
+        assert mesher.mesh_count == 1
+    assert [body["name"] for body in select_bodies(bodies, ["Lid"])] == ["Lid"]
+    assert [body["id"] for body in select_bodies(bodies, ["lid"])] == ["lid"]
+    with pytest.raises(ExportError, match="'nope'"):
+        select_bodies(bodies, ["nope"])
+
+
+def test_3mf_per_group(tmp_path):
+    third = [
+        {"id": "ts", "type": "sketch", "plane": "XY", "circle": {"radius": 2, "center": [-30, 0]}},
+        {"id": "knob", "type": "extrude", "profile": "ts", "distance": 4},
+    ]
+    settings = {**SETTINGS, "case": {**SETTINGS["case"], "group": "Shell"}}
+    settings["lid"] = {**SETTINGS["lid"], "group": "Shell"}
+    _, bodies = bodies_of(CASE + third, settings)
+    written = write_3mf_dir(bodies, tmp_path, "group")
+    assert sorted(path.name for path in written) == ["Shell.3mf", "knob.3mf"]
+    counts = {}
+    for path in written:
+        mesher = Mesher()
+        mesher.read(str(path))
+        counts[path.name] = mesher.mesh_count
+    assert counts == {"Shell.3mf": 2, "knob.3mf": 1}
+    assert [body["id"] for body in select_bodies(bodies, ["Shell"])] == ["case", "lid"]
+    with pytest.raises(ExportError, match="split"):
+        write_3mf_dir(bodies, tmp_path, "colour")
+
+
+def test_set_body_sets_and_clears_a_group():
+    document = Document(CASE)
+    document.apply_edits([{"op": "set_body", "id": "lid", "group": "Shell"}], None, "test")
+    assert document.bodies == {"lid": {"group": "Shell"}}
+    with pytest.raises(DocumentError, match="group must be a non-empty string"):
+        document.apply_edits([{"op": "set_body", "id": "lid", "group": ""}], None, "test")
+    document.apply_edits([{"op": "set_body", "id": "lid", "group": None}], None, "test")
+    assert document.bodies == {}
 
 
 def test_set_body_validates_and_undo_restores(tmp_path):

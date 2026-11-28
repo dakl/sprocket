@@ -8,17 +8,17 @@ import WebKit
 /// The viewer talks to the engine through one WKScriptMessageHandler named
 /// "sprocket". Its messages are `{type: "rpc", id, method, params}`, which
 /// this forwards to the daemon, with the reply going back through the page's own
-/// window.__rpcReply, and `{type: "export", format}`, which asks the document
+/// window.__rpcReply, and `{type: "export", format, split?}`, which asks the document
 /// for its export panel. The viewer decides what a click means (viewer/edits.js).
 /// Nothing here does.
 final class ViewerWebView: NSObject, WKScriptMessageHandler {
     let webView: WKWebView
     private let engine: EngineDaemon
-    private let onExport: (String) -> Void
+    private let onExport: (String, String?) -> Void
     private var settingsObserver: NSObjectProtocol?
     private let debugScript: WKUserScript
 
-    init(engine: EngineDaemon, dataDir: URL, onExport: @escaping (String) -> Void) {
+    init(engine: EngineDaemon, dataDir: URL, onExport: @escaping (String, String?) -> Void) {
         self.engine = engine
         self.onExport = onExport
         let configuration = WKWebViewConfiguration()
@@ -181,7 +181,7 @@ final class ViewerWebView: NSObject, WKScriptMessageHandler {
 
         // The Export button asks for a save panel, which only Swift can open.
         if type == "export", let format = body["format"] as? String {
-            onExport(format)
+            onExport(format, body["split"] as? String)
             return
         }
 

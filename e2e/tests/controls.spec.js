@@ -34,11 +34,19 @@ test("Export saves the part as STL, 3MF or STEP, and the file is the part", asyn
   ]) {
     await page.locator("#tool-export").click();
     const downloading = page.waitForEvent("download");
-    await page.locator("#context-menu button", { hasText: label }).click();
+    await page.locator("#context-menu button", { hasText: new RegExp(`^${label}$`) }).click();
     const download = await downloading;
     expect(download.suggestedFilename()).toMatch(new RegExp(`\\.${label.toLowerCase()}$`));
     check(fs.readFileSync(await download.path()));
   }
+
+  // A 3MF per body comes as one zip in a browser.
+  await page.locator("#tool-export").click();
+  const zipping = page.waitForEvent("download");
+  await page.locator("#context-menu button", { hasText: "3MF, a file per body" }).click();
+  const zip = await zipping;
+  expect(zip.suggestedFilename()).toMatch(/-3mf-per-body\.zip$/);
+  expect(fs.readFileSync(await zip.path()).subarray(0, 2).toString()).toBe("PK");
 });
 
 test("Export of an empty document says there is nothing to export", async ({ page, request }) => {

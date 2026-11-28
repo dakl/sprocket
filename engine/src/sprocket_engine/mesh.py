@@ -352,6 +352,7 @@ def export_mesh(shape, path: Path, appearances=None, bodies=None) -> dict:
                     # Only when set, so a document with no
                     # finishes writes the same bytes as before.
                     **({"material": body["material"]} if body.get("material") else {}),
+                    **({"group": body["group"]} if body.get("group") else {}),
                     # Only when it differs from the default, a
                     # ghost for a reference body
                     # and solid for a part, so older documents write the same bytes.

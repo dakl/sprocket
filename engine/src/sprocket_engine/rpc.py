@@ -38,6 +38,7 @@ from pathlib import Path
 
 from .cache import default_cache_dir
 from .document import (
+    BODY_EDIT_FIELDS,
     Document,
     DocumentError,
     StaleRevision,
@@ -966,7 +967,7 @@ def _set_visibility(daemon: Daemon, params: dict) -> dict:
 
 
 def _set_body(daemon: Daemon, params: dict) -> dict:
-    """Name, colour and material are a logged edit.
+    """Name, colour, material and group are a logged edit.
 
     `visible` and `ghost`, when given, go through `set_visibility` first, so
     they stay view state.
@@ -976,7 +977,7 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
         names = ("id", "visible", "ghost", "base_revision")
         view: dict[str, object] = {name: params.get(name) for name in names}
         result = _set_visibility(daemon, view)
-    changes = {name: params[name] for name in ("name", "color", "material") if name in params}
+    changes = {name: params[name] for name in BODY_EDIT_FIELDS if name in params}
     if changes:
         based = {} if result is None else {"base_revision": None}
         result = _edit(
@@ -985,7 +986,7 @@ def _set_body(daemon: Daemon, params: dict) -> dict:
             {**params, **based},
         )
     if result is None:
-        message = "set_body needs name, color, material, visible or ghost"
+        message = "set_body needs name, color, material, group, visible or ghost"
         raise DocumentError(message)
     return result
 
@@ -1063,6 +1064,7 @@ def _get_bodies(daemon: Daemon, _params: dict) -> dict:
                 "name": body["name"],
                 "color": body["color"],
                 "material": body["material"],
+                "group": body["group"],
                 "visible": body["visible"],
                 "ghost": body["ghost"],
                 "reference": body["reference"],
@@ -1884,13 +1886,23 @@ def _render_view(daemon: Daemon, params: dict) -> dict:
 
 def _export(daemon: Daemon, params: dict) -> dict:
     """STEP, STL and the viewer's mesh, whichever paths are given."""
-    from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
+    from .export import (
+        ExportError,
+        select_bodies,
+        write_3mf,
+        write_3mf_dir,
+        write_step,
+        write_stl,
+        write_stl_dir,
+    )
     from .mesh import export_mesh
 
     shape = daemon.session.require_shape()
-    bodies = daemon.session.bodies()
     written = {}
     try:
+        # `bodies` narrows the per-body exports (STEP, stl_dir, 3MF, 3mf_dir).
+        # The merged STL and the viewer mesh always carry the whole part.
+        bodies = select_bodies(daemon.session.bodies(), params.get("bodies"))
         if params.get("step"):
             write_step(shape, params["step"], bodies)
             written["step"] = params["step"]
@@ -1902,6 +1914,11 @@ def _export(daemon: Daemon, params: dict) -> dict:
         if params.get("3mf"):
             write_3mf(bodies, params["3mf"])
             written["3mf"] = params["3mf"]
+        if params.get("3mf_dir"):
+            written["3mf_dir"] = [
+                str(path)
+                for path in write_3mf_dir(bodies, params["3mf_dir"], params.get("3mf_split", "body"))
+            ]
         if params.get("mesh"):
             written["mesh"] = params["mesh"]
             written["mesh_counts"] = export_mesh(
@@ -1916,7 +1933,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"cannot write {exc.filename}: {exc.strerror}") from None
     if not written:
         raise DocumentError(
-            "export needs at least one of 'step', 'stl', 'stl_dir', '3mf' or 'mesh'"
+            "export needs at least one of 'step', 'stl', 'stl_dir', '3mf', '3mf_dir' or 'mesh'"
         )
     return written
 

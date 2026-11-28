@@ -22,6 +22,7 @@ Routes:
     GET  /features.json   the timeline, each entry carrying its full feature
     GET  /schemas.json    every op's JSON Schema, which the parameter form is built from
     GET  /export?format=stl|3mf|step   the built part as a download; 409 with the reason
+         &split=body|group (3mf only)  a .zip of one 3MF per body, or per body group
                                        if there is none
     GET  /events          server-sent events: document_changed, selection_changed, highlight
     POST /rpc             one JSON-RPC request, the same methods the socket takes
@@ -32,6 +33,7 @@ import json
 import tempfile
 import threading
 import time
+import zipfile
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -80,6 +82,20 @@ class WebApp:
                     mesh_bytes(shape, self.document.appearances, self.daemon.session.bodies()),
                 )
             return self._mesh[1]
+
+    def export_zip(self, split: str) -> tuple[bytes, str]:
+        """A zip of one 3MF per body, or per body group, and its file name."""
+        stem = self.document.path.stem if self.document.path else "part"
+        with self.daemon.lock:
+            with tempfile.TemporaryDirectory() as directory:
+                written = METHODS["export"](
+                    self.daemon, {"3mf_dir": directory, "3mf_split": split}
+                )["3mf_dir"]
+                archive = Path(directory) / "export.zip"
+                with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+                    for path in written:
+                        bundle.write(path, Path(path).name)
+                return archive.read_bytes(), f"{stem}-3mf-per-{split}.zip"
 
     def export_bytes(self, kind: str) -> tuple[bytes, str]:
         """The part as `kind` ("stl", "3mf" or "step"), and the file name to offer it under.
@@ -175,7 +191,9 @@ def make_handler(app: WebApp):
                 )
 
         def _send_export(self):
-            kind = parse_qs(urlsplit(self.path).query).get("format", [""])[0]
+            query = parse_qs(urlsplit(self.path).query)
+            kind = query.get("format", [""])[0]
+            split = query.get("split", [None])[0]
             if not self._is_local_request():
                 self._send_json(
                     {"error": "requests from other origins are refused"},
@@ -186,14 +204,19 @@ def make_handler(app: WebApp):
                     {"error": f"format must be one of {', '.join(EXPORT_TYPES)}"},
                     HTTPStatus.BAD_REQUEST,
                 )
+            elif split is not None and (kind != "3mf" or split not in ("body", "group")):
+                self._send_json(
+                    {"error": "split must be body or group, and only with format=3mf"},
+                    HTTPStatus.BAD_REQUEST,
+                )
             else:
                 try:
-                    data, name = app.export_bytes(kind)
+                    data, name = app.export_zip(split) if split else app.export_bytes(kind)
                 except DocumentError as exc:
                     self._send_json({"error": str(exc)}, HTTPStatus.CONFLICT)
                     return
                 self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", EXPORT_TYPES[kind])
+                self.send_header("Content-Type", "application/zip" if split else EXPORT_TYPES[kind])
                 self.send_header("Content-Disposition", f'attachment; filename="{name}"')
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()

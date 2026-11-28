@@ -358,14 +358,18 @@ def document_tools() -> list[types.Tool]:
         ),
         _tool(
             "set_body",
-            "Names, colours, finishes (material preset), hides, shows or ghosts "
-            "one body. A hidden or ghosted body still exports. Hiding and "
+            "Names, colours, finishes (material preset), groups, hides, shows or ghosts "
+            "one body. Bodies in one group export together with 3mf_split 'group'. A hidden or ghosted body still exports. Hiding and "
             "ghosting are view state: they can be undone, but add no log entry "
             "and no timeline row. A null name or colour goes back to its default.",
             {
                 "id": {"type": "string", "description": "the body id from get_bodies"},
                 "name": {"type": ["string", "null"]},
                 "color": {"type": ["string", "null"], "description": "#rrggbb"},
+                "group": {
+                    "type": ["string", "null"],
+                    "description": "export group name; null removes the body from its group",
+                },
                 "material": {
                     "enum": [*PRESETS, None],
                     "description": ("surface finish preset; null goes back to the default"),
@@ -430,6 +434,21 @@ def document_tools() -> list[types.Tool]:
                 "3mf": {
                     "type": "string",
                     "description": "path to write a 3MF with one object per body",
+                },
+                "3mf_dir": {
+                    "type": "string",
+                    "description": "existing directory to write one 3MF per body (or group) into",
+                },
+                "3mf_split": {
+                    "enum": ["body", "group"],
+                    "description": "with 3mf_dir: one file per body (default), or one per "
+                    "group with a body outside any group in a file of its own",
+                },
+                "bodies": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "body ids, names or groups to limit step, stl_dir, 3mf "
+                    "and 3mf_dir to; default every body",
                 },
                 "mesh": {
                     "type": "string",
