@@ -11,14 +11,19 @@ import json
 import tempfile
 from collections import OrderedDict
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .document import resolve_value
 from .mesh import export_mesh
 from .ops import REGISTRY
 from .ops.construct import CONSTRUCT_TYPES, construct_geometry
+from .ops.hole import hole_threads
 from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
 from .ops.thread import thread_geometry
 from .sketch_reference import has_references
+
+if TYPE_CHECKING:
+    from .replay import Context
 
 
 def features_summary(document, failed_feature: str | None, ctx=None) -> list[dict]:
@@ -66,11 +71,8 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
                 # A sketch the engine cannot read has no regions to show. The
                 # timeline still has to list it so it can be fixed.
                 entry["regions"] = []
-        if feature.get("type") == "thread" and entry["active"] and ctx is not None:
-            # Where to draw a cosmetic thread. Nothing when it does not resolve:
-            # the feature's own failure says why.
-            with contextlib.suppress(Exception):
-                entry["thread"] = thread_geometry(feature, ctx)
+        if entry["active"] and ctx is not None:
+            _add_threads(entry, feature, ctx)
         if feature.get("type") in CONSTRUCT_TYPES and entry["active"] and ctx is not None:
             # Where to draw a plane, an axis or a point.
             with contextlib.suppress(Exception):
@@ -79,6 +81,18 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
             entry["failed"] = True
         entries.append(entry)
     return entries
+
+
+def _add_threads(entry: dict, feature: dict, ctx: "Context") -> None:
+    """Where to draw a thread op's or a tapped hole's cosmetic threads.
+
+    Nothing when it does not resolve: the feature's own failure says why.
+    """
+    with contextlib.suppress(Exception):
+        if feature.get("type") == "thread":
+            entry["thread"] = thread_geometry(feature, ctx)
+        elif feature.get("type") == "hole" and "thread" in feature:
+            entry["threads"] = hole_threads(feature, ctx)
 
 
 # Each sketch's regions, by the sketch's JSON, newest last. Finding regions is

@@ -1,9 +1,19 @@
-import math
+"""The hole op: simple, counterbore, countersink and tapped holes."""
 
-from build123d import Align, Cone, Cylinder, Part, Plane, Vector
+import math
+from typing import TYPE_CHECKING
+
+from build123d import Align, Cone, Cylinder, Part, Plane, Shape, Vector
 
 from .registry import register
 from .sketch import resolve_plane, sketch_entities
+from .thread import THREAD_PROPERTIES, ThreadJson, ThreadSpec, bore, checked, face_thread, modeled
+
+if TYPE_CHECKING:
+    from sprocket_engine.replay import Context
+
+# How close, in mm and as a cosine, a bore must sit to the hole it came from.
+ON_AXIS = 1e-6
 
 VECTOR3 = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
 DOWN = (Align.CENTER, Align.CENTER, Align.MAX)
@@ -16,10 +26,12 @@ SCHEMA = {
         "`direction`, or at the centres of the circles in a `sketch`, drilled into "
         "the face the sketch sits "
         "on (against the sketch normal). Give `depth`, or `through: true` to cut "
-        "through the whole part."
+        "through the whole part. `thread` taps each hole: its bore gets the same "
+        "thread a thread op would give it, starting at the hole's mouth."
     ),
-    "required": ["id", "type", "base", "diameter"],
+    "required": ["id", "type", "base"],
     "oneOf": [{"required": ["points"]}, {"required": ["sketch"]}],
+    "anyOf": [{"required": ["diameter"]}, {"required": ["thread"]}],
     "properties": {
         "id": {"type": "string"},
         "type": {"const": "hole"},
@@ -53,7 +65,7 @@ SCHEMA = {
         "diameter": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "description": "mm, the drilled bore",
+            "description": "mm, the drilled bore. A tapped hole defaults to the tap drill.",
         },
         "depth": {
             "type": "number",
@@ -79,6 +91,16 @@ SCHEMA = {
             "exclusiveMinimum": 0,
             "exclusiveMaximum": 180,
             "description": "degrees, countersink included angle, default 90",
+        },
+        "thread": {
+            "type": "object",
+            "description": (
+                "Taps the holes. The bore defaults to the tap drill, the nominal less "
+                "one pitch, and `length` defaults to the whole bore."
+            ),
+            "required": ["designation"],
+            "additionalProperties": False,
+            "properties": THREAD_PROPERTIES,
         },
     },
 }
@@ -113,9 +135,22 @@ def _centres(feature: dict, ctx) -> list[tuple[Vector, Vector]]:
     return [(plane.from_local_coords((u, v)), direction) for u, v in uvs]
 
 
+def _tap_spec(feature: dict) -> ThreadSpec | None:
+    if "thread" not in feature:
+        return None
+    return ThreadSpec.parse(f"hole {feature['id']}", feature["thread"])
+
+
+def _diameter(feature: dict) -> float:
+    spec = _tap_spec(feature)
+    if "diameter" in feature or spec is None:
+        return feature["diameter"]
+    return round(spec.major - spec.pitch, 6)
+
+
 def _tool(feature: dict, depth: float):
     """One hole in its own frame: the surface at z = 0, drilled toward -Z."""
-    radius = feature["diameter"] / 2
+    radius = _diameter(feature) / 2
     tool = Cylinder(radius, depth, align=DOWN)
     kind = feature.get("kind", "simple")
     if kind == "simple":
@@ -135,7 +170,8 @@ def _tool(feature: dict, depth: float):
 
 
 @register("hole", SCHEMA)
-def apply(feature: dict, ctx):
+def apply(feature: dict, ctx: "Context") -> Part:
+    """Drill the holes, and tap them when the feature has a `thread`."""
     base = ctx.results[feature["base"]]
     if feature.get("through"):
         depth = 2 * base.bounding_box().diagonal
@@ -144,9 +180,50 @@ def apply(feature: dict, ctx):
     else:
         raise ValueError("a hole needs depth, or through: true")
     shape = _tool(feature, depth)
-    tools = [
-        Plane(origin=centre, z_dir=-direction) * shape
-        for centre, direction in _centres(feature, ctx)
-    ]
-    result = base.cut(*tools)
-    return Part(result.solids())
+    centres = _centres(feature, ctx)
+    tools = [Plane(origin=centre, z_dir=-direction) * shape for centre, direction in centres]
+    result = Part(base.cut(*tools).solids())
+    spec = _tap_spec(feature)
+    if spec is None:
+        return result
+    # Found even for a cosmetic thread, so a bore the wrong size fails here.
+    bores = _bore_threads(feature, result, centres, spec)
+    if not spec.modeled:
+        return result
+    threaded = result
+    for geometry in bores:
+        threaded = modeled(threaded, geometry, spec)
+    return checked(threaded, result, spec.label)
+
+
+def _bore_threads(
+    feature: dict,
+    drilled: Shape,
+    centres: list[tuple[Vector, Vector]],
+    spec: ThreadSpec,
+) -> list[ThreadJson]:
+    """The thread geometry of each hole's bore in the drilled part."""
+    radius = _diameter(feature) / 2
+    found = []
+    for centre, direction in centres:
+        for face in drilled.faces():
+            axis = bore(face)
+            if axis is None or not axis.internal or abs(axis.radius - radius) > ON_AXIS:
+                continue
+            offset = centre - axis.origin
+            off_axis = offset - axis.direction * offset.dot(axis.direction)
+            if abs(abs(axis.direction.dot(direction)) - 1) > ON_AXIS or off_axis.length > ON_AXIS:
+                continue
+            found.append(face_thread(face, spec, entry=centre))
+    if len(found) < len(centres):
+        raise ValueError(f"{spec.label}: found {len(found)} bores to tap for {len(centres)} holes")
+    return found
+
+
+def hole_threads(feature: dict, ctx: "Context") -> list[ThreadJson]:
+    """The cosmetic threads of a tapped hole, for the viewer, read from its result."""
+    spec = _tap_spec(feature)
+    if spec is None or spec.modeled:
+        return []
+    centres = _centres(feature, ctx)
+    return _bore_threads(feature, ctx.results[feature["id"]], centres, spec)
