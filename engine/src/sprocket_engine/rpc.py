@@ -52,7 +52,7 @@ from .render import render_png
 from .replay import NOT_SOLIDS, build_shape, last_solid_index, replay, with_settings
 from .selectors import SelectorError, resolve_selector
 from .synthesis import synthesize
-from .viewer_files import write_viewer_files
+from .viewer_files import cosmetic_threads, write_viewer_files
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -1240,6 +1240,10 @@ def _preview_feature(daemon: Daemon, params: dict) -> dict:
     }
     if params.get("mesh"):
         built["mesh"] = _preview_mesh(shape)
+    # A thread is drawn, not built, so its preview is where it would go.
+    threads = cosmetic_threads(feature, ctx)
+    if threads:
+        built["threads"] = threads
     return built
 
 

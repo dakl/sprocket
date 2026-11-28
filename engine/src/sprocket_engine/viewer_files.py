@@ -19,7 +19,7 @@ from .ops import REGISTRY
 from .ops.construct import CONSTRUCT_TYPES, construct_geometry
 from .ops.hole import hole_threads
 from .ops.sketch import plane_json, resolve_plane, sketch_entities, sketch_profiles
-from .ops.thread import thread_geometry
+from .ops.thread import ThreadJson, thread_geometry
 from .sketch_reference import has_references
 
 if TYPE_CHECKING:
@@ -83,16 +83,25 @@ def features_summary(document, failed_feature: str | None, ctx=None) -> list[dic
     return entries
 
 
-def _add_threads(entry: dict, feature: dict, ctx: "Context") -> None:
-    """Where to draw a thread op's or a tapped hole's cosmetic threads.
+def cosmetic_threads(feature: dict, ctx: "Context") -> list[ThreadJson]:
+    """Where to draw a thread op's thread or a tapped hole's, one per bore.
 
     Nothing when it does not resolve: the feature's own failure says why.
     """
     with contextlib.suppress(Exception):
         if feature.get("type") == "thread":
-            entry["thread"] = thread_geometry(feature, ctx)
-        elif feature.get("type") == "hole" and "thread" in feature:
-            entry["threads"] = hole_threads(feature, ctx)
+            return [thread_geometry(feature, ctx)]
+        if feature.get("type") == "hole" and "thread" in feature:
+            return hole_threads(feature, ctx)
+    return []
+
+
+def _add_threads(entry: dict, feature: dict, ctx: "Context") -> None:
+    found = cosmetic_threads(feature, ctx)
+    if feature.get("type") == "thread" and found:
+        entry["thread"] = found[0]
+    elif feature.get("type") == "hole" and "thread" in feature:
+        entry["threads"] = found
 
 
 # Each sketch's regions, by the sketch's JSON, newest last. Finding regions is

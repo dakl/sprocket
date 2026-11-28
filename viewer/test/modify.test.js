@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const { defaults, featureFor, parseNumber, visible, TOOLS } = require("../modify.js");
 
 const edges = { select: [{ op: "edges" }], expected_count: 4 };
+const OFFSET_ERROR = /Offset/;
+const THREAD_HEAD_ERROR = /larger than the thread/;
 
 test("parseNumber reads plain numbers and a trailing mm", () => {
   assert.equal(parseNumber("2.5 mm"), 2.5);
@@ -290,9 +292,87 @@ test("thread size is the first ISO nominal at or above the diameter", () => {
   assert.equal(threadSize(3), "M3");
   assert.equal(threadSize(2.5), "M2.5");
   assert.equal(threadSize(2.6), "M3"); // an M3 tap-drill hole
-  assert.equal(threadSize(30), "M24");
+  assert.equal(threadSize(30), "M30");
+  assert.equal(threadSize(40), "M36");
   assert.equal(threadSize(Number.NaN), "M3");
   assert.equal(defaults("thread", { diameter: 5.9 }).designation, "M6");
+});
+
+test("a thread is full length and right hand unless the panel says otherwise", () => {
+  const target = { base: "f4", face: { select: [] } };
+  const values = defaults("thread", { diameter: 6 });
+  assert.deepEqual(featureFor("thread", values, target), {
+    type: "thread",
+    base: "f4",
+    face: { select: [] },
+    designation: "M6",
+  });
+  const partial = featureFor(
+    "thread",
+    {
+      ...values,
+      designation: "M8x1",
+      full: false,
+      length: "6",
+      offset: "2",
+      from_end: true,
+      hand: "left",
+    },
+    target,
+  );
+  assert.deepEqual(partial, {
+    type: "thread",
+    base: "f4",
+    face: { select: [] },
+    designation: "M8",
+    pitch: 1,
+    hand: "left",
+    length: 6,
+    offset: 2,
+    from_end: true,
+  });
+  assert.match(
+    featureFor("thread", { ...values, full: false, offset: "-1" }, target).error,
+    OFFSET_ERROR,
+  );
+});
+
+test("clearance and ends go with a modeled thread only", () => {
+  const target = { base: "f4", face: { select: [] } };
+  const values = { ...defaults("thread"), clearance: "0.3", ends: "chamfer" };
+  const cosmetic = featureFor("thread", values, target);
+  assert.equal("clearance" in cosmetic || "ends" in cosmetic, false);
+  const field = (name) => TOOLS.thread.fields.find((item) => item.name === name);
+  assert.equal(visible(field("clearance"), values), false);
+  const modeled = featureFor("thread", { ...values, modeled: true }, target);
+  assert.deepEqual([modeled.modeled, modeled.clearance, modeled.ends], [true, 0.3, "chamfer"]);
+  assert.equal(visible(field("clearance"), { ...values, modeled: true }), true);
+  assert.equal(
+    "clearance" in featureFor("thread", { ...values, modeled: true, clearance: "0" }, target),
+    false,
+  );
+});
+
+test("a tapped hole sends a thread instead of a diameter", () => {
+  const target = { base: "f2", point: [1, 2, 10], normal: [0, 0, 1] };
+  const values = { ...defaults("hole"), tapped: true, tap_size: "M5", depth: "8" };
+  const field = (name) => TOOLS.hole.fields.find((item) => item.name === name);
+  assert.equal(visible(field("diameter"), values), false);
+  assert.equal(visible(field("tap_size"), values), true);
+  assert.equal(visible(field("tap_size"), defaults("hole")), false);
+  const hole = featureFor("hole", values, target);
+  assert.equal("diameter" in hole, false);
+  assert.deepEqual(hole.thread, { designation: "M5" });
+  const modeled = featureFor(
+    "hole",
+    { ...values, tap_modeled: true, tap_clearance: "0.2" },
+    target,
+  );
+  assert.deepEqual(modeled.thread, { designation: "M5", modeled: true, clearance: 0.2 });
+  // The head must clear the M5 thread, not just its tap drill.
+  const sink = { ...values, kind: "countersink", head_diameter: "4.5" };
+  assert.match(featureFor("hole", sink, target).error, THREAD_HEAD_ERROR);
+  assert.equal(defaults("hole", { box: [40, 30, 10], face: [40, 30] }).tap_size, "M5");
 });
 
 test("sweep and loft make a new body or combine with the body named in Into", () => {

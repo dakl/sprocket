@@ -213,6 +213,91 @@ test("Thread sizes itself from the picked shaft and applies a cosmetic thread", 
   expect((await features(request))[4]).toMatchObject({ type: "thread", designation: "M6" });
 });
 
+test("Thread takes a partial length, the hand, and print clearance once modeled", async ({
+  page,
+  request,
+}, info) => {
+  await open(page, request, {
+    features: [
+      ...BOX.features,
+      { id: "f3", type: "sketch", plane: { name: "XY", offset: 10 }, circle: { radius: 3 } },
+      { id: "f4", type: "extrude", profile: "f3", base: "f2", distance: 12 },
+    ],
+    rollback_index: 4,
+  });
+  await clickFace(page, request, (face) => face.kind === "CYLINDER");
+  await page.locator("#tool-thread").click();
+  await previewReady(page);
+  await expect(page.locator("#modify-length")).toBeHidden();
+  await expect(page.locator("#modify-clearance")).toBeHidden();
+  await page.locator("#modify-full").uncheck();
+  await page.locator("#modify-length").fill("6");
+  await page.locator("#modify-offset").fill("2");
+  await page.locator("#modify-hand").selectOption("left");
+  // Clearance and ends are for a modeled thread only.
+  await page.locator("#modify-modeled").check();
+  await expect(page.locator("#modify-clearance")).toBeVisible();
+  await page.locator("#modify-modeled").uncheck();
+  await expect(page.locator("#modify-clearance")).toBeHidden();
+  await page.waitForFunction(
+    () => globalThis.__tcad.modifying?.feature?.length === 6 && globalThis.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
+  expect((await modifying(page)).feature).toMatchObject({
+    type: "thread",
+    designation: "M6",
+    length: 6,
+    offset: 2,
+    hand: "left",
+  });
+  // The preview draws the thread where it would go: 6 turns of 24 steps.
+  await expect.poll(async () => (await modifying(page)).previewThreads).toEqual([145]);
+  await page.screenshot({ path: info.outputPath("thread-partial-preview.png") });
+  await commit(page, 5);
+  // 6 mm at 1 mm pitch is 6 turns of 24 steps: 145 points.
+  await expect
+    .poll(() => page.evaluate(() => globalThis.__tcad.threads))
+    .toEqual([{ designation: "M6", points: 145 }]);
+  await page.screenshot({ path: info.outputPath("thread-partial-applied.png") });
+});
+
+test("Hole taps at the tap drill and draws a thread in the bore", async ({
+  page,
+  request,
+}, info) => {
+  await open(page, request, BOX);
+  await clickFace(page, request, (face) => face.normal[2] === 1);
+  await page.locator("#tool-hole").click();
+  await previewReady(page);
+  await page.locator("#modify-tapped").check();
+  await expect(page.locator("#modify-diameter")).toBeHidden();
+  await page.locator("#modify-tap_size").selectOption("M5");
+  await page.locator("#modify-depth").fill("8");
+  await page.waitForFunction(
+    () =>
+      globalThis.__tcad.modifying?.feature?.thread?.designation === "M5" &&
+      globalThis.__tcad.modifying.feature.depth === 8 &&
+      globalThis.__tcad.modifying.ok,
+    null,
+    SLOW,
+  );
+  expect((await modifying(page)).feature.diameter).toBeUndefined();
+  await expect.poll(async () => (await modifying(page)).previewThreads).toEqual([241]);
+  await page.screenshot({ path: info.outputPath("tapped-hole-preview.png") });
+  await commit(page, 3);
+  // M5 taps at 4.2 mm.
+  expect((await rpc(request, "measure")).volume).toBeCloseTo(
+    40 * 30 * 10 - Math.PI * 2.1 ** 2 * 8,
+    2,
+  );
+  // 8 mm at 0.8 mm pitch is 10 turns of 24 steps: 241 points.
+  await expect
+    .poll(() => page.evaluate(() => globalThis.__tcad.threads))
+    .toEqual([{ designation: "M5", points: 241 }]);
+  await page.screenshot({ path: info.outputPath("tapped-hole-applied.png") });
+});
+
 test("Thread on a flat face says to pick a round one", async ({ page, request }) => {
   await open(page, request, BOX);
   await clickFace(page, request, (face) => face.kind === "PLANE");

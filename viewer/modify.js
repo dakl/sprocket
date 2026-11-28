@@ -51,7 +51,14 @@
           options: ["simple", "counterbore", "countersink"],
           value: "simple",
         },
-        { name: "diameter", label: "Diameter", type: "number", value: 4 },
+        {
+          name: "diameter",
+          label: "Diameter",
+          type: "number",
+          value: 4,
+          // A tapped hole drills the tap drill for its Size.
+          hideWhen: { tapped: true },
+        },
         { name: "depth", label: "Depth", type: "number", value: 5, hideWhen: { through: true } },
         { name: "through", label: "Through", type: "checkbox", value: false },
         {
@@ -172,23 +179,116 @@
       hideWhen: { into: "new" },
     },
   ];
-  /// ISO 261 coarse sizes the engine's thread op takes, with their nominal diameters in mm.
-  const THREAD_SIZES = [
-    ["M1.6", 1.6],
-    ["M2", 2],
-    ["M2.5", 2.5],
-    ["M3", 3],
-    ["M4", 4],
-    ["M5", 5],
-    ["M6", 6],
-    ["M8", 8],
-    ["M10", 10],
-    ["M12", 12],
-    ["M14", 14],
-    ["M16", 16],
-    ["M20", 20],
-    ["M24", 24],
+  /// ISO 262 sizes: [designation, nominal mm, coarse pitch, fine pitches]. The
+  /// engine's thread op takes the designation, and `pitch` for a fine one.
+  /** @type {Array<[string, number, number, number[]]>} */
+  const ISO_SIZES = [
+    ["M1.6", 1.6, 0.35, [0.2]],
+    ["M1.8", 1.8, 0.35, [0.2]],
+    ["M2", 2, 0.4, [0.25]],
+    ["M2.5", 2.5, 0.45, [0.35]],
+    ["M3", 3, 0.5, [0.35]],
+    ["M3.5", 3.5, 0.6, [0.35]],
+    ["M4", 4, 0.7, [0.5]],
+    ["M5", 5, 0.8, [0.5]],
+    ["M6", 6, 1, [0.75]],
+    ["M7", 7, 1, [0.75]],
+    ["M8", 8, 1.25, [1, 0.75]],
+    ["M10", 10, 1.5, [1.25, 1]],
+    ["M12", 12, 1.75, [1.5, 1.25]],
+    ["M14", 14, 2, [1.5]],
+    ["M16", 16, 2, [1.5]],
+    ["M18", 18, 2.5, [2, 1.5]],
+    ["M20", 20, 2.5, [2, 1.5]],
+    ["M22", 22, 2.5, [2, 1.5]],
+    ["M24", 24, 3, [2]],
+    ["M27", 27, 3, [2]],
+    ["M30", 30, 3.5, [2]],
+    ["M33", 33, 3.5, [2]],
+    ["M36", 36, 4, [3]],
   ];
+  /// The Size choices: each coarse size, then its fine ones as "M8x1".
+  const THREAD_CHOICES = ISO_SIZES.flatMap(([name, , , fine]) => [
+    name,
+    ...fine.map((pitch) => `${name}x${pitch}`),
+  ]);
+  /** @typedef {{designation: string, pitch?: number, hand?: string, modeled?: boolean, clearance?: number, ends?: string}} ThreadFit */
+  /** @typedef {ThreadFit & {type: string, base: unknown, face: unknown, length?: number, offset?: number, from_end?: boolean}} ThreadFeature */
+  /** @typedef {{type: string, base: unknown, points: number[][], direction: number[], kind: string, diameter?: number, thread?: ThreadFit, through?: boolean, depth?: number, head_diameter?: number, head_depth?: number, head_angle?: number}} HoleFeature */
+  /// {designation, pitch?} for a Size choice: a fine one carries its pitch.
+  /** @param {string} choice @returns {ThreadFit} */
+  function threadChoice(choice) {
+    const [designation = "", pitch] = String(choice).split("x");
+    return pitch ? { designation, pitch: Number(pitch) } : { designation };
+  }
+  /// The thread fields a thread op and a tapped hole share: length, offset and the
+  /// end it runs from are the thread op's own.
+  /** @type {(prefix: string, showWhen?: Record<string, unknown[]>) => Array<Record<string, unknown>>} */
+  const THREAD_FIT_FIELDS = (prefix, showWhen) => [
+    {
+      name: `${prefix}hand`,
+      label: "Hand",
+      type: "select",
+      options: ["right", "left"],
+      value: "right",
+      ...(showWhen ? { showWhen } : {}),
+    },
+    {
+      name: `${prefix}modeled`,
+      label: "Modeled",
+      type: "checkbox",
+      value: false,
+      ...(showWhen ? { showWhen } : {}),
+    },
+    {
+      name: `${prefix}clearance`,
+      label: "Clearance",
+      type: "select",
+      options: ["0", "0.2", "0.3", "0.4"],
+      value: "0",
+      showWhen: { ...showWhen, [`${prefix}modeled`]: [true] },
+    },
+    {
+      name: `${prefix}ends`,
+      label: "Ends",
+      type: "select",
+      options: ["auto", "square", "fade", "chamfer"],
+      value: "auto",
+      showWhen: { ...showWhen, [`${prefix}modeled`]: [true] },
+    },
+  ];
+  /// The thread fields from the panel's values and Size `choice`, without the defaults.
+  /** @param {Record<string, any>} values @param {string} prefix @param {string} choice @returns {ThreadFit} */
+  function threadFit(values, prefix, choice) {
+    const fit = threadChoice(choice);
+    if (values[`${prefix}hand`] === "left") {
+      fit.hand = "left";
+    }
+    if (values[`${prefix}modeled`]) {
+      fit.modeled = true;
+      const clearance = Number(values[`${prefix}clearance`]);
+      if (clearance > 0) {
+        fit.clearance = clearance;
+      }
+      if (values[`${prefix}ends`] !== "auto") {
+        fit.ends = values[`${prefix}ends`];
+      }
+    }
+    return fit;
+  }
+  // A tapped hole: Size replaces Diameter, which becomes the tap drill.
+  /** @type {Array<Record<string, unknown>>} */ (TOOLS.hole.fields).push(
+    { name: "tapped", label: "Tapped", type: "checkbox", value: false },
+    {
+      name: "tap_size",
+      label: "Size",
+      type: "select",
+      options: THREAD_CHOICES,
+      value: "M4",
+      showWhen: { tapped: [true] },
+    },
+    ...THREAD_FIT_FIELDS("tap_", { tapped: [true] }),
+  );
   Object.assign(TOOLS, {
     draft: {
       title: "Draft",
@@ -217,10 +317,27 @@
           name: "designation",
           label: "Size",
           type: "select",
-          options: THREAD_SIZES.map(([name]) => name),
+          options: THREAD_CHOICES,
           value: "M3",
         },
-        { name: "modeled", label: "Modeled", type: "checkbox", value: false },
+        { name: "full", label: "Full length", type: "checkbox", value: true },
+        { name: "length", label: "Length", type: "number", value: 5, showWhen: { full: [false] } },
+        {
+          name: "offset",
+          label: "Offset",
+          type: "number",
+          anyNumber: true,
+          value: 0,
+          showWhen: { full: [false] },
+        },
+        {
+          name: "from_end",
+          label: "From other end",
+          type: "checkbox",
+          value: false,
+          showWhen: { full: [false] },
+        },
+        ...THREAD_FIT_FIELDS(""),
       ],
     },
     sweep: {
@@ -323,8 +440,8 @@
     if (!POSITIVE(diameter)) {
       return "M3";
     }
-    const found = THREAD_SIZES.find(([, nominal]) => nominal >= diameter - 1e-3);
-    return found ? found[0] : THREAD_SIZES.at(-1)[0];
+    const found = ISO_SIZES.find(([, nominal]) => nominal >= diameter - 1e-3);
+    return found ? found[0] : ISO_SIZES.at(-1)[0];
   }
 
   /// `base` and `mode` for a feature whose "Into" is a body, nothing for a new body.
@@ -419,6 +536,7 @@
       values.depth = nice(diameter * 1.25, values.depth);
       values.head_diameter = nice(diameter * 2, values.head_diameter);
       values.head_depth = nice(diameter * 0.75, values.head_depth);
+      values.tap_size = threadSize(diameter);
     }
     return values;
   }
@@ -527,14 +645,22 @@
       return feature;
     }
     if (kind === "hole") {
+      /** @type {HoleFeature} */
       const feature = {
         type: "hole",
         base: target.base,
         points: [target.point.map((value) => Math.round(value * 1e4) / 1e4)],
         direction: target.normal.map((value) => (value === 0 ? 0 : -Math.round(value * 1e6) / 1e6)),
         kind: values.kind,
-        diameter: number("diameter"),
       };
+      // A tapped hole's head must clear the thread, not just the tap drill.
+      let bore = number("diameter");
+      if (values.tapped) {
+        feature.thread = threadFit(values, "tap_", values.tap_size);
+        bore = Number(feature.thread.designation.slice(1));
+      } else {
+        feature.diameter = bore;
+      }
       if (values.through) {
         feature.through = true;
       } else {
@@ -542,8 +668,12 @@
       }
       if (values.kind !== "simple") {
         feature.head_diameter = number("head_diameter");
-        if (feature.head_diameter <= feature.diameter) {
-          return { error: "Head dia must be larger than Diameter" };
+        if (feature.head_diameter <= bore) {
+          return {
+            error: values.tapped
+              ? "Head dia must be larger than the thread"
+              : "Head dia must be larger than Diameter",
+          };
         }
         if (values.kind === "counterbore") {
           feature.head_depth = number("head_depth");
@@ -604,13 +734,27 @@
       };
     }
     if (kind === "thread") {
-      return {
+      /** @type {Record<string, unknown>} */
+      /** @type {ThreadFeature} */
+      const feature = {
         type: "thread",
         base: target.base,
         face: target.face,
-        designation: values.designation,
-        ...(values.modeled ? { modeled: true } : {}),
+        ...threadFit(values, "", values.designation),
       };
+      if (!values.full) {
+        if (!(number("offset") >= 0)) {
+          return { error: "Offset must be 0 or more" };
+        }
+        feature.length = number("length");
+        if (number("offset") > 0) {
+          feature.offset = number("offset");
+        }
+        if (values.from_end) {
+          feature.from_end = true;
+        }
+      }
+      return feature;
     }
     if (kind === "sweep") {
       if (!values.path) {
@@ -696,6 +840,7 @@
     featureFor,
     nice,
     parseNumber,
+    threadChoice,
     threadSize,
     visible,
   };
