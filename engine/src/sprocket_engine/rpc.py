@@ -1884,13 +1884,23 @@ def _render_view(daemon: Daemon, params: dict) -> dict:
 
 def _export(daemon: Daemon, params: dict) -> dict:
     """STEP, STL and the viewer's mesh, whichever paths are given."""
-    from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
+    from .export import (
+        ExportError,
+        select_bodies,
+        write_3mf,
+        write_3mf_dir,
+        write_step,
+        write_stl,
+        write_stl_dir,
+    )
     from .mesh import export_mesh
 
     shape = daemon.session.require_shape()
-    bodies = daemon.session.bodies()
     written = {}
     try:
+        # `bodies` narrows the per-body exports (STEP, stl_dir, 3MF, 3mf_dir).
+        # The merged STL and the viewer mesh always carry the whole part.
+        bodies = select_bodies(daemon.session.bodies(), params.get("bodies"))
         if params.get("step"):
             write_step(shape, params["step"], bodies)
             written["step"] = params["step"]
@@ -1902,6 +1912,8 @@ def _export(daemon: Daemon, params: dict) -> dict:
         if params.get("3mf"):
             write_3mf(bodies, params["3mf"])
             written["3mf"] = params["3mf"]
+        if params.get("3mf_dir"):
+            written["3mf_dir"] = [str(path) for path in write_3mf_dir(bodies, params["3mf_dir"])]
         if params.get("mesh"):
             written["mesh"] = params["mesh"]
             written["mesh_counts"] = export_mesh(
@@ -1916,7 +1928,7 @@ def _export(daemon: Daemon, params: dict) -> dict:
         raise DocumentError(f"cannot write {exc.filename}: {exc.strerror}") from None
     if not written:
         raise DocumentError(
-            "export needs at least one of 'step', 'stl', 'stl_dir', '3mf' or 'mesh'"
+            "export needs at least one of 'step', 'stl', 'stl_dir', '3mf', '3mf_dir' or 'mesh'"
         )
     return written
 

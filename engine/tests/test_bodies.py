@@ -11,7 +11,14 @@ from conftest import running
 
 from sprocket_engine.cli import _build_document
 from sprocket_engine.document import Document, DocumentError
-from sprocket_engine.export import write_3mf, write_step, write_stl_dir
+from sprocket_engine.export import (
+    ExportError,
+    select_bodies,
+    write_3mf,
+    write_3mf_dir,
+    write_step,
+    write_stl_dir,
+)
 from sprocket_engine.mesh import NO_COLOUR, export_mesh
 from sprocket_engine.replay import replay, with_settings
 from sprocket_engine.rpc import Client
@@ -154,6 +161,20 @@ def test_stl_per_body_and_3mf(tmp_path):
     mesher = Mesher()
     mesher.read(str(tmp_path / "part.3mf"))
     assert mesher.mesh_count == 2
+
+
+def test_3mf_per_body_and_a_chosen_body(tmp_path):
+    _, bodies = bodies_of(CASE, SETTINGS)
+    written = write_3mf_dir(bodies, tmp_path)
+    assert sorted(path.name for path in written) == ["Case.3mf", "Lid.3mf"]
+    for path in written:
+        mesher = Mesher()
+        mesher.read(str(path))
+        assert mesher.mesh_count == 1
+    assert [body["name"] for body in select_bodies(bodies, ["Lid"])] == ["Lid"]
+    assert [body["id"] for body in select_bodies(bodies, ["lid"])] == ["lid"]
+    with pytest.raises(ExportError, match="'nope'"):
+        select_bodies(bodies, ["nope"])
 
 
 def test_set_body_validates_and_undo_restores(tmp_path):

@@ -109,6 +109,34 @@ def write_stl_dir(bodies, directory) -> list[Path]:
     return written
 
 
+def select_bodies(bodies, wanted):
+    """The bodies whose id or name is in `wanted`, or all of them when it is empty.
+
+    An unknown id or name is an error, not a silently smaller export.
+    """
+    if not wanted:
+        return bodies
+    wanted = list(wanted)
+    known = {key for body in bodies or [] for key in (body["id"], body.get("name"))}
+    missing = [item for item in wanted if item not in known]
+    if missing:
+        raise ExportError(f"no body with id or name {', '.join(map(repr, missing))}")
+    return [body for body in bodies if body["id"] in wanted or body.get("name") in wanted]
+
+
+def write_3mf_dir(bodies, directory) -> list[Path]:
+    """One 3MF per body, named after the body, in an existing directory."""
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise ExportError(f"cannot write 3MF files to {directory}: the directory does not exist")
+    written = []
+    for body in _made(bodies):
+        target = directory / f"{_file_name(body.get('name') or body['id'])}.3mf"
+        write_3mf([body], target)
+        written.append(target)
+    return written
+
+
 def write_3mf(bodies, path) -> None:
     """One 3MF with an object per body, carrying names and colours."""
     path = Path(path)

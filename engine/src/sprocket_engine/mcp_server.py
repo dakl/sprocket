@@ -431,6 +431,16 @@ def document_tools() -> list[types.Tool]:
                     "type": "string",
                     "description": "path to write a 3MF with one object per body",
                 },
+                "3mf_dir": {
+                    "type": "string",
+                    "description": "existing directory to write one 3MF per body into",
+                },
+                "bodies": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "body ids or names to limit step, stl_dir, 3mf and "
+                    "3mf_dir to; default every body",
+                },
                 "mesh": {
                     "type": "string",
                     "description": "path to write the viewer mesh to",

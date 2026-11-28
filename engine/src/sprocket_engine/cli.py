@@ -18,7 +18,15 @@ from pathlib import Path
 
 from .cache import default_cache_dir
 from .document import Document, DocumentError
-from .export import ExportError, write_3mf, write_step, write_stl, write_stl_dir
+from .export import (
+    ExportError,
+    select_bodies,
+    write_3mf,
+    write_3mf_dir,
+    write_step,
+    write_stl,
+    write_stl_dir,
+)
 from .mesh import export_mesh
 from .replay import build_shape, with_settings
 
@@ -40,6 +48,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     build.add_argument(
         "--3mf", dest="three_mf", type=Path, help="write a 3MF with one object per body"
+    )
+    build.add_argument(
+        "--3mf-dir",
+        dest="three_mf_dir",
+        type=Path,
+        help="write one 3MF per body into this existing directory",
+    )
+    build.add_argument(
+        "--body",
+        dest="only_bodies",
+        action="append",
+        help="limit --step, --stl-dir, --3mf and --3mf-dir to this body id or name (repeatable)",
     )
     build.add_argument(
         "--mesh",
@@ -165,6 +185,8 @@ def _build_document(
     mesh: Path | None = None,
     stl_dir: Path | None = None,
     three_mf: Path | None = None,
+    three_mf_dir: Path | None = None,
+    only_bodies: list[str] | None = None,
 ) -> tuple[bool, str, str | None]:
     """Replays one document and exports it.
 
@@ -210,6 +232,7 @@ def _build_document(
     if failed_id:
         messages.append(f"feature {failed_id!r} no longer builds, showing the part before it")
     try:
+        bodies = select_bodies(bodies, only_bodies)
         if step:
             write_step(result, step, bodies)
             messages.append(f"wrote {step}")
@@ -221,6 +244,8 @@ def _build_document(
         if three_mf:
             write_3mf(bodies, three_mf)
             messages.append(f"wrote {three_mf}")
+        if three_mf_dir:
+            messages.extend(f"wrote {path}" for path in write_3mf_dir(bodies, three_mf_dir))
         header = export_mesh(result, Path(mesh), document.appearances, bodies) if mesh else None
     except ExportError as exc:
         return False, f"error: {exc}", failed_id
@@ -234,7 +259,7 @@ def _build_document(
         )
     if len(bodies) > 1:
         messages.append(f"{len(bodies)} bodies: {', '.join(body['name'] for body in bodies)}")
-    if not any((step, stl, mesh, stl_dir, three_mf)):
+    if not any((step, stl, mesh, stl_dir, three_mf, three_mf_dir)):
         messages.append(f"replayed ok: volume={result.volume:.3f} mm^3")
     return True, "\n".join(messages), failed_id
 
@@ -248,6 +273,8 @@ def _build(args: argparse.Namespace) -> int:
         args.mesh,
         args.stl_dir,
         args.three_mf,
+        args.three_mf_dir,
+        args.only_bodies,
     )
     if not success:
         print(output, file=sys.stderr)
