@@ -108,18 +108,18 @@
       ];
     },
 
-    /// Names, colours or finishes one body. Only the fields given change. Showing and
+    /// Names, colours, finishes or groups one body. Only the fields given change. Showing and
     /// hiding is view state, sent as the daemon's set_visibility instead.
     set_body(state, message) {
       require_(message, "id");
       const edit = { op: "set_body", id: message.id };
-      for (const name of ["name", "color", "material"]) {
+      for (const name of ["name", "color", "material", "group"]) {
         if (name in message) {
           edit[name] = message[name];
         }
       }
       if (Object.keys(edit).length === 2) {
-        fail("set_body needs name, color or material");
+        fail("set_body needs name, color, material or group");
       }
       return [edit];
     },

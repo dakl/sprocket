@@ -115,8 +115,12 @@ final class SprocketDocument: NSDocument {
     private func engineStarted(in controller: DocumentWindowController) {
         isEngineReady = true
         controller.showViewer(
-            ViewerWebView(engine: engine, dataDir: dataDir) { [weak self] format in
-                self?.export(format)
+            ViewerWebView(engine: engine, dataDir: dataDir) { [weak self] format, split in
+                if let split {
+                    self?.export3MFFiles(split: split)
+                } else {
+                    self?.export(format)
+                }
             })
         restorePendingRecovery()
     }
@@ -208,6 +212,31 @@ final class SprocketDocument: NSDocument {
             Task {
                 do {
                     _ = try await self.engine.call("export", [format: target.path])
+                } catch {
+                    self.presentError(error)
+                }
+            }
+        }
+    }
+
+    /// One 3MF per body, or per body group (`split` is "body" or "group"), into a
+    /// folder the person chooses. Files of the same name in it are replaced.
+    func export3MFFiles(split: String) {
+        guard let window = windowControllers.first?.window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Export"
+        panel.message = split == "group"
+            ? "Choose a folder for one 3MF per body group"
+            : "Choose a folder for one 3MF per body"
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let folder = panel.url, let self else { return }
+            Task {
+                do {
+                    _ = try await self.engine.call(
+                        "export", ["3mf_dir": folder.path, "3mf_split": split])
                 } catch {
                     self.presentError(error)
                 }

@@ -80,4 +80,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
     @objc func exportSTEP(_ sender: Any?) { (document as? SprocketDocument)?.export("step") }
     @objc func exportSTL(_ sender: Any?) { (document as? SprocketDocument)?.export("stl") }
     @objc func export3MF(_ sender: Any?) { (document as? SprocketDocument)?.export("3mf") }
+    @objc func export3MFPerBody(_ sender: Any?) {
+        (document as? SprocketDocument)?.export3MFFiles(split: "body")
+    }
+    @objc func export3MFPerGroup(_ sender: Any?) {
+        (document as? SprocketDocument)?.export3MFFiles(split: "group")
+    }
 }

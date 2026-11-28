@@ -86,6 +86,12 @@ enum MainMenu {
         export.addItem(
             withTitle: "3MF\u{2026}", action: #selector(DocumentWindowController.export3MF(_:)),
             keyEquivalent: "")
+        export.addItem(
+            withTitle: "3MF, a File per Body\u{2026}",
+            action: #selector(DocumentWindowController.export3MFPerBody(_:)), keyEquivalent: "")
+        export.addItem(
+            withTitle: "3MF, a File per Group\u{2026}",
+            action: #selector(DocumentWindowController.export3MFPerGroup(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "Export", action: nil, keyEquivalent: "").submenu = export
         return menu
     }

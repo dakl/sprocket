@@ -525,7 +525,7 @@ test("a body row's right-click menu colours and hides the body; the swatch still
   await row.click({ button: "right" });
   await expect
     .poll(() => page.evaluate(() => window.__tcad.contextMenu))
-    .toEqual(["Colour…", "Hide", "Draw as ghost"]);
+    .toEqual(["Colour…", "Hide", "Draw as ghost", "Group…"]);
   await page.getByRole("menuitem", { name: "Colour…", exact: true }).click();
   await page.locator('#colour-popover .palette .swatch[data-hex="#d83a2e"]').click();
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#d83a2e");
@@ -550,6 +550,46 @@ test("a body row's right-click menu colours and hides the body; the swatch still
     });
   await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].color).toBe("#1f6b3a");
   await rpc(request, "set_body", { id: "f2", color: null });
+});
+
+test("a body row's menu puts the body in a new group, the tree nests it, and export offers a file per group", async ({
+  page,
+  request,
+}) => {
+  const bodyRow = () =>
+    page
+      .locator(".browser-row")
+      .filter({ has: page.locator(".browser-swatch") })
+      .first();
+  await bodyRow().click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Group…" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .toEqual(["New group…"]);
+  await page.getByRole("menuitem", { name: "New group…" }).click();
+  await page.locator("#group-name").fill("Shell");
+  await page.locator("#group-name").press("Enter");
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].group).toBe("Shell");
+
+  // The group is a row of its own, and the body sits one level under it.
+  const groupRow = page
+    .locator(".browser-row")
+    .filter({ has: page.locator(".browser-label", { hasText: /^Shell$/ }) });
+  await expect(groupRow).toHaveCount(1);
+  const indent = async (locator) => parseFloat(await locator.evaluate((row) => row.style.paddingLeft));
+  expect(await indent(bodyRow())).toBeGreaterThan(await indent(groupRow));
+
+  await page.locator("#tool-export").click();
+  await expect
+    .poll(() => page.evaluate(() => window.__tcad.contextMenu))
+    .toEqual(["STL", "3MF", "STEP", "3MF, a file per body", "3MF, a file per group"]);
+  await page.keyboard.press("Escape");
+
+  // Undo takes it out again: it is an ordinary edit.
+  await page.mouse.click(640, 790);
+  await page.keyboard.press("Meta+z");
+  await expect.poll(async () => (await rpc(request, "get_bodies")).bodies[0].group).toBe(null);
+  await expect(groupRow).toHaveCount(0);
 });
 
 test("the Sketches folder's eye hides every sketch, and a second click shows them", async ({

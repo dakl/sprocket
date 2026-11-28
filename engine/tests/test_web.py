@@ -264,6 +264,23 @@ def test_the_export_route_hands_the_part_over_as_a_download(server):
     assert len(re.findall(r"<vertex ", model)) == 8
 
 
+def test_the_export_route_zips_a_3mf_per_body_or_group(server):
+    import io
+    import zipfile
+
+    base, _ = server
+    rpc(base, "set_body", id="e1", group="Shell")
+    for split in ("body", "group"):
+        status, headers, data = get_with_headers(base, f"/export?format=3mf&split={split}")
+        assert status == 200
+        assert headers["Content-Type"] == "application/zip"
+        assert headers["Content-Disposition"] == f'attachment; filename="part-3mf-per-{split}.zip"'
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            assert archive.namelist() == ["e1.3mf" if split == "body" else "Shell.3mf"]
+    assert get_with_headers(base, "/export?format=stl&split=body")[0] == 400
+    assert get_with_headers(base, "/export?format=3mf&split=colour")[0] == 400
+
+
 def test_the_export_route_refuses_what_it_cannot_serve(server):
     base, _ = server
     assert get_with_headers(base, "/export?format=obj")[0] == 400

@@ -229,7 +229,7 @@
     .timeline-chip.timeline-chip-changed { animation: changed-glow 1.8s ease-out; }
 
     /* Right-click menu on a face or a body row, and the colour popover. */
-    #context-menu, #colour-popover {
+    #context-menu, #colour-popover, #group-popover {
       position: fixed;
       background: rgba(36, 36, 36, 0.97);
       border: 1px solid #555;
@@ -248,6 +248,14 @@
     }
     #context-menu button:hover, #context-menu button:focus { background: #2f5d8a; outline: none; }
     #colour-popover { padding: 10px; width: 196px; }
+    #group-popover { padding: 10px; width: 220px; }
+    #group-popover .popover-title { color: #bbb; font-size: 12px; margin-bottom: 8px; }
+    #group-popover form { display: flex; gap: 6px; }
+    #group-popover input {
+      flex: 1; min-width: 0; background: #1e1e1e; color: #eee; border: 1px solid #555; border-radius: 4px;
+      font: 12px -apple-system, sans-serif; padding: 4px 6px;
+    }
+    #group-popover button { background: #2f5d8a; color: #fff; border: 0; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
     #colour-popover .popover-title { color: #bbb; font-size: 12px; margin-bottom: 8px; }
     #colour-popover .palette, #colour-popover .recent { display: grid; grid-template-columns: repeat(6, 26px); gap: 6px; }
     #colour-popover .swatch {
@@ -745,6 +753,10 @@
     <button id="section-flip">Flip</button>
   </div>
   <div id="context-menu" role="menu"></div>
+  <div id="group-popover" role="dialog" aria-label="Body group">
+    <div class="popover-title"></div>
+    <form><input type="text" id="group-name" placeholder="Group name" aria-label="Group name" /><button type="submit">Set</button></form>
+  </div>
   <div id="colour-popover" role="dialog" aria-label="Colour">
     <div class="popover-title"></div>
     <div class="palette"></div>
@@ -3037,14 +3049,16 @@
     // message goes to Swift, which opens its own save panel.
     const toolExportEl = document.getElementById("tool-export");
     const EXPORT_FORMATS = [["STL", "stl"], ["3MF", "3mf"], ["STEP", "step"]];
-    async function exportPart(format) {
+    /// `split` ("body" or "group") writes one 3MF per body or per body group: into
+    /// a folder the app asks for, or as one .zip in a browser.
+    async function exportPart(format, split) {
       if (!mesh) return showNotice("There is no part to export yet");
       if (hasSwiftBridge()) {
-        window.webkit.messageHandlers.sprocket.postMessage({ type: "export", format });
+        window.webkit.messageHandlers.sprocket.postMessage(split ? { type: "export", format, split } : { type: "export", format });
         return;
       }
       try {
-        const response = await fetch("/export?format=" + format);
+        const response = await fetch("/export?format=" + format + (split ? "&split=" + split : ""));
         if (!response.ok) throw new Error((await response.json()).error);
         const disposition = response.headers.get("Content-Disposition") || "";
         const link = document.createElement("a");
@@ -3062,7 +3076,11 @@
     toolExportEl.addEventListener("click", () => {
       if (sketchStage || extrudeArmed) return;
       const box = toolExportEl.getBoundingClientRect();
-      openMenu(box.left, box.bottom + 6, "Export part as", EXPORT_FORMATS.map(([label, format]) => ({ label, action: () => exportPart(format) })));
+      openMenu(box.left, box.bottom + 6, "Export part as", [
+        ...EXPORT_FORMATS.map(([label, format]) => ({ label, action: () => exportPart(format) })),
+        { label: "3MF, a file per body", action: () => exportPart("3mf", "body") },
+        bodyGroups().length ? { label: "3MF, a file per group", action: () => exportPart("3mf", "group") } : null,
+      ]);
     });
 
     // Clears the document to zero features. No confirmation, because Swift
@@ -3282,22 +3300,38 @@
         if (!bodies.length) {
           addRow({ depth: 2, label: "Body1", visible: bodyVisible, onToggle: () => { bodyVisible = !bodyVisible; applyVisibility(); renderBrowser(); } });
         }
+        // A body group is a row of its own, where its first body would be, with
+        // its bodies under it. It is a name only: the eye stays on each body.
+        const shownGroups = new Set();
         for (const body of bodies) {
-          addRow({
-            depth: 2,
-            label: body.name + (body.reference ? " (reference)" : ""),
-            visible: body.visible !== false,
-            ghost: bodyDisplay(body) === "ghost",
-            dim: body.reference,
-            onToggle: () => sendCommand({ type: "set_visibility", id: body.id, visible: body.visible === false }),
-            onGhost: () => sendCommand({ type: "set_visibility", id: body.id, ghost: bodyDisplay(body) !== "ghost" }),
-            selected: !body.reference && selectedBodyId === body.id,
-            onClick: body.reference ? null : () => selectBody(body.id),
-            color: body.color,
-            onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
-            onContextMenu: (event) => openBodyMenu(event.clientX, event.clientY, body),
-          });
+          if (body.group && !body.reference) {
+            if (shownGroups.has(body.group)) continue;
+            shownGroups.add(body.group);
+            const key = "body-group:" + body.group;
+            addRow({ depth: 2, group: key, label: body.group, noEye: true });
+            if (collapsedGroups.has(key)) continue;
+            for (const member of bodies.filter((item) => item.group === body.group && !item.reference)) addBodyRow(member, 3);
+          } else {
+            addBodyRow(body, 2);
+          }
         }
+      }
+
+      function addBodyRow(body, depth) {
+        addRow({
+          depth,
+          label: body.name + (body.reference ? " (reference)" : ""),
+          visible: body.visible !== false,
+          ghost: bodyDisplay(body) === "ghost",
+          dim: body.reference,
+          onToggle: () => sendCommand({ type: "set_visibility", id: body.id, visible: body.visible === false }),
+          onGhost: () => sendCommand({ type: "set_visibility", id: body.id, ghost: bodyDisplay(body) !== "ghost" }),
+          selected: !body.reference && selectedBodyId === body.id,
+          onClick: body.reference ? null : () => selectBody(body.id),
+          color: body.color,
+          onColor: body.reference ? null : (color) => sendCommand({ type: "set_body", id: body.id, color }),
+          onContextMenu: (event) => openBodyMenu(event.clientX, event.clientY, body),
+        });
       }
 
       addRow({ depth: 1, group: "parameters", label: "Parameters", noEye: true, dim: !Object.keys(documentParameters).length });
@@ -3940,6 +3974,9 @@
     // set_body for a body. So they are undoable, logged, and an agent sees them.
     const contextMenuEl = document.getElementById("context-menu");
     const colourPopoverEl = document.getElementById("colour-popover");
+    const groupPopoverEl = document.getElementById("group-popover");
+    const groupNameEl = document.getElementById("group-name");
+    let groupTarget = null; // the body the group popover names a group for
     const colourHexEl = document.getElementById("colour-hex");
     const colourNativeEl = document.getElementById("colour-native");
     const RIGHT_CLICK_SLOP = 4; // pixels the pointer may move and still count as a click
@@ -3947,13 +3984,53 @@
     let colourTarget = null; // what the popover's colour goes to: a function of "#rrggbb"
 
     function menuOpen() {
-      return contextMenuEl.style.display === "block" || colourPopoverEl.style.display === "block";
+      return [contextMenuEl, colourPopoverEl, groupPopoverEl].some((element) => element.style.display === "block");
     }
     function closeMenus() {
       contextMenuEl.style.display = "none";
       colourPopoverEl.style.display = "none";
+      groupPopoverEl.style.display = "none";
       colourTarget = null;
+      groupTarget = null;
     }
+
+    /// The body groups in the mesh header, in the order their first body comes.
+    function bodyGroups() {
+      const bodies = (mesh && mesh.geometry.userData.bodies) || [];
+      return [...new Set(bodies.map((body) => body.group).filter(Boolean))];
+    }
+
+    /// A group is a body setting, so moving a body is one set_body edit:
+    /// undoable, logged, and what an agent sees too. null takes it out.
+    function setBodyGroup(body, group) {
+      return sendCommand({ type: "set_body", id: body.id, group: group || null });
+    }
+
+    /// The groups to move `body` to, a new one, or out of its group.
+    function openGroupMenu(x, y, body) {
+      openMenu(x, y, body.name + " group", [
+        ...bodyGroups().filter((group) => group !== body.group).map((group) => ({ label: "Move to " + group, action: () => setBodyGroup(body, group) })),
+        { label: "New group…", action: () => openGroupPopover(x, y, body) },
+        body.group ? { label: "Remove from " + body.group, action: () => setBodyGroup(body, null) } : null,
+      ]);
+    }
+
+    function openGroupPopover(x, y, body) {
+      closeMenus();
+      groupTarget = body;
+      groupPopoverEl.querySelector(".popover-title").textContent = "New group for " + body.name;
+      groupNameEl.value = "";
+      placeAt(groupPopoverEl, x, y);
+      groupNameEl.focus();
+    }
+    groupPopoverEl.querySelector("form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = groupNameEl.value.trim();
+      const body = groupTarget;
+      if (!name || !body) return;
+      closeMenus();
+      setBodyGroup(body, name);
+    });
 
     /// Shows `element` at (x, y), kept inside the window.
     function placeAt(element, x, y) {
@@ -4156,6 +4233,7 @@
         },
         { label: hidden ? "Show" : "Hide", action: () => sendCommand({ type: "set_visibility", id: body.id, visible: hidden }) },
         { label: ghost ? "Draw solid" : "Draw as ghost", action: () => sendCommand({ type: "set_visibility", id: body.id, ghost: !ghost }) },
+        body.reference ? null : { label: body.group ? "Group: " + body.group + "…" : "Group…", action: () => openGroupMenu(x, y, body) },
       ]);
     }
 

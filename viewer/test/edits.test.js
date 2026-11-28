@@ -98,6 +98,15 @@ test("update_sketch refuses a feature that is not a sketch", () => {
   assert.throws(() => editsFor(box, { type: "update_sketch", id: "e1", polygon: [] }), /no sketch/);
 });
 
+test("set_body passes a group, and null takes the body out of it", () => {
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", group: "Shell" }), [
+    { op: "set_body", id: "f2", group: "Shell" },
+  ]);
+  assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", group: null }), [
+    { op: "set_body", id: "f2", group: null },
+  ]);
+});
+
 test("set_body passes only the fields given", () => {
   assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", color: "#ff0000" }), [
     { op: "set_body", id: "f2", color: "#ff0000" },
@@ -109,7 +118,7 @@ test("set_body passes only the fields given", () => {
   );
   assert.throws(
     () => editsFor(box, { type: "set_body", id: "f2" }),
-    /needs name, color or material/,
+    /needs name, color, material or group/,
   );
   assert.deepEqual(editsFor(box, { type: "set_body", id: "f2", material: "bare_metal" }), [
     { op: "set_body", id: "f2", material: "bare_metal" },
