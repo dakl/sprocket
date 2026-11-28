@@ -4961,7 +4961,7 @@
           modifyOkEl.disabled = false;
           setModifyInfo("Preview: " + describeConstruct(result.construct) + ". Enter applies.");
         } else if (result.would_build) {
-          showModifyPreview(result.mesh);
+          showModifyPreview(result.mesh, result.threads || []);
           tool.ok = true;
           modifyOkEl.disabled = false;
           setModifyInfo("Preview: " + result.counts.faces + " faces, volume " + millimetres(result.volume) + " mm³. Enter applies.");
@@ -4973,7 +4973,7 @@
       return tool.inflight;
     }
 
-    function showModifyPreview(data) {
+    function showModifyPreview(data, threads) {
       clearModifyPreview();
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(data.vertices), 3));
@@ -4986,6 +4986,9 @@
       const lineGeometry = new THREE.BufferGeometry();
       lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(data.edges), 3));
       const lines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ color: srgb(0x0a3a26) }));
+      // Where a thread would go, drawn bright on the preview. As children of the
+      // preview mesh, clearModifyPreview disposes of them with it.
+      for (const thread of threads || []) previewMesh.add(threadLine(thread, 0xffd060));
       scene.add(previewMesh);
       scene.add(lines);
       modifyPreview = { mesh: previewMesh, lines };
@@ -5593,32 +5596,37 @@
     /// One helix per thread the engine resolved, one turn per pitch. It sits a
     /// little off the face, into the air (inside a hole, outside a shaft), so it
     /// does not z-fight with the surface.
+    /// A cosmetic thread as a helix just off its face, one turn per pitch.
+    function threadLine(thread, colour) {
+      const start = new THREE.Vector3(...thread.start);
+      const axis = new THREE.Vector3(...thread.direction).normalize();
+      const helper = Math.abs(axis.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+      const u = new THREE.Vector3().crossVectors(axis, helper).normalize();
+      const v = new THREE.Vector3().crossVectors(axis, u);
+      const radius = thread.radius * (thread.internal ? 0.97 : 1.03);
+      // (u, v, axis) is right-handed, so a positive angle winds a right-hand thread.
+      const turns = (thread.length / thread.pitch) * (thread.hand === "left" ? -1 : 1);
+      const steps = Math.max(24, Math.ceil(Math.abs(turns) * 24));
+      const points = Array.from({ length: steps + 1 }, (_, step) => {
+        const along = step / steps;
+        const angle = 2 * Math.PI * turns * along;
+        return start
+          .clone()
+          .addScaledVector(axis, thread.length * along)
+          .addScaledVector(u, radius * Math.cos(angle))
+          .addScaledVector(v, radius * Math.sin(angle));
+      });
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: srgb(colour) }));
+      line.userData.designation = thread.designation;
+      return line;
+    }
+
     function renderThreads(features) {
       threadGroup.clear();
+      // A thread op carries one thread, a tapped hole one per bore.
       features
-        .filter((feature) => feature.type === "thread" && feature.thread)
-        .forEach(({ thread }) => {
-          const start = new THREE.Vector3(...thread.start);
-          const axis = new THREE.Vector3(...thread.direction).normalize();
-          const helper = Math.abs(axis.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
-          const u = new THREE.Vector3().crossVectors(axis, helper).normalize();
-          const v = new THREE.Vector3().crossVectors(axis, u);
-          const radius = thread.radius * (thread.internal ? 0.97 : 1.03);
-          const turns = thread.length / thread.pitch;
-          const steps = Math.max(24, Math.ceil(turns * 24));
-          const points = Array.from({ length: steps + 1 }, (_, step) => {
-            const along = step / steps;
-            const angle = 2 * Math.PI * turns * along;
-            return start
-              .clone()
-              .addScaledVector(axis, thread.length * along)
-              .addScaledVector(u, radius * Math.cos(angle))
-              .addScaledVector(v, radius * Math.sin(angle));
-          });
-          const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: srgb(0xd0a040) }));
-          line.userData.designation = thread.designation;
-          threadGroup.add(line);
-        });
+        .flatMap((feature) => (feature.type === "thread" && feature.thread ? [feature.thread] : feature.threads || []))
+        .forEach((thread) => threadGroup.add(threadLine(thread, 0xd0a040)));
       if (section) applySection();
     }
 
@@ -6430,7 +6438,16 @@
       /// The open Modify tool: its kind, the feature its fields make, and
       /// whether the preview built. Null when none is open.
       get modifying() {
-        return modifyTool ? { kind: modifyTool.kind, feature: modifyTool.feature, ok: modifyTool.ok, preview: Boolean(modifyPreview), info: modifyInfoEl.textContent } : null;
+        return modifyTool
+          ? {
+              kind: modifyTool.kind,
+              feature: modifyTool.feature,
+              ok: modifyTool.ok,
+              preview: Boolean(modifyPreview),
+              previewThreads: modifyPreview ? modifyPreview.mesh.children.filter((child) => child.userData.designation).map((line) => line.geometry.attributes.position.count) : [],
+              info: modifyInfoEl.textContent,
+            }
+          : null;
       },
       /// The plane, axis and point features drawn: id, what they are, and whether they show.
       get constructs() {

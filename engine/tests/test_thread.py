@@ -180,3 +180,149 @@ def test_a_modeled_external_thread_lies_between_the_core_and_the_shaft():
     assert len(part.solids()) == 1
     minor_radius = 2 - 0.6134 * 0.7
     assert math.pi * minor_radius**2 * 8 < part.volume < math.pi * 2**2 * 8
+
+
+def test_a_partial_thread_starts_after_the_offset_and_from_end_flips_it() -> None:
+    base = {"id": "t", "type": "thread", "base": "shaft", "face": SHAFT_FACE, "designation": "M4"}
+    _, ctx = build([*shaft(2), base])
+    whole = thread_geometry(base, ctx)
+    part = thread_geometry({**base, "length": 3, "offset": 1}, ctx)
+    flipped = thread_geometry({**base, "length": 3, "offset": 1, "from_end": True}, ctx)
+    assert part["length"] == pytest.approx(3)
+    assert part["direction"] == pytest.approx(whole["direction"])
+    assert part["start"] == pytest.approx(
+        [a + b for a, b in zip(whole["start"], whole["direction"], strict=True)]
+    )
+    assert flipped["direction"] == pytest.approx([-v for v in whole["direction"]])
+    # The far end of an 8 mm face, less the 1 mm offset.
+    assert flipped["start"] == pytest.approx(
+        [a + 7 * b for a, b in zip(whole["start"], whole["direction"], strict=True)]
+    )
+
+
+def test_a_thread_longer_than_its_face_is_refused() -> None:
+    thread = {
+        "id": "t",
+        "type": "thread",
+        "base": "shaft",
+        "face": SHAFT_FACE,
+        "designation": "M4",
+        "offset": 2,
+        "length": 7,
+    }
+    with pytest.raises(ValueError, match="does not fit on a face 8 mm long"):
+        build([*shaft(2), thread])
+
+
+def test_the_hand_reaches_the_viewer() -> None:
+    thread = {
+        "id": "t",
+        "type": "thread",
+        "base": "shaft",
+        "face": SHAFT_FACE,
+        "designation": "M4",
+        "hand": "left",
+    }
+    _, ctx = build([*shaft(2), thread])
+    assert thread_geometry(thread, ctx)["hand"] == "left"
+
+
+def block_with_hole(radius: float, height: float = 12, side: float = 18) -> list[dict]:
+    return [
+        {"id": "bs", "type": "sketch", "plane": "XY", "rect": {"width": side, "height": side}},
+        {"id": "block", "type": "extrude", "profile": "bs", "distance": height},
+        {
+            "id": "hs",
+            "type": "sketch",
+            "plane": {"name": "XY", "offset": height},
+            "circle": {"radius": radius},
+        },
+        {
+            "id": "tap",
+            "type": "extrude",
+            "profile": "hs",
+            "base": "block",
+            "mode": "cut",
+            "distance": -height,
+        },
+    ]
+
+
+BLOCK_HOLE_FACE = {
+    "select": [{"op": "faces"}, {"op": "within", "box": [-4, -4, 1, 4, 4, 11]}],
+    "expected_count": 1,
+}
+
+
+def m6_teeth(extra: dict | None = None) -> tuple[float, float]:
+    """An M6 x 12 internal thread's teeth volume, and the annulus they sit in.
+
+    The teeth are what the thread leaves past a plain 6 mm bore; the annulus
+    runs from the nominal to the minor diameter.
+    """
+    thread = {
+        "id": "t",
+        "type": "thread",
+        "base": "tap",
+        "face": BLOCK_HOLE_FACE,
+        "designation": "M6",
+        "modeled": True,
+        **(extra or {}),
+    }
+    part, _ = build([*block_with_hole(2.5), thread])
+    assert part.is_valid
+    assert len(part.solids()) == 1
+    plain = 18 * 18 * 12 - math.pi * 3**2 * 12
+    annulus = math.pi * (3**2 - (3 - 1.0825 / 2) ** 2) * 12
+    return part.volume - plain, annulus
+
+
+def test_a_long_modeled_internal_thread_keeps_all_its_teeth() -> None:
+    # bd_warehouse's own internal thread lost one turn in four here, as loose solids.
+    pytest.importorskip("bd_warehouse")
+    teeth, annulus = m6_teeth()
+    # ISO teeth fill a little over half the annulus.
+    assert 0.45 * annulus < teeth < 0.65 * annulus
+
+
+def test_clearance_opens_a_modeled_hole_thread() -> None:
+    pytest.importorskip("bd_warehouse")
+    nominal, _ = m6_teeth()
+    loose, _ = m6_teeth({"clearance": 0.4})
+    # 0.2 mm off each flank and crest takes material out of every turn.
+    assert loose < nominal - 5
+
+
+def test_a_chamfered_left_hand_hole_thread_is_one_valid_solid() -> None:
+    pytest.importorskip("bd_warehouse")
+    plain, _ = m6_teeth({"hand": "left"})
+    chamfered, _ = m6_teeth({"hand": "left", "ends": "chamfer"})
+    assert chamfered < plain
+
+
+def test_clearance_thins_a_modeled_shaft_thread() -> None:
+    pytest.importorskip("bd_warehouse")
+    base = {"id": "t", "type": "thread", "base": "shaft", "face": SHAFT_FACE, "designation": "M4"}
+    nominal, _ = build([*shaft(2), {**base, "modeled": True}])
+    thin, _ = build([*shaft(2), {**base, "modeled": True, "clearance": 0.3}])
+    assert thin.is_valid
+    assert thin.volume < nominal.volume - 1
+
+
+def test_a_partial_chamfered_shaft_thread_leaves_the_shank_whole() -> None:
+    pytest.importorskip("bd_warehouse")
+    thread = {
+        "id": "t",
+        "type": "thread",
+        "base": "shaft",
+        "face": SHAFT_FACE,
+        "designation": "M4",
+        "modeled": True,
+        "length": 4,
+        "ends": "chamfer",
+    }
+    part, _ = build([*shaft(2), thread])
+    assert part.is_valid
+    assert len(part.solids()) == 1
+    shank = math.pi * 2**2 * 4
+    assert shank < part.volume < math.pi * 2**2 * 8
