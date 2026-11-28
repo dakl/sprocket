@@ -92,8 +92,8 @@ def find_bodies(features: list[dict], ctx: Context) -> list[dict]:
 def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
     """Each body with the document's settings for it.
 
-    The settings are name, colour, finish, visibility, and whether the body
-    draws as a ghost. A reference body does by default.
+    The settings are name, colour, finish, export group, visibility, and
+    whether the body draws as a ghost. A reference body does by default.
     """
     merged = []
     for body in bodies:
@@ -106,6 +106,7 @@ def with_settings(bodies: list[dict], settings: dict) -> list[dict]:
                 "material": own.get("material"),
                 "visible": own.get("visible", True),
                 "ghost": own["ghost"] if "ghost" in own else body["reference"],
+                "group": own.get("group"),
             }
         )
     return merged

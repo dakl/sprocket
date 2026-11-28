@@ -53,13 +53,21 @@ def main(argv: list[str] | None = None) -> int:
         "--3mf-dir",
         dest="three_mf_dir",
         type=Path,
-        help="write one 3MF per body into this existing directory",
+        help="write one 3MF per body (or per group, see --3mf-split) into this existing directory",
+    )
+    build.add_argument(
+        "--3mf-split",
+        dest="three_mf_split",
+        choices=("body", "group"),
+        default="body",
+        help="with --3mf-dir: one file per body (default), or one per body group",
     )
     build.add_argument(
         "--body",
         dest="only_bodies",
         action="append",
-        help="limit --step, --stl-dir, --3mf and --3mf-dir to this body id or name (repeatable)",
+        help="limit --step, --stl-dir, --3mf and --3mf-dir to this body id, name or group "
+        "(repeatable)",
     )
     build.add_argument(
         "--mesh",
@@ -187,6 +195,7 @@ def _build_document(
     three_mf: Path | None = None,
     three_mf_dir: Path | None = None,
     only_bodies: list[str] | None = None,
+    three_mf_split: str = "body",
 ) -> tuple[bool, str, str | None]:
     """Replays one document and exports it.
 
@@ -245,7 +254,7 @@ def _build_document(
             write_3mf(bodies, three_mf)
             messages.append(f"wrote {three_mf}")
         if three_mf_dir:
-            messages.extend(f"wrote {path}" for path in write_3mf_dir(bodies, three_mf_dir))
+            messages.extend(f"wrote {path}" for path in write_3mf_dir(bodies, three_mf_dir, three_mf_split))
         header = export_mesh(result, Path(mesh), document.appearances, bodies) if mesh else None
     except ExportError as exc:
         return False, f"error: {exc}", failed_id
@@ -275,6 +284,7 @@ def _build(args: argparse.Namespace) -> int:
         args.three_mf,
         args.three_mf_dir,
         args.only_bodies,
+        args.three_mf_split,
     )
     if not success:
         print(output, file=sys.stderr)

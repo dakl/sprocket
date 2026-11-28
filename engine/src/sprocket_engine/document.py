@@ -294,7 +294,7 @@ class Document:
         # "select": <selector>}].
         self.appearances = list(appearances or [])
         # Settings per body, keyed by body id:
-        # {"name", "color", "visible", "ghost", "material"}.
+        # {"name", "color", "visible", "ghost", "material", "group"}.
         self.bodies = dict(bodies or {})
         self.revision = revision
         self.log = list(log or [])
@@ -904,7 +904,7 @@ class Document:
                 )
 
     def _set_body(self, edit: dict) -> dict:
-        """Changes one body's name or colour.
+        """Changes one body's name, colour, material or group.
 
         A field set to None goes back to its default. The body id is the id of
         the feature that started the body, which need not be built yet.
@@ -915,7 +915,7 @@ class Document:
         if "visible" in edit or "ghost" in edit:
             raise DocumentError("visibility is view state, not an edit: use set_visibility")
         settings = dict(self.bodies.get(body_id, {}))
-        for name in ("name", "color", "material"):
+        for name in BODY_EDIT_FIELDS:
             if name not in edit:
                 continue
             if edit[name] is None:
@@ -929,7 +929,7 @@ class Document:
             self.bodies.pop(body_id, None)
         return {
             "body": body_id,
-            **{name: edit[name] for name in ("name", "color", "material") if name in edit},
+            **{name: edit[name] for name in BODY_EDIT_FIELDS if name in edit},
         }
 
     def _set_appearances(self, edit: dict) -> dict:
@@ -1034,21 +1034,27 @@ def _check_appearances(appearances) -> None:
             )
 
 
+# The body settings `set_body` changes as a logged edit. A group names the
+# bodies that export together, as one 3MF per group.
+BODY_EDIT_FIELDS = ("name", "color", "material", "group")
+
+
 def _check_body_settings(settings) -> None:
     if not isinstance(settings, dict):
         raise DocumentError("body settings must be a JSON object")
-    unknown = set(settings) - {"name", "color", "visible", "ghost", "material"}
+    unknown = set(settings) - {"name", "color", "visible", "ghost", "material", "group"}
     if unknown:
         raise DocumentError(
             f"unknown body settings {sorted(unknown)} (known: name, color, visible, "
-            "ghost, material)"
+            "ghost, material, group)"
         )
     if "material" in settings and settings["material"] not in PRESETS:
         raise DocumentError(
             f"unknown material {settings['material']!r} (known: {', '.join(PRESETS)})"
         )
-    if "name" in settings and not (isinstance(settings["name"], str) and settings["name"]):
-        raise DocumentError("a body name must be a non-empty string")
+    for name in ("name", "group"):
+        if name in settings and not (isinstance(settings[name], str) and settings[name]):
+            raise DocumentError(f"a body {name} must be a non-empty string")
     if "color" in settings and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(settings["color"])):
         raise DocumentError(f"a body color must be #rrggbb, not {settings['color']!r}")
     for name in ("visible", "ghost"):

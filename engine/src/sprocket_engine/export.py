@@ -110,29 +110,43 @@ def write_stl_dir(bodies, directory) -> list[Path]:
 
 
 def select_bodies(bodies, wanted):
-    """The bodies whose id or name is in `wanted`, or all of them when it is empty.
+    """The bodies whose id, name or group is in `wanted`, or all when it is empty.
 
-    An unknown id or name is an error, not a silently smaller export.
+    An unknown one is an error, not a silently smaller export.
     """
     if not wanted:
         return bodies
-    wanted = list(wanted)
-    known = {key for body in bodies or [] for key in (body["id"], body.get("name"))}
-    missing = [item for item in wanted if item not in known]
+
+    def keys(body):
+        return {body["id"], body.get("name"), body.get("group")} - {None}
+
+    wanted = set(wanted)
+    known = set().union(*(keys(body) for body in bodies or []))
+    missing = sorted(wanted - known)
     if missing:
-        raise ExportError(f"no body with id or name {', '.join(map(repr, missing))}")
-    return [body for body in bodies if body["id"] in wanted or body.get("name") in wanted]
+        raise ExportError(f"no body with id, name or group {', '.join(map(repr, missing))}")
+    return [body for body in bodies if keys(body) & wanted]
 
 
-def write_3mf_dir(bodies, directory) -> list[Path]:
-    """One 3MF per body, named after the body, in an existing directory."""
+def write_3mf_dir(bodies, directory, split: str = "body") -> list[Path]:
+    """One 3MF per body, or per group, in an existing directory.
+
+    With `split="group"` the bodies of one group share a file named after the
+    group, one object per body, and a body in no group gets a file of its own.
+    """
+    if split not in ("body", "group"):
+        raise ExportError(f"3MF split must be 'body' or 'group', not {split!r}")
     directory = Path(directory)
     if not directory.is_dir():
         raise ExportError(f"cannot write 3MF files to {directory}: the directory does not exist")
-    written = []
+    files: dict[str, list[dict]] = {}
     for body in _made(bodies):
-        target = directory / f"{_file_name(body.get('name') or body['id'])}.3mf"
-        write_3mf([body], target)
+        group = body.get("group") if split == "group" else None
+        files.setdefault(group or body.get("name") or body["id"], []).append(body)
+    written = []
+    for name, members in files.items():
+        target = directory / f"{_file_name(name)}.3mf"
+        write_3mf(members, target)
         written.append(target)
     return written
 
